@@ -13,12 +13,24 @@ this.WebVn = this.WebVn || {};
     }
   };
 
+  WebVn.TextNode = class {
+    /**
+     * Renderable text node.
+     * @param {string} text string
+     */
+    constructor(text) {
+      this.text = text;
+    }
+  };
+
   WebVn.TextPrompt = class extends WebVn.AnimatiblePrompt {
     /**
     * Contains any kind of displayable text.
+    * @param {Array<TextNode>} textNodes
     */
-    constructor() {
+    constructor(textNodes) {
       super();
+      this.textNodes = textNodes;
     }
   };
 
@@ -50,13 +62,13 @@ this.WebVn = this.WebVn || {};
     constructor(promptTree) {
       this.promptTree = promptTree;
       let promptIndex = 0; // number
-      let currentAnimatiblePrompt;
       this.getCurrentPrompt = function() {
         return promptTree[promptIndex];
       };
-      this.getCurrentAnimatiblePrompt = function() {
-        return promptTree[currentAnimatiblePrompt];
-      };
+      /**
+       * Advances the player to the next prompt according to current state.
+       * @return {AnimatiblePrompt} The next AnimatiblePrompt.
+       */
       this.advance = function() {
         while (true) {
           promptIndex++;
@@ -65,6 +77,8 @@ this.WebVn = this.WebVn || {};
           } else if (this.getCurrentPrompt()
               instanceof WebVn.AnimatiblePrompt) {
             return this.getCurrentPrompt();
+          } else {
+            return null;
           }
         }
       };

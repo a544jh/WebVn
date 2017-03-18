@@ -71,7 +71,7 @@ this.WebVn = this.WebVn || {};
     */
     constructor(promptTree) {
       this.promptTree = promptTree;
-      let promptIndex = 0; // number
+      let promptIndex = -1;
       this.animatableState = {};
 
       this.getCurrentPrompt = function() {

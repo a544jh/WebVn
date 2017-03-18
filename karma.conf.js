@@ -16,7 +16,6 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       'frontend/webvn-core.js',
-      'frontend/*.js',
       'tests/*.js',
     ],
 

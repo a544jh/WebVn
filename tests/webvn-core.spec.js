@@ -1,8 +1,10 @@
 describe('WebVn player', function() {
-  it('initializes with first currentPrompt', function() {
-    let promptTree = [{text: 'testNode'}];
+  it('returns first AnimatablePrompt when advanced once', function() {
+    let initialPrompt = new WebVn.AnimatablePrompt();
+    let promptTree = [initialPrompt, new WebVn.Prompt()];
     let player = new WebVn.Player(promptTree);
-    expect(player.getCurrentPrompt()).toEqual({text: 'testNode'});
+    player.advance();
+    expect(player.getCurrentPrompt()).toEqual(initialPrompt);
   });
 
   it('advance returns next AnimatibleState', function() {

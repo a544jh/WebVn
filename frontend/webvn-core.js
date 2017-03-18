@@ -3,7 +3,7 @@ this.WebVn = this.WebVn || {};
   WebVn.Prompt = class {
   };
 
-  WebVn.AnimatiblePrompt = class extends WebVn.Prompt {
+  WebVn.AnimatablePrompt = class extends WebVn.Prompt {
     /**
     * Prompt that gets displayed by renderer.
     */
@@ -11,6 +11,16 @@ this.WebVn = this.WebVn || {};
       super();
       // TODO: bg, sprites, sound...
     }
+
+    /**
+    * Get next animateble state.
+    * @param {AnimatableSate} prevState - previous state to apply commands on
+    * @return {AnimatableSate} - the resulting state.
+    */
+    getAnimatableState(prevState) {
+      return this;
+    }
+
   };
 
   WebVn.TextNode = class {
@@ -23,7 +33,7 @@ this.WebVn = this.WebVn || {};
     }
   };
 
-  WebVn.TextPrompt = class extends WebVn.AnimatiblePrompt {
+  WebVn.TextPrompt = class extends WebVn.AnimatablePrompt {
     /**
     * Contains any kind of displayable text.
     * @param {Array<TextNode>} textNodes
@@ -62,12 +72,14 @@ this.WebVn = this.WebVn || {};
     constructor(promptTree) {
       this.promptTree = promptTree;
       let promptIndex = 0; // number
+      this.animatableState = {};
+
       this.getCurrentPrompt = function() {
         return promptTree[promptIndex];
       };
       /**
        * Advances the player to the next prompt according to current state.
-       * @return {AnimatiblePrompt} The next AnimatiblePrompt.
+       * @return {AnimatableState} The next AnimatableState.
        */
       this.advance = function() {
         while (true) {
@@ -75,10 +87,12 @@ this.WebVn = this.WebVn || {};
           if (this.getCurrentPrompt() instanceof WebVn.ControlStructure) {
             // TODO: jump to label
           } else if (this.getCurrentPrompt()
-              instanceof WebVn.AnimatiblePrompt) {
-            return this.getCurrentPrompt();
+              instanceof WebVn.AnimatablePrompt) {
+            return this.getCurrentPrompt()
+              .getAnimatableState(this.animatableState);
           } else {
-            return null;
+            promptIndex--;
+            throw new Error('Reached invalid node!');
           }
         }
       };

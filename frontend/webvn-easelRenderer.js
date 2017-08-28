@@ -58,6 +58,9 @@ function init() {
         x += bounds.width;
         pos += 1;
         dtime = 0;
+        // container.cache(0, 430, 800, 600);
+
+        // let cbounds = container.getBounds();
       });
     }
 

@@ -44,7 +44,7 @@ this.WebVn = this.WebVn || {};
     }
   };
 
-  // TODO: adv, fullscreen, note, freeform
+  // TODO: adv, nvl, note, freeform
 
   // TODO: decision
 

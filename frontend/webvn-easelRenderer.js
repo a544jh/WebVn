@@ -11,16 +11,16 @@ function init() {
       'The quick brown fox jumps over the lazy dog!')])]);
     createjs.Ticker.framerate = 60;
 
-    let nametag = new createjs.Text('asd'
+    let nameText = new createjs.Text('Asd'
     , '16px \'Press Start 2P\'');
-    nametag.x = 5;
-    nametag.y = 410;
-    let origbounds = nametag.getBounds();
-    nametag.regY = origbounds.height / 2;
+    nameText.x = 5;
+    nameText.y = 410;
+    let origbounds = nameText.getBounds();
+    nameText.regY = origbounds.height / 2;
 
-    let gfx = new createjs.Graphics();
+    let nameBox = new createjs.Graphics();
 
-    let bbox = new createjs.Shape(gfx);
+    let bbox = new createjs.Shape(nameBox);
 
     let advg = new createjs.Graphics();
     let adv = new createjs.Shape(advg);
@@ -28,7 +28,7 @@ function init() {
     advg.rect(0, 420, 800, 160);
     adv.alpha = .5;
 
-    stage.addChild(nametag, bbox, adv);
+    stage.addChild(nameText, bbox, adv);
 
     /**
     * type some text into the adv box!
@@ -66,15 +66,22 @@ function init() {
 
     typeWord(player.advance().textNodes[0].text);
 
+    let testText = new createjs.Text("The quick brown fox jumps over the lazy dog!", '16px \'Arial\'');
+
+    testText.x = 0;
+    testText.y = 422 + 16;
+
+    stage.addChild(testText);
+
     createjs.Ticker.addEventListener('tick', function() {
       let ticks = createjs.Ticker.getTicks();
-      nametag.scaleY = Math.sin(ticks * .2) * .5 + .5;
+      //nameText.scaleY = Math.sin(ticks * .2) * .5 + .5;
 
-      let bounds = nametag.getTransformedBounds();
+      let bounds = nameText.getTransformedBounds();
 
-      gfx.clear();
-      gfx.setStrokeStyle(1, 2)
-      .beginStroke('black')
+      nameBox.clear();
+      nameBox.setStrokeStyle(2, 2)
+      .beginStroke('rgba(0,0,0,.5)')
       .r(bounds.x, bounds.y, bounds.width, bounds.height);
       stage.update();
     });

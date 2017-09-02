@@ -5,7 +5,8 @@ module.exports = {
     },
     "extends": "esnext",
     "rules" : {
-      "semi" : "error"
+      "semi" : "error",
+      "no-console" : "off"
     },
     "globals" : {
       "createjs" : true

@@ -1,8 +1,6 @@
 import 'yuki-createjs';
-
+import Elm from './elm/MyPortModule.elm';
 import './index.html';
-
-import Elm from './elm/Main.elm';
 
 const stage = new createjs.Stage('easelCanvas');
 
@@ -12,4 +10,10 @@ stage.addChild(helloWorld);
 
 stage.update();
 
-Elm.Main.embed(document.getElementById('elmDiv'));
+const elmApp = Elm.MyPortModule;
+
+elmApp.embed(document.getElementById('elmDiv'), "asd");
+window.setTimeout( () =>
+elmApp.ports.jsUpdate.subscribe(model => {
+  console.log(model);
+}));

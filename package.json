@@ -15,10 +15,6 @@
     "eslint": "^4.6.0",
     "eslint-config-esnext": "^1.6.0",
     "file-loader": "^0.11.2",
-    "jasmine-core": "^2.5.2",
-    "karma": "^1.5.0",
-    "karma-chrome-launcher": "^2.0.0",
-    "karma-jasmine": "^1.1.0",
     "webpack": "^3.5.5",
     "webpack-dev-server": "^2.7.1"
   },

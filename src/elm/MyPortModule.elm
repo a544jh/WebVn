@@ -3,15 +3,15 @@ port module MyPortModule exposing (..)
 import Html exposing (..)
 import Html.Events exposing (..)
 
-port portttojs : String -> Cmd msg
+port jsUpdate : Model -> Cmd msg
 
-{- type alias JsCmd =
+type alias JsCmd =
     {
          cmd : String,
          payload : String
-    }-}
+    }
 
-port portfromjs : (String -> msg) -> Sub msg
+port jsCmd : (JsCmd -> msg) -> Sub msg
 
 -- MODEL
 
@@ -31,7 +31,7 @@ init =
 
 type Msg
     = ToJs
-    | FromJs String
+    | FromJs JsCmd
 
 
 
@@ -53,7 +53,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ToJs ->
-            ( model, Cmd.batch [portttojs model] )
+            ( model, Cmd.batch [jsUpdate model] )
         FromJs jsCmd ->
             ("Got cmd from js!", Cmd.none)
 
@@ -64,7 +64,7 @@ update msg model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    portfromjs FromJs
+    jsCmd FromJs
 
 
 

@@ -10,10 +10,16 @@ stage.addChild(helloWorld);
 
 stage.update();
 
-const elmApp = Elm.MyPortModule;
-
-elmApp.embed(document.getElementById('elmDiv'), "asd");
-window.setTimeout( () =>
+const elmApp = Elm.MyPortModule.embed(document.getElementById('elmDiv'), "asd");
 elmApp.ports.jsUpdate.subscribe(model => {
   console.log(model);
-}));
+  helloWorld.text = "Got msg from Elm!";
+  stage.update();
+});
+
+document.getElementById("toElm").addEventListener('click', () => {
+  elmApp.ports.jsCmd.send({
+    cmd : "asd",
+    payload : "asd"
+  });
+});

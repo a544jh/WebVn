@@ -3,5 +3,14 @@ module.exports = {
       "browser": true,
       "es6":true
     },
-    "extends": "esnext"
+    "extends": "esnext",
+    "rules" : {
+      "semi" : "error"
+    },
+    "globals" : {
+      "createjs" : true
+    },
+    "settings" : {
+      "import/ignore" : ["\.elm$"]
+    }
 };

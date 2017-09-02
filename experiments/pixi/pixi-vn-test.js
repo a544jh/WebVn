@@ -56,7 +56,7 @@ function init() {
         x = 0;
         return;
       }
-      dtime += PIXI.ticker.shared.delta;
+      dtime += PIXI.ticker.shared.elapsedMS;
       if (dtime < 20) {
         return;
       }

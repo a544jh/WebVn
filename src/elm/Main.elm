@@ -1,9 +1,10 @@
-port module MyPortModule exposing (..)
+port module Main exposing (..)
 
 import Html exposing (..)
 import Html.Events exposing (..)
+import WebVn.Core
 
-port jsUpdate : Model -> Cmd msg
+port jsUpdate : String -> Cmd msg
 
 type alias JsCmd =
     {
@@ -17,13 +18,11 @@ port jsCmd : (JsCmd -> msg) -> Sub msg
 
 
 type alias Model =
-    String
+    WebVn.Core.Player
 
 
 init : ( Model, Cmd Msg )
-init =
-    ( "Hello", Cmd.none )
-
+init = (WebVn.Core.initialPlayer, Cmd.none)
 
 
 -- MESSAGES
@@ -41,7 +40,7 @@ type Msg
 view : Model -> Html Msg
 view model =
     div []
-        [ text model
+        [ text "asd"
         , button [onClick ToJs] [text "ToJs!"] ]
 
 
@@ -53,9 +52,9 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ToJs ->
-            ( model, Cmd.batch [jsUpdate model] )
+            ( model, Cmd.batch [jsUpdate "model"] )
         FromJs jsCmd ->
-            ("Got cmd from js!", Cmd.none)
+            ( model, Cmd.none)
 
 
 

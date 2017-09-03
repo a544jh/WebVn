@@ -79,3 +79,7 @@ main =
         , update = update
         , subscriptions = subscriptions
         }
+
+add : number -> number -> number
+add a b =
+    a + b

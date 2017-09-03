@@ -40,7 +40,7 @@ type Msg
 view : Model -> Html Msg
 view model =
     div []
-        [ text "asd"
+        [ text <| toString model
         , button [onClick ToJs] [text "ToJs!"] ]
 
 
@@ -52,9 +52,9 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ToJs ->
-            ( model, Cmd.batch [jsUpdate "model"] )
+            ( model, Cmd.batch [jsUpdate <| toString model] )
         FromJs jsCmd ->
-            ( model, Cmd.none)
+            ( WebVn.Core.advance model, Cmd.batch [jsUpdate <| toString model])
 
 
 

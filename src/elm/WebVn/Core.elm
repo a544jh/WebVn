@@ -130,7 +130,7 @@ advance player =
             player.promptIndex + 1
 
         nextPrompt =
-            List.take nextIndex player.story |> List.head
+            List.drop nextIndex player.story |> List.head
     in
         case nextPrompt of
             Just prompt ->
@@ -140,11 +140,10 @@ advance player =
                             | state = applyAnimatablePrompt params player.state
                             , promptIndex = nextIndex
                         }
-
+                    --TODO
                     ControlStructure ->
                         player
 
-            --TODO
             Nothing ->
                 player
 

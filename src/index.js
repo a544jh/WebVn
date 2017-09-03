@@ -5,7 +5,7 @@ import './index.html';
 const stage = new createjs.Stage('easelCanvas');
 
 const helloWorld = new createjs.Text('Hello World', "16px 'Arial'");
-
+helloWorld.lineWidth = 600;
 stage.addChild(helloWorld);
 
 stage.update();
@@ -13,7 +13,7 @@ stage.update();
 const elmApp = Elm.Main.embed(document.getElementById('elmDiv'), "asd");
 elmApp.ports.jsUpdate.subscribe(model => {
   console.log(model);
-  helloWorld.text = "Got msg from Elm!";
+  helloWorld.text = model;
   stage.update();
 });
 

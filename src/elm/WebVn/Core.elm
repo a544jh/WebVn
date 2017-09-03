@@ -1,5 +1,6 @@
 module WebVn.Core exposing (..)
 
+import WebVn.Text exposing (..)
 
 type alias Player =
     { story : List Prompt
@@ -18,8 +19,8 @@ initialPlayer = {
         }
     , stop = True
     , label = Nothing
-    }]
-    , promptIndex = 0
+    }, basicAdvPrompt "Prompt 1!", basicAdvPrompt "Prompt 2!"]
+    , promptIndex = -1
     , state = initialState
     }
 
@@ -27,6 +28,12 @@ type Prompt
     = AnimatablePrompt PromptParams
     | ControlStructure -- TODO Descision
 
+basicAdvPrompt : String -> Prompt
+basicAdvPrompt string =
+    case initialPrompt of
+        AnimatablePrompt params ->
+            AnimatablePrompt {params | text = Just <| WebVn.Text.basicAdvPrompt string}
+        _ -> initialPrompt
 
 type alias PromptParams =
     { preCmds : List Command
@@ -35,6 +42,14 @@ type alias PromptParams =
     , label : Maybe String
     }
 
+initialPrompt : Prompt
+initialPrompt =
+    AnimatablePrompt
+    { preCmds = []
+    , text = Nothing
+    , stop = True
+    , label = Nothing
+    }
 
 type ControlStructure
     = CondintionalJump ToLabel Bool
@@ -49,57 +64,6 @@ type Command
     = SpriteCmd
     | BgCmd
 
-
-type TextCommand
-    = Command
-    | AppendText TextNode
-
-
-type alias TextNode =
-    { text : String
-    , color : String
-    , typeSpeed : Int
-    }
-
-emptyTextNode : TextNode
-emptyTextNode = 
-    { text = ""
-    , color = "#000000"
-    , typeSpeed = 0
-    }
-
-type alias NameTag =
-    Maybe TextNode
-
-
-type alias TextPrompt =
-    { style : TextPromptStyle
-    , textCmds : List TextCommand
-    , nameTag : NameTag
-    }
-
-
-type TextPromptStyle
-    = Adv
-    | Nvl
-    | Note
-    | Freeform
-
-
-type alias TextBoxState =
-    { style : Maybe TextPromptStyle
-    , transitionFrom : Maybe TextPromptStyle
-    , nameTag : NameTag
-    , commands : List TextCommand
-    }
-
-initialTextBoxState : TextBoxState
-initialTextBoxState =
-    { style = Nothing
-    , transitionFrom = Nothing
-    , nameTag = Nothing
-    , commands = []
-    }
 
 type alias State =
     { music : ()
@@ -155,22 +119,4 @@ applyAnimatablePrompt prompt state =
     }
 
 
-updateTextBox : Maybe TextPrompt -> TextBoxState -> TextBoxState
-updateTextBox textPrompt textBoxState =
-    case textPrompt of
-        Just textPrompt ->
-            { textBoxState
-                | style = Just textPrompt.style
-                , transitionFrom = textBoxState.style
-                , nameTag = textPrompt.nameTag
-                , commands = textPrompt.textCmds
-            }
 
-        Nothing ->
-            { textBoxState
-                | style = Nothing
-                , transitionFrom = textBoxState.style
-
-                --, nameTag = TODO EMPTY
-                , commands = []
-            }

@@ -1,5 +1,6 @@
 module WebVn.Core exposing (..)
 
+import Json.Encode as JE
 import WebVn.Text exposing (..)
 
 type alias Player =
@@ -76,6 +77,17 @@ type alias State =
     , textBox : TextBoxState
     , sceneName : String
     }
+
+stateToJson : State -> String
+stateToJson state =
+    JE.object
+        [ ("music", JE.string "todo")
+        , ("background", JE.string "todo")
+        , ("preCommands", JE.string "todo")
+        , ("textBox", WebVn.Text.textBoxStateToJson state.textBox)
+        , ("sceneName", JE.string state.sceneName)
+        ]
+    |> JE.encode 2
 
 initialState : State
 initialState =

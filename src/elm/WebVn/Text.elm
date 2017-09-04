@@ -1,5 +1,7 @@
 module WebVn.Text exposing (..)
 
+import Json.Encode as JE
+
 updateTextBox : Maybe TextPrompt -> TextBoxState -> TextBoxState
 updateTextBox textPrompt oldState =
     case textPrompt of
@@ -61,6 +63,16 @@ type TextPromptStyle
     | Note
     | Freeform
 
+textPromptStyleToJson : Maybe TextPromptStyle -> JE.Value
+textPromptStyleToJson style =
+    case style of
+        Just style ->
+            case style of
+                Adv -> JE.string "adv"
+                Nvl -> JE.string "nvl"
+                Note -> JE.string "note"
+                Freeform -> JE.string "freeform"
+        Nothing -> JE.null
 
 type alias TextBoxState =
     { style : Maybe TextPromptStyle
@@ -69,6 +81,15 @@ type alias TextBoxState =
     , prevNameTag : NameTag
     , commands : List TextCommand
     }
+
+textBoxStateToJson : TextBoxState -> JE.Value
+textBoxStateToJson state =
+    JE.object
+        [ ("style", textPromptStyleToJson state.style)
+        , ("transitionFrom", JE.string "TODO")
+        , ("nameTag", JE.string "TODO")
+        , ("commands", JE.string "TODO")
+        ]
 
 initialTextBoxState : TextBoxState
 initialTextBoxState =

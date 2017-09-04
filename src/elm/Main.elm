@@ -24,7 +24,7 @@ type alias Model =
 init : ( Model, Cmd Msg )
 init =
     let model = WebVn.Core.initialPlayer
-    in (model, jsUpdate <| toString model.state)
+    in (model, jsUpdate <| WebVn.Core.stateToJson model.state)
 
 
 -- MESSAGES
@@ -54,10 +54,10 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ToJs ->
-            ( model, Cmd.batch [jsUpdate <| toString model.state] )
+            ( model, Cmd.batch [jsUpdate <| WebVn.Core.stateToJson model.state] )
         FromJs jsCmd ->
             let newModel = WebVn.Core.advance model
-            in (newModel, Cmd.batch [jsUpdate <| toString newModel.state])
+            in (newModel, Cmd.batch [jsUpdate <| WebVn.Core.stateToJson newModel.state])
 
 
 

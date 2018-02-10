@@ -10,15 +10,17 @@
     }
 
     .textbox {
+      font-family: 'Press Start 2P';
+      font-size: 16px;
       background-color: rgba(0, 0, 0, .2);
       width: 480px;
-      height: 7.5ex;
-      line-height: 2.5ex;
+      height: 124px;
       overflow: hidden;
     }
   </style>
   <meta charset="utf-8" />
   <title>Typewriter test</title>
+  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
 </head>
 
 <body>
@@ -28,6 +30,10 @@
   <div class="textbox" id="span_replacement"></div>
   CSS transition delay
   <div class="textbox" id="transition_delay"></div>
+  Canvas
+  <div class="textbox">
+    <canvas id="canvas" width="480" height="124"></canvas>
+  </div>
   <textarea>
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam
 condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
@@ -48,6 +54,7 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
       spanVisibility()
       spanReplacement()
       transitionDelay()
+      renderCanvas()
 
 
       function spanVisibility() {
@@ -112,6 +119,61 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
           }
         }, 0)
       }
+
+      function renderCanvas() {
+        let lastRender = Date.now()
+
+        let canvas = document.getElementById("canvas")
+        let ctx = canvas.getContext("2d")
+        ctx.font = '16px "Press Start 2P"'
+        let textHeight = 16
+        let w = canvas.width
+        let h = canvas.height
+
+        let charIndex = 0
+        window.requestAnimationFrame(render)
+
+        function render() {
+          if (charIndex < text.length) {
+            window.requestAnimationFrame(render)
+          }
+          let date = Date.now()
+          delta = date - lastRender
+          if (delta < delay) {
+            return
+          }
+          lastRender = date
+
+          ctx.save()
+          ctx.clearRect(0, 0, w, h)
+          let x = 0
+          let y = textHeight
+
+          for (let i = 0; i < text.length; i++) {
+            if (i >= charIndex + 1) {
+              ctx.globalAlpha = 0;
+            }
+            let char = text.charAt(i)
+            if (char === " ") {
+              let fromWord = text.substring(i + 1)
+              let nextWord = fromWord.substring(0, fromWord.indexOf(" "))
+              let wordWith = ctx.measureText(nextWord).width
+              if (x + wordWith > w) {
+                x = 0
+                y += textHeight
+                continue
+              }
+            }
+            ctx.fillText(char, x, y)
+            x += ctx.measureText(char).width
+
+          }
+          charIndex++
+          ctx.restore()
+        }
+
+      }
+
     }
 
   </script>

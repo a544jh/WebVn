@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    textarea {
+      display: block;
+      width: 480px;
+      height: 3em;
+    }
+
+    .textbox {
+      background-color: rgba(0, 0, 0, .2);
+      width: 480px;
+      height: 7.5ex;
+      line-height: 2.5ex;
+      overflow: hidden;
+    }
+  </style>
+  <meta charset="utf-8" />
+  <title>Typewriter test</title>
+</head>
+
+<body>
+  Span visibility
+  <div class="textbox" id="span_visibility"></div>
+  Span text replacement
+  <div class="textbox" id="span_replacement"></div>
+  CSS transition delay
+  <div class="textbox" id="transition_delay"></div>
+  <textarea>
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam
+condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
+  </textarea>
+  <label>
+    Character delay (ms):
+    <input type="number" id="char_delay" value="20">
+  </label>
+  <button id="start_button">Start</button>
+  <script>
+    let textarea = document.getElementsByTagName("textarea")[0]
+    document.getElementById("start_button").addEventListener("click", startTypewriter)
+    let charDelayInput = document.getElementById("char_delay")
+
+    function startTypewriter() {
+      let text = textarea.value
+      let delay = charDelayInput.value
+      spanVisibility()
+      spanReplacement()
+      transitionDelay()
+
+
+      function spanVisibility() {
+        let textbox = document.getElementById("span_visibility")
+        textbox.innerHTML = ""
+
+        for (char of text) {
+          let span = document.createElement("span")
+          span.innerText = char
+          span.style.visibility = "hidden"
+          textbox.appendChild(span)
+        }
+
+        let charIndex = 0
+
+        let interval = window.setInterval(showChar, delay)
+        function showChar() {
+          textbox.children[charIndex].style.visibility = "initial"
+          charIndex++
+          if (charIndex >= text.length) {
+            window.clearInterval(interval)
+          }
+        }
+      }
+
+      function spanReplacement() {
+        let textbox = document.getElementById("span_replacement")
+        textbox.innerHTML = ""
+
+        let visibleChars = document.createElement("span")
+        let hiddenChars = document.createElement("span")
+        hiddenChars.style.visibility = "hidden"
+        textbox.appendChild(visibleChars)
+        textbox.appendChild(hiddenChars)
+        hiddenChars.textContent = text
+
+        let interval = window.setInterval(showChar, delay)
+
+        function showChar() {
+          visibleChars.textContent = visibleChars.textContent + hiddenChars.textContent.charAt(0)
+          hiddenChars.textContent = hiddenChars.textContent.substring(1)
+          if (hiddenChars.textContent.length === 0) {
+            window.clearInterval(interval)
+          }
+        }
+      }
+
+      function transitionDelay() {
+        let textbox = document.getElementById("transition_delay")
+        textbox.innerHTML = ""
+        for (let i = 0; i < text.length; i++) {
+          let span = document.createElement("span")
+          span.innerText = text.charAt(i)
+          span.style.visibility = "hidden"
+          span.style.transitionProperty = "visibility"
+          span.style.transitionDelay = (i * delay) + "ms"
+          textbox.appendChild(span)
+        }
+        window.setTimeout(function () {
+          for (let i = 0; i < textbox.children.length; i++) {
+            textbox.children[i].style.visibility = ""
+          }
+        }, 0)
+      }
+    }
+
+  </script>
+</body>
+
+</html>

@@ -12,10 +12,12 @@
     .textbox {
       font-family: 'Press Start 2P';
       font-size: 16px;
+      line-height: 16px;
       background-color: rgba(0, 0, 0, .2);
-      width: 480px;
-      height: 124px;
+      width: 481px;
+      height: 158px;
       overflow: hidden;
+      user-select: none;
     }
   </style>
   <meta charset="utf-8" />
@@ -31,16 +33,13 @@
   CSS transition delay
   <div class="textbox" id="transition_delay"></div>
   Canvas
-  <div class="textbox">
-    <canvas id="canvas" width="480" height="124"></canvas>
-  </div>
+  <div class="textbox" id="render_canvas"></div>
   <textarea>
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam
-condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
-  </textarea>
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
+</textarea>
   <label>
     Character delay (ms):
-    <input type="number" id="char_delay" value="20">
+    <input type="number" id="char_delay" value="10">
   </label>
   <button id="start_button">Start</button>
   <script>
@@ -48,9 +47,17 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
     document.getElementById("start_button").addEventListener("click", startTypewriter)
     let charDelayInput = document.getElementById("char_delay")
 
+    let canvasDiv = document.getElementById("render_canvas")
+    let canvas = document.createElement("canvas")
+    canvas.height = canvasDiv.clientHeight
+    canvas.width = canvasDiv.clientWidth
+    canvasDiv.appendChild(canvas)
+
     function startTypewriter() {
       let text = textarea.value
       let delay = charDelayInput.value
+
+
       spanVisibility()
       spanReplacement()
       transitionDelay()
@@ -121,9 +128,6 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
       }
 
       function renderCanvas() {
-        let lastRender = Date.now()
-
-        let canvas = document.getElementById("canvas")
         let ctx = canvas.getContext("2d")
         ctx.font = '16px "Press Start 2P"'
         let textHeight = 16
@@ -131,19 +135,10 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
         let h = canvas.height
 
         let charIndex = 0
-        window.requestAnimationFrame(render)
+
+        let interval = window.setInterval(render, delay)
 
         function render() {
-          if (charIndex < text.length) {
-            window.requestAnimationFrame(render)
-          }
-          let date = Date.now()
-          delta = date - lastRender
-          if (delta < delay) {
-            return
-          }
-          lastRender = date
-
           ctx.save()
           ctx.clearRect(0, 0, w, h)
           let x = 0
@@ -157,6 +152,7 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
             if (char === " ") {
               let fromWord = text.substring(i + 1)
               let nextWord = fromWord.substring(0, fromWord.indexOf(" "))
+              if (nextWord == "") nextWord = fromWord
               let wordWith = ctx.measureText(nextWord).width
               if (x + wordWith > w) {
                 x = 0
@@ -169,6 +165,9 @@ condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. 
 
           }
           charIndex++
+          if (charIndex >= text.length) {
+            window.clearInterval(interval)
+          }
           ctx.restore()
         }
 

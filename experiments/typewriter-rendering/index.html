@@ -10,19 +10,21 @@
     }
 
     .textbox {
-      font-family: 'Press Start 2P';
-      font-size: 16px;
-      line-height: 16px;
-      background-color: rgba(0, 0, 0, .2);
-      width: 481px;
-      height: 158px;
+      font-family: 'Source Code Pro';
+      font-weight: bold;
+      font-size: 24px;
+      line-height: 24px;
+      color: #60baff;
+      text-shadow: 2px 2px 0px black;
+      background-color: rgba(0, 0, 0, .4);
+      width: 640px;
+      height: 100px;
       overflow: hidden;
-      user-select: none;
     }
   </style>
   <meta charset="utf-8" />
   <title>Typewriter test</title>
-  <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet">
 </head>
 
 <body>
@@ -34,17 +36,23 @@
   <div class="textbox" id="transition_delay"></div>
   Canvas
   <div class="textbox" id="render_canvas"></div>
-  <textarea>
+  <form>
+    <textarea>
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
 </textarea>
-  <label>
-    Character delay (ms):
-    <input type="number" id="char_delay" value="10">
-  </label>
-  <button id="start_button">Start</button>
+    <label>
+      Character delay (ms):
+      <input type="number" id="char_delay" value="10">
+    </label>
+    <input type="submit" value="Start"></input>
+  </form>
   <script>
+    document.getElementsByTagName("form")[0].addEventListener("submit", function (e) {
+      e.preventDefault()
+      startTypewriter()
+    })
+
     let textarea = document.getElementsByTagName("textarea")[0]
-    document.getElementById("start_button").addEventListener("click", startTypewriter)
     let charDelayInput = document.getElementById("char_delay")
 
     let canvasDiv = document.getElementById("render_canvas")
@@ -129,8 +137,8 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac
 
       function renderCanvas() {
         let ctx = canvas.getContext("2d")
-        ctx.font = '16px "Press Start 2P"'
-        let textHeight = 16
+        ctx.font = 'bold 24px "Source Code Pro"'
+        let textHeight = 16 + 8
         let w = canvas.width
         let h = canvas.height
 
@@ -160,6 +168,9 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac
                 continue
               }
             }
+            ctx.fillStyle = "black"
+            ctx.fillText(char, x + 2, y + 2)
+            ctx.fillStyle = "#60baff"
             ctx.fillText(char, x, y)
             x += ctx.measureText(char).width
 

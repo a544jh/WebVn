@@ -123,14 +123,14 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac
         for (let i = 0; i < text.length; i++) {
           let span = document.createElement("span")
           span.innerText = text.charAt(i)
-          span.style.visibility = "hidden"
-          span.style.transitionProperty = "visibility"
+          span.style.opacity = "0"
+          span.style.transitionProperty = "opacity"
           span.style.transitionDelay = (i * delay) + "ms"
           textbox.appendChild(span)
         }
         window.setTimeout(function () {
           for (let i = 0; i < textbox.children.length; i++) {
-            textbox.children[i].style.visibility = ""
+            textbox.children[i].style.opacity = "1"
           }
         }, 0)
       }

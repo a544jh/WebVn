@@ -16,6 +16,8 @@
     position: absolute;
     top: 0px;
     left: 0px;
+    width: 100%;
+    overflow: hidden;
   }
 
   #venetian_container>div {
@@ -29,7 +31,7 @@
 
   <label>
     Slices
-    <input type="number" id="slices" value="26">
+    <input type="number" id="slices" value="40">
   </label>
   <label>
     Duration (ms)
@@ -59,7 +61,7 @@
     function preloadAssets() {
       let img = document.createElement("img")
       img.src = "b.png"
-      img.addEventListener("load",function(e) {
+      img.addEventListener("load", function (e) {
         assetsLoaded = true
 
         startBtn.disabled = false
@@ -85,6 +87,8 @@
 
       const sliceWidth = 1040 / numSlices
 
+      const overlapPx = 2 // workaround for mobile browser scaling artifacts...
+
       let containerElem = document.createElement("div")
       containerElem.id = "venetian_container"
       bgElem.appendChild(containerElem)
@@ -92,11 +96,12 @@
       for (let i = 0; i < numSlices; i++) {
         let sliceElem = document.createElement("div");
         sliceElem.style.height = "780px"
-        sliceElem.style.width = sliceWidth + "px"
+        sliceElem.style.width = (sliceWidth + overlapPx) + "px"
+        sliceElem.style.marginRight = -overlapPx + "px"
         sliceElem.style.backgroundImage = 'url("' + nextImg + '")'
         sliceElem.style.backgroundPositionX = "-" + (i * sliceWidth) + "px"
 
-        sliceElem.style.clipPath = "inset(0px " + sliceWidth + "px 0px 0px)"
+        sliceElem.style.clipPath = "inset(0px " + (sliceWidth + overlapPx) + "px 0px 0px)"
         sliceElem.style.transitionProperty = "clip-path"
         sliceElem.style.transitionDuration = (factor * durationMs) + "ms"
         sliceElem.style.transitionDelay = ((i / (numSlices - 1)) * (durationMs - factor * durationMs)) + "ms"

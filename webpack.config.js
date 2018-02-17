@@ -1,5 +1,8 @@
 let path = require("path");
 
+const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
+const isDevServer = process.argv[1].indexOf('webpack-dev-server') !== -1;
+
 module.exports = {
   
   entry: {
@@ -37,3 +40,7 @@ module.exports = {
   
   
 };
+
+if (!isDevServer) {
+  module.exports.plugins = [new UglifyJsPlugin()];
+}

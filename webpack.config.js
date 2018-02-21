@@ -1,46 +1,47 @@
 let path = require("path");
 
-const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
-const isDevServer = process.argv[1].indexOf('webpack-dev-server') !== -1;
+const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
+const isDevServer = process.argv[1].indexOf("webpack-dev-server") !== -1;
 
 module.exports = {
-  
   entry: {
-    app: [
-      './src/index.js'
-    ]
+    app: ["./src/index.ts"]
   },
-  
+
   output: {
-    path: path.resolve(__dirname + '/dist'),
-    filename: '[name].js',
+    path: path.resolve(__dirname + "/dist"),
+    filename: "[name].js"
   },
-  
+
+  resolve: {
+    extensions: [".tsx", ".ts", ".js"]
+  },
+
+  devtool: "source-map",
+
   module: {
     rules: [
       {
-        test:    /\.html$/,
+        test: /\.html$/,
         exclude: /node_modules/,
-        loader:  'file-loader?name=[name].[ext]',
+        loader: "file-loader?name=[name].[ext]"
       },
       {
-        test:    /\.elm$/,
-        exclude: /node_modules/,
-        loader:  'elm-webpack-loader?verbose=true&warn=true',
+        test: /\.tsx?$/,
+        use: "ts-loader",
+        exclude: /node_modules/
       }
-    ],
-    
-    noParse: /\.elm$/,
+    ]
   },
-  
+
   devServer: {
     inline: true,
-    stats: { colors: true },
-  },
-  
-  
+    stats: { colors: true }
+  }
 };
 
 if (!isDevServer) {
-  module.exports.plugins = [new UglifyJsPlugin()];
+  module.exports.plugins = [
+    new UglifyJsPlugin()
+  ];
 }

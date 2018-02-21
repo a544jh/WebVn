@@ -128,11 +128,13 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac
           span.style.transitionDelay = (i * delay) + "ms"
           textbox.appendChild(span)
         }
-        window.setTimeout(function () {
-          for (let i = 0; i < textbox.children.length; i++) {
-            textbox.children[i].style.opacity = "1"
-          }
-        }, 0)
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            for (let i = 0; i < textbox.children.length; i++) {
+              textbox.children[i].style.opacity = "1"
+            }
+          })
+        })
       }
 
       function renderCanvas() {

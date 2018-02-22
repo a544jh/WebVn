@@ -1,15 +1,19 @@
-import { VnPlayerState, TextBoxType } from "./state"
+import { TextBoxType, VnPlayerState } from "./state"
 
 const initialState: VnPlayerState = {
   commands : [],
   animatableState: {
-    text: null
-  }
+    text: null,
+  },
 }
 
 export class VnPlayer {
-  state: VnPlayerState
-  constructor() {
-    this.state = initialState
+  public state: VnPlayerState
+  constructor(state: VnPlayerState | undefined) {
+    this.state = state === undefined ? initialState : state
+  }
+
+  public advance() {
+    this.state = this.state
   }
 }

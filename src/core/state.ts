@@ -1,19 +1,19 @@
 import { Command } from "./commands"
 
-export interface VnPlayerState{
-  readonly commands: Array<Command>
+export interface VnPlayerState {
+  readonly commands: Command[]
   readonly animatableState: AnimatableState
-  //user settings, saves...
+  // user settings, saves...
 }
 
 export interface AnimatableState {
   text: TextBox | null
-  //bg, actors, bgn, sfx...
+  // bg, actors, bgn, sfx...
 }
 
 export interface TextBox {
   type: TextBoxType
-  textNodes: Array<TextNode>
+  textNodes: TextNode[]
 }
 
 export interface ADVTextBox extends TextBox {
@@ -23,7 +23,7 @@ export interface ADVTextBox extends TextBox {
 }
 
 export const enum TextBoxType {
-  ADV = "adv" , NVL = "nvl", freeform = "freeform"
+  ADV = "adv" , NVL = "nvl", freeform = "freeform",
 }
 
 export interface TextNode {

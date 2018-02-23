@@ -11,6 +11,10 @@ export class DomRenderer {
   constructor(elem: HTMLElement, player: VnPlayer) {
     this.root = elem
     this.player = player
+
+    // separeate "virtual dom" logic...
+    this.textBox = document.createElement("div")
+    this.root.appendChild(this.textBox)
   }
 
   public render(state: VnPlayerState) {
@@ -33,7 +37,6 @@ export class DomRenderer {
   }
 
   private renderAdv(adv: ADVTextBox) {
-    this.textBox = document.createElement("div")
     this.textBox.innerHTML = ""
 
     adv.textNodes.forEach((node, index) => {
@@ -52,7 +55,6 @@ export class DomRenderer {
       }
     })
 
-    this.root.appendChild(this.textBox)
     // may want to batch suff like this at the end of the whole render...
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {

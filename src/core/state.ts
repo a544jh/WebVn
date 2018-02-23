@@ -1,6 +1,7 @@
 import { Command } from "./commands"
 
 export interface VnPlayerState {
+  readonly commandIndex: number
   readonly commands: Command[]
   readonly animatableState: AnimatableState
   // user settings, saves...
@@ -11,15 +12,17 @@ export interface AnimatableState {
   // bg, actors, bgn, sfx...
 }
 
-export interface TextBox {
+export type TextBox = ADVTextBox | null
+
+interface ITextBox {
   type: TextBoxType
   textNodes: TextNode[]
 }
 
-export interface ADVTextBox extends TextBox {
+export interface ADVTextBox extends ITextBox {
   type: TextBoxType.ADV
-  nameTag: string
-  nameTagColor: string
+  nameTag?: string
+  nameTagColor?: string
 }
 
 export const enum TextBoxType {

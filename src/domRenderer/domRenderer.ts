@@ -5,6 +5,8 @@ export class DomRenderer {
   private root: HTMLElement
   private player: VnPlayer
 
+  private prevState : VnPlayerState
+
   // lol "virtual dom"
   private textBox: HTMLDivElement
 
@@ -14,14 +16,21 @@ export class DomRenderer {
 
     // separeate "virtual dom" logic...
     this.textBox = document.createElement("div")
+    this.textBox.classList.add("vn-adv-textbox")
     this.root.appendChild(this.textBox)
   }
 
   public render(state: VnPlayerState) {
     this.renderText(state.animatableState.text)
+
+    this.prevState = state
   }
 
   private renderText(text: TextBox | null) {
+    if (this.prevState && this.prevState.animatableState.text === text) {
+      // lol diffing
+      return
+    }
 
     if (text === null) {
       this.root.removeChild(this.textBox)

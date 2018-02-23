@@ -26,6 +26,11 @@ module.exports = {
         exclude: /node_modules/,
         loader: "file-loader?name=[name].[ext]"
       },
+      // may want to handle the theme loading ourselves...
+      {
+        test: /\.css$/,
+        use: [ 'style-loader', 'css-loader' ]
+      },
       {
         test: /\.tsx?$/,
         use: "ts-loader",

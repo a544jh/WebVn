@@ -1,13 +1,18 @@
-import './index.html';
-import { VnPlayer } from './core/player';
-import { VnPlayerState, TextBoxType } from './core/state';
-import { DomRenderer } from './domRenderer/domRenderer';
-import { CommandType } from './core/commands';
+import "./index.html";
+import "./defaultTheme.css";
 
+import { VnPlayer } from "./core/player";
+import { VnPlayerState, TextBoxType } from "./core/state";
+import { DomRenderer } from "./domRenderer/domRenderer";
+import { CommandType } from "./core/commands";
 
 const state: VnPlayerState = {
   commandIndex: 0,
-  commands : [
+  commands: [
+    {
+      type: CommandType.ADV,
+      text: "Hello from WebVn!"
+    },
     {
       type: CommandType.ADV,
       text: "A fast visual novel toolkit"
@@ -21,26 +26,35 @@ const state: VnPlayerState = {
     text: {
       type: TextBoxType.ADV,
       textNodes: [
-        {text: "Hello from WebVn!", characterDelay: 20, color: "black"}
+        {
+          text:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit amet ligula ac turpis viverra pretium ut at metus. Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.",
+          characterDelay: 20,
+          color: "black"
+        }
       ]
-    },
-  },
+    }
+  }
+};
+
+const vnPlayer = new VnPlayer(state);
+
+const vnDiv = document.getElementById("vn_div") as HTMLDivElement;
+const renderer = new DomRenderer(vnDiv as HTMLElement, vnPlayer);
+
+const vnStateDiv = document.getElementById("vn_state") as HTMLDivElement;
+vnStateDiv.style.whiteSpace = "pre";
+
+renderer.render(vnPlayer.state);
+vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2);
+
+const advance = () => {
+  vnPlayer.advance();
+  renderer.render(vnPlayer.state);
+  vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2);
 }
 
-const vnPlayer = new VnPlayer(state)
+const advanceBtn = document.getElementById("vn_advance") as HTMLButtonElement;
+advanceBtn.addEventListener("click", advance);
 
-const vnDiv = document.getElementById("vn_div")
-const renderer = new DomRenderer(vnDiv as HTMLElement, vnPlayer)
-
-const vnStateDiv = document.getElementById("vn_state") as HTMLDivElement
-vnStateDiv.style.whiteSpace = "pre"
-
-renderer.render(vnPlayer.state)
-vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2)
-
-const advanceBtn = document.getElementById("vn_advance") as HTMLButtonElement
-advanceBtn.addEventListener("click", () => {
-  vnPlayer.advance()
-  renderer.render(vnPlayer.state)
-  vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2)
-})
+vnDiv.addEventListener("click", advance)

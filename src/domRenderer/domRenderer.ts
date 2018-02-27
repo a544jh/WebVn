@@ -1,6 +1,8 @@
 import { VnPlayer } from "../core/player"
 import { ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 
+import "./animations.css"
+
 export class DomRenderer {
   private root: HTMLElement
   private player: VnPlayer
@@ -55,23 +57,14 @@ export class DomRenderer {
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")
         span.innerText = text.charAt(i)
-        span.style.opacity = "0"
-        span.style.transitionProperty = "opacity"
-        span.style.transitionDelay = delay + "ms"
+        span.style.animation = "appear"
+        span.style.animationTimingFunction = "step-end"
+        span.style.animationDuration = delay + "ms"
         this.textBox.appendChild(span)
 
         delay += node.characterDelay
       }
     })
 
-    // may want to batch suff like this at the end of the whole render...
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        for (let i = 0; i < this.textBox.children.length; i++) {
-          const elem = this.textBox.children[i] as HTMLDivElement
-          elem.style.opacity = "1"
-        }
-      })
-    })
   }
 }

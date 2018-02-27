@@ -1,4 +1,4 @@
-import { VnPlayerState, ADVTextBox, TextBoxType, TextNode, Actor } from "./state";
+import { VnPlayerState, ADVTextBox, TextBoxType, TextNode, Actor, ADVNameTag } from "./state";
 
 export interface Command {
   type: CommandType
@@ -22,7 +22,16 @@ interface ADV extends Command{
 
 const applyADV : ApplyFunc<ADV> = (command, state) => {
   let actor : Actor = state.actors[command.actor || "none"]
-  let color : string = actor.nameTagColor || state.actors.default.nameTagColor
+  let color : string = actor.textColor || state.actors.default.textColor
+
+  let nameTag : ADVNameTag | undefined
+  if (actor.name) {
+    nameTag = {
+      name: actor.name,
+      color: actor.nameTagColor || state.actors.default.nameTagColor
+    }
+  }
+
   let textNodes :TextNode[] = [{
     text: command.text,
     characterDelay: 20,
@@ -30,6 +39,7 @@ const applyADV : ApplyFunc<ADV> = (command, state) => {
   }]
   let text :ADVTextBox = {
     type: TextBoxType.ADV,
+    nameTag,
     textNodes,
   }
 

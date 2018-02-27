@@ -22,8 +22,12 @@ interface ITextBox {
 
 export interface ADVTextBox extends ITextBox {
   type: TextBoxType.ADV
-  nameTag?: string
-  nameTagColor?: string
+  nameTag?: ADVNameTag
+}
+
+export interface ADVNameTag {
+  name: string
+  color: string
 }
 
 export const enum TextBoxType {

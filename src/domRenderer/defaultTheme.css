@@ -2,12 +2,21 @@ body {
   background-color: dimgray
 }
 
-#vn_div {
+#vn-div {
   background: white;
   position: relative;
   margin: 0 auto;
   width: 1024px;
   height: 768px;
+}
+
+#vn-textbox-renderer{
+  font-family: 'Source Code Pro';
+  font-weight: bold;
+  font-size: 24px;
+  line-height: 24px;
+  text-shadow: 2px 2px 0px black;
+  color: white;
 }
 
 .vn-adv-textbox {
@@ -17,12 +26,6 @@ body {
   height: 124px;
   padding: 5px;
   box-sizing: border-box;
-  font-family: 'Source Code Pro';
-  font-weight: bold;
-  font-size: 24px;
-  line-height: 24px;
-  color: #60baff;
-  text-shadow: 2px 2px 0px black;
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;
   animation: scale-y;
@@ -32,15 +35,10 @@ body {
 
 .vn-adv-nametag {
   position: absolute;
-  top: 12px;
-  height: 24px;
-  padding: 5px;
+  left: 8px;
+  bottom: 130px;
+  padding: 2px;
   box-sizing: border-box;
-  font-family: 'Source Code Pro';
-  font-weight: bold;
-  font-size: 24px;
-  line-height: 24px;
-  color: #60baff;
   text-shadow: 2px 2px 0px black;
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;

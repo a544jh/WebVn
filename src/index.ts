@@ -49,6 +49,35 @@ const state: VnPlayerState = {
     },
     {
       type: CommandType.ADV,
+      text: "Oh, hello again!",
+      actor: "Actor",
+    },
+    {
+      type: CommandType.ADV,
+      text: "Hello world!",
+      actor: "Actor",
+    },
+    {
+      type: CommandType.ADV,
+      text: "Hello world!",
+      actor: "Actor2",
+    },
+    {
+      type: CommandType.ADV,
+      text: "Hello world!",
+    },
+    {
+      type: CommandType.ADV,
+      text: "Hello world!",
+      actor: "Actor2",
+    },
+    {
+      type: CommandType.ADV,
+      text: "Hello world!",
+      actor: "Actor2",
+    },
+    {
+      type: CommandType.ADV,
       text: "The end",
     },
   ],

@@ -42,7 +42,7 @@ body {
   text-shadow: 2px 2px 0px black;
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;
-  animation: scale-y;
-  animation-timing-function: linear;
-  animation-duration: 250ms;
+  transition-property: transform;
+  transition-duration: 150ms;
+  transition-timing-function: linear;
 }

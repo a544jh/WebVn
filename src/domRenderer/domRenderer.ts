@@ -9,7 +9,7 @@ export class DomRenderer {
   private root: HTMLDivElement
   private player: VnPlayer
 
-  private prevState : VnPlayerState | null
+  private prevState: VnPlayerState | null
 
   private textBoxRenderer: TextBoxRenderer
 
@@ -30,5 +30,4 @@ export class DomRenderer {
     this.prevState = state
   }
 
-  
 }

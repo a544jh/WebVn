@@ -1,55 +1,53 @@
-import { VnPlayerState, ADVTextBox, TextBoxType, TextNode, Actor, ADVNameTag } from "./state";
+import { Actor, ADVNameTag, ADVTextBox, TextBoxType, TextNode, VnPlayerState } from "./state"
 
 export interface Command {
   type: CommandType
   [index: string]: any
 }
 
-interface ApplyFunc<C extends Command> {
-  (command: C, state : VnPlayerState): VnPlayerState
-}
+type ApplyFunc<C extends Command> = (command: C, state: VnPlayerState) => VnPlayerState
 
 export const enum CommandType {
-  ADV = "adv"
+  ADV = "adv",
 }
 
-interface ADV extends Command{
+interface ADV extends Command {
   type: CommandType.ADV
   text: string
   actor?: string
   // actor, speed...
 }
 
-const applyADV : ApplyFunc<ADV> = (command, state) => {
-  let actor : Actor = state.actors[command.actor || "none"]
-  let color : string = actor.textColor || state.actors.default.textColor
+const applyADV: ApplyFunc<ADV> = (command, state) => {
+  const actor: Actor = state.actors[command.actor || "none"]
+  const color: string = actor.textColor || state.actors.default.textColor
 
-  let nameTag : ADVNameTag | undefined
+  let nameTag: ADVNameTag | undefined
   if (actor.name) {
     nameTag = {
       name: actor.name,
-      color: actor.nameTagColor || state.actors.default.nameTagColor
+      color: actor.nameTagColor || state.actors.default.nameTagColor,
     }
   }
 
-  let textNodes :TextNode[] = [{
+  const textNodes: TextNode[] = [{
     text: command.text,
     characterDelay: 20,
-    color
+    color,
   }]
-  let text :ADVTextBox = {
+  const text: ADVTextBox = {
     type: TextBoxType.ADV,
     nameTag,
     textNodes,
   }
 
-  let animatableState = {...state.animatableState, text}
-  let newState = {...state, animatableState}
+  const animatableState = {...state.animatableState, text}
+  const newState = {...state, animatableState}
 
   return newState
 }
 
-export function applyCommand(state : VnPlayerState) :VnPlayerState {
+export function applyCommand(state: VnPlayerState): VnPlayerState {
   const command = state.commands[state.commandIndex]
   return commandApplyFuncs[command.type](command, state)
 }
@@ -58,7 +56,6 @@ type TCommandApplyFuncs = { // aka reducers
   [K in CommandType]: ApplyFunc<any>
 }
 
-const commandApplyFuncs :TCommandApplyFuncs = {
-  "adv" : applyADV
+const commandApplyFuncs: TCommandApplyFuncs = {
+  adv : applyADV,
 }
-

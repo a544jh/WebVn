@@ -1,12 +1,12 @@
-import { ADVTextBox, TextBox, TextBoxType, VnPlayerState, ADVNameTag } from "../core/state"
+import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 
 export class TextBoxRenderer {
 
-  private root : HTMLDivElement
-  private advTextBox : HTMLDivElement
-  private advNameTag : HTMLDivElement
+  private root: HTMLDivElement
+  private advTextBox: HTMLDivElement
+  private advNameTag: HTMLDivElement
 
-  constructor(vnRoot : HTMLDivElement) {
+  constructor(vnRoot: HTMLDivElement) {
     this.root = document.createElement("div")
     this.root.id = "vn-textbox-renderer"
     vnRoot.appendChild(this.root)
@@ -17,7 +17,6 @@ export class TextBoxRenderer {
     this.advNameTag = document.createElement("div")
     this.advNameTag.classList.add("vn-adv-nametag")
   }
-
 
   public render(prevText: TextBox | null, text: TextBox | null) {
     if (prevText === text) {
@@ -39,14 +38,13 @@ export class TextBoxRenderer {
   }
 
   private renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox) {
-    if(!this.root.contains(this.advTextBox)) {
+    if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
     }
     const prevNameTag = (prevAdv === null ? undefined : prevAdv.nameTag)
     this.renderAdvNameTag(prevNameTag, adv.nameTag)
 
     this.advTextBox.innerHTML = ""
-
 
     adv.textNodes.forEach((node, index) => {
       const text = node.text
@@ -70,10 +68,10 @@ export class TextBoxRenderer {
 
   private renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
     if (!nameTag) {
-      if (this.root.contains(this.advNameTag)) this.root.removeChild(this.advNameTag)
+      if (this.root.contains(this.advNameTag)) { this.root.removeChild(this.advNameTag) }
       return
     }
-    if (!this.root.contains(this.advNameTag)){
+    if (!this.root.contains(this.advNameTag)) {
       this.root.appendChild(this.advNameTag)
     }
     if (prevNameTag !== nameTag) {

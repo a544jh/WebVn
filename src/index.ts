@@ -7,6 +7,15 @@ import { DomRenderer } from "./domRenderer/domRenderer";
 import { CommandType } from "./core/commands";
 
 const state: VnPlayerState = {
+  actors: {
+    default: {
+      textColor: "white",
+      nameTagColor: "white"
+    },
+    none: {
+      textColor: "#60baff"
+    }
+  },
   commandIndex: 0,
   commands: [
     {

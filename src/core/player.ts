@@ -2,6 +2,13 @@ import { TextBoxType, VnPlayerState } from "./state";
 import * as Commands from "./commands"
 
 const initialState: VnPlayerState = {
+  actors: {
+    default: {
+      textColor: "white",
+      nameTagColor: "white"
+    },
+    none: {}
+  },
   commandIndex: -1,
   commands: [],
   animatableState: {

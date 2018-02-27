@@ -1,6 +1,7 @@
 import { Command } from "./commands"
 
 export interface VnPlayerState {
+  readonly actors: Actors
   readonly commandIndex: number
   readonly commands: Command[]
   readonly animatableState: AnimatableState
@@ -33,4 +34,21 @@ export interface TextNode {
   text: string
   characterDelay: number
   color: string
+}
+
+export interface DefaultActor extends Actor {
+  nameTagColor: string
+  textColor: string
+}
+
+export interface Actor {
+  name?: string
+  nameTagColor?: string
+  textColor?: string
+}
+
+export interface Actors {
+  default: DefaultActor // all actors inherit from this
+  none: Actor // for "narrative" text properties
+  [index: string]: Actor
 }

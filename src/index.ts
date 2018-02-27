@@ -1,5 +1,4 @@
 import "./index.html";
-import "./defaultTheme.css";
 
 import { VnPlayer } from "./core/player";
 import { VnPlayerState, TextBoxType } from "./core/state";
@@ -49,7 +48,7 @@ const state: VnPlayerState = {
 const vnPlayer = new VnPlayer(state);
 
 const vnDiv = document.getElementById("vn_div") as HTMLDivElement;
-const renderer = new DomRenderer(vnDiv as HTMLElement, vnPlayer);
+const renderer = new DomRenderer(vnDiv, vnPlayer);
 
 const vnStateDiv = document.getElementById("vn_state") as HTMLDivElement;
 vnStateDiv.style.whiteSpace = "pre";

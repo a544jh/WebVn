@@ -7,6 +7,12 @@
   }
 }
 
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes scale-y {
   from {
     transform: scaleY(0)

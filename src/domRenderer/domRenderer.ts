@@ -21,6 +21,13 @@ export class DomRenderer {
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
 
+    // TODO: figure out how to detect animation end
+    // (transitionend events -> promise / derived duration?)
+    // and how to render state without animations
+    const arrow = document.createElement("div")
+    arrow.classList.add("vn-arrow")
+    this.root.appendChild(arrow)
+
   }
 
   public render(state: VnPlayerState) {

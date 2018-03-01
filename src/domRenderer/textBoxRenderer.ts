@@ -1,5 +1,8 @@
 import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 
+import { TimelineMax, TweenMax } from "gsap"
+import "gsap/TextPlugin"
+
 export class TextBoxRenderer {
 
   private root: HTMLDivElement
@@ -46,9 +49,10 @@ export class TextBoxRenderer {
 
     this.advTextBox.innerHTML = ""
 
+    let delay = 0
+
     adv.textNodes.forEach((node, index) => {
       const text = node.text
-      let delay = 0
 
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")
@@ -72,14 +76,12 @@ export class TextBoxRenderer {
     }
 
     const remove = () => {
-      this.advNameTag.removeEventListener("transitionend", remove)
       this.root.removeChild(this.advNameTag)
     }
 
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
-        this.advNameTag.style.transform = "scaleY(0)"
-        this.advNameTag.addEventListener("transitionend", remove)
+        TweenMax.fromTo(this.advNameTag, 0.25, {scaleY: 1}, {scaleY: 0, onComplete: remove})
       }
       return
     }
@@ -87,31 +89,16 @@ export class TextBoxRenderer {
       this.root.appendChild(this.advNameTag)
     }
 
-    const transition = () => {
-      this.advNameTag.textContent = nameTag.name
-      this.advNameTag.style.color = nameTag.color
-      this.advNameTag.style.transform = "scaleY(1)"
-      this.advNameTag.removeEventListener("transitionend", transition)
-    }
-
     if (prevNameTag === undefined) {
-      this.advNameTag.style.transform = "scaleY(0)"
       this.advNameTag.textContent = nameTag.name
       this.advNameTag.style.color = nameTag.color
-      asyncAnim(() => {
-        this.advNameTag.style.transform = "scaleY(1)"
-      })
+      TweenMax.fromTo(this.advNameTag, 0.25, {scaleY: 0}, {scaleY: 1})
     } else if (prevNameTag.name !== nameTag.name) {
-      this.advNameTag.style.transform = "scaleY(0)"
-      this.advNameTag.addEventListener("transitionend", transition)
+      const tl = new TimelineMax()
+      tl.fromTo(this.advNameTag, 0.25, {scaleY: 1}, {scaleY: 0})
+      .set(this.advNameTag, {text: nameTag.name, color: nameTag.color})
+      .fromTo(this.advNameTag, 0.25, {scaleY: 0}, {scaleY: 1})
     }
 
   }
-}
-
-// TODO: batch and move to util...
-function asyncAnim(func: () => void) {
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(func)
-  })
 }

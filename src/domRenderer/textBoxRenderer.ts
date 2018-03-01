@@ -46,9 +46,10 @@ export class TextBoxRenderer {
 
     this.advTextBox.innerHTML = ""
 
+    let delay = 0
+
     adv.textNodes.forEach((node, index) => {
       const text = node.text
-      let delay = 0
 
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")

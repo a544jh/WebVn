@@ -1,3 +1,4 @@
+import * as anime from "animejs"
 import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 
 export class TextBoxRenderer {
@@ -68,19 +69,31 @@ export class TextBoxRenderer {
   }
 
   private renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
+
+    const enterAnim: anime.AnimeParams = {
+      targets: this.advNameTag,
+      scaleY: [0, 1],
+      easing: "linear",
+      duration: 150,
+    }
+
+    const exitAnim: anime.AnimeParams = {
+      ...enterAnim,
+      scaleY: [1, 0],
+    }
+
     if (prevNameTag === nameTag) {
       return
     }
 
-    const remove = () => {
-      this.advNameTag.removeEventListener("transitionend", remove)
-      this.root.removeChild(this.advNameTag)
-    }
-
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
-        this.advNameTag.style.transform = "scaleY(0)"
-        this.advNameTag.addEventListener("transitionend", remove)
+        anime({
+          ...exitAnim,
+          complete: () => {
+            this.root.removeChild(this.advNameTag)
+          },
+        })
       }
       return
     }
@@ -88,31 +101,22 @@ export class TextBoxRenderer {
       this.root.appendChild(this.advNameTag)
     }
 
-    const transition = () => {
-      this.advNameTag.textContent = nameTag.name
-      this.advNameTag.style.color = nameTag.color
-      this.advNameTag.style.transform = "scaleY(1)"
-      this.advNameTag.removeEventListener("transitionend", transition)
-    }
-
     if (prevNameTag === undefined) {
-      this.advNameTag.style.transform = "scaleY(0)"
       this.advNameTag.textContent = nameTag.name
       this.advNameTag.style.color = nameTag.color
-      asyncAnim(() => {
-        this.advNameTag.style.transform = "scaleY(1)"
-      })
+      anime(enterAnim)
+
     } else if (prevNameTag.name !== nameTag.name) {
-      this.advNameTag.style.transform = "scaleY(0)"
-      this.advNameTag.addEventListener("transitionend", transition)
+
+      const tl = anime.timeline()
+
+      tl.add({
+        ...exitAnim,
+        complete: () => {
+          this.advNameTag.textContent = nameTag.name
+          this.advNameTag.style.color = nameTag.color
+        },
+      }).add(enterAnim)
     }
-
   }
-}
-
-// TODO: batch and move to util...
-function asyncAnim(func: () => void) {
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(func)
-  })
 }

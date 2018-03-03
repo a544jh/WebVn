@@ -2,6 +2,10 @@
 # yarn lockfile v1
 
 
+"@types/animejs@^2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@types/animejs/-/animejs-2.0.0.tgz#9163f06aba47595b99951d5560c10e78223f0e20"
+
 abbrev@1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/abbrev/-/abbrev-1.1.1.tgz#f8f2c887ad10bf67f634f005b6987fed3179aac8"
@@ -57,6 +61,10 @@ align-text@^0.1.1, align-text@^0.1.3:
 alphanum-sort@^1.0.1, alphanum-sort@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/alphanum-sort/-/alphanum-sort-1.0.2.tgz#97a1119649b211ad33691d9f9f486a8ec9fbe0a3"
+
+animejs@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/animejs/-/animejs-2.2.0.tgz#35eefdfc535b81949c9cb06f0b3e60c02e6fdc80"
 
 ansi-html@0.0.7:
   version "0.0.7"

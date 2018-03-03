@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/animejs": "^2.0.0",
     "css-loader": "^0.28.10",
     "file-loader": "^1.1.6",
     "style-loader": "^0.20.2",
@@ -19,5 +20,8 @@
     "uglifyjs-webpack-plugin": "^1.2.0",
     "webpack": "^3.11.0",
     "webpack-dev-server": "^2.11.1"
+  },
+  "dependencies": {
+    "animejs": "^2.2.0"
   }
 }

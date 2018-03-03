@@ -44,7 +44,7 @@
   <button id="start" disabled>Loading assets</button>
 
 
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/2.2.0/anime.min.js"></script>
   <script>
 
     let assetsLoaded = false
@@ -94,32 +94,30 @@
       bgElem.appendChild(containerElem)
 
       for (let i = 0; i < numSlices; i++) {
+
+        
         let sliceElem = document.createElement("div");
         sliceElem.style.height = "780px"
         sliceElem.style.width = (sliceWidth + overlapPx) + "px"
         sliceElem.style.marginRight = -overlapPx + "px"
         sliceElem.style.backgroundImage = 'url("' + nextImg + '")'
         sliceElem.style.backgroundPositionX = "-" + (i * sliceWidth) + "px"
-
-        sliceElem.style.clipPath = "inset(0px " + (sliceWidth + overlapPx) + "px 0px 0px)"
-        sliceElem.style.transitionProperty = "clip-path"
-        sliceElem.style.transitionDuration = (factor * durationMs) + "ms"
-        sliceElem.style.transitionDelay = ((i / (numSlices - 1)) * (durationMs - factor * durationMs)) + "ms"
-        sliceElem.style.transitionTimingFunction = "linear"
+        
+        
+        let anim = {
+          targets: sliceElem,
+          duration: (factor * durationMs),
+          delay: ((i / (numSlices - 1)) * (durationMs - factor * durationMs)),
+          clipPath: ["inset(0px " + (sliceWidth + overlapPx) + "px 0px 0px)", "inset(0px 0px 0px 0px)"],
+          easing: "linear",
+        }
 
         if (i === numSlices - 1) {
-          sliceElem.addEventListener("transitionend", replaceBg)
+          anim.complete = replaceBg
         }
 
         containerElem.appendChild(sliceElem)
-
-        // I wonder if this nested call is guranteed to always trigger the transition...
-        window.requestAnimationFrame(function () {
-          window.requestAnimationFrame(function () {
-            sliceElem.style.clipPath = "inset(0px)"
-          })
-        })
-
+        anime(anim)
       }
     }
 

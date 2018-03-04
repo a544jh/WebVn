@@ -49,15 +49,25 @@ export class TextBoxRenderer {
 
     let delay = 0
 
+    const tl = anime.timeline()
+
     adv.textNodes.forEach((node, index) => {
       const text = node.text
 
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")
         span.innerText = text.charAt(i)
-        span.style.animation = "appear"
-        span.style.animationTimingFunction = "step-end"
-        span.style.animationDuration = delay + "ms"
+
+        const anim: anime.AnimeParams = {
+          targets: span,
+          duration: 1,
+          delay,
+          opacity: [0, 1],
+          easing: "linear",
+          offset: 0,
+        }
+
+        tl.add(anim)
 
         span.style.color = node.color
 

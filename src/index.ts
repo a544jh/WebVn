@@ -104,19 +104,7 @@ const vnPlayer = new VnPlayer(state)
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, vnPlayer)
 
-const vnStateDiv = document.getElementById("vn_state") as HTMLDivElement
-vnStateDiv.style.whiteSpace = "pre"
-
-renderer.render(vnPlayer.state)
-vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2)
-
-const advance = () => {
-  vnPlayer.advance()
-  renderer.render(vnPlayer.state)
+const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
+renderer.onRender = () => {
   vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2)
 }
-
-const advanceBtn = document.getElementById("vn_advance") as HTMLButtonElement
-advanceBtn.addEventListener("click", advance)
-
-vnDiv.addEventListener("click", advance)

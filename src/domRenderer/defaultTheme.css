@@ -2,6 +2,10 @@ body {
   background-color: dimgray
 }
 
+#vn-state {
+  white-space: pre
+}
+
 #vn-div {
   background: white;
   position: relative;
@@ -46,9 +50,6 @@ body {
   box-sizing: border-box;
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;
-  animation: scale-y;
-  animation-timing-function: linear;
-  animation-duration: 250ms;
 }
 
 .vn-adv-nametag {

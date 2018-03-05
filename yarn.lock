@@ -6,6 +6,10 @@
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/@types/animejs/-/animejs-2.0.0.tgz#9163f06aba47595b99951d5560c10e78223f0e20"
 
+"@types/web-animations-js@^2.2.6":
+  version "2.2.6"
+  resolved "https://registry.yarnpkg.com/@types/web-animations-js/-/web-animations-js-2.2.6.tgz#70de009baa343ddf612aa4f0cda75b76c058288f"
+
 abbrev@1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/abbrev/-/abbrev-1.1.1.tgz#f8f2c887ad10bf67f634f005b6987fed3179aac8"

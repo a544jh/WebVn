@@ -51,16 +51,24 @@ export class TextBoxRenderer {
   }
 
   private renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox) {
-    const enterAnim: anime.AnimeParams = {
-      targets: this.advTextBox,
-      scaleY: [0, 1],
-      easing: "linear",
+    const enterKeyframes: AnimationKeyFrame[] = [
+      {transform: "scaleY(0)"},
+      {transform: "scaleY(1)"},
+    ]
+
+    const exitKeyframes: AnimationKeyFrame[] = [
+      {transform: "scaleY(1)"},
+      {transform: "scaleY(0)"},
+    ]
+
+    const timing: AnimationEffectTiming = {
       duration: 150,
+      easing: "linear",
     }
 
     if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
-      this.animationTimeline.add(enterAnim)
+      this.advTextBox.animate(enterKeyframes, timing)
     }
 
     const prevNameTag = (prevAdv === null ? undefined : prevAdv.nameTag)
@@ -77,19 +85,21 @@ export class TextBoxRenderer {
         const span = document.createElement("span")
         span.innerText = text.charAt(i)
 
-        const characterAnim: anime.AnimeParams = {
-          targets: span,
-          duration: 1,
-          delay,
+        const keyframes: AnimationKeyFrame = {
           opacity: [0, 1],
-          easing: "linear",
-          offset: 0,
         }
 
-        this.animationTimeline.add(characterAnim)
+        const charTiming: AnimationEffectTiming = {
+          delay,
+          easing: "linear",
+          duration: 1,
+        }
 
         span.style.color = node.color
-
+        span.style.opacity = "0"
+        span.animate(keyframes, charTiming).onfinish = () => {
+          span.style.opacity = ""
+        }
         this.advTextBox.appendChild(span)
 
         delay += node.characterDelay
@@ -99,16 +109,19 @@ export class TextBoxRenderer {
 
   private renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
 
-    const enterAnim: anime.AnimeParams = {
-      targets: this.advNameTag,
-      scaleY: [0, 1],
-      easing: "linear",
-      duration: 150,
-    }
+    const enterKeyframes: AnimationKeyFrame[] = [
+      {transform: "scaleY(0)"},
+      {transform: "scaleY(1)"},
+    ]
 
-    const exitAnim: anime.AnimeParams = {
-      ...enterAnim,
-      scaleY: [1, 0],
+    const exitKeyframes: AnimationKeyFrame[] = [
+      {transform: "scaleY(1)"},
+      {transform: "scaleY(0)"},
+    ]
+
+    const timing: AnimationEffectTiming = {
+      duration: 150,
+      easing: "linear",
     }
 
     if (prevNameTag === nameTag) {
@@ -117,12 +130,9 @@ export class TextBoxRenderer {
 
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
-        this.animationTimeline.add({
-          ...exitAnim,
-          complete: () => {
-            this.root.removeChild(this.advNameTag)
-          },
-        })
+        this.advNameTag.animate(exitKeyframes, timing).onfinish = () => {
+          this.root.removeChild(this.advNameTag)
+        }
       }
       return
     }
@@ -133,17 +143,15 @@ export class TextBoxRenderer {
     if (prevNameTag === undefined) {
       this.advNameTag.textContent = nameTag.name
       this.advNameTag.style.color = nameTag.color
-      this.animationTimeline.add(enterAnim)
+      this.advNameTag.animate(enterKeyframes, timing)
 
     } else if (prevNameTag.name !== nameTag.name) {
 
-      this.animationTimeline.add({
-        ...exitAnim,
-        complete: () => {
-          this.advNameTag.textContent = nameTag.name
-          this.advNameTag.style.color = nameTag.color
-        },
-      }).add(enterAnim)
+      this.advNameTag.animate(exitKeyframes, timing).onfinish = () => {
+        this.advNameTag.textContent = nameTag.name
+        this.advNameTag.style.color = nameTag.color
+        this.advNameTag.animate(enterKeyframes, timing)
+      }
     }
   }
 }

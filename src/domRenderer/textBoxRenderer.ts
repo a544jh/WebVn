@@ -68,8 +68,6 @@ export class TextBoxRenderer {
 
     this.advTextBox.innerHTML = ""
 
-    let delay = 0
-
     adv.textNodes.forEach((node, index) => {
       const text = node.text
 
@@ -79,11 +77,9 @@ export class TextBoxRenderer {
 
         const characterAnim: anime.AnimeParams = {
           targets: span,
-          duration: 1,
-          delay,
+          duration: node.characterDelay,
           opacity: [0, 1],
-          easing: "linear",
-          offset: 0,
+          easing: "stepEnd",
         }
 
         this.animationTimeline.add(characterAnim)
@@ -91,8 +87,6 @@ export class TextBoxRenderer {
         span.style.color = node.color
 
         this.advTextBox.appendChild(span)
-
-        delay += node.characterDelay
       }
     })
   }

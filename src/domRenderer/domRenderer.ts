@@ -2,8 +2,13 @@ import { VnPlayer } from "../core/player"
 import { ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 import { TextBoxRenderer } from "./textBoxRenderer"
 
+import * as anime from "animejs"
 import "./animations.css"
 import "./defaultTheme.css"
+
+anime.easings.stepEnd = (t) => {
+  return (t === 1 ? 1 : 0)
+}
 
 export class DomRenderer {
   public onRender: () => void

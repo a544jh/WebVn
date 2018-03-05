@@ -4,6 +4,8 @@ const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
 const isDevServer = process.argv[1].indexOf("webpack-dev-server") !== -1;
 
 module.exports = {
+  mode: "development",
+
   entry: {
     app: ["./src/index.ts"]
   },

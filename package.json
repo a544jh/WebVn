@@ -13,13 +13,14 @@
   "devDependencies": {
     "@types/animejs": "^2.0.0",
     "css-loader": "^0.28.10",
-    "file-loader": "^1.1.6",
+    "file-loader": "^1.1.11",
     "style-loader": "^0.20.2",
-    "ts-loader": "^3.5.0",
+    "ts-loader": "^4.0.1",
     "typescript": "^2.7.2",
-    "uglifyjs-webpack-plugin": "^1.2.0",
-    "webpack": "^3.11.0",
-    "webpack-dev-server": "^2.11.1"
+    "uglifyjs-webpack-plugin": "^1.2.2",
+    "webpack": "^4.1.0",
+    "webpack-cli": "^2.0.10",
+    "webpack-dev-server": "^3.1.0"
   },
   "dependencies": {
     "animejs": "^2.2.0"

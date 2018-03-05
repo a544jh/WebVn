@@ -5,6 +5,13 @@ import { VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
 
+import * as parser from "../experiments/pegjs/grammar"
+
+declare global {
+  interface Window { parser: any }
+}
+window.parser = parser
+
 const state: VnPlayerState = {
   actors: {
     default: {

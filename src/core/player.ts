@@ -9,7 +9,7 @@ const initialState: VnPlayerState = {
     },
     none: {},
   },
-  commandIndex: -1,
+  commandIndex: 0, // the command to be applied next
   commands: [],
   animatableState: {
     text: null,
@@ -28,6 +28,22 @@ export class VnPlayer {
       newState = Commands.applyCommand(newState)
       newState.commandIndex++
       this.state = newState
+    }
+  }
+
+  public goToCommand(cmdIndex: number) {
+    if (cmdIndex < 0 || cmdIndex > this.state.commands.length - 1) {
+      return
+    }
+    // TODO: optimize this if needed :)
+    // e.g. with history
+    this.state = {...this.state,
+      commandIndex: 0,
+      animatableState: initialState.animatableState,
+    }
+
+    while (this.state.commandIndex !== cmdIndex) {
+      this.advance()
     }
   }
 }

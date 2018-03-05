@@ -29,6 +29,7 @@ export class DomRenderer {
     this.prevState = null
 
     this.root.addEventListener("click", this.advance.bind(this))
+    this.root.addEventListener("wheel", this.handleScrollWheenEvent.bind(this))
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
 
@@ -66,6 +67,20 @@ export class DomRenderer {
     } else {
       this.render(this.player.state, false)
     }
+  }
+
+  private handleScrollWheenEvent(e: WheelEvent) {
+    e.preventDefault()
+    // TODO: proper backlog rollback
+      // down
+    if (e.deltaY > 0) {
+      this.player.goToCommand(this.player.state.commandIndex + 1)
+      // up
+    } else if (e.deltaY < 0) {
+      this.player.goToCommand(this.player.state.commandIndex - 1)
+    }
+
+    this.render(this.player.state, false)
   }
 
 }

@@ -1,7 +1,7 @@
 Prompts = Prompt+
 
 Prompt = name:Name? Ws* text:Text Newline? {
-	return {name, text, line: location().start.line, type: "adv"}
+	return {actor: name, text, line: location().start.line, type: "adv"}
 }
 
 Text = chars:Char+ { return chars.join("") }

@@ -1,6 +1,6 @@
 import "./index.html"
 
-import { CommandType } from "./core/commands"
+import { Command, CommandType } from "./core/commands"
 import { VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
@@ -109,15 +109,18 @@ const state: VnPlayerState = {
   },
 }
 
+// TODO: wrap editor in own class
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const vnEditor = CodeMirror(vnEditorDiv, {
   lineNumbers: true,
 })
 
 vnEditor.on("gutterClick", (instance, line) => {
-  console.log(parser.parse(vnEditor.getDoc().getValue()))
+  const commands = parser.parse(vnEditor.getDoc().getValue()) as Command[]
+  vnPlayer.loadCommands(commands)
 })
 
+// TODO: make player event driven?
 const vnPlayer = new VnPlayer(state)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement

@@ -15,10 +15,12 @@ interface ADV extends Command {
   type: CommandType.ADV
   text: string
   actor?: string
+  line?: number
   // actor, speed...
 }
 
 const applyADV: ApplyFunc<ADV> = (command, state) => {
+  // TODO: handle undefined actor
   const actor: Actor = state.actors[command.actor || "none"]
   const color: string = actor.textColor || state.actors.default.textColor
 

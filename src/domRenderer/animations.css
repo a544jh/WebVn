@@ -1,23 +1,5 @@
-@keyframes appear {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes blink {
+@keyframes vn-blink {
   50% {
     opacity: 0;
-  }
-}
-
-@keyframes scale-y {
-  from {
-    transform: scaleY(0)
-  }
-  to{
-    transform: scaleY(1)
   }
 }

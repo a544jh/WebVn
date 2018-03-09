@@ -31,6 +31,10 @@ export class VnPlayer {
     }
   }
 
+  public loadCommands(commands: Commands.Command[]) {
+    this.state = {...this.state, commands, commandIndex: 0}
+  }
+
   public goToCommand(cmdIndex: number) {
     if (cmdIndex < 0 || cmdIndex > this.state.commands.length - 1) {
       return

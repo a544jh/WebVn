@@ -5,10 +5,13 @@ import { VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
 
-import * as parser from "../experiments/pegjs/grammar"
+import * as CodeMirror from "codemirror"
+import "codemirror/lib/codemirror.css"
+
+import * as parser from "./parser/parserWrapper.js"
 
 declare global {
-  interface Window { parser: any }
+  interface Window { parser: any}
 }
 window.parser = parser
 
@@ -105,6 +108,15 @@ const state: VnPlayerState = {
     },
   },
 }
+
+const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
+const vnEditor = CodeMirror(vnEditorDiv, {
+  lineNumbers: true,
+})
+
+vnEditor.on("gutterClick", (instance, line) => {
+  console.log(parser.parse(vnEditor.getDoc().getValue()))
+})
 
 const vnPlayer = new VnPlayer(state)
 

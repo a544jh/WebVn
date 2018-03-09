@@ -16,7 +16,7 @@ module.exports = {
   },
 
   resolve: {
-    extensions: [".tsx", ".ts", ".js"]
+    extensions: [".tsx", ".ts", ".js", ".pegjs"]
   },
 
   devtool: "source-map",
@@ -37,6 +37,10 @@ module.exports = {
         test: /\.tsx?$/,
         use: "ts-loader",
         exclude: /node_modules/
+      },
+      {
+        test: /\.pegjs$/,
+        loader: 'pegjs-loader'
       }
     ]
   },

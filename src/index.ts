@@ -4,6 +4,7 @@ import { Command, CommandType } from "./core/commands"
 import { VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
+import { VnEditor } from "./editor/editor"
 
 import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
@@ -109,24 +110,16 @@ const state: VnPlayerState = {
   },
 }
 
-// TODO: wrap editor in own class
-const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const vnEditor = CodeMirror(vnEditorDiv, {
-  lineNumbers: true,
-})
-
-vnEditor.on("gutterClick", (instance, line) => {
-  const commands = parser.parse(vnEditor.getDoc().getValue()) as Command[]
-  vnPlayer.loadCommands(commands)
-})
-
 // TODO: make player event driven?
-const vnPlayer = new VnPlayer(state)
+const player = new VnPlayer(state)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, vnPlayer)
+const renderer = new DomRenderer(vnDiv, player)
+
+const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
+const vnEditor = new VnEditor(vnEditorDiv, player, renderer)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRender = () => {
-  vnStateDiv.textContent = JSON.stringify(vnPlayer.state, null, 2)
+  vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
 }

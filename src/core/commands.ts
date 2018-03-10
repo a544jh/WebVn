@@ -3,6 +3,7 @@ import { Actor, ADVNameTag, ADVTextBox, TextBoxType, TextNode, VnPlayerState } f
 export interface Command {
   type: CommandType
   [index: string]: any
+  line?: number
 }
 
 type ApplyFunc<C extends Command> = (command: C, state: VnPlayerState) => VnPlayerState
@@ -15,7 +16,6 @@ interface ADV extends Command {
   type: CommandType.ADV
   text: string
   actor?: string
-  line?: number
   // actor, speed...
 }
 

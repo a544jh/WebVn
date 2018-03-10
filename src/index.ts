@@ -120,6 +120,6 @@ const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const vnEditor = new VnEditor(vnEditorDiv, player, renderer)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
-renderer.onRender = () => {
+renderer.onRenderCallbacks.push(() => {
   vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
-}
+})

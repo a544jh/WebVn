@@ -36,7 +36,7 @@ export class VnPlayer {
   }
 
   public goToCommand(cmdIndex: number) {
-    if (cmdIndex < 0 || cmdIndex > this.state.commands.length) {
+    if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }
     // TODO: optimize this if needed :)

@@ -11,8 +11,8 @@ anime.easings.stepEnd = (t) => {
 }
 
 export class DomRenderer {
-  public onRender: () => void
-  public onFinished: () => void
+  public onRenderCallbacks: Array<() => void> = []
+  public onFinishedCallbacks: Array<() => void> = []
 
   private finished: boolean
 
@@ -46,7 +46,7 @@ export class DomRenderer {
   }
 
   public render(state: VnPlayerState, animate: boolean) {
-    if (typeof this.onRender === "function") { this.onRender() }
+    this.onRenderCallbacks.forEach((cb) => cb())
 
     this.finished = false
     this.arrow.style.display = "none"
@@ -61,7 +61,7 @@ export class DomRenderer {
     Promise.all(animationsFinished).then(() => {
       this.arrow.style.display = ""
       this.finished = true
-      if (typeof this.onFinished === "function") { this.onFinished() }
+      this.onFinishedCallbacks.forEach((cb) => cb())
     })
   }
 

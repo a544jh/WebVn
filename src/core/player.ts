@@ -1,7 +1,7 @@
 import * as Commands from "./commands"
 import { TextBoxType, VnPlayerState } from "./state"
 
-const initialState: VnPlayerState = {
+export const initialState: VnPlayerState = {
   actors: {
     default: {
       textColor: "white",

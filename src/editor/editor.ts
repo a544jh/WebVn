@@ -17,7 +17,10 @@ export class VnEditor {
     this.player = player
     this.renderer = renderer
 
-    this.renderer.onRenderCallbacks.push(this.setGutterMarker.bind(this))
+    this.renderer.onRenderCallbacks.push(() => {
+      this.setGutterMarker()
+      this.vnEditor.getDoc().setCursor({line: getCurrentLine(player) - 1, ch: 0})
+    })
 
     this.vnEditor = CodeMirror(root, {
       lineNumbers: true,
@@ -25,26 +28,43 @@ export class VnEditor {
     })
     this.vnEditor.on("gutterClick", (instance, line) => {
       line = line + 1 // codemirror line is zero based
+      this.updatePlayerState(line)
+    })
+    this.vnEditor.on("blur", (instance) => {
+      this.updatePlayerState(getCurrentLine(this.player))
+    })
+  }
+
+  public loadScript(script: string) {
+    this.vnEditor.getDoc().setValue(script)
+    this.updatePlayerState(1)
+  }
+
+  private updatePlayerState(line: number) {
+    if (!this.vnEditor.getDoc().isClean()) {
       const commands = parser.parse(this.vnEditor.getDoc().getValue()) as Command[]
       this.player.loadCommands(commands)
-      // we actually want to be at the next command
-      this.player.goToCommand(commands.findIndex((cmd) => cmd.line === line) + 1)
-      this.renderer.render(this.player.state, false)
-    })
+      this.vnEditor.getDoc().markClean()
+    }
+    // we actually want to be at the next command
+    this.player.goToCommand(this.player.state.commands.findIndex((cmd) => cmd.line === line) + 1)
+    this.renderer.render(this.player.state, false)
   }
 
   private setGutterMarker() {
     this.vnEditor.clearGutter("vn-position-gutter")
-    const command = this.player.state.commands[this.player.state.commandIndex - 1]
-    const currentLine = (command ? command.line : 1) || 1 // TODO handle undefiner properly...
-    this.vnEditor.setGutterMarker(currentLine - 1, "vn-position-gutter", makeMarker())
+    this.vnEditor.setGutterMarker(getCurrentLine(this.player) - 1, "vn-position-gutter", makeMarker())
   }
 }
 
 function makeMarker(): HTMLDivElement {
   const div = document.createElement("div")
   div.style.background = "blue"
-  div.style.width = "10px"
-  div.style.height = "10px"
+  div.style.width = "100%"
+  div.style.height = "1em"
   return div
+}
+
+function getCurrentLine(player: VnPlayer): number {
+  return player.state.commands[player.state.commandIndex - 1].line || 1
 }

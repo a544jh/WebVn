@@ -1,7 +1,7 @@
 import "./index.html"
 
 import { Command, CommandType } from "./core/commands"
-import { VnPlayer } from "./core/player"
+import { initialState, VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
 import { VnEditor } from "./editor/editor"
@@ -17,6 +17,7 @@ declare global {
 window.parser = parser
 
 const state: VnPlayerState = {
+  ...initialState,
   actors: {
     default: {
       textColor: "white",
@@ -34,92 +35,37 @@ const state: VnPlayerState = {
       nameTagColor: "orange",
     },
   },
-  commandIndex: 0,
-  commands: [
-    {
-      type: CommandType.ADV,
-      text: "Hello from WebVn!",
-    },
-    {
-      type: CommandType.ADV,
-      text: "A fast visual novel toolkit",
-    },
-    {
-      type: CommandType.ADV,
-      text: "For the Web",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-      actor: "Actor",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Bye",
-      actor: "Actor2",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Oh, hello again!",
-      actor: "Actor",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-      actor: "Actor",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-      actor: "Actor2",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-      actor: "Actor2",
-    },
-    {
-      type: CommandType.ADV,
-      text: "Hello world!",
-      actor: "Actor2",
-    },
-    {
-      type: CommandType.ADV,
-      text: "The end",
-    },
-  ],
-  animatableState: {
-    text: {
-      type: TextBoxType.ADV,
-      textNodes: [
-        {
-          text:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras sit" +
-            "amet ligula ac turpis viverra pretium ut at metus. Etiam " +
-            "condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit" +
-            "amet bibendum. Maecenas sit amet sapien tellus.",
-          characterDelay: 20,
-          color: "white",
-        },
-      ],
-    },
-  },
 }
 
-// TODO: make player event driven?
+const script =
+`Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+Cras sit amet ligula ac turpis viverra pretium ut at metus.
+Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
+Hello from WebVn!
+A fast visual novel toolkit
+For the web
+Actor: Hello World!
+Actor2: Hello!
+Actor: Oh, hello!
+Actor: Hello all!
+Actor2: Hello again!
+Hi
+Actor2: 1
+Actor2: 2
+The end
+`
+
 const player = new VnPlayer(state)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, player)
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const vnEditor = new VnEditor(vnEditorDiv, player, renderer)
+const editor = new VnEditor(vnEditorDiv, player, renderer)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRenderCallbacks.push(() => {
-  vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
+  // vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
 })
+
+editor.loadScript(script)

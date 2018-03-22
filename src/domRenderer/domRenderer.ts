@@ -34,7 +34,7 @@ export class DomRenderer {
     this.prevState = null
 
     this.root.addEventListener("click", this.advance.bind(this))
-    this.root.addEventListener("wheel", this.handleScrollWheenEvent.bind(this))
+    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
 
@@ -74,7 +74,7 @@ export class DomRenderer {
     }
   }
 
-  private handleScrollWheenEvent(e: WheelEvent) {
+  private handleScrollWheelEvent(e: WheelEvent) {
     e.preventDefault()
     // TODO: proper backlog rollback
       // down

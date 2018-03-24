@@ -1,4 +1,3 @@
-import * as anime from "animejs"
 import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 
 export class TextBoxRenderer {
@@ -6,7 +5,6 @@ export class TextBoxRenderer {
   private root: HTMLDivElement
   private advTextBox: HTMLDivElement
   private advNameTag: HTMLDivElement
-  private animationTimeline: anime.AnimeTimelineInstance
 
   constructor(vnRoot: HTMLDivElement) {
     this.root = document.createElement("div")
@@ -18,24 +16,20 @@ export class TextBoxRenderer {
 
     this.advNameTag = document.createElement("div")
     this.advNameTag.classList.add("vn-adv-nametag")
-
-    this.animationTimeline = anime.timeline()
   }
 
   public render(prevText: TextBox | null, text: TextBox | null, animate: boolean): Promise<void> {
 
     if (prevText === text) {
       // lol diffing
-      if (!animate) {this.animationTimeline.seek(Number.MAX_VALUE)}
       return Promise.resolve()
     }
-
-    this.animationTimeline = anime.timeline()
 
     if (text === null) {
       // TODO: exit animation...
       this.root.removeChild(this.advTextBox)
-      return this.animationTimeline.finished
+      // TODO
+      return Promise.resolve()
     }
 
     // maybe use dict to lookup, or class instance method....
@@ -45,28 +39,22 @@ export class TextBoxRenderer {
       break
     }
 
-    if (!animate) {this.animationTimeline.seek(Number.MAX_VALUE)}
-
-    return this.animationTimeline.finished
+    // TODO return actual end promise
+    return Promise.resolve()
   }
 
   private renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox) {
-    const enterAnim: anime.AnimeParams = {
-      targets: this.advTextBox,
-      scaleY: [0, 1],
-      easing: "linear",
-      duration: 150,
-    }
-
     if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
-      this.animationTimeline.add(enterAnim)
     }
-
     const prevNameTag = (prevAdv === null ? undefined : prevAdv.nameTag)
     this.renderAdvNameTag(prevNameTag, adv.nameTag)
 
     this.advTextBox.innerHTML = ""
+
+    const fragment = document.createDocumentFragment()
+
+    let delay = 0
 
     adv.textNodes.forEach((node, index) => {
       const text = node.text
@@ -74,49 +62,35 @@ export class TextBoxRenderer {
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")
         span.innerText = text.charAt(i)
-
-        const characterAnim: anime.AnimeParams = {
-          targets: span,
-          duration: node.characterDelay,
-          opacity: [0, 1],
-          easing: "stepEnd",
-        }
-
-        this.animationTimeline.add(characterAnim)
+        span.style.animation = "appear"
+        span.style.animationTimingFunction = "step-end"
+        span.style.animationDuration = delay + "ms"
 
         span.style.color = node.color
 
-        this.advTextBox.appendChild(span)
+        fragment.appendChild(span)
+
+        delay += node.characterDelay
       }
     })
+
+    this.advTextBox.appendChild(fragment)
   }
 
-  private renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
-
-    const enterAnim: anime.AnimeParams = {
-      targets: this.advNameTag,
-      scaleY: [0, 1],
-      easing: "linear",
-      duration: 150,
-    }
-
-    const exitAnim: anime.AnimeParams = {
-      ...enterAnim,
-      scaleY: [1, 0],
-    }
-
+  private async renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
     if (prevNameTag === nameTag) {
       return
     }
 
+    const remove = () => {
+      this.advNameTag.removeEventListener("transitionend", remove)
+      this.root.removeChild(this.advNameTag)
+    }
+
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
-        this.animationTimeline.add({
-          ...exitAnim,
-          complete: () => {
-            this.root.removeChild(this.advNameTag)
-          },
-        })
+        this.advNameTag.style.transform = "scaleY(0)"
+        this.advNameTag.addEventListener("transitionend", remove)
       }
       return
     }
@@ -124,20 +98,29 @@ export class TextBoxRenderer {
       this.root.appendChild(this.advNameTag)
     }
 
-    if (prevNameTag === undefined) {
+    const transition = () => {
       this.advNameTag.textContent = nameTag.name
       this.advNameTag.style.color = nameTag.color
-      this.animationTimeline.add(enterAnim)
-
-    } else if (prevNameTag.name !== nameTag.name) {
-
-      this.animationTimeline.add({
-        ...exitAnim,
-        complete: () => {
-          this.advNameTag.textContent = nameTag.name
-          this.advNameTag.style.color = nameTag.color
-        },
-      }).add(enterAnim)
+      this.advNameTag.style.transform = "scaleY(1)"
+      this.advNameTag.removeEventListener("transitionend", transition)
     }
+
+    if (prevNameTag === undefined) {
+      this.advNameTag.style.transform = "scaleY(0.0001)" // can't be 0 because of firefox lol
+      this.advNameTag.textContent = nameTag.name
+      this.advNameTag.style.color = nameTag.color
+      await nextAnimationFrame()
+      this.advNameTag.style.transform = "scaleY(1)"
+    } else if (prevNameTag.name !== nameTag.name) {
+      this.advNameTag.style.transform = "scaleY(0)"
+      this.advNameTag.addEventListener("transitionend", transition)
+    }
+
   }
+}
+
+function nextAnimationFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(resolve)
+  })
 }

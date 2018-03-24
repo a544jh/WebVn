@@ -48,6 +48,7 @@ export class DomRenderer {
 
     const animationsFinished: Array<Promise<void>> = []
 
+    // TODO: diffing (when we know more about other animations)
     const prevText = (this.prevState === null ? null : this.prevState.animatableState.text)
     animationsFinished.push(this.textBoxRenderer.render(prevText, state.animatableState.text, animate))
 

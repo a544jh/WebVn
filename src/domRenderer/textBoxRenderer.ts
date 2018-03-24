@@ -20,14 +20,11 @@ export class TextBoxRenderer {
 
   public render(prevText: TextBox | null, text: TextBox | null, animate: boolean): Promise<void> {
 
-    if (prevText === text) {
-      // lol diffing
-      return Promise.resolve()
-    }
-
     if (text === null) {
       // TODO: exit animation...
-      this.root.removeChild(this.advTextBox)
+      if (this.root.contains(this.advTextBox)) {
+        this.root.removeChild(this.advTextBox)
+      }
       // TODO
       return Promise.resolve()
     }
@@ -35,22 +32,24 @@ export class TextBoxRenderer {
     // maybe use dict to lookup, or class instance method....
     switch (text.type) {
       case TextBoxType.ADV:
-      this.renderAdv(prevText, text as ADVTextBox)
-      break
+        return this.renderAdv(prevText, text as ADVTextBox, animate)
     }
 
-    // TODO return actual end promise
     return Promise.resolve()
   }
 
-  private renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox) {
+  private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<any> {
+
+    let resolveAnimationFinished: (value?: {} | PromiseLike<{}> | undefined) => void
+    const animationFinished = new Promise((resolve) => { resolveAnimationFinished = resolve })
+
     if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
     }
-    const prevNameTag = (prevAdv === null ? undefined : prevAdv.nameTag)
-    this.renderAdvNameTag(prevNameTag, adv.nameTag)
-
     this.advTextBox.innerHTML = ""
+
+    const prevNameTag = (prevAdv === null ? undefined : prevAdv.nameTag)
+    await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
 
     const fragment = document.createDocumentFragment()
 
@@ -62,9 +61,15 @@ export class TextBoxRenderer {
       for (let i = 0; i < text.length; i++) {
         const span = document.createElement("span")
         span.innerText = text.charAt(i)
-        span.style.animation = "appear"
-        span.style.animationTimingFunction = "step-end"
-        span.style.animationDuration = delay + "ms"
+
+        if (animate) {
+          span.style.animation = "appear"
+          span.style.animationTimingFunction = "step-end"
+          span.style.animationDuration = delay + "ms"
+          if (i === text.length - 1) {
+            span.addEventListener("animationend", resolveAnimationFinished)
+          }
+        }
 
         span.style.color = node.color
 
@@ -75,50 +80,87 @@ export class TextBoxRenderer {
     })
 
     this.advTextBox.appendChild(fragment)
+
+    if (!animate) {
+      return
+    } else {
+      return animationFinished
+    }
   }
 
-  private async renderAdvNameTag(prevNameTag: ADVNameTag | undefined, nameTag: ADVNameTag | undefined) {
-    if (prevNameTag === nameTag) {
-      return
-    }
+  private async renderAdvNameTag(
+    prevNameTag: ADVNameTag | undefined,
+    nameTag: ADVNameTag | undefined,
+    animate: boolean): Promise<any> {
+
+    let resolveAnimationFinished: (value?: {} | PromiseLike<{}> | undefined) => void = () => { return }
+    const animationFinished = new Promise((resolve) => { resolveAnimationFinished = resolve })
 
     const remove = () => {
       this.advNameTag.removeEventListener("transitionend", remove)
       this.root.removeChild(this.advNameTag)
+      resolveAnimationFinished()
     }
 
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
-        this.advNameTag.style.transform = "scaleY(0)"
-        this.advNameTag.addEventListener("transitionend", remove)
+        if (animate) {
+          this.advNameTag.style.transform = "scaleY(0)"
+          this.advNameTag.addEventListener("transitionend", remove)
+        } else {
+          this.root.removeChild(this.advNameTag)
+          resolveAnimationFinished()
+        }
+        return animationFinished
+      } else {
+        return
       }
-      return
     }
+
+    const setNameTagProps = () => {
+      this.advNameTag.textContent = nameTag.name
+      this.advNameTag.style.color = nameTag.color
+    }
+
     if (!this.root.contains(this.advNameTag)) {
       this.root.appendChild(this.advNameTag)
     }
 
-    const transition = () => {
-      this.advNameTag.textContent = nameTag.name
-      this.advNameTag.style.color = nameTag.color
+    if (!animate) {
+      setNameTagProps()
+      return
+    }
+
+    const changeNameTransition = () => {
+      this.advNameTag.removeEventListener("transitionend", changeNameTransition)
+      setNameTagProps()
       this.advNameTag.style.transform = "scaleY(1)"
-      this.advNameTag.removeEventListener("transitionend", transition)
+      this.advNameTag.addEventListener("transitionend", finishTransition)
+    }
+
+    const finishTransition = () => {
+      this.advNameTag.removeEventListener("transitionend", finishTransition)
+      resolveAnimationFinished()
     }
 
     if (prevNameTag === undefined) {
       this.advNameTag.style.transform = "scaleY(0.0001)" // can't be 0 because of firefox lol
-      this.advNameTag.textContent = nameTag.name
-      this.advNameTag.style.color = nameTag.color
+      setNameTagProps()
       await nextAnimationFrame()
       this.advNameTag.style.transform = "scaleY(1)"
-    } else if (prevNameTag.name !== nameTag.name) {
-      this.advNameTag.style.transform = "scaleY(0)"
-      this.advNameTag.addEventListener("transitionend", transition)
+      this.advNameTag.addEventListener("transitionend", finishTransition)
+    } else if (prevNameTag.name !== nameTag.name) { // TODO: deep compare
+      this.advNameTag.style.transform = "scaleY(0.0001)"
+      this.advNameTag.addEventListener("transitionend", changeNameTransition)
+    } else {
+      return
     }
 
+    return animationFinished
   }
 }
 
+// TODO: move to utils
 function nextAnimationFrame() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(resolve)

@@ -8,8 +8,16 @@ export interface Command {
 
 type ApplyFunc<C extends Command> = (command: C, state: VnPlayerState) => VnPlayerState
 
+// TODO: Use "say" command, so the textbox is stateful...
+// maybe just use "generic" commands from parser?? lol no generics :DDD
+// and just write converting middleware w/ validation e.g. cmd w/ args -> Command object
+// "plugins" would have to be written in TS then...
+// make way to "register" plugins?
+// or define all commands in the parser -> more boilerplate, but enables validation
+
 export const enum CommandType {
   ADV = "adv",
+  TextBoxClose = "close",
 }
 
 interface ADV extends Command {
@@ -17,6 +25,10 @@ interface ADV extends Command {
   text: string
   actor?: string
   // actor, speed...
+}
+
+interface TextBoxClose extends Command {
+  type: CommandType.TextBoxClose
 }
 
 const applyADV: ApplyFunc<ADV> = (command, state) => {
@@ -49,6 +61,12 @@ const applyADV: ApplyFunc<ADV> = (command, state) => {
   return newState
 }
 
+const closeTextBox: ApplyFunc<TextBoxClose> = (command, state) => {
+  return {...state, animatableState: {
+    ...state.animatableState, text: null,
+  }}
+}
+
 export function applyCommand(state: VnPlayerState): VnPlayerState {
   const command = state.commands[state.commandIndex]
   return commandApplyFuncs[command.type](command, state)
@@ -60,4 +78,5 @@ type TCommandApplyFuncs = { // aka reducers
 
 const commandApplyFuncs: TCommandApplyFuncs = {
   adv : applyADV,
+  close: closeTextBox,
 }

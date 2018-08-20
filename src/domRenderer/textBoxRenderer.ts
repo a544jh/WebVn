@@ -22,9 +22,7 @@ export class TextBoxRenderer {
 
     if (text === null) {
       // TODO: exit animation...
-      if (this.root.contains(this.advTextBox)) {
-        this.root.removeChild(this.advTextBox)
-      }
+      this.root.innerHTML = ""
       // TODO
       return Promise.resolve()
     }

@@ -41,6 +41,7 @@ const script =
 `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 Cras sit amet ligula ac turpis viverra pretium ut at metus.
 Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
+\\close
 Hello from WebVn!
 A fast visual novel toolkit
 For the web

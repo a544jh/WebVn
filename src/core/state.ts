@@ -1,5 +1,4 @@
-import { Command } from "./commands"
-
+import { Command } from "./commands/Command"
 export interface VnPlayerState {
   readonly actors: Actors
   readonly commandIndex: number

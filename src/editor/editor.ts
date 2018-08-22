@@ -1,9 +1,10 @@
 import * as CodeMirror from "codemirror"
-import { Command } from "../core/commands"
+import { Command } from "../core/commands/Command"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
 import * as parser from "../parser/parserWrapper.js"
 
+import { SC, Statement } from "../core/commands/StatementConverter"
 import "./editor.css"
 
 export class VnEditor {
@@ -42,12 +43,13 @@ export class VnEditor {
 
   private updatePlayerState(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
-      const commands = parser.parse(this.vnEditor.getDoc().getValue()) as Command[]
+      const statements = parser.parse(this.vnEditor.getDoc().getValue()) as Statement[]
+      const commands = SC.convertStatements(statements)
       this.player.loadCommands(commands)
       this.vnEditor.getDoc().markClean()
     }
     // we actually want to be at the next command
-    this.player.goToCommand(this.player.state.commands.findIndex((cmd) => cmd.line === line) + 1)
+    this.player.goToCommand(this.player.state.commands.findIndex((cmd) => cmd.getLine() === line) + 1)
     this.renderer.render(this.player.state, false)
   }
 
@@ -66,5 +68,5 @@ function makeMarker(): HTMLDivElement {
 }
 
 function getCurrentLine(player: VnPlayer): number {
-  return player.state.commands[player.state.commandIndex - 1].line || 1
+  return player.state.commands[player.state.commandIndex - 1].getLine() || 1
 }

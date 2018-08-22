@@ -1,6 +1,5 @@
 import "./index.html"
 
-import { Command, CommandType } from "./core/commands"
 import { initialState, VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"

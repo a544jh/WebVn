@@ -1,5 +1,13 @@
-import * as Commands from "./commands"
-import { TextBoxType, VnPlayerState } from "./state"
+import { Command } from "./commands/Command"
+import { SC } from "./commands/StatementConverter"
+import { CloseTextBox } from "./commands/text/CloseTextBox"
+import { Say } from "./commands/text/Say"
+import { VnPlayerState } from "./state"
+
+// TODO: this needs to be here because the tree-shaking
+// they should be in the class files if tree-shaking can be disabled
+SC.registerCommandStatement("close", (c) => new CloseTextBox(c.line))
+SC.setSayHandler((s) => new Say(s))
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -25,13 +33,13 @@ export class VnPlayer {
   public advance() {
     let newState = { ...this.state }
     if (newState.commandIndex < newState.commands.length) {
-      newState = Commands.applyCommand(newState)
+      newState = newState.commands[newState.commandIndex].apply(newState)
       newState.commandIndex++
       this.state = newState
     }
   }
 
-  public loadCommands(commands: Commands.Command[]) {
+  public loadCommands(commands: Command[]) {
     this.state = {...this.state, commands, commandIndex: 0}
   }
 

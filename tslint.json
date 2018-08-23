@@ -1,14 +1,15 @@
 {
     "defaultSeverity": "error",
     "extends": [
-        "tslint:recommended"
+        "tslint:recommended",
+        "tslint-react"
     ],
     "jsRules": {},
     "rules": {
         "semicolon" : [true, "never"],
         "interface-name": false,
         "prefer-for-of": false,
-        "object-literal-sort-keys": false
+        "object-literal-sort-keys": false,
     },
     "rulesDirectory": []
 }

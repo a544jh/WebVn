@@ -1,5 +1,5 @@
 import "./index.html"
-
+import { Renderer } from "./Renderer"
 import { initialState, VnPlayer } from "./core/player"
 import { TextBoxType, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
@@ -9,6 +9,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
 
 import * as parser from "./parser/parserWrapper.js"
+import { ReactRenderer } from "./reactRenderer/reactRenderer";
 
 declare global {
   interface Window { parser: any}
@@ -58,7 +59,7 @@ The end
 const player = new VnPlayer(state)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, player)
+const renderer = new ReactRenderer(vnDiv, player)
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const editor = new VnEditor(vnEditorDiv, player, renderer)

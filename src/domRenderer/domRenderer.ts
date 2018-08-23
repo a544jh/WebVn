@@ -1,3 +1,4 @@
+import { Renderer } from "../Renderer"
 import { VnPlayer } from "../core/player"
 import { ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
 import { TextBoxRenderer } from "./textBoxRenderer"
@@ -5,7 +6,7 @@ import { TextBoxRenderer } from "./textBoxRenderer"
 import "./animations.css"
 import "./defaultTheme.css"
 
-export class DomRenderer {
+export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
 

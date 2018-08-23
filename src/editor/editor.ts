@@ -1,7 +1,7 @@
 import * as CodeMirror from "codemirror"
 import { Command } from "../core/commands/Command"
 import { VnPlayer } from "../core/player"
-import { DomRenderer } from "../domRenderer/domRenderer"
+import { Renderer } from "../Renderer"
 import * as parser from "../parser/parserWrapper.js"
 
 import { SC, Statement } from "../core/commands/StatementConverter"
@@ -12,9 +12,9 @@ export class VnEditor {
   private vnEditor: CodeMirror.Editor
 
   private player: VnPlayer
-  private renderer: DomRenderer
+  private renderer: Renderer
 
-  constructor(root: HTMLDivElement, player: VnPlayer, renderer: DomRenderer) {
+  constructor(root: HTMLDivElement, player: VnPlayer, renderer: Renderer) {
     this.player = player
     this.renderer = renderer
 

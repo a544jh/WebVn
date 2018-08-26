@@ -1,9 +1,9 @@
-import { Renderer } from "../Renderer"
-import * as React from "react";
+import * as React from "react"
 import * as ReactDOM from "react-dom"
 import { VnPlayer } from "../core/player"
-import { VnRoot } from "./VnRoot";
-import { VnPlayerState } from "../core/state";
+import { VnPlayerState } from "../core/state"
+import { Renderer } from "../Renderer"
+import { VnRoot } from "./VnRoot"
 
 import "../domRenderer/animations.css"
 import "../domRenderer/defaultTheme.css"
@@ -23,9 +23,15 @@ export class ReactRenderer implements Renderer {
 
   public render(state: VnPlayerState, animate: boolean) {
     this.onRenderCallbacks.forEach((cb) => cb())
-    ReactDOM.render(<VnRoot playerState={state} onClick={this.advance} onScroll={this.handleScrollWheelEvent} />, this.elem)
-    // TODO: animations...
-    this.onFinishedCallbacks.forEach((cb) => cb())
+    ReactDOM.render(
+      <VnRoot
+        animate={animate}
+        playerState={state}
+        onClick={this.advance}
+        onScroll={this.handleScrollWheelEvent}
+        onAnimationFinished={this.onAnimationFinished}
+      />
+      , this.elem)
   }
 
   public advance = () => {
@@ -36,7 +42,7 @@ export class ReactRenderer implements Renderer {
   private handleScrollWheelEvent = (e: React.WheelEvent) => {
     e.preventDefault()
     // TODO: proper backlog rollback
-      // down
+    // down
     if (e.deltaY > 0) {
       this.player.goToCommand(this.player.state.commandIndex + 1)
       // up
@@ -45,6 +51,11 @@ export class ReactRenderer implements Renderer {
     }
 
     this.render(this.player.state, false)
+  }
+
+  private onAnimationFinished = () => {
+    console.log("animation finished")
+    this.onFinishedCallbacks.forEach((cb) => cb())
   }
 
 }

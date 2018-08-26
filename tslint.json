@@ -10,6 +10,9 @@
         "interface-name": false,
         "prefer-for-of": false,
         "object-literal-sort-keys": false,
+        "no-console": {
+            "severity": "warning"
+        }
     },
     "rulesDirectory": []
 }

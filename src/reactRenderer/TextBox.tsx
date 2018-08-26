@@ -1,15 +1,39 @@
 import * as React from "react"
-import { ADVTextBox } from "../core/state";
+import { ADVTextBox } from "../core/state"
 
-export class TextBox extends React.Component<{ adv: ADVTextBox }, {}> {
+interface Props {
+  adv: ADVTextBox
+  animate: boolean
+  onAnimationFinished: () => void
+}
+
+export class TextBox extends React.Component<Props, {}> {
   public render() {
     const { adv } = this.props
-    const charSpans: JSX.Element[] = [];
+    const charSpans: JSX.Element[] = []
+
+    let delay = 0
 
     adv.textNodes.forEach((node, index) => {
       const text = node.text
+
       for (let i = 0; i < text.length; i++) {
-        charSpans.push(<span key={i}>{text.charAt(i)}</span>)
+        const style: any = {}
+        let finishedFn
+
+        if (this.props.animate) {
+          style.animation = "appear"
+          style.animationTimingFunction = "step-end"
+          style.animationDuration = delay + "ms"
+          if (i === text.length - 1) {
+            finishedFn = this.props.onAnimationFinished
+          }
+        }
+
+        style.color = node.color
+        delay += node.characterDelay
+
+        charSpans.push(<span key={i} style={style} onAnimationEnd={finishedFn}>{text.charAt(i)}</span>)
       }
     })
 

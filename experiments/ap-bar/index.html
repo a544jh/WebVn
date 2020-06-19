@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <title>AP</title>
+</head>
+
+<body>
+    <div style="height: 20px; width: 400px; background-color: black; position: relative;">
+        <div style="position: absolute; border: 2px solid white; left: 30px; top: 3px; height: 10px; width: 360px; ">
+            <div style="height: 100%; box-shadow: 0px 0px 2px 2px #00ff00; background: linear-gradient(90deg, rgba(0,255,0,1) 0%, rgba(0,255,0,1) 23%, rgba(148,255,148,1) 29%, rgba(0,255,0,1) 39%);"
+                id="green-bar">
+            </div>
+        </div>
+    </div>
+</body>
+
+<script>
+    function gradient(point) {
+        let start = point - 5
+        let end = point - 5
+        return `linear-gradient(90deg, rgba(0,255,0,1) 0%, rgba(0,255,0,1) ${start}%, rgba(148,255,148,1) ${point}%, rgba(0,255,0,1) ${end}%)`
+    }
+
+
+    let elem = document.getElementById('green-bar')
+    let p = 0
+    let width = 0
+
+    function animate() {
+        elem.style.background = gradient(p)
+        elem.style.width = `${width}%`
+
+        p += 1.5
+        if (p>100) p = 0
+
+        if(width < 100) width += .5
+        window.requestAnimationFrame(animate)
+    }
+    window.requestAnimationFrame(animate)
+</script>
+
+
+</html>

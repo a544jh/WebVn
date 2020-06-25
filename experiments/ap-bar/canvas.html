@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AP Canvas</title>
+</head>
+<body>
+    <canvas id="canvas" width="1000" height="600"></canvas>
+    <canvas id="work_canvas" width="1000" height="600"></canvas>
+</body>
+<script>
+    let canvas = document.getElementById('canvas')
+    let ctx = canvas.getContext('2d')
+
+    let workCanvas = document.getElementById('work_canvas')
+    let workCtx = workCanvas.getContext('2d')
+
+    let step = 0
+
+    let fill = 0
+    let ripplePoint = 0
+
+
+    function animate() {
+        ctx.clearRect(0, 0, 1000, 600)
+        ctx.save()
+
+        workCtx.clearRect(0, 0, 1000, 600)
+        workCtx.save()
+
+        //let scaleFactor = 8 * Math.sin(step * .01) + 8
+        let scaleFactor = 4
+        ctx.scale(scaleFactor, scaleFactor)
+        workCtx.scale(scaleFactor, scaleFactor)
+
+        let maxBarLength = 360
+        let barLength = maxBarLength * fill
+
+        ctx.fillStyle = 'black'
+        ctx.fillRect(0, 0, 400, 20)
+        ctx.strokeStyle = 'white'
+        ctx.lineWidth = 2
+        ctx.strokeRect(30-1, 5-1, maxBarLength+2, 10+2)
+        let gradient = ctx.createLinearGradient(30, 0, 30+barLength, 0)
+        gradient.addColorStop(0, '#00ff00')
+        gradient.addColorStop(Math.max(0, ripplePoint-.5), '#00ff00')
+        gradient.addColorStop(ripplePoint, 'rgba(200,255,200,1)')
+        gradient.addColorStop(Math.min(1, ripplePoint+.05), 'rgba(0,255,0,1)')
+
+
+        let workGradient = workCtx.createLinearGradient(30, 0, 30+barLength, 0)
+        workGradient.addColorStop(0, '#00ff00')
+        workGradient.addColorStop(Math.max(0, ripplePoint-.5), '#00ff00')
+        workGradient.addColorStop(ripplePoint, 'rgba(200,255,200,1)')
+        workGradient.addColorStop(Math.min(1, ripplePoint+.05), 'rgba(0,255,0,1)')
+
+
+        //gradient.addColorStop(0, '#00ff00')
+        ctx.fillStyle = gradient
+        ctx.save()
+        //ctx.shadowBlur = 4
+        //ctx.shadowColor = '#00ff00'
+        //draw progress bar
+        //ctx.filter = 'blur(30px)'
+        ctx.fillRect(30, 5, barLength, 10)
+        ctx.restore()
+
+        let glowGradient = workCtx.createLinearGradient(0, 5, 0, 0) // top glow
+        glowGradient.addColorStop(0, 'rgba(0,0,0,1)')
+        glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
+        workCtx.fillStyle = glowGradient
+        workCtx.fillRect(30, 0, barLength, 5+1)
+
+        workCtx.fillStyle = workGradient
+        workCtx.globalCompositeOperation = 'source-in'
+        workCtx.fillRect(30, 0, barLength, 5+1)
+
+        ctx.save()
+        ctx.resetTransform()
+        ctx.drawImage(workCanvas, 0, 0)
+        ctx.restore()
+
+        ctx.fillStyle = 'white'
+        ctx.font = 'bold 12px monospace'
+        ctx.textBaseline = 'top'
+        ctx.fillText('AP', 2, 5)
+
+        ctx.restore()
+        workCtx.restore()
+
+        if (fill < 1) fill += .001
+        ripplePoint += .001
+        if (ripplePoint > 1) ripplePoint = 0
+
+        step += 1
+
+        window.requestAnimationFrame(animate)
+    }
+
+    window.requestAnimationFrame(animate)
+</script>
+</html>

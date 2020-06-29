@@ -5,8 +5,9 @@
     <title>AP Canvas</title>
 </head>
 <body>
-    <canvas id="canvas" width="1000" height="600"></canvas>
-    <canvas id="work_canvas" width="1000" height="600"></canvas>
+    <canvas id="canvas" width="2000" height="400"></canvas>
+    <div id="debug"></div>
+    <canvas id="work_canvas" width="2000" height="400"></canvas>
 </body>
 <script>
     let canvas = document.getElementById('canvas')
@@ -22,10 +23,10 @@
 
 
     function animate() {
-        ctx.clearRect(0, 0, 1000, 600)
+        ctx.clearRect(0, 0, 2000, 400)
         ctx.save()
 
-        workCtx.clearRect(0, 0, 1000, 600)
+        workCtx.clearRect(0, 0, 2000, 400)
         workCtx.save()
 
         //let scaleFactor = 8 * Math.sin(step * .01) + 8
@@ -34,28 +35,35 @@
         workCtx.scale(scaleFactor, scaleFactor)
 
         let maxBarLength = 360
-        let barLength = maxBarLength * fill
+        let barLength = maxBarLength
 
+        //border
         ctx.fillStyle = 'black'
         ctx.fillRect(0, 0, 400, 20)
         ctx.strokeStyle = 'white'
         ctx.lineWidth = 2
         ctx.strokeRect(30-1, 5-1, maxBarLength+2, 10+2)
+
         let gradient = ctx.createLinearGradient(30, 0, 30+barLength, 0)
         gradient.addColorStop(0, '#00ff00')
-        gradient.addColorStop(Math.max(0, ripplePoint-.5), '#00ff00')
+
+        //add ripple(s)
+        //gradient.addColorStop(Math.max(0, ripplePoint-.05), '#00ff00')
+        if (ripplePoint-.05 > 0) gradient.addColorStop(ripplePoint-.05, '#00ff00')
         gradient.addColorStop(ripplePoint, 'rgba(200,255,200,1)')
-        gradient.addColorStop(Math.min(1, ripplePoint+.05), 'rgba(0,255,0,1)')
+        //gradient.addColorStop(Math.min(1, ripplePoint+.05), 'rgba(0,255,0,1)')
+        let rippleEnd = Math.min(fill-.01-0.0001, ripplePoint+.05)
+        if (rippleEnd > 0 && rippleEnd < 1) gradient.addColorStop(rippleEnd, 'rgba(0,255,0,1)')
 
+        //add white middle glow
+        //gradient.addColorStop(Math.max(0, fill-.01), '#00ff00')
+        if (fill - .01 > 0) gradient.addColorStop(fill-.01, '#00ff00')
+        gradient.addColorStop(fill, '#ffffff')
+        //gradient.addColorStop(Math.min(1, fill+.01), '#ff0000')
+        if (fill + .01 < 1) gradient.addColorStop(fill+.01, '#ff0000')
 
-        let workGradient = workCtx.createLinearGradient(30, 0, 30+barLength, 0)
-        workGradient.addColorStop(0, '#00ff00')
-        workGradient.addColorStop(Math.max(0, ripplePoint-.5), '#00ff00')
-        workGradient.addColorStop(ripplePoint, 'rgba(200,255,200,1)')
-        workGradient.addColorStop(Math.min(1, ripplePoint+.05), 'rgba(0,255,0,1)')
+        gradient.addColorStop(1, '#ff0000')
 
-
-        //gradient.addColorStop(0, '#00ff00')
         ctx.fillStyle = gradient
         ctx.save()
         //ctx.shadowBlur = 4
@@ -71,7 +79,7 @@
         workCtx.fillStyle = glowGradient
         workCtx.fillRect(30, 0, barLength, 5+1)
 
-        workCtx.fillStyle = workGradient
+        workCtx.fillStyle = gradient
         workCtx.globalCompositeOperation = 'source-in'
         workCtx.fillRect(30, 0, barLength, 5+1)
 
@@ -88,9 +96,17 @@
         ctx.restore()
         workCtx.restore()
 
-        if (fill < 1) fill += .001
+        document.getElementById('debug').innerText = `fill ${fill} 
+        rippleEnd ${rippleEnd}
+        ripple ${ripplePoint}`
+
+        if(rippleEnd > fill) debugger
+
+        if (fill < 1) fill += .0001
+        if (fill >= 1) fill = 1
+
         ripplePoint += .001
-        if (ripplePoint > 1) ripplePoint = 0
+        if (ripplePoint >= fill) ripplePoint = 0
 
         step += 1
 

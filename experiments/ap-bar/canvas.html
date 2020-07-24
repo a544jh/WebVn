@@ -46,30 +46,26 @@
         ctx.lineWidth = 2
         ctx.strokeRect(30 - 1, 5 - 1, maxBarLength + 2, 10 + 2)
 
+
+        let colorStops = []
+
         let gradient = ctx.createLinearGradient(30, 0, 30 + barLength, 0)
-        gradient.addColorStop(0, '#00ff00')
+
+        colorStops.push([0, [0,255,0,1]])
 
         //add ripple(s)
-        if (ripplePoint - .05 > 0) gradient.addColorStop(ripplePoint - .05, '#00ff00')
-        gradient.addColorStop(ripplePoint, 'rgba(255,255,255,1)')
 
-        let rippleEnd = ripplePoint + .01
-        let glowStart = fill - .01
+        addRipple(colorStops, ripplePoint,.05,.01,[0,255,0,1], [255,255,255,1])
+        //addRipple(colorStops, ripplePoint+.01,.05,.01,[0,255,0,1], [255,255,255,1])
 
-        if (rippleEnd < glowStart) {
-            gradient.addColorStop(rippleEnd, 'rgba(0,255,0,1)')
-            gradient.addColorStop(glowStart, '#00ff00')
-        } else if (glowStart > 0) {
-            let [x, y] = intersect(ripplePoint, rippleEnd, glowStart, fill)
-            let c = lerpRGBA('rgba(0,255,0,1)', 'rgba(255,255,255,1)', y)
-            gradient.addColorStop(x, c)
+        //glow
+        addRipple(colorStops, fill,.01,.01,[255,0,0,1],[255,255,255,1])
+
+        colorStops.push([1,[255,0,0,1]])
+
+        for (let stop of colorStops) {
+            gradient.addColorStop(stop[0], `rgba(${stop[1].join(',')})`)
         }
-
-        gradient.addColorStop(fill, '#ffffff')
-
-        if (fill + .01 < 1) gradient.addColorStop(fill + .01, '#ff0000')
-
-        gradient.addColorStop(1, '#ff0000')
 
         ctx.fillStyle = gradient
         ctx.save()
@@ -103,8 +99,10 @@
         ctx.restore()
         workCtx.restore()
 
+
+        let colorStopsStr = colorStops.map(s => s[0].toFixed(5))
         document.getElementById('debug').innerText = `fill ${fill} 
-        rippleEnd ${rippleEnd}
+        stops ${colorStopsStr}
         ripple ${ripplePoint}`
 
 
@@ -122,7 +120,7 @@
     window.requestAnimationFrame(animate)
 
 
-    // given two slopes y=0,1, find their intersection y value
+    // given two slopes y=0,1 (x values given), find their intersection y value
     function intersect(top1, bottom1, bottom2, top2) {
         let slope1 = -1 / (bottom1 - top1)
         let slope2 = 1 / (top2 - bottom2)
@@ -157,6 +155,38 @@
         let a2 = parseRGB(c2)
         let res = arrLerp(a1, a2, t).map(x => x.toFixed(0))
         return `rgba(${res.join(',')})`
+    }
+
+    // stops: [distance, [r,g,b,a]]
+    function addRipple(stops, point, startDistance, endDistance, bg, fg) {
+        let start = point - startDistance
+        let end = point + endDistance
+        if (start >= 0) {
+            let last = stops[stops.length-1]
+            let lastTop = stops[stops.length-2]
+            if (last !== undefined && start < last[0]) {
+                let [x, y] = intersect(lastTop[0], last[0], start, point)
+                let c = arrLerp(last[1], lastTop[1], y)
+                stops.pop()
+                stops.push([x, c])
+            } else {
+                //let c = last === undefined ? bg : last[1]
+                stops.push([start, last[1]])
+            }
+            stops.push([point, fg])
+            if (end <= 1) stops.push([end, bg])
+        } else {
+            // edge case: ripple start < 0
+            let startColor = stops[0][1]
+
+            let slope = 1 / (point - start)
+            let y = slope * -start
+            let c = arrLerp(startColor, fg, y)
+            stops.pop()
+            stops.push([0,c])
+            stops.push([point,fg])
+            if (end <= 1) stops.push([end, bg])
+        }
     }
 </script>
 

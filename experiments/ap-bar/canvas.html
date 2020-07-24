@@ -5,7 +5,11 @@
     <meta charset="UTF-8">
     <title>AP Canvas</title>
 </head>
-
+<style>
+    body {
+        touch-action: manipulation;
+    }
+</style>
 <body>
     <canvas id="canvas" width="2000" height="400"></canvas>
     <div id="debug"></div>
@@ -20,9 +24,19 @@
 
     let step = 0
 
-    let fill = 0
-    let ripplePoint = 0
+    let fill = .5
+    let fillSpeed = 0
+    let fillAcceleration = .005 // per click
+    let fillDeceleration = .001 // per frame
+    let minFillSpeed = -.0001
+    let maxFillSpeed = .0001
+    let ripples = []
+    let rippleSpeed = .015
 
+    document.addEventListener('click', () => {
+        ripples.unshift(0)
+        if (fillSpeed < maxFillSpeed) fillSpeed += fillAcceleration
+    })
 
     function animate() {
         ctx.clearRect(0, 0, 2000, 400)
@@ -32,7 +46,7 @@
         workCtx.save()
 
         //let scaleFactor = 8 * Math.sin(step * .01) + 8
-        let scaleFactor = 4
+        let scaleFactor = 2
         ctx.scale(scaleFactor, scaleFactor)
         workCtx.scale(scaleFactor, scaleFactor)
 
@@ -55,8 +69,9 @@
 
         //add ripple(s)
 
-        addRipple(colorStops, ripplePoint,.05,.01,[0,255,0,1], [255,255,255,1])
-        //addRipple(colorStops, ripplePoint+.01,.05,.01,[0,255,0,1], [255,255,255,1])
+        for (ripple of ripples) {
+            addRipple(colorStops, ripple,.05,.01,[0,255,0,1], [255,255,255,1])
+        }
 
         //glow
         addRipple(colorStops, fill,.01,.01,[255,0,0,1],[255,255,255,1])
@@ -102,15 +117,22 @@
 
         let colorStopsStr = colorStops.map(s => s[0].toFixed(5))
         document.getElementById('debug').innerText = `fill ${fill} 
+        fillSpeed ${fillSpeed}
         stops ${colorStopsStr}
-        ripple ${ripplePoint}`
+        ripples ${ripples}`
 
 
-        if (fill < 1) fill += .0001
+        fill += fillSpeed
+        if (fill < 0) fill = 0
         if (fill >= 1) fill = 1
 
-        ripplePoint += .001
-        if (ripplePoint >= fill) ripplePoint = 0
+        if (fillSpeed > minFillSpeed) fillSpeed -= fillDeceleration
+
+        for (let i = 0; i < ripples.length; i++) {
+            const element = ripples[i];
+            ripples[i] += rippleSpeed
+        }
+        ripples = ripples.filter(r => r < fill)
 
         step += 1
 

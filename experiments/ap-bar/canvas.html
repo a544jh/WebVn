@@ -16,6 +16,9 @@
     <canvas id="work_canvas" width="2000" height="400"></canvas>
 </body>
 <script>
+    let canvasWidth = 2000
+    let canvasHeight = 400
+
     let canvas = document.getElementById('canvas')
     let ctx = canvas.getContext('2d')
 
@@ -39,31 +42,33 @@
     })
 
     function animate() {
-        ctx.clearRect(0, 0, 2000, 400)
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
         ctx.save()
 
-        workCtx.clearRect(0, 0, 2000, 400)
+        workCtx.clearRect(0, 0, canvasWidth, canvasHeight)
         workCtx.save()
 
         //let scaleFactor = 8 * Math.sin(step * .01) + 8
-        let scaleFactor = 2
+        let scaleFactor = 4
         ctx.scale(scaleFactor, scaleFactor)
         workCtx.scale(scaleFactor, scaleFactor)
 
-        let maxBarLength = 360
-        let barLength = maxBarLength
+        let barLength = 370
+        let barHeight = 10
+        let barX = 25
+        let barY = 5
 
         //border
         ctx.fillStyle = 'black'
         ctx.fillRect(0, 0, 400, 20)
         ctx.strokeStyle = 'white'
         ctx.lineWidth = 2
-        ctx.strokeRect(30 - 1, 5 - 1, maxBarLength + 2, 10 + 2)
+        ctx.strokeRect(barX - 1, barY - 1, barLength + 2, barHeight + 2)
 
 
         let colorStops = []
 
-        let gradient = ctx.createLinearGradient(30, 0, 30 + barLength, 0)
+        let gradient = ctx.createLinearGradient(barX, 0, barX + barLength, 0)
 
         colorStops.push([0, [0,255,0,1]])
 
@@ -84,32 +89,99 @@
 
         ctx.fillStyle = gradient
         ctx.save()
-        //ctx.shadowBlur = 4
-        //ctx.shadowColor = '#00ff00'
-        //draw progress bar
-        //ctx.filter = 'blur(30px)'
-        ctx.fillRect(30, 5, barLength, 10)
+        ctx.fillRect(barX, barY, barLength, barHeight)
         ctx.restore()
 
-        let glowGradient = workCtx.createLinearGradient(0, 5, 0, 0) // top glow
+        let glowWidth = 5
+
+        // TOP GLOW
+
+        workCtx.save()
+        workCtx.beginPath()
+        workCtx.moveTo(barX-glowWidth,barY-glowWidth)
+        workCtx.lineTo(barX+barLength+glowWidth,barY-glowWidth)
+        workCtx.lineTo(barX+barLength,barY)
+        workCtx.lineTo(barX, barY)
+        workCtx.closePath()
+        workCtx.strokeStyle = 'black'
+        workCtx.clip()
+        
+        let glowGradient = workCtx.createLinearGradient(0, barY, 0, barY-glowWidth)
         glowGradient.addColorStop(0, 'rgba(0,0,0,1)')
         glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
         workCtx.fillStyle = glowGradient
-        workCtx.fillRect(30, 0, barLength, 5 + 1)
+        workCtx.fillRect(barX-glowWidth, barY-glowWidth, barLength+2*glowWidth, glowWidth + 1)
+        workCtx.restore()
+
+        // LEFT GLOW
+
+        workCtx.save()
+        workCtx.beginPath()
+        workCtx.moveTo(barX-glowWidth,barY-glowWidth)
+        workCtx.lineTo(barX, barY)
+        workCtx.lineTo(barX, barY+barHeight)
+        workCtx.lineTo(barX-glowWidth, barY+barHeight+glowWidth)
+        workCtx.closePath()
+        workCtx.clip()
+        
+        glowGradient = workCtx.createLinearGradient(barX, 0, barX-glowWidth, 0)
+        glowGradient.addColorStop(0, 'rgba(0,0,0,1)')
+        glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
+        workCtx.fillStyle = glowGradient
+        workCtx.fillRect(barX-glowWidth, barY-glowWidth, glowWidth, barHeight+2*glowWidth)
+        workCtx.restore()
+
+        // BOTTOM GLOW
+
+        workCtx.save()
+        workCtx.beginPath()
+        workCtx.moveTo(barX, barY+barHeight)
+        workCtx.lineTo(barX+barLength, barY+barHeight)
+        workCtx.lineTo(barX+barLength+glowWidth, barY+barHeight+glowWidth)
+        workCtx.lineTo(barX-glowWidth, barY+barHeight+glowWidth)
+        workCtx.closePath()
+        workCtx.clip()
+
+        glowGradient = workCtx.createLinearGradient(0, barY+barHeight, 0, barY+barHeight+glowWidth)
+        glowGradient.addColorStop(0, 'rgba(0,0,0,1)')
+        glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
+        workCtx.fillStyle = glowGradient
+        workCtx.fillRect(barX-glowWidth, barY+barHeight, barLength+2*glowWidth, glowWidth)
+        workCtx.restore()
+
+        // RIGHT GLOW
+
+        workCtx.save()
+        workCtx.beginPath()
+        workCtx.moveTo(barX+barLength, barY)
+        workCtx.lineTo(barX+barLength+glowWidth, barY-glowWidth)
+        workCtx.lineTo(barX+barLength+glowWidth, barY+barHeight+glowWidth)
+        workCtx.lineTo(barX+barLength, barY+barHeight)
+        workCtx.closePath()
+        workCtx.clip()
+        
+        glowGradient = workCtx.createLinearGradient(barX+barLength, 0, barX+barLength+glowWidth, 0)
+        glowGradient.addColorStop(0, 'rgba(0,0,0,1)')
+        glowGradient.addColorStop(1, 'rgba(255,255,255,0)')
+        workCtx.fillStyle = glowGradient
+        workCtx.fillRect(barX+barLength, barY-glowWidth, glowWidth, barHeight+2*glowWidth)
+        workCtx.restore()
+
 
         workCtx.fillStyle = gradient
         workCtx.globalCompositeOperation = 'source-in'
-        workCtx.fillRect(30, 0, barLength, 5 + 1)
+        workCtx.fillRect(0, 0, canvasWidth, canvasHeight)
 
         ctx.save()
         ctx.resetTransform()
+        ctx.globalCompositeOperation = 'lighter'
         ctx.drawImage(workCanvas, 0, 0)
         ctx.restore()
 
         ctx.fillStyle = 'white'
         ctx.font = 'bold 12px monospace'
         ctx.textBaseline = 'top'
-        ctx.fillText('AP', 2, 5)
+        ctx.fillText('AP', 4, 5)
 
         ctx.restore()
         workCtx.restore()

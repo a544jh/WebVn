@@ -27,12 +27,12 @@
 
     let step = 0
 
-    let fill = 0
+    let fill = .5
     let fillSpeed = 0
-    let fillAcceleration = .005 // per click
-    let fillDeceleration = .001 // per frame
-    let minFillSpeed = -.0001
-    let maxFillSpeed = .0003
+    let fillAcceleration = .001 // per click
+    let fillDeceleration = .0001 // per frame
+    let minFillSpeed = 0
+    let maxFillSpeed = 0
     let ripples = []
     let rippleSpeed = .015
     let pulseStep = 0
@@ -40,7 +40,8 @@
 
     document.addEventListener('click', () => {
         ripples.unshift(0)
-        if (fillSpeed < maxFillSpeed) fillSpeed += fillAcceleration
+        fillSpeed += fillAcceleration
+        if (fillSpeed > maxFillSpeed) fillSpeed = maxFillSpeed
     })
 
     function animate() {
@@ -51,7 +52,7 @@
         workCtx.save()
 
         //let scaleFactor = 8 * Math.sin(step * .01) + 8
-        let scaleFactor = 4
+        let scaleFactor = 1.5
         ctx.scale(scaleFactor, scaleFactor)
         workCtx.scale(scaleFactor, scaleFactor)
 
@@ -68,14 +69,14 @@
         ctx.strokeRect(barX - 1, barY - 1, barLength + 2, barHeight + 2)
 
         let colorPulse = Math.sin(pulseStep)/2+.5
+        let colorPulseInv = Math.sin(pulseStep+Math.PI)/2+.5
         let pulseSpeed = lerp(.05,.4,Math.pow(fill, 9))
         pulseStep += pulseSpeed
 
-        let maxGreen = lerp(180, 255, fill)
+        let maxGreen = lerp(210, 255, fill)
         let green = arrLerp([0, maxGreen-20, 0, 1], [0, maxGreen, 0, 1], colorPulse)
-        let minRed = lerp(100, 220, fill)
         let maxRed = lerp(180, 255, fill)
-        let red = arrLerp([minRed, 0, 0, 1], [maxRed, 0, 0, 1], colorPulse)
+        let red = arrLerp([maxRed-20, 0, 0, 1], [maxRed, 0, 0, 1], colorPulseInv)
         let white = [255, 255, 255, 1]
 
         let colorStops = []
@@ -202,19 +203,28 @@
 
 
         let colorStopsStr = colorStops.map(s => s[0].toFixed(5))
+        let ripplesStr = ripples.map(r => r.toFixed(5))
+
         document.getElementById('debug').innerText = `fill ${fill} 
         fillSpeed ${fillSpeed}
+        minFillSpeed ${minFillSpeed}
+        maxFillSpeed ${maxFillSpeed}
         stops ${colorStopsStr}
-        ripples ${ripples}
+        ripples ${ripplesStr}
         pulseSpeed ${pulseSpeed}
-        colorPulse ${colorPulse}`
+        colorPulse ${colorPulse}
+        glowIntensity ${glowIntensity}`
 
 
         fill += fillSpeed
         if (fill < 0) fill = 0
         if (fill >= 1) fill = 1
 
-        if (fillSpeed > minFillSpeed) fillSpeed -= fillDeceleration
+        fillSpeed -= fillDeceleration
+        if (fillSpeed < minFillSpeed) fillSpeed = minFillSpeed
+
+        minFillSpeed = lerp(-.00001, -.0020, Math.pow(fill,.5))
+        maxFillSpeed = lerp(.005, .0005, Math.pow(fill,.5))
 
         for (let i = 0; i < ripples.length; i++) {
             const element = ripples[i];

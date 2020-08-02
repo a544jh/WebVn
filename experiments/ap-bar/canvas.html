@@ -36,6 +36,7 @@
     let ripples = []
     let rippleSpeed = .015
     let pulseStep = 0
+    let glowIntensity = 0
 
     document.addEventListener('click', () => {
         ripples.unshift(0)
@@ -90,7 +91,9 @@
         }
 
         //glow
-        addRipple(colorStops, fill,.01,.01,red, white)
+        let glowColor = arrLerp([180,180,180,1],white, Math.pow(glowIntensity,.2))
+        glowIntensity += getRandomArbitrary(Math.max(-glowIntensity,-.2), Math.min(1-glowIntensity,.2))
+        addRipple(colorStops, fill,.01,.01,red, glowColor)
 
         colorStops.push([1,red])
 
@@ -294,6 +297,10 @@
             stops.push([point,fg])
             if (end <= 1) stops.push([end, bg])
         }
+    }
+
+    function getRandomArbitrary(min, max) {
+        return Math.random() * (max - min) + min;
     }
 </script>
 

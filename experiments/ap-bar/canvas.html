@@ -25,11 +25,17 @@
     let workCanvas = document.getElementById('work_canvas')
     let workCtx = workCanvas.getContext('2d')
 
+    let difficultyParam = new URLSearchParams(window.location.search).get('d')
+    let difficulty = difficultyParam !== null && difficultyParam >= 1 && difficultyParam <= 5 ? Number(difficultyParam) : 3
+    let scaledDifficulty = (difficulty - 1) / 4
+    let minMinSpeed = lerp(-.001, -.002, scaledDifficulty)
+    let minMaxSpeed = lerp(.005, .0003, scaledDifficulty)
+
     let step = 0
 
     let fill = .5
     let fillSpeed = 0
-    let fillAcceleration = .001 // per click
+    let fillAcceleration = .002 // per click
     let fillDeceleration = .0001 // per frame
     let minFillSpeed = 0
     let maxFillSpeed = 0
@@ -39,10 +45,22 @@
     let glowIntensity = 0
 
     document.addEventListener('click', () => {
-        ripples.unshift(0)
-        fillSpeed += fillAcceleration
-        if (fillSpeed > maxFillSpeed) fillSpeed = maxFillSpeed
+        accelerate()
     })
+
+    document.addEventListener('keydown', e => {
+        if (e.key === ' ') {
+            e.preventDefault()
+            accelerate()
+        }
+    })
+
+    function accelerate() {
+        ripples.unshift(0)
+
+        if (fillSpeed < 0) fillSpeed = fillAcceleration; else fillSpeed += fillAcceleration
+        if (fillSpeed > maxFillSpeed) fillSpeed = maxFillSpeed
+    }
 
     function animate() {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight)
@@ -221,10 +239,10 @@
         if (fill >= 1) fill = 1
 
         fillSpeed -= fillDeceleration
-        if (fillSpeed < minFillSpeed) fillSpeed = minFillSpeed
+        if (fillSpeed < 0) fillSpeed = minFillSpeed
 
-        minFillSpeed = lerp(-.00001, -.0020, Math.pow(fill,.5))
-        maxFillSpeed = lerp(.005, .0005, Math.pow(fill,.5))
+        minFillSpeed = lerp(-.00001, minMinSpeed, Math.pow(fill,.5))
+        maxFillSpeed = lerp(.006, minMaxSpeed, Math.pow(fill,.5))
 
         for (let i = 0; i < ripples.length; i++) {
             const element = ripples[i];

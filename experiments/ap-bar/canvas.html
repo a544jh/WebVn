@@ -3,21 +3,40 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=820, initial-scale=1">
     <title>AP Canvas</title>
 </head>
 <style>
     body {
         touch-action: manipulation;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        background-color: lightblue;
+    }
+    .hidden {
+        display: none;
+    }
+    #debug {
+        width: 800px;
     }
 </style>
 <body>
-    <canvas id="canvas" width="2000" height="400"></canvas>
-    <div id="debug"></div>
-    <canvas id="work_canvas" width="2000" height="400"></canvas>
+    <canvas id="canvas" width="800" height="40"></canvas>
+    <div id="debug" class="hidden"></div>
+    <canvas id="work_canvas" width="800" height="40" class="hidden"></canvas>
 </body>
 <script>
-    let canvasWidth = 2000
-    let canvasHeight = 400
+    let urlParams = new URLSearchParams(window.location.search)
+
+    if (urlParams.get('debug')) {
+        document.getElementById('debug').classList.remove('hidden')
+        document.getElementById('work_canvas').classList.remove('hidden')
+    }
 
     let canvas = document.getElementById('canvas')
     let ctx = canvas.getContext('2d')
@@ -25,7 +44,7 @@
     let workCanvas = document.getElementById('work_canvas')
     let workCtx = workCanvas.getContext('2d')
 
-    let difficultyParam = new URLSearchParams(window.location.search).get('d')
+    let difficultyParam = urlParams.get('d')
     let difficulty = difficultyParam !== null && difficultyParam >= 1 && difficultyParam <= 5 ? Number(difficultyParam) : 3
     let scaledDifficulty = (difficulty - 1) / 4
     let minMinSpeed = lerp(-.001, -.002, scaledDifficulty)
@@ -63,14 +82,14 @@
     }
 
     function animate() {
-        ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.save()
 
-        workCtx.clearRect(0, 0, canvasWidth, canvasHeight)
+        workCtx.clearRect(0, 0, canvas.width, canvas.height)
         workCtx.save()
 
         //let scaleFactor = 8 * Math.sin(step * .01) + 8
-        let scaleFactor = 1.5
+        let scaleFactor = 2
         ctx.scale(scaleFactor, scaleFactor)
         workCtx.scale(scaleFactor, scaleFactor)
 
@@ -203,7 +222,7 @@
 
         workCtx.fillStyle = gradient
         workCtx.globalCompositeOperation = 'source-in'
-        workCtx.fillRect(0, 0, canvasWidth, canvasHeight)
+        workCtx.fillRect(0, 0, canvas.width, canvas.height)
 
         ctx.save()
         ctx.resetTransform()
@@ -308,7 +327,6 @@
                 stops.pop()
                 stops.push([x, c])
             } else {
-                //let c = last === undefined ? bg : last[1]
                 stops.push([start, last[1]])
             }
             stops.push([point, fg])

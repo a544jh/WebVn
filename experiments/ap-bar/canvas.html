@@ -68,7 +68,7 @@
     })
 
     document.addEventListener('keydown', e => {
-        if (e.key === ' ') {
+        if (e.key === ' ' && !e.repeat) {
             e.preventDefault()
             accelerate()
         }

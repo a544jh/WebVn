@@ -161,6 +161,7 @@ export class TextBoxRenderer {
 // TODO: move to utils
 function nextAnimationFrame() {
   return new Promise((resolve) => {
-    window.requestAnimationFrame(resolve)
+    // Firefox needs two calls, or the transitionend events won't always trigger lol
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))
   })
 }

@@ -9,6 +9,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
 
 import * as parser from "./pegjsParser/parserWrapper.js"
+import { getDocument, getObject, getTokens } from "./yamlParser/YamlParser"
 
 declare global {
   interface Window { parser: any}
@@ -54,6 +55,31 @@ Actor2: 1
 Actor2: 2
 The end
 `
+
+// TESTING YAML PARSER
+const yamlText =
+`
+macro: &macro
+  Actor1: "This is a macro"
+
+listmacro: &listmacro
+  - asd
+  - sad
+  - das
+
+story:
+  - hello
+  - *macro
+  - Actor1: But I'm real now
+    # <<: *listmacro
+`
+
+const yaml = getTokens(yamlText)
+console.log(yaml)
+const doc = getDocument(yamlText)
+console.log(doc)
+const obj = getObject(yamlText)
+console.log(obj)
 
 const player = new VnPlayer(state)
 

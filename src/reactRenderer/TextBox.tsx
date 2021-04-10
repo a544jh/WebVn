@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ADVTextBox } from "../core/state"
+import { getUniqueId } from "./reactRenderer"
 
 interface Props {
   adv: ADVTextBox
@@ -33,7 +34,7 @@ export class TextBox extends React.Component<Props, {}> {
         style.color = node.color
         delay += node.characterDelay
 
-        charSpans.push(<span key={i} style={style} onAnimationEnd={finishedFn}>{text.charAt(i)}</span>)
+        charSpans.push(<span key={getUniqueId()} style={style} onAnimationEnd={finishedFn}>{text.charAt(i)}</span>)
       }
     })
 

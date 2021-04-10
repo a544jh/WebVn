@@ -59,3 +59,14 @@ export class ReactRenderer implements Renderer {
   }
 
 }
+
+let id = 0
+
+export const getUniqueId = () => {
+  const ret = id
+  id++
+  if (id >= Number.MAX_SAFE_INTEGER) {
+    id = 0
+  }
+  return ret
+}

@@ -68,5 +68,5 @@ function makeMarker(): HTMLDivElement {
 }
 
 function getCurrentLine(player: VnPlayer): number {
-  return player.state.commands[player.state.commandIndex - 1].getLine() || 1
+  return player.state.commands[player.state.commandIndex - 1].getLine() || 1
 }

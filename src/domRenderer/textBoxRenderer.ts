@@ -36,10 +36,10 @@ export class TextBoxRenderer {
     return Promise.resolve()
   }
 
-  private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<any> {
+  private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
 
-    let resolveAnimationFinished: (value?: {} | PromiseLike<{}> | undefined) => void
-    const animationFinished = new Promise((resolve) => { resolveAnimationFinished = resolve })
+    let resolveAnimationFinished: (value?: unknown | PromiseLike<unknown> | undefined) => void
+    const animationFinished = new Promise<void>((resolve) => { resolveAnimationFinished = resolve })
 
     if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
@@ -91,7 +91,7 @@ export class TextBoxRenderer {
     nameTag: ADVNameTag | undefined,
     animate: boolean): Promise<any> {
 
-    let resolveAnimationFinished: (value?: {} | PromiseLike<{}> | undefined) => void = () => { return }
+    let resolveAnimationFinished: (value?: unknown | PromiseLike<unknown> | undefined) => void = () => { return }
     const animationFinished = new Promise((resolve) => { resolveAnimationFinished = resolve })
 
     const remove = () => {

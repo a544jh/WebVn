@@ -8,7 +8,7 @@ export interface VnPlayerState {
 }
 
 export interface AnimatableState {
-  text: TextBox | null
+  text: TextBox | null
   // bg, actors, bgn, sfx...
 }
 

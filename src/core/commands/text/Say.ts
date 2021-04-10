@@ -1,4 +1,4 @@
-import { SayStatement, SC } from "StatementConverter"
+import { SayStatement } from "StatementConverter"
 import { Actor, ADVNameTag, ADVTextBox, TextBoxType, TextNode, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 
@@ -12,17 +12,17 @@ export class Say extends Command {
     this.actor = s.actor
   }
 
-  public apply(state: VnPlayerState) {
+  public apply(state: VnPlayerState): VnPlayerState {
 
     // TODO: handle undefined actor
     const actor: Actor = state.actors[this.actor || "none"]
-    const color: string = actor.textColor ||  state.actors.default.textColor
+    const color: string = actor.textColor || state.actors.default.textColor
 
     let nameTag: ADVNameTag | undefined
     if (actor.name) {
       nameTag = {
         name: actor.name,
-        color: actor.nameTagColor ||  state.actors.default.nameTagColor,
+        color: actor.nameTagColor || state.actors.default.nameTagColor,
       }
     }
 

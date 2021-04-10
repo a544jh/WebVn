@@ -4,7 +4,7 @@ import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
 import * as parser from "../parser/parserWrapper.js"
 
-import { SC, Statement } from "../core/commands/StatementConverter"
+import { SC, Statement } from "../parser/StatementConverter"
 import "./editor.css"
 
 export class VnEditor {

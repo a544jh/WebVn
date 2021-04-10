@@ -1,6 +1,6 @@
 import { Command } from "./commands/Command"
 import { VnPlayerState } from "./state"
-import "./commands/commands"
+import "../parser/commands"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -23,7 +23,7 @@ export class VnPlayer {
     this.state = state === undefined ? initialState : state
   }
 
-  public advance() {
+  public advance(): void {
     let newState = { ...this.state }
     if (newState.commandIndex < newState.commands.length) {
       newState = newState.commands[newState.commandIndex].apply(newState)
@@ -32,11 +32,11 @@ export class VnPlayer {
     }
   }
 
-  public loadCommands(commands: Command[]) {
+  public loadCommands(commands: Command[]): void {
     this.state = {...this.state, commands, commandIndex: 0}
   }
 
-  public goToCommand(cmdIndex: number) {
+  public goToCommand(cmdIndex: number): void {
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }

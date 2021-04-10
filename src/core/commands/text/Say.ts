@@ -1,4 +1,3 @@
-import { SayStatement } from "StatementConverter"
 import { Actor, ADVNameTag, ADVTextBox, TextBoxType, TextNode, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 
@@ -6,10 +5,10 @@ export class Say extends Command {
   private text: string
   private actor?: string
 
-  constructor(s: SayStatement) {
-    super(s.line)
-    this.text = s.text
-    this.actor = s.actor
+  constructor(line: number, actor: string, text: string) {
+    super(line)
+    this.text = text
+    this.actor = actor
   }
 
   public apply(state: VnPlayerState): VnPlayerState {

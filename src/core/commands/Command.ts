@@ -5,7 +5,7 @@ export abstract class Command {
   constructor(line: number) {
     this.line = line
   }
-  public getLine() {
+  public getLine(): number {
     return this.line
   }
   public abstract apply(state: VnPlayerState): VnPlayerState

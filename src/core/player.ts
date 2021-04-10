@@ -1,6 +1,6 @@
 import { Command } from "./commands/Command"
 import { VnPlayerState } from "./state"
-import "../parser/commands"
+import "../pegjsParser/commands"
 
 export const initialState: VnPlayerState = {
   actors: {

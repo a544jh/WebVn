@@ -2,9 +2,9 @@ import * as CodeMirror from "codemirror"
 import { Command } from "../core/commands/Command"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
-import * as parser from "../parser/parserWrapper.js"
+import * as parser from "../pegjsParser/parserWrapper.js"
 
-import { SC, Statement } from "../parser/StatementConverter"
+import { SC, Statement } from "../pegjsParser/StatementConverter"
 import "./editor.css"
 
 export class VnEditor {

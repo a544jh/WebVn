@@ -8,7 +8,7 @@ import { VnEditor } from "./editor/editor"
 import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
 
-import * as parser from "./parser/parserWrapper.js"
+import * as parser from "./pegjsParser/parserWrapper.js"
 
 declare global {
   interface Window { parser: any}

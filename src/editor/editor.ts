@@ -1,10 +1,8 @@
 import * as CodeMirror from "codemirror"
-import { Command } from "../core/commands/Command"
+import { Parser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
-import * as parser from "../pegjsParser/parserWrapper.js"
-
-import { SC, Statement } from "../pegjsParser/StatementConverter"
+import { parse as pegjsParser } from "../pegjsParser/StatementConverter"
 import "./editor.css"
 
 export class VnEditor {
@@ -13,6 +11,8 @@ export class VnEditor {
 
   private player: VnPlayer
   private renderer: DomRenderer
+
+  private parser: Parser = pegjsParser
 
   constructor(root: HTMLDivElement, player: VnPlayer, renderer: DomRenderer) {
     this.player = player
@@ -31,7 +31,7 @@ export class VnEditor {
       line = line + 1 // codemirror line is zero based
       this.updatePlayerState(line)
     })
-    this.vnEditor.on("blur", (instance) => {
+    this.vnEditor.on("blur", () => {
       this.updatePlayerState(getCurrentLine(this.player))
     })
   }
@@ -43,8 +43,7 @@ export class VnEditor {
 
   private updatePlayerState(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
-      const statements = parser.parse(this.vnEditor.getDoc().getValue()) as Statement[]
-      const commands = SC.convertStatements(statements)
+      const commands = this.parser(this.vnEditor.getDoc().getValue())
       this.player.loadCommands(commands)
       this.vnEditor.getDoc().markClean()
     }

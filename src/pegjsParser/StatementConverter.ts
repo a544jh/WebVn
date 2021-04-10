@@ -1,4 +1,5 @@
 import { Command } from "../core/commands/Command"
+import * as parser from "./parserWrapper.js"
 
 // Statements from pegjs parser
 
@@ -64,3 +65,8 @@ class StatementConverter {
 }
 
 export const SC = new StatementConverter()
+
+export function parse(text: string): Command[] {
+  const statements = parser.parse(text) as Statement[]
+  return SC.convertStatements(statements)
+}

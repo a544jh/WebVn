@@ -1,4 +1,4 @@
-import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
+import { ADVNameTag, ADVTextBox, TextBox, TextBoxType } from "../core/state"
 
 export class TextBoxRenderer {
 
@@ -53,7 +53,7 @@ export class TextBoxRenderer {
 
     let delay = 0
 
-    adv.textNodes.forEach((node, index) => {
+    adv.textNodes.forEach((node) => {
       const text = node.text
 
       for (let i = 0; i < text.length; i++) {
@@ -89,7 +89,7 @@ export class TextBoxRenderer {
   private async renderAdvNameTag(
     prevNameTag: ADVNameTag | undefined,
     nameTag: ADVNameTag | undefined,
-    animate: boolean): Promise<any> {
+    animate: boolean): Promise<unknown> {
 
     let resolveAnimationFinished: (value?: unknown | PromiseLike<unknown> | undefined) => void = () => { return }
     const animationFinished = new Promise((resolve) => { resolveAnimationFinished = resolve })

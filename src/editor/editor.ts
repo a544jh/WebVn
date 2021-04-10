@@ -36,7 +36,7 @@ export class VnEditor {
     })
   }
 
-  public loadScript(script: string) {
+  public loadScript(script: string): void {
     this.vnEditor.getDoc().setValue(script)
     this.updatePlayerState(1)
   }

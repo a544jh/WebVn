@@ -1,5 +1,5 @@
 import { VnPlayer } from "../core/player"
-import { ADVTextBox, TextBox, TextBoxType, VnPlayerState } from "../core/state"
+import { VnPlayerState } from "../core/state"
 import { TextBoxRenderer } from "./textBoxRenderer"
 
 import "./animations.css"
@@ -40,7 +40,7 @@ export class DomRenderer {
     this.render(this.player.state, true)
   }
 
-  public render(state: VnPlayerState, animate: boolean) {
+  public render(state: VnPlayerState, animate: boolean): void {
     this.onRenderCallbacks.forEach((cb) => cb())
 
     this.finished = false
@@ -61,7 +61,7 @@ export class DomRenderer {
     })
   }
 
-  public advance() {
+  public advance(): void {
     if (this.finished) {
       this.player.advance()
       this.render(this.player.state, true)

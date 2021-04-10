@@ -1,7 +1,6 @@
 let path = require("path");
 
-const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
-const isDevServer = process.argv[1].indexOf("webpack-dev-server") !== -1;
+const isDevServer = process.env.WEBPACK_DEV_SERVER;
 
 module.exports = {
   mode: "development",
@@ -19,14 +18,13 @@ module.exports = {
     extensions: [".tsx", ".ts", ".js", ".pegjs"]
   },
 
-  devtool: "source-map",
-
   module: {
     rules: [
       {
         test: /\.html$/,
         exclude: /node_modules/,
-        loader: "file-loader?name=[name].[ext]"
+        loader: "file-loader",
+        options: {name: "[name].[ext]"}
       },
       // may want to handle the theme loading ourselves...
       {
@@ -51,8 +49,6 @@ module.exports = {
   }
 };
 
-if (!isDevServer) {
-  module.exports.plugins = [
-    new UglifyJsPlugin()
-  ];
+if (isDevServer) {
+  module.exports.devtool = "eval-source-map"
 }

@@ -1,10 +1,25 @@
-import { Composer, Document, isMap, isPair, isScalar, isSeq, LineCounter, Options, parse, parseDocument, Parser, YAMLSeq } from "yaml"
+import {
+  Composer,
+  Document,
+  isMap,
+  isPair,
+  isScalar,
+  isSeq,
+  LineCounter,
+  Node,
+  Options,
+  parse,
+  parseDocument,
+  Parser,
+  YAMLSeq,
+} from "yaml"
 import { VnParser } from "../core/commands/Parser"
 import { Token } from "yaml/dist/parse/tokens"
 import { VnPlayerState } from "../core/state"
 import { initialState } from "../core/player"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
+import { CloseTextBox } from "../core/commands/text/CloseTextBox"
 
 export const getTokens = (text: string): Token[] => {
   const tokens: Token[] = []
@@ -19,9 +34,8 @@ export const getDocument = (text: string): Document => {
 
 export const getObject = (text: string): unknown => parse(text)
 
-
 const getInitialState = (text: string): VnPlayerState => {
-  const vnState = { ...initialState}
+  const vnState = { ...initialState }
 
   const docOptions: Options = {}
 
@@ -31,6 +45,8 @@ const getInitialState = (text: string): VnPlayerState => {
   const parser = new Parser(composer.next, lineCounter.addNewLine)
   parser.parse(text)
   composer.end()
+
+  console.dir(docs[0])
 
   const storyNode = docs[0].get("story")
   if (storyNode === undefined) {
@@ -51,15 +67,12 @@ const getInitialState = (text: string): VnPlayerState => {
 const toCommands = (story: YAMLSeq<unknown>, lc: LineCounter): Command[] => {
   const commands: Command[] = []
 
-  const nodeEvaluators: NodeToCommand[] = [
-    singleString,
-    mapWithOneStringValue
-  ]
+  const nodeEvaluators: NodeToCommand[] = [singleString, registeredCommand, mapWithOneCapitalizedStringValue]
 
-  for (const item of story.items){
+  for (const item of story.items) {
     for (const func of nodeEvaluators) {
       const command = func(item, lc)
-      if (command !== null) {
+      if (command !== undefined) {
         commands.push(command)
         break
       }
@@ -68,30 +81,54 @@ const toCommands = (story: YAMLSeq<unknown>, lc: LineCounter): Command[] => {
   return commands
 }
 
-type NodeToCommand = (item: unknown, lc: LineCounter) => Command | null
+type NodeToCommand = (item: unknown, lc: LineCounter) => Command | undefined
 
 const singleString: NodeToCommand = (item, lc) => {
   if (isScalar(item) && typeof item.value === "string") {
-    return new Say(lc.linePos(item.range?.[0] || 0).line, "none", item.value)
+    return new Say(getLine(item, lc), "none", item.value)
   }
-  return null
 }
 
-const mapWithOneStringValue: NodeToCommand = (item, lc) => {
-  if(isMap(item) && item.items.length === 1 && isPair(item.items[0])){
+const registeredCommand: NodeToCommand = (item, lc) => {
+  if (isMap(item) && item.items.length === 1 && isPair(item.items[0])) {
     const pair = item.items[0]
-    if(isScalar(pair.key) && isScalar(pair.value)) {
-      const line = lc.linePos(item.range?.[0] || 0).line
+    if (isScalar(pair.key) && typeof pair.key.value === "string" && registeredCommands[pair.key.value]) {
+      return registeredCommands[pair.key.value](pair.value, lc)
+    }
+  }
+}
+
+const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
+  if (isMap(item) && item.items.length === 1 && isPair(item.items[0])) {
+    const pair = item.items[0]
+    if (isScalar(pair.key) && isScalar(pair.value)) {
+      const line = getLine(item, lc)
       if (typeof pair.key.value === "string" && typeof pair.value.value === "string") {
-        return new Say(line, pair.key.value, pair.value.value)
+        const key = pair.key.value
+        if (key[0] !== key[0].toLowerCase()) {
+          return new Say(line, key, pair.value.value)
+        }
       }
     }
   }
-  return null
 }
 
+const textboxHandler: NodeToCommand = (item, lc) => {
+  if (isScalar(item) && item.value === "close") {
+    return new CloseTextBox(getLine(item, lc))
+  }
+}
 
+interface CommandHandlers {
+  [index: string]: NodeToCommand
+}
+
+const registeredCommands: CommandHandlers = {
+  textbox: textboxHandler,
+}
+
+const getLine = (item: Node, lc: LineCounter): number => lc.linePos(item.range?.[0] || 0).line
 
 export const YamlParser: VnParser = {
-  getInitialState
+  getInitialState,
 }

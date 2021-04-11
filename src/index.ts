@@ -76,6 +76,7 @@ story:
   - false
   - "Quoted"
   - Actor1: But I'm real now
+  - textbox: close
     # <<: *listmacro
 `
 

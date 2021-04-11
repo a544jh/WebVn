@@ -9,7 +9,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
 
 import * as parser from "./pegjsParser/parserWrapper.js"
-import { getDocument, getObject, getTokens } from "./yamlParser/YamlParser"
+import { YamlParser } from "./yamlParser/YamlParser"
 
 declare global {
   interface Window { parser: any}
@@ -70,17 +70,17 @@ listmacro: &listmacro
 story:
   - hello
   - *macro
+  - 2
+  - "2"
+  - no
+  - false
+  - "Quoted"
   - Actor1: But I'm real now
     # <<: *listmacro
 `
 
-const yaml = getTokens(yamlText)
-console.log(yaml)
-const doc = getDocument(yamlText)
-console.log(doc)
-const obj = getObject(yamlText)
-console.log(obj)
-
+const yamlState = YamlParser.getInitialState(yamlText)
+console.dir(yamlState)
 const player = new VnPlayer(state)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement

@@ -1,5 +1,5 @@
 import * as CodeMirror from "codemirror"
-import { Parser } from "../core/commands/Parser"
+import { SimpleCommandParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
 import { parse as pegjsParser } from "../pegjsParser/StatementConverter"
@@ -12,7 +12,7 @@ export class VnEditor {
   private player: VnPlayer
   private renderer: DomRenderer
 
-  private parser: Parser = pegjsParser
+  private parser: SimpleCommandParser = pegjsParser
 
   constructor(root: HTMLDivElement, player: VnPlayer, renderer: DomRenderer) {
     this.player = player

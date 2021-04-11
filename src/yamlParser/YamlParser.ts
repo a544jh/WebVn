@@ -1,6 +1,7 @@
 import {
   Composer,
   Document,
+  isAlias,
   isMap,
   isPair,
   isScalar,
@@ -69,7 +70,22 @@ const toCommands = (story: YAMLSeq<unknown>, lc: LineCounter): Command[] => {
 
   const nodeEvaluators: NodeToCommand[] = [singleString, registeredCommand, mapWithOneCapitalizedStringValue]
 
-  for (const item of story.items) {
+  for (let item of story.items) {
+    if (isAlias(item)) {
+      //const resolvedNode = Object.assign(Object.create(item.source), item.source) // WTF JS ... (need to preserve the type)
+      // ^ works too but relies on prototype chain
+
+      // Hack to clone the Node and set its type using symbol used by yaml lib internally...
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const sourceAsAny = item.source as any
+      const resolvedNode = { ...item.source } as any
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+      const symbol = Symbol.for("yaml.node.type")
+      resolvedNode[symbol] = sourceAsAny[symbol]
+      resolvedNode.range = item.range // use line numbers where anchor is dereferenced
+      item = resolvedNode
+    }
+
     for (const func of nodeEvaluators) {
       const command = func(item, lc)
       if (command !== undefined) {

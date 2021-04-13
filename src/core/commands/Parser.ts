@@ -6,5 +6,5 @@ export type SimpleCommandParser = (s: string) => Command[]
 // TODO: handle multiple files and stuff at some point :)
 
 export interface VnParser {
-  getInitialState(text: string): VnPlayerState
+  updateState(text: string, state: VnPlayerState): VnPlayerState
 }

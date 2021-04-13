@@ -1,20 +1,13 @@
 import "./index.html"
 
 import { initialState, VnPlayer } from "./core/player"
-import { TextBoxType, VnPlayerState } from "./core/state"
+import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
 import { VnEditor } from "./editor/editor"
 
-import * as CodeMirror from "codemirror"
 import "codemirror/lib/codemirror.css"
 
-import * as parser from "./pegjsParser/parserWrapper.js"
 import { YamlParser } from "./yamlParser/YamlParser"
-
-declare global {
-  interface Window { parser: any}
-}
-window.parser = parser
 
 const state: VnPlayerState = {
   ...initialState,
@@ -23,76 +16,57 @@ const state: VnPlayerState = {
       textColor: "white",
       nameTagColor: "white",
     },
-    none: {
+    [NARRATOR_ACTOR_ID]: {
       textColor: "#60baff",
     },
-    Actor : {
+    A1: {
       name: "Actor",
       nameTagColor: "purple",
     },
-    Actor2 : {
+    A2: {
       name: "Actor2",
       nameTagColor: "orange",
     },
   },
 }
 
-const script =
-`Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-Cras sit amet ligula ac turpis viverra pretium ut at metus.
-Etiam condimentum sed eros in tincidunt. Mauris feugiat vel tortor sit amet bibendum. Maecenas sit amet sapien tellus.
-\\close
-Hello from WebVn!
-A fast visual novel toolkit
-For the web
-Actor: Hello World!
-Actor2: Hello!
-Actor: Oh, hello!
-Actor: Hello all!
-Actor2: Hello again!
-Hi
-Actor2: 1
-Actor2: 2
-The end
-`
-
-// TESTING YAML PARSER
-const yamlText =
-`
-macro: &macro
-  Actor1: "This is a macro"
-
-listmacro: &listmacro
-  - asd
-  - sad
-  - das
+const yamlText = `
+anchor: &anchor
+  A1: "This is a YAML anchor"
 
 story:
-  - hello
-  - *macro
+  - Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - A1: Here I am
+  - A1: Just talking...
+  - A2: But here I come
+  - A2: Bye
+  - Bye bye, actors
+  - ugh: this is an unregonized command
+  - textbox: close
+  - *anchor
   - 2
   - "2"
   - no
   - false
   - "Quoted"
-  - Actor1: But I'm real now
+  - Rando: I'm just some random dude
+  - A1: But I'm a defined actor
   - textbox: close
-    # <<: *listmacro
 `
 
-const yamlState = YamlParser.getInitialState(yamlText)
+const yamlState = YamlParser.updateState(yamlText, state)
 console.dir(yamlState)
-const player = new VnPlayer(state)
+const player = new VnPlayer(yamlState)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, player)
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const editor = new VnEditor(vnEditorDiv, player, renderer)
+const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRenderCallbacks.push(() => {
   // vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
 })
 
-editor.loadScript(script)
+editor.loadScript(yamlText)

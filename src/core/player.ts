@@ -1,5 +1,5 @@
 import { Command } from "./commands/Command"
-import { VnPlayerState } from "./state"
+import { NARRATOR_ACTOR_ID, VnPlayerState } from "./state"
 import "../pegjsParser/commands"
 
 export const initialState: VnPlayerState = {
@@ -8,7 +8,7 @@ export const initialState: VnPlayerState = {
       textColor: "white",
       nameTagColor: "white",
     },
-    none: {},
+    [NARRATOR_ACTOR_ID]: {},
   },
   commandIndex: 0, // the command to be applied next
   commands: [],

@@ -16,8 +16,7 @@ import {
 } from "yaml"
 import { VnParser } from "../core/commands/Parser"
 import { Token } from "yaml/dist/parse/tokens"
-import { VnPlayerState } from "../core/state"
-import { initialState } from "../core/player"
+import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { CloseTextBox } from "../core/commands/text/CloseTextBox"
@@ -35,9 +34,9 @@ export const getDocument = (text: string): Document => {
 
 export const getObject = (text: string): unknown => parse(text)
 
-const getInitialState = (text: string): VnPlayerState => {
-  const vnState = { ...initialState }
 
+const updateState = (text: string, state: VnPlayerState): VnPlayerState => {
+  const newState = {...state}
   const docOptions: Options = {}
 
   const docs: Document[] = []
@@ -60,9 +59,9 @@ const getInitialState = (text: string): VnPlayerState => {
 
   const commands = toCommands(storyNode, lineCounter)
 
-  vnState.commands = commands
+  newState.commands = commands
 
-  return vnState
+  return newState
 }
 
 const toCommands = (story: YAMLSeq<unknown>, lc: LineCounter): Command[] => {
@@ -101,7 +100,7 @@ type NodeToCommand = (item: unknown, lc: LineCounter) => Command | undefined
 
 const singleString: NodeToCommand = (item, lc) => {
   if (isScalar(item) && typeof item.value === "string") {
-    return new Say(getLine(item, lc), "none", item.value)
+    return new Say(getLine(item, lc), NARRATOR_ACTOR_ID, item.value)
   }
 }
 
@@ -146,5 +145,5 @@ const registeredCommands: CommandHandlers = {
 const getLine = (item: Node, lc: LineCounter): number => lc.linePos(item.range?.[0] || 0).line
 
 export const YamlParser: VnParser = {
-  getInitialState,
+  updateState: updateState
 }

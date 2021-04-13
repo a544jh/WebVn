@@ -50,8 +50,10 @@ export interface Actor {
   textColor?: string
 }
 
+export const NARRATOR_ACTOR_ID = "narrator"
+
 export interface Actors {
   default: DefaultActor // all actors inherit from this
-  none: Actor // for "narrative" text properties
+  [NARRATOR_ACTOR_ID]: Actor // the unnamed actor, for "narrative" text
   [index: string]: Actor
 }

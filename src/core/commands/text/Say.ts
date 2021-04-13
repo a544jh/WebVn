@@ -1,35 +1,35 @@
-import { Actor, ADVNameTag, ADVTextBox, TextBoxType, TextNode, VnPlayerState } from "../../state"
+import { Actor, ADVNameTag, ADVTextBox, NARRATOR_ACTOR_ID, TextBoxType, TextNode, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 
 export class Say extends Command {
   private text: string
-  private actor?: string
+  private actorName: string
 
   constructor(line: number, actor: string, text: string) {
     super(line)
     this.text = text
-    this.actor = actor
+    this.actorName = actor
   }
 
   public apply(state: VnPlayerState): VnPlayerState {
-
-    // TODO: handle undefined actor
-    const actor: Actor = state.actors[this.actor || "none"]
-    const color: string = actor.textColor || state.actors.default.textColor
+    const actorObj: Actor = state.actors[this.actorName] || state.actors.default
+    const color: string = actorObj?.textColor || state.actors.default.textColor
 
     let nameTag: ADVNameTag | undefined
-    if (actor.name) {
+    if (this.actorName !== NARRATOR_ACTOR_ID) {
       nameTag = {
-        name: actor.name,
-        color: actor.nameTagColor || state.actors.default.nameTagColor,
+        name: actorObj.name || this.actorName,
+        color: actorObj.nameTagColor || state.actors.default.nameTagColor,
       }
     }
 
-    const textNodes: TextNode[] = [{
-      text: this.text,
-      characterDelay: 20,
-      color,
-    }]
+    const textNodes: TextNode[] = [
+      {
+        text: this.text,
+        characterDelay: 20,
+        color,
+      },
+    ]
     const text: ADVTextBox = {
       type: TextBoxType.ADV,
       nameTag,

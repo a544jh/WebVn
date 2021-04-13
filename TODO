@@ -1,0 +1,25 @@
+Wire up YAML parser to CodeMirror
+
+Basic parse error handling
+
+Basic control flow; jump, labels. (Stop to render only at appropriate commands)
+
+Implement redering in React using TransitionGroup
+
+Basic decision system; rendering, commands
+
+Conditions, variables
+
+Image asset loading
+
+Basic sprite system, positioning, basic transitoins
+
+Backgrounds
+
+Audio
+
+Rollback & History
+
+Save/Load
+
+Standalone Player entrypoint

@@ -1,3 +1,7 @@
 .vn-position-gutter {
   width: 1em;
 }
+
+.vn-error-gutter {
+  width: .5em;
+}

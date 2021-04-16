@@ -54,7 +54,7 @@ story:
   - textbox: close
 `
 
-const yamlState = YamlParser.updateState(yamlText, state)
+const [yamlState] = YamlParser.updateState(yamlText, state)
 console.dir(yamlState)
 const player = new VnPlayer(yamlState)
 

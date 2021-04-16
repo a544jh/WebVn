@@ -1,6 +1,4 @@
-Wire up YAML parser to CodeMirror
-
-Basic parse error handling
+Multiline position indicator
 
 Basic control flow; jump, labels. (Stop to render only at appropriate commands)
 

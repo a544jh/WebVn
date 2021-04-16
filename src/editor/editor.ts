@@ -1,6 +1,6 @@
 import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
-import { VnParser } from "../core/commands/Parser"
+import { ErrorLevel, ParserError, VnParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
 import "./editor.css"
@@ -30,13 +30,13 @@ export class VnEditor {
     this.renderer = renderer
 
     this.renderer.onRenderCallbacks.push(() => {
-      this.setGutterMarker()
+      this.setPositionMarker()
       this.vnEditor.getDoc().setCursor({ line: getCurrentLine(player) - 1, ch: 0 })
     })
 
     this.vnEditor = CodeMirror(root, {
       lineNumbers: true,
-      gutters: ["CodeMirror-linenumbers", "vn-position-gutter"],
+      gutters: ["CodeMirror-linenumbers", "vn-position-gutter", "vn-error-gutter"],
       indentWithTabs: false,
       indentUnit: 2,
       extraKeys: { Tab: betterTab },
@@ -50,16 +50,26 @@ export class VnEditor {
     })
   }
 
+  private parseDocument() {
+    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
+      this.vnEditor.clearGutter("vn-error-gutter")
+      for (const error of errors) {
+        this.setErrorMarker(error)
+      }
+      this.player.state = state
+      this.vnEditor.getDoc().markClean()
+  }
+
   public loadScript(script: string): void {
     this.vnEditor.getDoc().setValue(script)
+    this.parseDocument()
     this.player.goToCommand(1)
     this.renderer.render(this.player.state, false)
   }
 
   private goToLine(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
-      this.player.state = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
-      this.vnEditor.getDoc().markClean()
+      this.parseDocument()
     }
     const commandIndex = this.player.state.commands.findIndex((cmd) => cmd.getLine() === line)
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
@@ -68,17 +78,23 @@ export class VnEditor {
     this.renderer.render(this.player.state, false)
   }
 
-  private setGutterMarker() {
+  private setPositionMarker() {
     this.vnEditor.clearGutter("vn-position-gutter")
-    this.vnEditor.setGutterMarker(getCurrentLine(this.player) - 1, "vn-position-gutter", makeMarker())
+    this.vnEditor.setGutterMarker(getCurrentLine(this.player) - 1, "vn-position-gutter", makeMarker("blue"))
+  }
+
+  private setErrorMarker(error: ParserError) {
+    const color = error.level === ErrorLevel.WARNING ? "orange" : "red"
+    this.vnEditor.setGutterMarker(error.line - 1, "vn-error-gutter", makeMarker(color, error.message))
   }
 }
 
-function makeMarker(): HTMLDivElement {
+function makeMarker(color: string, title?: string): HTMLDivElement {
   const div = document.createElement("div")
-  div.style.background = "blue"
+  div.style.background = color
   div.style.width = "100%"
   div.style.height = "1em"
+  if (title) div.title = title
   return div
 }
 

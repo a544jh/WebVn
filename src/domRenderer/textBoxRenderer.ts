@@ -27,6 +27,10 @@ export class TextBoxRenderer {
       return Promise.resolve()
     }
 
+    if (text === prevText) {
+      return Promise.resolve()
+    }
+
     // maybe use dict to lookup, or class instance method....
     switch (text.type) {
       case TextBoxType.ADV:

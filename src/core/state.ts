@@ -5,6 +5,7 @@ export interface VnPlayerState {
   readonly commandIndex: number
   readonly commands: Command[]
   readonly labels: Labels
+  readonly stopAfterRender: boolean
   readonly animatableState: AnimatableState
   // user settings, saves...
 }

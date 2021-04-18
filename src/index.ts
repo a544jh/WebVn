@@ -36,11 +36,13 @@ anchor: &anchor
 
 story:
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - label: loop
   - A1: Here I am
   - A1: Just talking...
   - A2: But here I come
   - A2: Bye
   - Bye bye, actors
+  - jump: loop
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor

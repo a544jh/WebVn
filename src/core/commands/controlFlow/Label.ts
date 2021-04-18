@@ -1,6 +1,8 @@
 import { YamlParser } from "../../../yamlParser/YamlParser";
+import { VnPlayerState } from "../../state";
 import { Command } from "../Command";
 import { ErrorLevel, ParserError, SourceLocation } from "../Parser";
+import "./Jump"
 
 export class Label extends Command {
   constructor(location: SourceLocation, name: string) {
@@ -8,6 +10,10 @@ export class Label extends Command {
     this.name = name
   }
   name: string
+
+  public apply(state: VnPlayerState): VnPlayerState {
+    return {...state, stopAfterRender: false}
+  }
 }
 
 YamlParser.registerCommand("label", (obj, location) => {

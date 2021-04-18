@@ -58,6 +58,9 @@ export class DomRenderer {
       this.arrow.style.display = ""
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
+      if (!this.player.state.stopAfterRender) {
+        this.advance()
+      }
     })
   }
 

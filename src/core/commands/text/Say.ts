@@ -38,7 +38,7 @@ export class Say extends Command {
     }
 
     const animatableState = { ...state.animatableState, text }
-    const newState = { ...state, animatableState }
+    const newState = { ...state, animatableState, stopAfterRender: true }
 
     return newState
   }

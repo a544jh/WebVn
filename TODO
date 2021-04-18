@@ -1,5 +1,7 @@
 Basic control flow; jump, labels. (Stop to render only at appropriate commands)
 
+Module dependencies...
+
 Implement redering in React using TransitionGroup
 
 Basic decision system; rendering, commands

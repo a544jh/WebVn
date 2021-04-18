@@ -92,7 +92,7 @@ export class VnEditor {
   private setErrorMarker(error: ParserError) {
     const color = error.level === ErrorLevel.WARNING ? "orange" : "red"
     for (let line = error.location.startLine; line <= error.location.endLine; line++) {
-      this.vnEditor.setGutterMarker(line, "vn-error-gutter", makeMarker(color, error.message))
+      this.vnEditor.setGutterMarker(line - 1, "vn-error-gutter", makeMarker(color, error.message))
     }
   }
 }

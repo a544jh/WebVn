@@ -10,6 +10,7 @@ export class CloseTextBox extends Command {
       ...state, animatableState: {
         ...state.animatableState, text: null,
       },
+      stopAfterRender: true
     }
   }
 }

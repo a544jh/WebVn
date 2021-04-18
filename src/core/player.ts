@@ -12,6 +12,7 @@ export const initialState: VnPlayerState = {
   },
   commandIndex: 0, // the command to be applied next
   commands: [],
+  labels: {},
   animatableState: {
     text: null,
   },

@@ -14,12 +14,12 @@ import {
   YAMLSeq,
 } from "yaml"
 import { ErrorLevel, ObjectToCommand, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
-import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
+import { NARRATOR_ACTOR_ID, updateLabels, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 
 const updateState = (text: string, state: VnPlayerState): [VnPlayerState, ParserError[]] => {
-  const newState = { ...state }
+  let newState = { ...state }
   let errors: ParserError[] = []
   const docOptions: Options = {}
 
@@ -60,6 +60,8 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
     errors = errors.concat(storyErrors)
     newState.commands = commands
   }
+
+  newState = updateLabels(newState)
 
   console.dir(newState)
   return [newState, errors]
@@ -127,15 +129,8 @@ const registeredCommand: NodeToCommand = (item, lc) => {
       const key = pair.key.value
       if (registeredCommands[key]) {
         const location = getLines(item, lc)
-
-        let obj: unknown
-        if (isScalar(pair.value) && typeof pair.value.value === "string") {
-          obj = pair.value.value //toJSON() on string node gives invalid JSON (string without quotes) TODO report to maintainer
-        } else {
-          obj = JSON.parse(pair.value.toJSON())
-        }
-
-        return registeredCommands[key](obj, location)
+        const obj = pair.value.toJSON()
+        return registeredCommands[key](obj, location) //toJSON() gives JS object and not JSON. TODO report to maintainer
       } else if (key[0] === key[0].toLowerCase()) {
         return new ParserError(`${key} is not a recognized command.`, getLines(item, lc), ErrorLevel.WARNING)
       }
@@ -173,7 +168,10 @@ const getLines = (item: Node, lc: LineCounter): SourceLocation => {
 }
 
 const registerCommand = (command: string, handler: ObjectToCommand): void => {
-  if (registeredCommands[command]) {
+  if (command[0] !== command[0].toLowerCase()) {
+    throw new Error(`Command ${command} must be non-capitalized. Capitalized keys are reserved for actors.`)
+  }
+  if (registeredCommands[command] !== undefined) {
     throw new Error(`Command ${command} already registered`)
   }
   registeredCommands[command] = handler

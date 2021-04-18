@@ -9,5 +9,7 @@ export abstract class Command {
   public getSourceLocation(): SourceLocation {
     return this.location
   }
-  public abstract apply(state: VnPlayerState): VnPlayerState
+  public apply(state: VnPlayerState): VnPlayerState {
+    return state
+  }
 }

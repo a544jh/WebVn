@@ -1,12 +1,13 @@
 import { VnPlayerState } from "../state"
+import { SourceLocation } from "./Parser"
 
 export abstract class Command {
-  private line: number
-  constructor(line: number) {
-    this.line = line
+  private location: SourceLocation
+  constructor(location: SourceLocation) {
+    this.location = location
   }
-  public getLine(): number {
-    return this.line
+  public getSourceLocation(): SourceLocation {
+    return this.location
   }
   public abstract apply(state: VnPlayerState): VnPlayerState
 }

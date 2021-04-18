@@ -13,7 +13,7 @@ import {
   Parser,
   YAMLSeq,
 } from "yaml"
-import { ErrorLevel, ParserError, VnParser } from "../core/commands/Parser"
+import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
@@ -34,20 +34,22 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
   console.dir(docs[0])
 
   for (const docWarning of docs[0].warnings) {
+    const line = lineCounter.linePos(docWarning.offset).line
     errors.push(
       new ParserError(
         "YAML parse warning: " + docWarning.message,
-        lineCounter.linePos(docWarning.offset).line,
+        {startLine: line, endLine: line},
         ErrorLevel.WARNING
       )
     )
   }
 
   for (const docError of docs[0].errors) {
+    const line = lineCounter.linePos(docError.offset).line
     errors.push(
       new ParserError(
         "YAML parse error: " + docError.message,
-        lineCounter.linePos(docError.offset).line,
+        {startLine: line, endLine: line},
         ErrorLevel.ERROR
       )
     )
@@ -55,15 +57,16 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
 
   const storyNode = docs[0].get("story", true)
   if (storyNode === undefined) {
-    errors.push(new ParserError("story missing.", 1, ErrorLevel.ERROR))
+    errors.push(new ParserError("story missing.", {startLine: 1, endLine: 1}, ErrorLevel.ERROR))
   } else if (!isSeq(storyNode) && isNode(storyNode)) {
-    errors.push(new ParserError("story must be a sequence", getLine(storyNode, lineCounter), ErrorLevel.ERROR))
+    errors.push(new ParserError("story must be a sequence", getLines(storyNode, lineCounter), ErrorLevel.ERROR))
   } else if (isSeq(storyNode)) {
     const [commands, storyErrors] = storyToCommands(storyNode, lineCounter)
     errors = errors.concat(storyErrors)
     newState.commands = commands
   }
 
+  console.dir(newState)
   return [newState, errors]
 }
 
@@ -105,7 +108,7 @@ const storyToCommands = (story: YAMLSeq<unknown>, lc: LineCounter): [Command[], 
     if (!recognized && isNode(item)) {
       const noMatchError = new ParserError(
         `Unrecognized item. A command should be a string or a single-keyed map.`,
-        getLine(item, lc),
+        getLines(item, lc),
         ErrorLevel.WARNING
       )
       errors.push(noMatchError)
@@ -118,7 +121,7 @@ type NodeToCommand = (item: unknown, lc: LineCounter) => Command | ParserError |
 
 const singleString: NodeToCommand = (item, lc) => {
   if (isScalar(item) && typeof item.value === "string") {
-    return new Say(getLine(item, lc), NARRATOR_ACTOR_ID, item.value)
+    return new Say(getLines(item, lc), NARRATOR_ACTOR_ID, item.value)
   }
 }
 
@@ -130,7 +133,7 @@ const registeredCommand: NodeToCommand = (item, lc) => {
       if (registeredCommands[key]) {
         return registeredCommands[key](pair.value, lc)
       } else if (key[0] === key[0].toLowerCase()) {
-        return new ParserError(`${key} is not a recognized command.`, getLine(item, lc), ErrorLevel.WARNING)
+        return new ParserError(`${key} is not a recognized command.`, getLines(item, lc), ErrorLevel.WARNING)
       }
     }
   }
@@ -138,7 +141,7 @@ const registeredCommand: NodeToCommand = (item, lc) => {
 
 const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
   if (isMap(item) && item.items.length === 1 && isPair(item.items[0])) {
-    const line = getLine(item, lc)
+    const line = getLines(item, lc)
     const pair = item.items[0]
     if (isScalar(pair.key) && typeof pair.key.value === "string") {
       const key = pair.key.value
@@ -155,7 +158,7 @@ const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
 
 const textboxHandler: NodeToCommand = (item, lc) => {
   if (isScalar(item) && item.value === "close") {
-    return new CloseTextBox(getLine(item, lc))
+    return new CloseTextBox(getLines(item, lc))
   }
 }
 
@@ -167,7 +170,11 @@ const registeredCommands: CommandHandlers = {
   textbox: textboxHandler,
 }
 
-const getLine = (item: Node, lc: LineCounter): number => lc.linePos(item.range?.[0] || 0).line
+const getLines = (item: Node, lc: LineCounter): SourceLocation => {
+  const endPos = lc.linePos(item.range?.[1] || 0)
+  const endLine = endPos.col === 1 ? endPos.line - 1 : endPos.line
+  return { startLine: lc.linePos(item.range?.[0] || 0).line, endLine }
+}
 
 export const YamlParser: VnParser = {
   updateState: updateState,

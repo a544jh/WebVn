@@ -1,6 +1,6 @@
 import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
-import { ErrorLevel, ParserError, VnParser } from "../core/commands/Parser"
+import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
 import { DomRenderer } from "../domRenderer/domRenderer"
 import "./editor.css"
@@ -31,7 +31,7 @@ export class VnEditor {
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
-      this.vnEditor.getDoc().setCursor({ line: getCurrentLine(player) - 1, ch: 0 })
+      this.vnEditor.getDoc().setCursor({ line: getCurrentLocation(player).startLine - 1, ch: 0 })
     })
 
     this.vnEditor = CodeMirror(root, {
@@ -46,18 +46,18 @@ export class VnEditor {
       this.goToLine(line)
     })
     this.vnEditor.on("blur", () => {
-      this.goToLine(getCurrentLine(this.player))
+      this.goToLine(getCurrentLocation(this.player).startLine)
     })
   }
 
   private parseDocument() {
     const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
-      this.vnEditor.clearGutter("vn-error-gutter")
-      for (const error of errors) {
-        this.setErrorMarker(error)
-      }
-      this.player.state = state
-      this.vnEditor.getDoc().markClean()
+    this.vnEditor.clearGutter("vn-error-gutter")
+    for (const error of errors) {
+      this.setErrorMarker(error)
+    }
+    this.player.state = state
+    this.vnEditor.getDoc().markClean()
   }
 
   public loadScript(script: string): void {
@@ -71,7 +71,10 @@ export class VnEditor {
     if (!this.vnEditor.getDoc().isClean()) {
       this.parseDocument()
     }
-    const commandIndex = this.player.state.commands.findIndex((cmd) => cmd.getLine() === line)
+    const commandIndex = this.player.state.commands.findIndex((cmd) => {
+      const location = cmd.getSourceLocation()
+      return line >= location.startLine && line <= location.endLine
+    })
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
     this.player.goToCommand(commandIndex + 1)
@@ -80,24 +83,28 @@ export class VnEditor {
 
   private setPositionMarker() {
     this.vnEditor.clearGutter("vn-position-gutter")
-    this.vnEditor.setGutterMarker(getCurrentLine(this.player) - 1, "vn-position-gutter", makeMarker("blue"))
+    const location = getCurrentLocation(this.player)
+    for (let line = location.startLine; line <= location.endLine; line++) {
+      this.vnEditor.setGutterMarker(line - 1, "vn-position-gutter", makeMarker("blue"))
+    }
   }
 
   private setErrorMarker(error: ParserError) {
     const color = error.level === ErrorLevel.WARNING ? "orange" : "red"
-    this.vnEditor.setGutterMarker(error.line - 1, "vn-error-gutter", makeMarker(color, error.message))
+    this.vnEditor.setGutterMarker(error.location.startLine - 1, "vn-error-gutter", makeMarker(color, error.message))
   }
 }
 
 function makeMarker(color: string, title?: string): HTMLDivElement {
+  const height = document.querySelector(".CodeMirror-linenumber")?.clientHeight + "px" // hack to get height..
   const div = document.createElement("div")
   div.style.background = color
   div.style.width = "100%"
-  div.style.height = "1em"
+  div.style.height = height
   if (title) div.title = title
   return div
 }
 
-function getCurrentLine(player: VnPlayer): number {
-  return player.state.commands[player.state.commandIndex - 1].getLine() || 1
+function getCurrentLocation(player: VnPlayer): SourceLocation {
+  return player.state.commands[player.state.commandIndex - 1].getSourceLocation()
 }

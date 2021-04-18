@@ -49,13 +49,16 @@ story:
   - no
   - false
   - "Quoted"
+  - |
+    This is a
+    Multiline
+    Node
   - Rando: I'm just some random dude
   - A1: But I'm a defined actor
   - textbox: close
 `
 
 const [yamlState] = YamlParser.updateState(yamlText, state)
-console.dir(yamlState)
 const player = new VnPlayer(yamlState)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement

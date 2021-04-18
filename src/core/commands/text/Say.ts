@@ -1,12 +1,13 @@
 import { Actor, ADVNameTag, ADVTextBox, NARRATOR_ACTOR_ID, TextBoxType, TextNode, VnPlayerState } from "../../state"
 import { Command } from "../Command"
+import { SourceLocation } from "../Parser"
 
 export class Say extends Command {
   private text: string
   private actorName: string
 
-  constructor(line: number, actor: string, text: string) {
-    super(line)
+  constructor(location: SourceLocation, actor: string, text: string) {
+    super(location)
     this.text = text
     this.actorName = actor
   }

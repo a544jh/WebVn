@@ -1,5 +1,3 @@
-Multiline position indicator
-
 Basic control flow; jump, labels. (Stop to render only at appropriate commands)
 
 Implement redering in React using TransitionGroup

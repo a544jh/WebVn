@@ -10,15 +10,20 @@ export enum ErrorLevel {
   ERROR,
 }
 
+export interface SourceLocation {
+  startLine: number
+  endLine: number
+}
+
 export class ParserError {
-  constructor(message: string, line: number, level: ErrorLevel) {
+  constructor(message: string, location: SourceLocation, level: ErrorLevel) {
     this.message = message
-    this.line = line
+    this.location = location
     this.level = level
   }
 
   message: string
-  line: number
+  location: SourceLocation
   level: ErrorLevel
 }
 

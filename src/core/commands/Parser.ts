@@ -27,6 +27,9 @@ export class ParserError {
   level: ErrorLevel
 }
 
+export type ObjectToCommand = (obj: unknown, location: SourceLocation) => Command | ParserError
+
 export interface VnParser {
   updateState(text: string, state: VnPlayerState): [VnPlayerState, ParserError[]]
+  registerCommand(command: string, handler: ObjectToCommand): void
 }

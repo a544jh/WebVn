@@ -13,11 +13,10 @@ import {
   Parser,
   YAMLSeq,
 } from "yaml"
-import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { ErrorLevel, ObjectToCommand, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
-import { CloseTextBox } from "../core/commands/text/CloseTextBox"
 
 const updateState = (text: string, state: VnPlayerState): [VnPlayerState, ParserError[]] => {
   const newState = { ...state }
@@ -38,7 +37,7 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
     errors.push(
       new ParserError(
         "YAML parse warning: " + docWarning.message,
-        {startLine: line, endLine: line},
+        { startLine: line, endLine: line },
         ErrorLevel.WARNING
       )
     )
@@ -47,17 +46,13 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
   for (const docError of docs[0].errors) {
     const line = lineCounter.linePos(docError.offset).line
     errors.push(
-      new ParserError(
-        "YAML parse error: " + docError.message,
-        {startLine: line, endLine: line},
-        ErrorLevel.ERROR
-      )
+      new ParserError("YAML parse error: " + docError.message, { startLine: line, endLine: line }, ErrorLevel.ERROR)
     )
   }
 
   const storyNode = docs[0].get("story", true)
   if (storyNode === undefined) {
-    errors.push(new ParserError("story missing.", {startLine: 1, endLine: 1}, ErrorLevel.ERROR))
+    errors.push(new ParserError("story missing.", { startLine: 1, endLine: 1 }, ErrorLevel.ERROR))
   } else if (!isSeq(storyNode) && isNode(storyNode)) {
     errors.push(new ParserError("story must be a sequence", getLines(storyNode, lineCounter), ErrorLevel.ERROR))
   } else if (isSeq(storyNode)) {
@@ -128,10 +123,19 @@ const singleString: NodeToCommand = (item, lc) => {
 const registeredCommand: NodeToCommand = (item, lc) => {
   if (isMap(item) && item.items.length === 1 && isPair(item.items[0])) {
     const pair = item.items[0]
-    if (isScalar(pair.key) && typeof pair.key.value === "string") {
+    if (isScalar(pair.key) && typeof pair.key.value === "string" && isNode(pair.value)) {
       const key = pair.key.value
       if (registeredCommands[key]) {
-        return registeredCommands[key](pair.value, lc)
+        const location = getLines(item, lc)
+
+        let obj: unknown
+        if (isScalar(pair.value) && typeof pair.value.value === "string") {
+          obj = pair.value.value //toJSON() on string node gives invalid JSON (string without quotes) TODO report to maintainer
+        } else {
+          obj = JSON.parse(pair.value.toJSON())
+        }
+
+        return registeredCommands[key](obj, location)
       } else if (key[0] === key[0].toLowerCase()) {
         return new ParserError(`${key} is not a recognized command.`, getLines(item, lc), ErrorLevel.WARNING)
       }
@@ -156,19 +160,11 @@ const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
   }
 }
 
-const textboxHandler: NodeToCommand = (item, lc) => {
-  if (isScalar(item) && item.value === "close") {
-    return new CloseTextBox(getLines(item, lc))
-  }
-}
-
 interface CommandHandlers {
-  [index: string]: NodeToCommand
+  [index: string]: ObjectToCommand
 }
 
-const registeredCommands: CommandHandlers = {
-  textbox: textboxHandler,
-}
+const registeredCommands: CommandHandlers = {}
 
 const getLines = (item: Node, lc: LineCounter): SourceLocation => {
   const endPos = lc.linePos(item.range?.[1] || 0)
@@ -176,6 +172,14 @@ const getLines = (item: Node, lc: LineCounter): SourceLocation => {
   return { startLine: lc.linePos(item.range?.[0] || 0).line, endLine }
 }
 
+const registerCommand = (command: string, handler: ObjectToCommand): void => {
+  if (registeredCommands[command]) {
+    throw new Error(`Command ${command} already registered`)
+  }
+  registeredCommands[command] = handler
+}
+
 export const YamlParser: VnParser = {
-  updateState: updateState,
+  updateState,
+  registerCommand,
 }

@@ -1,6 +1,4 @@
-Basic control flow; jump, labels. (Stop to render only at appropriate commands)
-
-Module dependencies...
+(Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
 Implement redering in React using TransitionGroup
 

@@ -32,6 +32,10 @@
   },
   "dependencies": {
     "codemirror": "^5.35.0",
-    "yaml": "^2.0.0-4"
+    "yaml": "^2.0.0-4",
+    "@types/react": "^16.4.11",
+    "@types/react-dom": "^16.0.7",
+    "react": "^16.4.2",
+    "react-dom": "^16.4.2"
   }
 }

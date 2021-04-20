@@ -2,7 +2,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
-import { DomRenderer } from "../domRenderer/domRenderer"
+import { Renderer } from "../Renderer"
 import "./editor.css"
 
 // https://github.com/codemirror/CodeMirror/issues/988#issuecomment-14921785
@@ -22,9 +22,9 @@ export class VnEditor {
 
   private player: VnPlayer
   private parser: VnParser
-  private renderer: DomRenderer
+  private renderer: Renderer
 
-  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: DomRenderer) {
+  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer) {
     this.player = player
     this.parser = parser
     this.renderer = renderer

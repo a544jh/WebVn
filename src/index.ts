@@ -1,9 +1,10 @@
-import "./index.html"
-
 import { initialState, VnPlayer } from "./core/player"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/domRenderer"
 import { VnEditor } from "./editor/editor"
+import "./index.html"
+import { Renderer } from "./Renderer"
+import { ReactRenderer } from "./reactRenderer/reactRenderer"
 
 import "codemirror/lib/codemirror.css"
 
@@ -64,7 +65,7 @@ const [yamlState] = YamlParser.updateState(yamlText, state)
 const player = new VnPlayer(yamlState)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, player)
+const renderer = new ReactRenderer(vnDiv, player)
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)

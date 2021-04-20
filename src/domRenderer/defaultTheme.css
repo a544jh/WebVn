@@ -62,6 +62,19 @@ body {
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;
   transition-property: transform;
-  transition-duration: 150ms;
+  transition-duration: 500ms;
   transition-timing-function: linear;
+}
+
+.vn-adv-nametag-enter {
+  transform: scaleY(0.0001);
+}
+.vn-adv-nametag-enter-active {
+  transform: scaleY(1);
+}
+.vn-adv-nametag-exit {
+  transform: scaleY(1);
+}
+.vn-adv-nametag-exit-active {
+  transform: scaleY(0.0001);
 }

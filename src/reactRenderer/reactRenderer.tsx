@@ -40,7 +40,6 @@ export class ReactRenderer implements Renderer {
   }
 
   private handleScrollWheelEvent = (e: React.WheelEvent) => {
-    e.preventDefault()
     // TODO: proper backlog rollback
     // down
     if (e.deltaY > 0) {

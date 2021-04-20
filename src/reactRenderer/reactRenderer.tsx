@@ -9,7 +9,6 @@ import "../domRenderer/animations.css"
 import "../domRenderer/defaultTheme.css"
 
 export class ReactRenderer implements Renderer {
-
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
 
@@ -21,7 +20,7 @@ export class ReactRenderer implements Renderer {
     this.player = player
   }
 
-  public render(state: VnPlayerState, animate: boolean) {
+  public render(state: VnPlayerState, animate: boolean): void {
     this.onRenderCallbacks.forEach((cb) => cb())
     ReactDOM.render(
       <VnRoot
@@ -30,11 +29,12 @@ export class ReactRenderer implements Renderer {
         onClick={this.advance}
         onScroll={this.handleScrollWheelEvent}
         onAnimationFinished={this.onAnimationFinished}
-      />
-      , this.elem)
+      />,
+      this.elem
+    )
   }
 
-  public advance = () => {
+  public advance = (): void => {
     this.player.advance()
     this.render(this.player.state, true)
   }
@@ -57,12 +57,11 @@ export class ReactRenderer implements Renderer {
     console.log("animation finished")
     this.onFinishedCallbacks.forEach((cb) => cb())
   }
-
 }
 
 let id = 0
 
-export const getUniqueId = () => {
+export const getUniqueId = (): number => {
   const ret = id
   id++
   if (id >= Number.MAX_SAFE_INTEGER) {

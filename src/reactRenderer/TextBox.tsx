@@ -8,8 +8,8 @@ interface Props {
   onAnimationFinished: () => void
 }
 
-export class TextBox extends React.Component<Props, {}> {
-  public render() {
+export class TextBox extends React.Component<Props, Record<string, never>> {
+  public render(): JSX.Element {
     const { adv } = this.props
     const charSpans: JSX.Element[] = []
 
@@ -34,12 +34,16 @@ export class TextBox extends React.Component<Props, {}> {
         style.color = node.color
         delay += node.characterDelay
 
-        charSpans.push(<span key={getUniqueId()} style={style} onAnimationEnd={finishedFn}>{text.charAt(i)}</span>)
+        charSpans.push(
+          <span key={getUniqueId()} style={style} onAnimationEnd={finishedFn}>
+            {text.charAt(i)}
+          </span>
+        )
       }
     })
 
     return (
-      <div id="vn-textbox-renderer" className="vn-adv-textbox" >
+      <div id="vn-textbox-renderer" className="vn-adv-textbox">
         {charSpans}
       </div>
     )

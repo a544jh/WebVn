@@ -29,7 +29,26 @@ export class ParserError {
 
 export type ObjectToCommand = (obj: unknown, location: SourceLocation) => Command | ParserError
 
+interface CommandHandlers {
+  [index: string]: ObjectToCommand
+}
+
+const registeredCommands: CommandHandlers = {}
+
+export const registerCommandHandler = (command: string, handler: ObjectToCommand): void => {
+  if (command[0] !== command[0].toLowerCase()) {
+    throw new Error(`Command ${command} must be non-capitalized. Capitalized keys are reserved for actors.`)
+  }
+  if (registeredCommands[command] !== undefined) {
+    throw new Error(`Command ${command} already registered`)
+  }
+  registeredCommands[command] = handler
+}
+
+export const getCommandHandler = (command: string): ObjectToCommand | undefined => {
+  return registeredCommands[command]
+}
+
 export interface VnParser {
   updateState(text: string, state: VnPlayerState): [VnPlayerState, ParserError[]]
-  registerCommand(command: string, handler: ObjectToCommand): void
 }

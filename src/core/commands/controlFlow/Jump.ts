@@ -1,7 +1,6 @@
-import { YamlParser } from "../../../yamlParser/YamlParser";
 import { VnPlayerState } from "../../state";
 import { Command } from "../Command";
-import { ErrorLevel, ParserError, SourceLocation } from "../Parser";
+import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser";
 
 export class Jump extends Command {
   constructor(location: SourceLocation, targetLabel: string) {
@@ -21,7 +20,7 @@ export class Jump extends Command {
   }
 }
 
-YamlParser.registerCommand("jump", (obj, location) => {
+registerCommandHandler("jump", (obj, location) => {
   if (typeof obj === "string") {
     return new Jump(location, obj)
   }

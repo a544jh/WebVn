@@ -1,7 +1,6 @@
-import { YamlParser } from "../../../yamlParser/YamlParser"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ObjectToCommand, ParserError } from "../Parser"
+import { ErrorLevel, ObjectToCommand, ParserError, registerCommandHandler } from "../Parser"
 
 export class CloseTextBox extends Command {
 
@@ -21,4 +20,4 @@ const textboxHandler: ObjectToCommand = (obj, location) => {
   return new ParserError("Not a valid textbox command.", location, ErrorLevel.WARNING)
 }
 
-YamlParser.registerCommand('textbox', textboxHandler)
+registerCommandHandler('textbox', textboxHandler)

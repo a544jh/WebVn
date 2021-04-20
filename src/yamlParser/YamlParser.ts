@@ -13,7 +13,7 @@ import {
   Parser,
   YAMLSeq,
 } from "yaml"
-import { ErrorLevel, ObjectToCommand, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, updateLabels, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
@@ -127,10 +127,11 @@ const registeredCommand: NodeToCommand = (item, lc) => {
     const pair = item.items[0]
     if (isScalar(pair.key) && typeof pair.key.value === "string" && isNode(pair.value)) {
       const key = pair.key.value
-      if (registeredCommands[key]) {
+      const handler = getCommandHandler(key)
+      if (handler !== undefined) {
         const location = getLines(item, lc)
         const obj = pair.value.toJSON()
-        return registeredCommands[key](obj, location) //toJSON() gives JS object and not JSON. TODO report to maintainer
+        return handler(obj, location) //toJSON() gives JS object and not JSON. TODO report to maintainer
       } else if (key[0] === key[0].toLowerCase()) {
         return new ParserError(`${key} is not a recognized command.`, getLines(item, lc), ErrorLevel.WARNING)
       }
@@ -155,11 +156,7 @@ const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
   }
 }
 
-interface CommandHandlers {
-  [index: string]: ObjectToCommand
-}
 
-const registeredCommands: CommandHandlers = {}
 
 const getLines = (item: Node, lc: LineCounter): SourceLocation => {
   const endPos = lc.linePos(item.range?.[1] || 0)
@@ -167,17 +164,8 @@ const getLines = (item: Node, lc: LineCounter): SourceLocation => {
   return { startLine: lc.linePos(item.range?.[0] || 0).line, endLine }
 }
 
-const registerCommand = (command: string, handler: ObjectToCommand): void => {
-  if (command[0] !== command[0].toLowerCase()) {
-    throw new Error(`Command ${command} must be non-capitalized. Capitalized keys are reserved for actors.`)
-  }
-  if (registeredCommands[command] !== undefined) {
-    throw new Error(`Command ${command} already registered`)
-  }
-  registeredCommands[command] = handler
-}
+
 
 export const YamlParser: VnParser = {
-  updateState,
-  registerCommand,
+  updateState
 }

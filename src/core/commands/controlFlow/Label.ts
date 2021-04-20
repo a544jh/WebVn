@@ -1,7 +1,6 @@
-import { YamlParser } from "../../../yamlParser/YamlParser";
 import { VnPlayerState } from "../../state";
 import { Command } from "../Command";
-import { ErrorLevel, ParserError, SourceLocation } from "../Parser";
+import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser";
 import "./Jump"
 
 export class Label extends Command {
@@ -16,7 +15,7 @@ export class Label extends Command {
   }
 }
 
-YamlParser.registerCommand("label", (obj, location) => {
+registerCommandHandler("label", (obj, location) => {
   if (typeof obj === "string") {
     return new Label(location, obj)
   }

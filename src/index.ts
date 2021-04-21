@@ -1,6 +1,6 @@
 import { initialState, VnPlayer } from "./core/player"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
-import { DomRenderer } from "./domRenderer/domRenderer"
+import { DomRenderer } from "./domRenderer/DomRenderer"
 import { VnEditor } from "./editor/editor"
 import "./index.html"
 import { Renderer } from "./Renderer"

@@ -1,11 +1,11 @@
 import { Renderer } from "../Renderer"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
-import { TextBoxRenderer } from "./textBoxRenderer"
+import { TextBoxRenderer } from "./TextBoxRenderer"
 
 import "./animations.css"
 import "./defaultTheme.css"
-import { DecisionRenderer } from "./decisionRenderer"
+import { DecisionRenderer } from "./DecisionRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []

@@ -17,6 +17,7 @@ export const initialState: VnPlayerState = {
   animatableState: {
     text: null,
   },
+  decision: null
 }
 
 export class VnPlayer {

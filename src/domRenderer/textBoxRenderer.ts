@@ -149,10 +149,10 @@ export class TextBoxRenderer {
     if (prevNameTag === undefined) {
       this.advNameTag.style.transform = "scaleY(0.0001)" // can't be 0 because of firefox lol
       setNameTagProps()
-      await nextAnimationFrame()
+      this.advNameTag.offsetHeight // force reflow
       this.advNameTag.style.transform = "scaleY(1)"
       this.advNameTag.addEventListener("transitionend", finishTransition)
-      // swao
+      // swap
     } else if (prevNameTag.name !== nameTag.name || prevNameTag.color !== nameTag.color) { // TODO: deep compare
       this.advNameTag.style.transform = "scaleY(0.0001)"
       this.advNameTag.addEventListener("transitionend", changeNameTransition)
@@ -164,10 +164,3 @@ export class TextBoxRenderer {
   }
 }
 
-// TODO: move to utils
-function nextAnimationFrame() {
-  return new Promise((resolve) => {
-    // Firefox needs two calls, or the transitionend events won't always trigger lol
-    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))
-  })
-}

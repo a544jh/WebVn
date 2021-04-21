@@ -5,6 +5,7 @@ import { TextBoxRenderer } from "./textBoxRenderer"
 
 import "./animations.css"
 import "./defaultTheme.css"
+import { DecisionRenderer } from "./decisionRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -18,6 +19,7 @@ export class DomRenderer implements Renderer {
   private prevState: VnPlayerState | null
 
   private textBoxRenderer: TextBoxRenderer
+  private decisionRenderer: DecisionRenderer
 
   private arrow: HTMLDivElement
 
@@ -33,6 +35,7 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
+    this.decisionRenderer = new DecisionRenderer(this.root)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -51,7 +54,9 @@ export class DomRenderer implements Renderer {
 
     // TODO: diffing (when we know more about other animations)
     const prevText = (this.prevState === null ? null : this.prevState.animatableState.text)
+
     animationsFinished.push(this.textBoxRenderer.render(prevText, state.animatableState.text, animate))
+    animationsFinished.push(this.decisionRenderer.render(null))
 
     this.prevState = state
 

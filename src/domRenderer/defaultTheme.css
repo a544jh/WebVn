@@ -65,3 +65,30 @@ body {
   transition-duration: 150ms;
   transition-timing-function: linear;
 }
+
+#vn-decision-renderer {
+  height: 460px; /*with textbox shown TODO handle without*/
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  font-family: 'Source Code Pro';
+  font-weight: bold;
+  font-size: 24px;
+  line-height: 24px;
+  text-shadow: 2px 2px 0px black;
+  color: white;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.vn-decision-item {
+  background-color: rgba(0, 0, 0, .4);
+  padding: 2px 0;
+  text-align: center;
+  transition-property: transform;
+  transition-duration: 300ms;
+}
+
+.vn-decision-item:hover {
+  background-color: rgba(0, 0, 0, .2);
+}

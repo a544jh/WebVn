@@ -7,6 +7,7 @@ export interface VnPlayerState {
   readonly labels: Labels
   readonly stopAfterRender: boolean
   readonly animatableState: AnimatableState
+  readonly decision: DecisionItem[] | null
   // user settings, saves...
 }
 
@@ -15,7 +16,7 @@ export interface Labels {
 }
 
 export interface AnimatableState {
-  text: TextBox | null
+  readonly text: TextBox | null
   // bg, actors, bgn, sfx...
 }
 
@@ -63,6 +64,12 @@ export interface Actors {
   default: DefaultActor // all actors inherit from this
   [NARRATOR_ACTOR_ID]: Actor // the unnamed actor, for "narrative" text
   [index: string]: Actor
+}
+
+export interface DecisionItem {
+  title: string
+  jumpLabel: string
+  // TODO show based on variable, previously selected etc...
 }
 
 export function updateLabels(state: VnPlayerState): VnPlayerState {

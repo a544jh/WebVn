@@ -65,7 +65,7 @@ const [yamlState] = YamlParser.updateState(yamlText, state)
 const player = new VnPlayer(yamlState)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new ReactRenderer(vnDiv, player)
+const renderer = new DomRenderer(vnDiv, player)
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)

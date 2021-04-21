@@ -104,6 +104,7 @@ export class TextBoxRenderer {
       resolveAnimationFinished()
     }
 
+    // exit
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
         if (animate) {
@@ -144,14 +145,15 @@ export class TextBoxRenderer {
       this.advNameTag.removeEventListener("transitionend", finishTransition)
       resolveAnimationFinished()
     }
-
+    // enter
     if (prevNameTag === undefined) {
       this.advNameTag.style.transform = "scaleY(0.0001)" // can't be 0 because of firefox lol
       setNameTagProps()
       await nextAnimationFrame()
       this.advNameTag.style.transform = "scaleY(1)"
       this.advNameTag.addEventListener("transitionend", finishTransition)
-    } else if (prevNameTag.name !== nameTag.name) { // TODO: deep compare
+      // swao
+    } else if (prevNameTag.name !== nameTag.name || prevNameTag.color !== nameTag.color) { // TODO: deep compare
       this.advNameTag.style.transform = "scaleY(0.0001)"
       this.advNameTag.addEventListener("transitionend", changeNameTransition)
     } else {

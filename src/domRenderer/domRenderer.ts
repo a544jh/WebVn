@@ -60,7 +60,8 @@ export class DomRenderer implements Renderer {
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
       if (!this.player.state.stopAfterRender) {
-        this.advance()
+        this.player.advance()
+        this.render(this.player.state, animate)
       }
     })
   }

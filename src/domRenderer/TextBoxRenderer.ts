@@ -104,6 +104,13 @@ export class TextBoxRenderer {
       resolveAnimationFinished()
     }
 
+    if(!animate) {
+      // remove event listeners to prevent race conditions...
+      const clone = this.advNameTag.cloneNode(true) as HTMLDivElement
+      this.advNameTag.replaceWith(clone)
+      this.advNameTag = clone
+    }
+
     // exit
     if (nameTag === undefined) {
       if (this.root.contains(this.advNameTag)) {
@@ -131,6 +138,7 @@ export class TextBoxRenderer {
 
     if (!animate) {
       setNameTagProps()
+      this.advNameTag.style.transform = ""
       return
     }
 

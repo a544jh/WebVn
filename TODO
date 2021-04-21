@@ -1,7 +1,5 @@
 (Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
-Implement redering in React using TransitionGroup
-
 Basic decision system; rendering, commands
 
 Conditions, variables

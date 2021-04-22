@@ -1,4 +1,5 @@
 import { ADVNameTag, ADVTextBox, TextBox, TextBoxType } from "../core/state"
+import { createResolvablePromise } from "./DomRenderer"
 
 export class TextBoxRenderer {
   private root: HTMLDivElement
@@ -17,14 +18,27 @@ export class TextBoxRenderer {
     this.advNameTag.classList.add("vn-adv-nametag")
   }
 
-  public render(prevTextBox: TextBox | null, textBox: TextBox | null, animate: boolean): Promise<void> {
+  public async render(prevTextBox: TextBox | null, textBox: TextBox | null, animate: boolean): Promise<void> {
     if (animate && textBox === prevTextBox) {
       return Promise.resolve()
     }
     // if we're NOT animating, we want to go ahead and clear the event listners
 
     if (textBox === null) {
-      // TODO: exit animation...
+      // exit
+      if (animate && prevTextBox?.type === TextBoxType.ADV && this.root.contains(this.advTextBox)) {
+        const [promise, resolve] = createResolvablePromise()
+        this.renderAdvNameTag(undefined, undefined, true) // animate nametag removal...
+        this.advTextBox.style.transform = "scaleY(0)"
+        const removeFromDom = () => {
+          this.advTextBox.removeEventListener("transitionend", removeFromDom)
+          this.root.innerHTML = ""
+          resolve()
+        }
+        this.advTextBox.addEventListener("transitionend", removeFromDom)
+        return promise
+      }
+
       this.root.innerHTML = ""
       // TODO
       return Promise.resolve()
@@ -45,10 +59,26 @@ export class TextBoxRenderer {
       resolveAnimationFinished = resolve
     })
 
+    this.advTextBox.innerHTML = "" // this will clear any pending event listners?
+
+    // enter
     if (!this.root.contains(this.advTextBox)) {
       this.root.appendChild(this.advTextBox)
+      if (animate) {
+        const [promise, resolve] = createResolvablePromise()
+        this.advTextBox.style.transform = "scaleY(0)"
+        this.advTextBox.offsetHeight // force reflow
+        this.advTextBox.style.transform = "scaleY(1)"
+        const animationFinished = () => {
+          this.advTextBox.removeEventListener("transitionend", animationFinished)
+          resolve()
+        }
+        this.advTextBox.addEventListener("transitionend", animationFinished)
+        await promise
+      } else {
+        this.advTextBox.style.transform = ""
+      }
     }
-    this.advTextBox.innerHTML = "" // this will clear any pending event listners?
 
     const prevNameTag = prevAdv === null ? undefined : prevAdv.nameTag
     await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)

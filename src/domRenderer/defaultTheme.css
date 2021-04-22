@@ -50,6 +50,9 @@ body {
   box-sizing: border-box;
   background-color: rgba(0, 0, 0, .4);
   overflow: hidden;
+  transition-property: transform;
+  transition-duration: 150ms;
+  transition-timing-function: linear;
 }
 
 .vn-adv-nametag {

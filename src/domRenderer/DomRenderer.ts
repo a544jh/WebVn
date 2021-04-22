@@ -53,7 +53,7 @@ export class DomRenderer implements Renderer {
     const animationsFinished: Array<Promise<void>> = []
 
     // TODO: diffing (when we know more about other animations)
-    const prevText = (this.prevState === null ? null : this.prevState.animatableState.text)
+    const prevText = this.prevState === null ? null : this.prevState.animatableState.text
 
     animationsFinished.push(this.textBoxRenderer.render(prevText, state.animatableState.text, animate))
     animationsFinished.push(this.decisionRenderer.render(null))
@@ -83,7 +83,7 @@ export class DomRenderer implements Renderer {
   private handleScrollWheelEvent(e: WheelEvent) {
     e.preventDefault()
     // TODO: proper backlog rollback
-      // down
+    // down
     if (e.deltaY > 0) {
       this.player.goToCommand(this.player.state.commandIndex + 1)
       // up
@@ -93,5 +93,19 @@ export class DomRenderer implements Renderer {
 
     this.render(this.player.state, false)
   }
+}
 
+type ResolvePromiseFn = ((value?: unknown | PromiseLike<unknown> | undefined) => void)
+
+export const createResolvablePromise = (): [Promise<void>, ResolvePromiseFn] => {
+  let resolveFn: ResolvePromiseFn | undefined = undefined
+  const promise = new Promise<void>((resolve) => {
+    resolveFn = resolve
+  })
+
+  if (resolveFn === undefined) {
+    throw Error("This shouldn't happen...")
+  }
+
+  return [promise, resolveFn]
 }

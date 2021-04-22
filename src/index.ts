@@ -36,6 +36,7 @@ anchor: &anchor
   A1: "This is a YAML anchor"
 
 story:
+  - textbox: close
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
   - label: loop
   - A1: Here I am
@@ -43,7 +44,7 @@ story:
   - A2: But here I come
   - A2: Bye
   - Bye bye, actors
-  - jump: loop
+  #- jump: loop
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor

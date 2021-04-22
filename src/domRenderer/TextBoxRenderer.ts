@@ -28,7 +28,7 @@ export class TextBoxRenderer {
       // exit
       if (animate && prevTextBox?.type === TextBoxType.ADV && this.root.contains(this.advTextBox)) {
         const [promise, resolve] = createResolvablePromise()
-        this.renderAdvNameTag(undefined, undefined, true) // animate nametag removal...
+        await this.renderAdvNameTag(undefined, undefined, true) // animate nametag removal...
         this.advTextBox.style.transform = "scaleY(0)"
         const removeFromDom = () => {
           this.advTextBox.removeEventListener("transitionend", removeFromDom)
@@ -54,10 +54,7 @@ export class TextBoxRenderer {
   }
 
   private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
-    let resolveAnimationFinished: (value?: unknown | PromiseLike<unknown> | undefined) => void
-    const animationFinished = new Promise<void>((resolve) => {
-      resolveAnimationFinished = resolve
-    })
+    const [animationFinished, resolveAnimationFinished] = createResolvablePromise()
 
     this.advTextBox.innerHTML = "" // this will clear any pending event listners?
 
@@ -125,12 +122,7 @@ export class TextBoxRenderer {
     nameTag: ADVNameTag | undefined,
     animate: boolean
   ): Promise<unknown> {
-    let resolveAnimationFinished: (value?: unknown | PromiseLike<unknown> | undefined) => void = () => {
-      return
-    }
-    const animationFinished = new Promise((resolve) => {
-      resolveAnimationFinished = resolve
-    })
+    const [animationFinished, resolveAnimationFinished] = createResolvablePromise()
 
     const removeFromDom = () => {
       this.advNameTag.removeEventListener("transitionend", removeFromDom)
@@ -190,7 +182,7 @@ export class TextBoxRenderer {
 
     // enter
     if (prevNameTag === undefined) {
-      this.advNameTag.style.transform = "scaleY(0.0001)" // can't be 0 because of firefox lol
+      this.advNameTag.style.transform = "scaleY(0)"
       setNameTagProps()
       this.advNameTag.offsetHeight // force reflow
       this.advNameTag.style.transform = "scaleY(1)"
@@ -198,7 +190,7 @@ export class TextBoxRenderer {
       // swap
     } else if (prevNameTag.name !== nameTag.name || prevNameTag.color !== nameTag.color) {
       // TODO: deep compare
-      this.advNameTag.style.transform = "scaleY(0.0001)"
+      this.advNameTag.style.transform = "scaleY(0)"
       this.advNameTag.addEventListener("transitionend", changeNameTransition)
     } else {
       return

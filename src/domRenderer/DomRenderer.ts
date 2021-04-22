@@ -104,6 +104,7 @@ export const createResolvablePromise = (): [Promise<void>, ResolvePromiseFn] => 
   })
 
   if (resolveFn === undefined) {
+    // just making typescript happy...
     throw Error("This shouldn't happen...")
   }
 

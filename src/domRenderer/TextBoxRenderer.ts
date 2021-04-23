@@ -24,8 +24,16 @@ export class TextBoxRenderer {
     }
     // if we're NOT animating, we want to go ahead and clear the event listners
 
+    if (!animate) {
+      const clone = this.advTextBox.cloneNode() as HTMLDivElement
+      this.advTextBox.replaceWith(clone)
+      this.advTextBox = clone
+      this.advTextBox.style.transform = ""
+    }
+
     if (textBox === null) {
       // exit
+      // close adv box
       if (animate && prevTextBox?.type === TextBoxType.ADV && this.root.contains(this.advTextBox)) {
         const [promise, resolve] = createResolvablePromise()
         await this.renderAdvNameTag(undefined, undefined, true) // animate nametag removal...
@@ -40,7 +48,7 @@ export class TextBoxRenderer {
       }
 
       this.root.innerHTML = ""
-      // TODO
+
       return Promise.resolve()
     }
 
@@ -56,7 +64,7 @@ export class TextBoxRenderer {
   private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
     const [animationFinished, resolveAnimationFinished] = createResolvablePromise()
 
-    this.advTextBox.innerHTML = "" // this will clear any pending event listners?
+    this.advTextBox.innerHTML = "" // this will clear any pending span event listners?
 
     // enter
     if (!this.root.contains(this.advTextBox)) {
@@ -72,8 +80,6 @@ export class TextBoxRenderer {
         }
         this.advTextBox.addEventListener("transitionend", animationFinished)
         await promise
-      } else {
-        this.advTextBox.style.transform = ""
       }
     }
 

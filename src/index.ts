@@ -3,8 +3,6 @@ import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { VnEditor } from "./editor/editor"
 import "./index.html"
-import { Renderer } from "./Renderer"
-import { ReactRenderer } from "./reactRenderer/reactRenderer"
 
 import "codemirror/lib/codemirror.css"
 
@@ -48,6 +46,12 @@ story:
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor
+  - What decision are you going to make?
+  - decision:
+    - Option 1:
+        jump: loop
+    - Option 2:
+        jump: bad
   - 2
   - "2"
   - no
@@ -60,6 +64,9 @@ story:
   - Rando: I'm just some random dude
   - A1: But I'm a defined actor
   - textbox: close
+  - label: bad
+  - That was a bad choice.
+  - jump: loop
 `
 
 const [yamlState] = YamlParser.updateState(yamlText, state)

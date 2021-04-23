@@ -21,3 +21,20 @@ registerCommandHandler("label", (obj, location) => {
   }
   return new ParserError("Label must be a string.", location, ErrorLevel.WARNING)
 })
+
+export function updateLabels(state: VnPlayerState): VnPlayerState {
+  const newState = {...state}
+  const lables: Record<string, number> = {}
+  state.commands.forEach((command, index) => {
+    if (command instanceof Label) {
+      const lable = command.name
+      if(lables[lable] !== undefined) {
+        throw new Error(`Label ${lable} already exists in story.`)
+      } else {
+        lables[lable] = index
+      }
+    }
+  })
+  newState.labels = lables
+  return newState
+}

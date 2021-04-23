@@ -14,9 +14,10 @@ import {
   YAMLSeq,
 } from "yaml"
 import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
-import { NARRATOR_ACTOR_ID, updateLabels, VnPlayerState } from "../core/state"
+import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
+import { updateLabels } from "../core/commands/controlFlow/Label"
 
 const updateState = (text: string, state: VnPlayerState): [VnPlayerState, ParserError[]] => {
   let newState = { ...state }

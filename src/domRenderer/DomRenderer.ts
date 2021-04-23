@@ -35,7 +35,7 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
-    this.decisionRenderer = new DecisionRenderer(this.root)
+    this.decisionRenderer = new DecisionRenderer(this.root, this.player)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -56,7 +56,7 @@ export class DomRenderer implements Renderer {
     const prevText = this.prevState === null ? null : this.prevState.animatableState.text
 
     animationsFinished.push(this.textBoxRenderer.render(prevText, state.animatableState.text, animate))
-    animationsFinished.push(this.decisionRenderer.render(null))
+    animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
 
     this.prevState = state
 

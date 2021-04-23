@@ -1,6 +1,6 @@
 import { Command } from "./commands/Command"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "./state"
-import "../pegjsParser/commands"
+import "./commands/controlFlow/Decision"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -27,6 +27,8 @@ export class VnPlayer {
   }
 
   public advance(): void {
+    if (this.state.decision !== null) return
+
     let newState = { ...this.state }
     if (newState.commandIndex < newState.commands.length) {
       newState = newState.commands[newState.commandIndex].apply(newState)
@@ -35,11 +37,27 @@ export class VnPlayer {
     }
   }
 
+  public makeDecision(id: number): void {
+    if (this.state.decision === null) return
+    if (id < 0 || id > this.state.decision.length - 1) return
+    const item = this.state.decision[id]
+
+    const newState = {...this.state}
+    if (this.state.labels[item.jumpLabel] === undefined) {
+      throw new Error("Target label does not exist.")
+    }
+    newState.commandIndex = this.state.labels[item.jumpLabel]
+    newState.stopAfterRender = false
+    newState.decision = null
+    this.state = newState
+  }
+
   public loadCommands(commands: Command[]): void {
     this.state = {...this.state, commands, commandIndex: 0}
   }
 
   public goToCommand(cmdIndex: number): void {
+    if (this.state.decision !== null) return
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }

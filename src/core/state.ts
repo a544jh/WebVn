@@ -1,18 +1,13 @@
 import { Command } from "./commands/Command"
-import { Label } from "./commands/controlFlow/Label"
 export interface VnPlayerState {
   readonly actors: Actors
   readonly commandIndex: number
   readonly commands: Command[]
-  readonly labels: Labels
+  readonly labels: Record<string, number>
   readonly stopAfterRender: boolean
   readonly animatableState: AnimatableState
   readonly decision: DecisionItem[] | null
   // user settings, saves...
-}
-
-export interface Labels {
-  [index: string]: number
 }
 
 export interface AnimatableState {
@@ -72,19 +67,3 @@ export interface DecisionItem {
   // TODO show based on variable, previously selected etc...
 }
 
-export function updateLabels(state: VnPlayerState): VnPlayerState {
-  const newState = {...state}
-  const lables: Labels = {}
-  state.commands.forEach((command, index) => {
-    if (command instanceof Label) {
-      const lable = command.name
-      if(lables[lable] !== undefined) {
-        throw new Error(`Label ${lable} already exists in story.`)
-      } else {
-        lables[lable] = index
-      }
-    }
-  })
-  newState.labels = lables
-  return newState
-}

@@ -1,7 +1,5 @@
 (Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
-Basic decision system; rendering, commands
-
 Conditions, variables
 
 Image asset loading
@@ -16,4 +14,8 @@ Rollback & History
 
 Save/Load
 
+Better YAML parsing, actors etc..
+
 Standalone Player entrypoint
+
+NVL Mode

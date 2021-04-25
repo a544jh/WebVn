@@ -2,6 +2,23 @@ import { VnPlayerState, VnVariableValue } from "../../state"
 import { ErrorLevel, ParserError, SourceLocation } from "../Parser"
 import { isVnVariableValue } from "./variables"
 
+class ValueExpression {
+  value: VnVariableValue
+  constructor(value: VnVariableValue) {
+    this.value = value
+  }
+  public evaluate(state: VnPlayerState): VnVariableValue {
+    if (typeof this.value === "string" && this.value.charAt(0) === "$") {
+      const identifier = this.value.slice(1)
+      if (!state.variables[identifier]) {
+        throw new Error(`VN variable ${identifier} not set.`)
+      }
+      return state.variables[identifier]
+    }
+    return this.value
+  }
+}
+
 export abstract class BooleanExpression {
   private location: SourceLocation
   constructor(location: SourceLocation) {
@@ -11,50 +28,48 @@ export abstract class BooleanExpression {
 }
 
 class Equals extends BooleanExpression {
-  private identifier: string
-  private value: VnVariableValue
-  constructor(location: SourceLocation, identifier: string, value: VnVariableValue) {
+  private left: ValueExpression
+  private right: ValueExpression
+  constructor(location: SourceLocation, left: ValueExpression, right: ValueExpression) {
     super(location)
-    this.identifier = identifier
-    this.value = value
+    this.left = left
+    this.right = right
   }
 
   public evaluate(state: VnPlayerState) {
-    if (!state.variables[this.identifier]) {
-      throw new Error(`VN variable ${this.identifier} not set.`)
-    }
-    return state.variables[this.identifier] === this.value
+    return this.left.evaluate(state) === this.right.evaluate(state)
   }
-}
-
-export const parseIdentifierValuePair = (
-  obj: unknown,
-  location: SourceLocation
-): [string, VnVariableValue] | ParserError => {
-  if (!Array.isArray(obj) || obj.length !== 2)
-    return new ParserError(
-      "Boolean expression value must be of format [<identifier>, <value>]",
-      location,
-      ErrorLevel.WARNING
-    )
-  if (typeof obj[0] !== "string") return new ParserError("Identifier must be a string", location, ErrorLevel.WARNING)
-  if (!isVnVariableValue(obj[1]))
-    return new ParserError("Value must be a string, number or boolean", location, ErrorLevel.WARNING)
-  return [obj[0], obj[1]]
 }
 
 export const parseBooleanExpression = (obj: unknown, location: SourceLocation): BooleanExpression | ParserError => {
-  if (typeof obj !== "object" || obj === null || Object.keys(obj).length !== 1)
-    return new ParserError("Boolean expression must be a single keyed object", location, ErrorLevel.WARNING)
-  const key = Object.keys(obj)[0]
-  const value = (obj as Record<string, unknown>)[key]
-  switch (key) {
-    case "eq": {
-      const pair = parseIdentifierValuePair(value, location)
-      if (pair instanceof ParserError) return pair
-      return new Equals(location, ...pair)
+  let left, operator, right
+  if (Array.isArray(obj)) {
+    if (obj.length !== 3) {
+      return new ParserError("Boolean expression seq must have 3 items", location, ErrorLevel.WARNING)
     }
-    default:
-      return new ParserError("Boolean expression type not recognized", location, ErrorLevel.WARNING)
+    if (!isVnVariableValue(obj[0])) {
+      return new ParserError("Left operand must be a string, number or boolean", location, ErrorLevel.WARNING)
+    } else {
+      left = new ValueExpression(obj[0])
+    }
+    if (typeof obj[1] !== "string") {
+      return new ParserError("Operator must be a string", location, ErrorLevel.WARNING)
+    } else {
+      operator = obj[1]
+    }
+    if (!isVnVariableValue(obj[2])) {
+      return new ParserError("Right operand must be a string, number or boolean", location, ErrorLevel.WARNING)
+    } else {
+      right = new ValueExpression(obj[2])
+    }
+
+    switch (operator) {
+      case "==": {
+        return new Equals(location, left, right)
+      }
+      default:
+        return new ParserError(`Unrecognized operand ${operator}`, location, ErrorLevel.WARNING)
+    }
   }
+  return new ParserError("Invalid boolean expression", location, ErrorLevel.WARNING)
 }

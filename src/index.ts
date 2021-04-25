@@ -45,7 +45,7 @@ story:
   - Bye bye, actors
   - jump:
       to: loop
-      if: {eq: [a, 1]}
+      if: [$a, ==, 1]
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor

@@ -24,6 +24,8 @@ registerCommandHandler("set", (obj, location) => {
   if (!Array.isArray(obj) || obj.length !== 2)
     return new ParserError("set command must be a seq of format [<identifier>, <value>]", location, ErrorLevel.WARNING)
   if (typeof obj[0] !== "string") return new ParserError("Identifier must be a string", location, ErrorLevel.WARNING)
+  if (obj[0].charAt(0) === "$")
+    return new ParserError("Identifier may not begin with a dollar sign", location, ErrorLevel.WARNING)
   if (!isVnVariableValue(obj[1]))
     return new ParserError("Value must be a string, number or boolean", location, ErrorLevel.WARNING)
   return new SetVariable(location, obj[0], obj[1])

@@ -1,30 +1,40 @@
-import { VnPlayer } from "../core/player"
 import { DecisionItem } from "../core/state"
-import { createResolvablePromise } from "./DomRenderer"
+import { createResolvablePromise, DomRenderer, ResolvePromiseFn } from "./DomRenderer"
 
 export class DecisionRenderer {
-  private player: VnPlayer
+  private renderer: DomRenderer
   private root: HTMLDivElement
 
-  constructor(vnRoot: HTMLDivElement, player: VnPlayer) {
-    this.player = player
+  private readonly TRANSITION_DELAY = 300
+
+  constructor(vnRoot: HTMLDivElement, renderer: DomRenderer) {
+    this.renderer = renderer
     this.root = document.createElement("div")
     this.root.id = "vn-decision-renderer"
     vnRoot.appendChild(this.root)
   }
 
-  // This might be a better model than keeping the previous state
-  private committed: DecisionItem[] | null = null
-
   public async render(decision: DecisionItem[] | null, animate: boolean): Promise<void> {
-    if (animate && this.committed === decision) {
+    if (animate && this.renderer.getCommittedState()?.decision === decision) {
       return Promise.resolve()
     }
 
     if (decision === null) {
-      this.root.innerHTML = ""
-      this.committed = null
-      return Promise.resolve()
+      if (!animate) {
+        this.root.innerHTML = ""
+        return Promise.resolve()
+      }
+      const [promise, resolve] = createResolvablePromise()
+      const elems = this.root.children
+      for (let i = 0; i <elems.length; i++) {
+        const elem  = elems[i] as HTMLDivElement
+        elem.style.transform = "scaleY(0)"
+        elem.style.transitionDelay = i * this.TRANSITION_DELAY + "ms"
+        if (i === elems.length - 1) {
+          resolveOnTransitionEnd(elem, resolve)
+        }
+      }
+      return promise
     }
 
     const elems: HTMLDivElement[] = []
@@ -32,8 +42,18 @@ export class DecisionRenderer {
       // TODO handle showIf option
       const elem = createOptionElem(i, item.title)
       elem.addEventListener("click", () => {
-        // TODO Blink animation
-        this.player.makeDecision(i)
+        if (this.renderer.ignoreInputs) return
+        this.renderer.ignoreInputs = true
+        elem.addEventListener(
+          "animationend",
+          (e) => {
+            this.renderer.ignoreInputs = false
+            this.renderer.makeDecision(i)
+            e.stopPropagation()
+          },
+          { capture: true }
+        )
+        elem.classList.add("vn-decision-item-blink")
       })
       elems.push(elem)
     })
@@ -41,7 +61,7 @@ export class DecisionRenderer {
     if (animate) {
       for (const [index, elem] of elems.entries()) {
         elem.style.transform = "scaleY(0)"
-        elem.style.transitionDelay = index * 300 + "ms"
+        elem.style.transitionDelay = index * this.TRANSITION_DELAY + "ms"
         this.root.appendChild(elem)
       }
 
@@ -50,15 +70,10 @@ export class DecisionRenderer {
       const [promise, resolve] = createResolvablePromise()
       for (const [index, elem] of elems.entries()) {
         if (index === elems.length - 1) {
-          const onAnimationEnd = () => {
-            elem.removeEventListener("transitionend", onAnimationEnd)
-            resolve()
-          }
-          elem.addEventListener("transitionend", onAnimationEnd)
+          resolveOnTransitionEnd(elem, resolve)
         }
         elem.style.transform = "scaleY(1)"
       }
-      this.committed = decision
       return promise
     } else {
       this.root.innerHTML = ""
@@ -67,7 +82,6 @@ export class DecisionRenderer {
         this.root.appendChild(elem)
       }
 
-      this.committed = decision
       return Promise.resolve()
     }
   }
@@ -79,4 +93,12 @@ const createOptionElem = (id: number, title: string): HTMLDivElement => {
   elem.innerText = title
 
   return elem
+}
+
+const resolveOnTransitionEnd = (elem: HTMLDivElement, resolve: ResolvePromiseFn) => {
+  const onTransitionEnd = () => {
+    elem.removeEventListener("transitionend", onTransitionEnd)
+    resolve()
+  }
+  elem.addEventListener("transitionend", onTransitionEnd)
 }

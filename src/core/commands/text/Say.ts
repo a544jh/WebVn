@@ -1,5 +1,6 @@
 import { Actor, ADVNameTag, ADVTextBox, NARRATOR_ACTOR_ID, TextBoxType, TextNode, VnPlayerState } from "../../state"
 import { Command } from "../Command"
+import { Decision } from "../controlFlow/Decision"
 import { SourceLocation } from "../Parser"
 
 export class Say extends Command {
@@ -38,7 +39,10 @@ export class Say extends Command {
     }
 
     const animatableState = { ...state.animatableState, text }
-    const newState = { ...state, animatableState, stopAfterRender: true }
+
+    const stopAfterRender = !(state.commands[state.commandIndex + 1] instanceof Decision)
+
+    const newState = { ...state, animatableState, stopAfterRender }
 
     return newState
   }

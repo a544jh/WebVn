@@ -18,8 +18,8 @@ export class TextBoxRenderer {
     this.advNameTag.classList.add("vn-adv-nametag")
   }
 
-  public async render(prevTextBox: TextBox | null, textBox: TextBox | null, animate: boolean): Promise<void> {
-    if (animate && textBox === prevTextBox) {
+  public async render(committedTextBox: TextBox | null, textBox: TextBox | null, animate: boolean): Promise<void> {
+    if (animate && textBox === committedTextBox) {
       return Promise.resolve()
     }
     // if we're NOT animating, we want to go ahead and clear the event listners
@@ -34,7 +34,7 @@ export class TextBoxRenderer {
     if (textBox === null) {
       // exit
       // close adv box
-      if (animate && prevTextBox?.type === TextBoxType.ADV && this.root.contains(this.advTextBox)) {
+      if (animate && committedTextBox?.type === TextBoxType.ADV && this.root.contains(this.advTextBox)) {
         const [promise, resolve] = createResolvablePromise()
         await this.renderAdvNameTag(undefined, undefined, true) // animate nametag removal...
         this.advTextBox.style.transform = "scaleY(0)"
@@ -55,13 +55,13 @@ export class TextBoxRenderer {
     // maybe use dict to lookup, or class instance method....
     switch (textBox.type) {
       case TextBoxType.ADV:
-        return this.renderAdv(prevTextBox, textBox as ADVTextBox, animate)
+        return this.renderAdv(committedTextBox, textBox as ADVTextBox, animate)
     }
 
     return Promise.resolve()
   }
 
-  private async renderAdv(prevAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
+  private async renderAdv(committedAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
     const [animationFinished, resolveAnimationFinished] = createResolvablePromise()
 
     this.advTextBox.innerHTML = "" // this will clear any pending span event listners?
@@ -83,7 +83,7 @@ export class TextBoxRenderer {
       }
     }
 
-    const prevNameTag = prevAdv === null ? undefined : prevAdv.nameTag
+    const prevNameTag = committedAdv === null ? undefined : committedAdv.nameTag
     await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
 
     const fragment = document.createDocumentFragment()

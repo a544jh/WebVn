@@ -95,3 +95,10 @@ body {
 .vn-decision-item:hover {
   background-color: rgba(0, 0, 0, .2);
 }
+
+.vn-decision-item-blink {
+  animation: vn-blink;
+  animation-timing-function: step-end;
+  animation-duration: 100ms;
+  animation-iteration-count: 5;
+}

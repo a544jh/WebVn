@@ -7,18 +7,26 @@
   }
 }
 
-
 @keyframes vn-blink {
   50% {
     opacity: 0;
   }
 }
 
+@keyframes vn-decision-anim {
+  from {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  to {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+}
+
 @keyframes scale-y {
   from {
-    transform: scaleY(0)
+    transform: scaleY(0);
   }
-  to{
-    transform: scaleY(1)
+  to {
+    transform: scaleY(1);
   }
 }

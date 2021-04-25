@@ -1,9 +1,9 @@
 body {
-  background-color: dimgray
+  background-color: dimgray;
 }
 
 #vn-state {
-  white-space: pre
+  white-space: pre;
 }
 
 #vn-div {
@@ -14,8 +14,8 @@ body {
   height: 600px;
 }
 
-#vn-textbox-renderer{
-  font-family: 'Source Code Pro';
+#vn-textbox-renderer {
+  font-family: "Source Code Pro";
   font-weight: bold;
   font-size: 24px;
   line-height: 24px;
@@ -25,7 +25,7 @@ body {
   -moz-user-select: none;
 }
 
-.vn-arrow{
+.vn-arrow {
   position: absolute;
   right: 10px;
   bottom: 20px;
@@ -48,7 +48,7 @@ body {
   height: 106px;
   padding: 5px;
   box-sizing: border-box;
-  background-color: rgba(0, 0, 0, .4);
+  background-color: rgba(0, 0, 0, 0.4);
   overflow: hidden;
   transition-property: transform;
   transition-duration: 150ms;
@@ -62,7 +62,7 @@ body {
   padding: 2px;
   box-sizing: border-box;
   text-shadow: 2px 2px 0px black;
-  background-color: rgba(0, 0, 0, .4);
+  background-color: rgba(0, 0, 0, 0.4);
   overflow: hidden;
   transition-property: transform;
   transition-duration: 150ms;
@@ -74,7 +74,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
   font-weight: bold;
   font-size: 24px;
   line-height: 24px;
@@ -85,7 +85,7 @@ body {
 }
 
 .vn-decision-item {
-  background-color: rgba(0, 0, 0, .4);
+  background-color: rgba(0, 0, 0, 0.4);
   padding: 2px 0;
   text-align: center;
   transition-property: transform;
@@ -93,12 +93,11 @@ body {
 }
 
 .vn-decision-item:hover {
-  background-color: rgba(0, 0, 0, .2);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .vn-decision-item-blink {
-  animation: vn-blink;
-  animation-timing-function: step-end;
+  animation: vn-decision-anim;
   animation-duration: 100ms;
   animation-iteration-count: 5;
 }

@@ -2,6 +2,7 @@ import { Command } from "./commands/Command"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "./state"
 import "./commands/controlFlow/Decision"
 import "./commands/text/CloseTextBox"
+import "./commands/controlFlow/variables"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -19,6 +20,7 @@ export const initialState: VnPlayerState = {
     text: null,
   },
   decision: null,
+  variables: {},
 }
 
 export class VnPlayer {

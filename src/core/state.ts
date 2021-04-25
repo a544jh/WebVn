@@ -7,6 +7,7 @@ export interface VnPlayerState {
   readonly stopAfterRender: boolean
   readonly animatableState: AnimatableState
   readonly decision: DecisionItem[] | null
+  readonly variables: Record<string, VnVariableValue>
   // user settings, saves...
 }
 
@@ -68,3 +69,5 @@ export interface DecisionItem {
   jumpLabel: string
   // TODO show based on variable, previously selected etc...
 }
+
+export type VnVariableValue = string | number | boolean

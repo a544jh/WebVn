@@ -40,9 +40,12 @@ story:
   - A1: Here I am
   - A1: Just talking...
   - A2: But here I come
+  - set: [a, 1]
   - A2: Bye
   - Bye bye, actors
-  #- jump: loop
+  - jump:
+      to: loop
+      if: {eq: [a, 1]}
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor

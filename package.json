@@ -6,7 +6,9 @@
   "scripts": {
     "build": "webpack --mode=production",
     "dev": "webpack serve",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint '**/*.ts'",
+    "prettier": "prettier -c '**/*.ts'"
   },
   "author": "",
   "license": "ISC",

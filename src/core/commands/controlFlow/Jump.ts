@@ -1,6 +1,6 @@
-import { VnPlayerState } from "../../state";
-import { Command } from "../Command";
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser";
+import { VnPlayerState } from "../../state"
+import { Command } from "../Command"
+import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 
 export class Jump extends Command {
   constructor(location: SourceLocation, targetLabel: string) {
@@ -10,7 +10,7 @@ export class Jump extends Command {
   targetLabel: string
 
   public apply(state: VnPlayerState): VnPlayerState {
-    const newState = {...state}
+    const newState = { ...state }
     if (state.labels[this.targetLabel] === undefined) {
       throw new Error("Target label does not exist.")
     }

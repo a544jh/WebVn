@@ -157,16 +157,12 @@ const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
   }
 }
 
-
-
 const getLines = (item: Node, lc: LineCounter): SourceLocation => {
   const endPos = lc.linePos(item.range?.[1] || 0)
   const endLine = endPos.col === 1 ? endPos.line - 1 : endPos.line
   return { startLine: lc.linePos(item.range?.[0] || 0).line, endLine }
 }
 
-
-
 export const YamlParser: VnParser = {
-  updateState
+  updateState,
 }

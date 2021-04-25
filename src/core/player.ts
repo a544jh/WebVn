@@ -18,7 +18,7 @@ export const initialState: VnPlayerState = {
   animatableState: {
     text: null,
   },
-  decision: null
+  decision: null,
 }
 
 export class VnPlayer {
@@ -43,7 +43,7 @@ export class VnPlayer {
     if (id < 0 || id > this.state.decision.length - 1) return
     const item = this.state.decision[id]
 
-    const newState = {...this.state}
+    const newState = { ...this.state }
     if (this.state.labels[item.jumpLabel] === undefined) {
       throw new Error("Target label does not exist.")
     }
@@ -54,7 +54,7 @@ export class VnPlayer {
   }
 
   public loadCommands(commands: Command[]): void {
-    this.state = {...this.state, commands, commandIndex: 0}
+    this.state = { ...this.state, commands, commandIndex: 0 }
   }
 
   public goToCommand(cmdIndex: number): void {
@@ -62,7 +62,7 @@ export class VnPlayer {
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }
-    this.state = {...this.state, commandIndex: cmdIndex - 1}
+    this.state = { ...this.state, commandIndex: cmdIndex - 1 }
     this.advance()
   }
 }

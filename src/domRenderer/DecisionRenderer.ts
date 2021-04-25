@@ -26,8 +26,8 @@ export class DecisionRenderer {
       }
       const [promise, resolve] = createResolvablePromise()
       const elems = this.root.children
-      for (let i = 0; i <elems.length; i++) {
-        const elem  = elems[i] as HTMLDivElement
+      for (let i = 0; i < elems.length; i++) {
+        const elem = elems[i] as HTMLDivElement
         elem.style.transform = "scaleY(0)"
         elem.style.transitionDelay = i * this.TRANSITION_DELAY + "ms"
         if (i === elems.length - 1) {

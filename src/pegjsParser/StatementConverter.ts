@@ -4,14 +4,14 @@ import * as parser from "./parserWrapper.js"
 // Statements from pegjs parser
 
 export interface Statement {
-  type: string,
+  type: string
   line: number
 }
 
 export interface SayStatement extends Statement {
-  type: "say",
-  actor: string,
-  text: string,
+  type: "say"
+  actor: string
+  text: string
 }
 
 function isSayStatement(s: Statement): s is SayStatement {
@@ -19,8 +19,8 @@ function isSayStatement(s: Statement): s is SayStatement {
 }
 
 export interface CommandStatement extends Statement {
-  type: "command",
-  command: string,
+  type: "command"
+  command: string
   args: string[]
 }
 
@@ -37,7 +37,6 @@ interface CommandHandlers {
 }
 
 class StatementConverter {
-
   private sayHandler: SayHandler
   private commandHandlers: CommandHandlers = {}
 

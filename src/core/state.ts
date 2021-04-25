@@ -33,7 +33,9 @@ export interface ADVNameTag {
 }
 
 export const enum TextBoxType {
-  ADV = "adv" , NVL = "nvl", freeform = "freeform",
+  ADV = "adv",
+  NVL = "nvl",
+  freeform = "freeform",
 }
 
 export interface TextNode {
@@ -66,4 +68,3 @@ export interface DecisionItem {
   jumpLabel: string
   // TODO show based on variable, previously selected etc...
 }
-

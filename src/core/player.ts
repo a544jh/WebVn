@@ -60,11 +60,11 @@ export class VnPlayer {
   }
 
   public goToCommand(cmdIndex: number): void {
-    if (this.state.decision !== null) return
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }
-    this.state = { ...this.state, commandIndex: cmdIndex - 1 }
+    // case for preCommand hooks...? (to reset decision...)
+    this.state = { ...this.state, commandIndex: cmdIndex - 1, decision: null }
     this.advance()
   }
 }

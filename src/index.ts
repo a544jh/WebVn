@@ -86,4 +86,20 @@ renderer.onRenderCallbacks.push(() => {
   // vnStateDiv.textContent = JSON.stringify(player.state, null, 2)
 })
 
+const vnVarsDiv = document.getElementById("vn-variables")
+const varHeader = document.createElement("h4")
+varHeader.innerText = "Variables"
+vnVarsDiv?.appendChild(varHeader)
+const varsContainer = document.createElement("div")
+vnVarsDiv?.appendChild(varsContainer)
+
+renderer.onRenderCallbacks.push(() => {
+  varsContainer.innerHTML = ""
+  let text = ""
+  for (const variable in player.state.variables) {
+    text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
+  }
+  varsContainer.innerText = text
+})
+
 editor.loadScript(yamlText)

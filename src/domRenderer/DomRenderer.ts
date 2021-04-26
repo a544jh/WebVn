@@ -63,7 +63,7 @@ export class DomRenderer implements Renderer {
     this.committedState = state
 
     Promise.all(animationsFinished).then(() => {
-      this.arrow.style.display = ""
+      if (this.committedState?.decision === null) this.arrow.style.display = ""
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
       if (!this.player.state.stopAfterRender) {

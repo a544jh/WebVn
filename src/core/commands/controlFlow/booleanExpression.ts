@@ -1,5 +1,5 @@
 import { VnPlayerState, VnVariableValue } from "../../state"
-import { ErrorLevel, ParserError, SourceLocation } from "../Parser"
+import { ErrorLevel, ParserError, SourceLocation, tsHasOwnProperty } from "../Parser"
 import { isVnVariableValue } from "./variables"
 
 class ValueExpression {
@@ -74,6 +74,52 @@ const operators: Record<string, Operator> = {
   gte: greaterThanEqual,
 }
 
+class Not extends BooleanExpression {
+  private expr: BooleanExpression
+  constructor(location: SourceLocation, expr: BooleanExpression) {
+    super(location)
+    this.expr = expr
+  }
+
+  public evaluate(state: VnPlayerState) {
+    return !this.expr.evaluate(state)
+  }
+}
+
+class And extends BooleanExpression {
+  private exprs: BooleanExpression[]
+  constructor(location: SourceLocation, exprs: BooleanExpression[]) {
+    super(location)
+    this.exprs = exprs
+  }
+
+  public evaluate(state: VnPlayerState) {
+    for (const expr of this.exprs) {
+      if (expr.evaluate(state) === false) {
+        return false
+      }
+    }
+    return true
+  }
+}
+
+class Or extends BooleanExpression {
+  private exprs: BooleanExpression[]
+  constructor(location: SourceLocation, exprs: BooleanExpression[]) {
+    super(location)
+    this.exprs = exprs
+  }
+
+  public evaluate(state: VnPlayerState) {
+    for (const expr of this.exprs) {
+      if (expr.evaluate(state) === true) {
+        return true
+      }
+    }
+    return false
+  }
+}
+
 export const parseBooleanExpression = (obj: unknown, location: SourceLocation): BooleanExpression | ParserError => {
   let left, operator, right
   if (Array.isArray(obj)) {
@@ -102,5 +148,44 @@ export const parseBooleanExpression = (obj: unknown, location: SourceLocation): 
     }
     return new ParserError(`Unrecognized operand ${operator}`, location, ErrorLevel.WARNING)
   }
+
+  let val = getSingleKeyedObjValue(obj, "not")
+  if (val !== null) {
+    const res = parseBooleanExpression(val, location)
+    if (res instanceof ParserError) return res
+    return new Not(location, res)
+  }
+  val = getSingleKeyedObjValue(obj, "and")
+  if (val !== null) {
+    const res = getBoolExprList(val, location)
+    if (res instanceof ParserError) return res
+    return new And(location, res)
+  }
+  val = getSingleKeyedObjValue(obj, "or")
+  if (val !== null) {
+    const res = getBoolExprList(val, location)
+    if (res instanceof ParserError) return res
+    return new Or(location, res)
+  }
+
   return new ParserError("Invalid boolean expression", location, ErrorLevel.WARNING)
+}
+
+function getSingleKeyedObjValue(obj: unknown, key: string): unknown | null {
+  if (tsHasOwnProperty(obj, key)) {
+    return obj[key]
+  }
+  return null
+}
+
+function getBoolExprList(obj: unknown, location: SourceLocation): BooleanExpression[] | ParserError {
+  const list: BooleanExpression[] = []
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const result = parseBooleanExpression(item, location)
+      if (result instanceof ParserError) return result
+      list.push(result)
+    }
+  }
+  return list
 }

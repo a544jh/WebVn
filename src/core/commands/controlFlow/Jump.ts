@@ -1,6 +1,6 @@
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation, tsHasOwnProperty } from "../Parser"
 import { BooleanExpression, parseBooleanExpression } from "./booleanExpression"
 
 export class Jump extends Command {
@@ -31,14 +31,14 @@ registerCommandHandler("jump", (obj, location) => {
   let expr
   if (typeof obj !== "object" || obj === null)
     return new ParserError("Target label must be a string or map.", location, ErrorLevel.WARNING)
-  if (hasOwnProperty(obj, "to")) {
+  if (tsHasOwnProperty(obj, "to")) {
     if (typeof obj.to !== "string")
       return new ParserError(`Value of "to" must be a string`, location, ErrorLevel.WARNING)
     to = obj.to
   } else {
     return new ParserError(`map form of jump command must have key "of"`, location, ErrorLevel.WARNING)
   }
-  if (hasOwnProperty(obj, "if")) {
+  if (tsHasOwnProperty(obj, "if")) {
     expr = parseBooleanExpression(obj.if, location)
     if (expr instanceof ParserError) return expr
   } else {
@@ -46,8 +46,3 @@ registerCommandHandler("jump", (obj, location) => {
   }
   return new Jump(location, to, expr)
 })
-
-// https://fettblog.eu/typescript-hasownproperty/
-function hasOwnProperty<X extends unknown, Y extends PropertyKey>(obj: X, prop: Y): obj is X & Record<Y, unknown> {
-  return Object.prototype.hasOwnProperty.call(obj, prop)
-}

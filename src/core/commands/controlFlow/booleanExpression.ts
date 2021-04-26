@@ -9,6 +9,11 @@ class ValueExpression {
   }
   public evaluate(state: VnPlayerState): VnVariableValue {
     if (typeof this.value === "string" && this.value.charAt(0) === "$") {
+      // escape, $$var => "$var": string
+      if (this.value.charAt(1) === "$") {
+        return this.value.slice(1)
+      }
+
       const identifier = this.value.slice(1)
       if (!state.variables[identifier]) {
         throw new Error(`VN variable ${identifier} not set.`)
@@ -27,18 +32,46 @@ export abstract class BooleanExpression {
   abstract evaluate(state: VnPlayerState): boolean
 }
 
-class Equals extends BooleanExpression {
+class BinaryExpression extends BooleanExpression {
+  private operator: Operator
   private left: ValueExpression
   private right: ValueExpression
-  constructor(location: SourceLocation, left: ValueExpression, right: ValueExpression) {
+  constructor(location: SourceLocation, operator: Operator, left: ValueExpression, right: ValueExpression) {
     super(location)
+    this.operator = operator
     this.left = left
     this.right = right
   }
 
   public evaluate(state: VnPlayerState) {
-    return this.left.evaluate(state) === this.right.evaluate(state)
+    const leftVal = this.left.evaluate(state)
+    const rightVal = this.right.evaluate(state)
+    return this.operator(leftVal, rightVal)
   }
+}
+
+type Operator = (left: VnVariableValue, right: VnVariableValue) => boolean
+
+const equal = (left: VnVariableValue, right: VnVariableValue) => left === right
+const notEqual = (left: VnVariableValue, right: VnVariableValue) => left !== right
+const lessThan = (left: VnVariableValue, right: VnVariableValue) => left < right
+const lessThanEqual = (left: VnVariableValue, right: VnVariableValue) => left <= right
+const greaterThan = (left: VnVariableValue, right: VnVariableValue) => left > right
+const greaterThanEqual = (left: VnVariableValue, right: VnVariableValue) => left >= right
+
+const operators: Record<string, Operator> = {
+  "==": equal,
+  eq: equal,
+  "!=": notEqual,
+  neq: notEqual,
+  "<": lessThan,
+  lt: lessThan,
+  "<=": lessThanEqual,
+  lte: lessThanEqual,
+  ">": greaterThan,
+  gt: greaterThan,
+  ">=": greaterThanEqual,
+  gte: greaterThanEqual,
 }
 
 export const parseBooleanExpression = (obj: unknown, location: SourceLocation): BooleanExpression | ParserError => {
@@ -63,13 +96,11 @@ export const parseBooleanExpression = (obj: unknown, location: SourceLocation): 
       right = new ValueExpression(obj[2])
     }
 
-    switch (operator) {
-      case "==": {
-        return new Equals(location, left, right)
-      }
-      default:
-        return new ParserError(`Unrecognized operand ${operator}`, location, ErrorLevel.WARNING)
+    if (operator in operators) {
+      const operatorFn = operators[operator]
+      return new BinaryExpression(location, operatorFn, left, right)
     }
+    return new ParserError(`Unrecognized operand ${operator}`, location, ErrorLevel.WARNING)
   }
   return new ParserError("Invalid boolean expression", location, ErrorLevel.WARNING)
 }

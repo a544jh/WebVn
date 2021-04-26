@@ -52,3 +52,11 @@ export const getCommandHandler = (command: string): ObjectToCommand | undefined 
 export interface VnParser {
   updateState(text: string, state: VnPlayerState): [VnPlayerState, ParserError[]]
 }
+
+// https://fettblog.eu/typescript-hasownproperty/
+export function tsHasOwnProperty<X extends unknown, Y extends PropertyKey>(
+  obj: X,
+  prop: Y
+): obj is X & Record<Y, unknown> {
+  return Object.prototype.hasOwnProperty.call(obj, prop)
+}

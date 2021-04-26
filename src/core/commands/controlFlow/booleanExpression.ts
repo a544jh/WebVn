@@ -15,7 +15,7 @@ class ValueExpression {
       }
 
       const identifier = this.value.slice(1)
-      if (!state.variables[identifier]) {
+      if (state.variables[identifier] === undefined) {
         throw new Error(`VN variable ${identifier} not set.`)
       }
       return state.variables[identifier]
@@ -30,6 +30,18 @@ export abstract class BooleanExpression {
     this.location = location
   }
   abstract evaluate(state: VnPlayerState): boolean
+}
+
+class SingleValueExpression extends BooleanExpression {
+  private value: ValueExpression
+  constructor(location: SourceLocation, value: ValueExpression) {
+    super(location)
+    this.value = value
+  }
+
+  public evaluate(state: VnPlayerState): boolean {
+    return !!this.value.evaluate(state)
+  }
 }
 
 class BinaryExpression extends BooleanExpression {
@@ -147,6 +159,10 @@ export const parseBooleanExpression = (obj: unknown, location: SourceLocation): 
       return new BinaryExpression(location, operatorFn, left, right)
     }
     return new ParserError(`Unrecognized operand ${operator}`, location, ErrorLevel.WARNING)
+  }
+
+  if (typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
+    return new SingleValueExpression(location, new ValueExpression(obj))
   }
 
   let val = getSingleKeyedObjValue(obj, "not")

@@ -3,18 +3,13 @@ import { ErrorLevel, ParserError, SourceLocation, tsHasOwnProperty } from "../Pa
 import { isVnVariableValue, ValueExpression } from "./variables"
 
 export abstract class BooleanExpression {
-  private location: SourceLocation
-  constructor(location: SourceLocation) {
-    this.location = location
-  }
+  constructor(private location: SourceLocation) {}
   abstract evaluate(state: VnPlayerState): boolean
 }
 
 class SingleValueExpression extends BooleanExpression {
-  private value: ValueExpression
-  constructor(location: SourceLocation, value: ValueExpression) {
+  constructor(location: SourceLocation, private value: ValueExpression) {
     super(location)
-    this.value = value
   }
 
   public evaluate(state: VnPlayerState): boolean {
@@ -23,14 +18,13 @@ class SingleValueExpression extends BooleanExpression {
 }
 
 class BinaryExpression extends BooleanExpression {
-  private operator: Operator
-  private left: ValueExpression
-  private right: ValueExpression
-  constructor(location: SourceLocation, operator: Operator, left: ValueExpression, right: ValueExpression) {
+  constructor(
+    location: SourceLocation,
+    private operator: Operator,
+    private left: ValueExpression,
+    private right: ValueExpression
+  ) {
     super(location)
-    this.operator = operator
-    this.left = left
-    this.right = right
   }
 
   public evaluate(state: VnPlayerState) {
@@ -65,10 +59,8 @@ const operators: Record<string, Operator> = {
 }
 
 class Not extends BooleanExpression {
-  private expr: BooleanExpression
-  constructor(location: SourceLocation, expr: BooleanExpression) {
+  constructor(location: SourceLocation, private expr: BooleanExpression) {
     super(location)
-    this.expr = expr
   }
 
   public evaluate(state: VnPlayerState) {
@@ -77,10 +69,8 @@ class Not extends BooleanExpression {
 }
 
 class And extends BooleanExpression {
-  private exprs: BooleanExpression[]
-  constructor(location: SourceLocation, exprs: BooleanExpression[]) {
+  constructor(location: SourceLocation, private exprs: BooleanExpression[]) {
     super(location)
-    this.exprs = exprs
   }
 
   public evaluate(state: VnPlayerState) {
@@ -94,10 +84,8 @@ class And extends BooleanExpression {
 }
 
 class Or extends BooleanExpression {
-  private exprs: BooleanExpression[]
-  constructor(location: SourceLocation, exprs: BooleanExpression[]) {
+  constructor(location: SourceLocation, private exprs: BooleanExpression[]) {
     super(location)
-    this.exprs = exprs
   }
 
   public evaluate(state: VnPlayerState) {

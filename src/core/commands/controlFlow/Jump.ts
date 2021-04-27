@@ -4,13 +4,8 @@ import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation, tsHasO
 import { BooleanExpression, parseBooleanExpression } from "./booleanExpression"
 
 export class Jump extends Command {
-  targetLabel: string
-  condition: BooleanExpression | undefined
-
-  constructor(location: SourceLocation, targetLabel: string, condition?: BooleanExpression) {
+  constructor(location: SourceLocation, public targetLabel: string, public condition?: BooleanExpression) {
     super(location)
-    this.condition = condition
-    this.targetLabel = targetLabel
   }
 
   public apply(state: VnPlayerState): VnPlayerState {

@@ -3,11 +3,8 @@ import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 
 export class Decision extends Command {
-  items: DecisionItem[]
-
-  constructor(location: SourceLocation, items: DecisionItem[]) {
+  constructor(location: SourceLocation, public items: DecisionItem[]) {
     super(location)
-    this.items = items
   }
 
   public apply(state: VnPlayerState): VnPlayerState {

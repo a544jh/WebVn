@@ -3,10 +3,7 @@ import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 
 export class ValueExpression {
-  value: VnVariableValue
-  constructor(value: VnVariableValue) {
-    this.value = value
-  }
+  constructor(public value: VnVariableValue) {}
   public evaluate(state: VnPlayerState): VnVariableValue {
     if (typeof this.value === "string" && this.value.charAt(0) === "$") {
       // escape, $$var => "$var": string

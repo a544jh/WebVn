@@ -4,11 +4,9 @@ import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from 
 import "./Jump"
 
 export class Label extends Command {
-  constructor(location: SourceLocation, name: string) {
+  constructor(location: SourceLocation, public name: string) {
     super(location)
-    this.name = name
   }
-  name: string
 
   public apply(state: VnPlayerState): VnPlayerState {
     return { ...state, stopAfterRender: false }

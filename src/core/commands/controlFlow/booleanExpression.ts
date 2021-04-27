@@ -1,28 +1,6 @@
 import { VnPlayerState, VnVariableValue } from "../../state"
 import { ErrorLevel, ParserError, SourceLocation, tsHasOwnProperty } from "../Parser"
-import { isVnVariableValue } from "./variables"
-
-class ValueExpression {
-  value: VnVariableValue
-  constructor(value: VnVariableValue) {
-    this.value = value
-  }
-  public evaluate(state: VnPlayerState): VnVariableValue {
-    if (typeof this.value === "string" && this.value.charAt(0) === "$") {
-      // escape, $$var => "$var": string
-      if (this.value.charAt(1) === "$") {
-        return this.value.slice(1)
-      }
-
-      const identifier = this.value.slice(1)
-      if (state.variables[identifier] === undefined) {
-        throw new Error(`VN variable ${identifier} not set.`)
-      }
-      return state.variables[identifier]
-    }
-    return this.value
-  }
-}
+import { isVnVariableValue, ValueExpression } from "./variables"
 
 export abstract class BooleanExpression {
   private location: SourceLocation

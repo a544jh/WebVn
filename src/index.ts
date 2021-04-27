@@ -40,7 +40,7 @@ story:
   - A1: Here I am
   - A1: Just talking...
   - A2: But here I come
-  - set: [a, 1]
+  - set: [$a, =, 1]
   - A2: Bye
   - Bye bye, actors
   - jump:

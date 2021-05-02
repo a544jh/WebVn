@@ -1,7 +1,7 @@
 export class ImageAssetLoaderSrc {
   private assets: Record<string, HTMLImageElement | null> = {}
 
-  public registerAsset(path: string) {
+  public registerAsset(path: string): void {
     this.assets[path] = null
   }
 

@@ -6,6 +6,7 @@ import { TextBoxRenderer } from "./TextBoxRenderer"
 import "./animations.css"
 import "./defaultTheme.css"
 import { DecisionRenderer } from "./DecisionRenderer"
+import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -23,6 +24,8 @@ export class DomRenderer implements Renderer {
   private textBoxRenderer: TextBoxRenderer
   private decisionRenderer: DecisionRenderer
 
+  private spriteLoader: ImageAssetLoaderSrc
+
   private arrow: HTMLDivElement
 
   constructor(elem: HTMLDivElement, player: VnPlayer) {
@@ -39,14 +42,18 @@ export class DomRenderer implements Renderer {
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
 
+    this.spriteLoader = new ImageAssetLoaderSrc()
+
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
     this.root.appendChild(this.arrow)
 
-    this.render(this.player.state, true)
+    this.render(true)
   }
 
-  public render(state: VnPlayerState, animate: boolean): void {
+  public render(animate: boolean): void {
+    const state = this.player.state
+
     this.onRenderCallbacks.forEach((cb) => cb())
 
     this.finished = false
@@ -68,7 +75,7 @@ export class DomRenderer implements Renderer {
       this.onFinishedCallbacks.forEach((cb) => cb())
       if (!this.player.state.stopAfterRender) {
         this.player.advance()
-        this.render(this.player.state, animate)
+        this.render(animate)
       }
     })
   }
@@ -77,15 +84,15 @@ export class DomRenderer implements Renderer {
     if (this.ignoreInputs) return
     if (this.finished) {
       this.player.advance()
-      this.render(this.player.state, true)
+      this.render(true)
     } else {
-      this.render(this.player.state, false)
+      this.render(false)
     }
   }
 
   public makeDecision(id: number): void {
     this.player.makeDecision(id)
-    this.render(this.player.state, true)
+    this.render(true)
   }
 
   public getCommittedState(): VnPlayerState | null {
@@ -104,7 +111,22 @@ export class DomRenderer implements Renderer {
       this.player.goToCommand(this.player.state.commandIndex - 1)
     }
 
-    this.render(this.player.state, false)
+    this.render(false)
+  }
+
+  public loadAssets(): Promise<void[]> {
+    const state = this.player.state
+    for (const actor in state.actors) {
+      const sprites = state.actors[actor].sprites
+      if (sprites === undefined) continue
+      for (const sprite of sprites) {
+        const path = "sprites/" + actor + "/" + sprite
+
+        this.spriteLoader.registerAsset(path)
+      }
+    }
+
+    return this.spriteLoader.loadAll()
   }
 }
 

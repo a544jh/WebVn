@@ -8,6 +8,8 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 
+import "../test-assets/sprites/A1/idle.png"
+
 const state: VnPlayerState = {
   ...initialState,
   actors: {
@@ -21,6 +23,7 @@ const state: VnPlayerState = {
     A1: {
       name: "Actor",
       nameTagColor: "purple",
+      sprites: ["idle.png"],
     },
     A2: {
       name: "Actor2",

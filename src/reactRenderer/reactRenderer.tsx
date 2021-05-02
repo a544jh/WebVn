@@ -20,12 +20,12 @@ export class ReactRenderer implements Renderer {
     this.player = player
   }
 
-  public render(state: VnPlayerState, animate: boolean): void {
+  public render(animate: boolean): void {
     this.onRenderCallbacks.forEach((cb) => cb())
     ReactDOM.render(
       <VnRoot
         animate={animate}
-        playerState={state}
+        playerState={this.player.state}
         onClick={this.advance}
         onScroll={this.handleScrollWheelEvent}
         onAnimationFinished={this.onAnimationFinished}
@@ -36,7 +36,7 @@ export class ReactRenderer implements Renderer {
 
   public advance = (): void => {
     this.player.advance()
-    this.render(this.player.state, true)
+    this.render(true)
   }
 
   private handleScrollWheelEvent = (e: React.WheelEvent) => {
@@ -50,12 +50,16 @@ export class ReactRenderer implements Renderer {
       this.player.goToCommand(this.player.state.commandIndex - 1)
     }
 
-    this.render(this.player.state, false)
+    this.render(false)
   }
 
   private onAnimationFinished = () => {
     console.log("animation finished")
     this.onFinishedCallbacks.forEach((cb) => cb())
+  }
+
+  public loadAssets(): Promise<void[]> {
+    return Promise.all([Promise.resolve()])
   }
 }
 

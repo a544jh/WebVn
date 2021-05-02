@@ -26,6 +26,28 @@ module.exports = {
         loader: "file-loader",
         options: {name: "[name].[ext]"}
       },
+      /*{
+        test: /\.(png|jpe?g|gif)$/i,
+        loader: "file-loader",
+        options: {outputPath: (url, resourcePath, context) => {
+          //console.log(url)
+          //console.log(resourcePath)
+          //console.log(context)
+          return path.relative(path.join(context, "test-assets"), resourcePath)
+        }, emitFile: true}
+      },*/
+      {
+        test: /\.(png|jpe?g|gif)$/i,
+        type: "asset/resource",
+        generator: {
+          filename: (one, two, three) => {
+            console.log(one)
+            console.log(two)
+            console.log(three)
+            return one.filename.replace("test-assets/", "")
+          }
+        }
+      },
       // may want to handle the theme loading ourselves...
       {
         test: /\.css$/,

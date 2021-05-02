@@ -60,11 +60,14 @@ export class VnEditor {
     this.vnEditor.getDoc().markClean()
   }
 
-  public loadScript(script: string): void {
+  public async loadScript(script: string): Promise<void> {
     this.vnEditor.getDoc().setValue(script)
     this.parseDocument()
+
+    await this.renderer.loadAssets()
+
     this.player.goToCommand(1)
-    this.renderer.render(this.player.state, false)
+    this.renderer.render(false)
   }
 
   private goToLine(line: number) {
@@ -78,7 +81,7 @@ export class VnEditor {
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
     this.player.goToCommand(commandIndex + 1)
-    this.renderer.render(this.player.state, false)
+    this.renderer.render(false)
   }
 
   private setPositionMarker() {

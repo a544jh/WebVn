@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image loading</title>
+  </head>
+  <body></body>
+  <script>
+    const btn = document.createElement("button")
+    btn.innerText = "Clone image"
+    document.body.appendChild(btn)
+
+    const img = new Image()
+    //img.src = "idle.png"
+    //console.log(`set img src at ${performance.now()}`)
+    document.body.appendChild(img) // will reject if no src
+    /*img.decode().then(() => {
+    console.log(`img decoded at ${performance.now()}`)
+  })*/ const fetchImg = async () => {
+      const res = await fetch("idle.png")
+      const imgBlob = await res.blob()
+      const ourl = URL.createObjectURL(imgBlob)
+      img.src = ourl
+      img.decode().then(() => {
+        // URL.revokeObjectURL(ourl)
+        // once the object url is revoked, img cannot be cloned... but not in firefox lol
+      })
+    }
+    fetchImg()
+
+    const cloneImage = () => {
+      const clone = img.cloneNode()
+      document.body.appendChild(clone)
+    }
+    btn.addEventListener("click", cloneImage, { passive: true })
+  </script>
+</html>

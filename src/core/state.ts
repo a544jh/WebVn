@@ -54,6 +54,7 @@ export interface Actor {
   name?: string
   nameTagColor?: string
   textColor?: string
+  sprites?: string[]
 }
 
 export const NARRATOR_ACTOR_ID = "narrator"

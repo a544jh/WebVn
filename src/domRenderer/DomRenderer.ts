@@ -7,6 +7,7 @@ import "./animations.css"
 import "./defaultTheme.css"
 import { DecisionRenderer } from "./DecisionRenderer"
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
+import { SpriteRenderer } from "./SpriteRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -23,6 +24,7 @@ export class DomRenderer implements Renderer {
 
   private textBoxRenderer: TextBoxRenderer
   private decisionRenderer: DecisionRenderer
+  private spriteRenderer: SpriteRenderer
 
   private spriteLoader: ImageAssetLoaderSrc
 
@@ -39,10 +41,11 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("click", this.advance.bind(this))
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
+    this.spriteLoader = new ImageAssetLoaderSrc()
+
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
-
-    this.spriteLoader = new ImageAssetLoaderSrc()
+    this.spriteRenderer = new SpriteRenderer(this.root, this, this.spriteLoader)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -66,6 +69,7 @@ export class DomRenderer implements Renderer {
 
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
+    animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
 
     this.committedState = state
 

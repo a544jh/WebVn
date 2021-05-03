@@ -37,15 +37,20 @@ anchor: &anchor
   A1: "This is a YAML anchor"
 
 story:
+  - set: [$a, =, 0]
   - textbox: close
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
   - label: loop
+  - show:
+      actor: A1
+      sprite: idle.png
   - A1: Here I am
   - A1: Just talking...
   - A2: But here I come
-  - set: [$a, =, 1]
+  - set: [$a, +=, 1]
   - A2: Bye
   - Bye bye, actors
+  - hide: A1
   - jump:
       to: loop
       if: [$a, ==, 1]

@@ -6,7 +6,11 @@ export class ImageAssetLoaderSrc {
   }
 
   public getAsset(path: string): HTMLImageElement | null | undefined {
-    return this.assets[path]
+    const asset = this.assets[path]
+    if (asset === null || asset === undefined) {
+      return asset
+    }
+    return asset.cloneNode() as HTMLImageElement
   }
 
   public loadAsset(path: string): Promise<void> {

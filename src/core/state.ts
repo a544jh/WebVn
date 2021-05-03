@@ -13,6 +13,7 @@ export interface VnPlayerState {
 
 export interface AnimatableState {
   readonly text: TextBox | null
+  readonly sprites: Record<string, Sprite>
   // bg, actors, bgn, sfx...
 }
 
@@ -72,3 +73,10 @@ export interface DecisionItem {
 }
 
 export type VnVariableValue = string | number | boolean
+
+export interface Sprite {
+  actor: string
+  sprite: string
+  x: number
+  y: number
+}

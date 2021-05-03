@@ -3,6 +3,8 @@ import { NARRATOR_ACTOR_ID, VnPlayerState } from "./state"
 import "./commands/controlFlow/Decision"
 import "./commands/text/CloseTextBox"
 import "./commands/controlFlow/variables"
+import "./commands/sprites/Show"
+import "./commands/sprites/Hide"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -18,6 +20,7 @@ export const initialState: VnPlayerState = {
   stopAfterRender: false,
   animatableState: {
     text: null,
+    sprites: {},
   },
   decision: null,
   variables: {},

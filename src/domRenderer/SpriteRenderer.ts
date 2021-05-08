@@ -26,6 +26,13 @@ export class SpriteRenderer {
       // TODO transform, normalize coords..
 
       this.root.appendChild(elem)
+
+      if (animate) {
+        elem.style.opacity = "0"
+        elem.style.transitionDuration = "200ms"
+        elem.offsetHeight // force reflow
+        elem.style.opacity = "1"
+      }
     }
 
     // remove from DOM
@@ -33,7 +40,15 @@ export class SpriteRenderer {
     for (const elem of elems as HTMLElement[]) {
       const id = elem.dataset.vnSpriteId
       if (id !== undefined && sprites[id] === undefined) {
-        this.root.removeChild(elem)
+        if (!animate) {
+          elem.remove()
+        } else {
+          elem.style.transitionDuration = "200ms"
+          elem.style.opacity = "0"
+          elem.addEventListener("transitionend", () => {
+            elem.remove()
+          })
+        }
       }
     }
 

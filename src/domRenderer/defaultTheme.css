@@ -7,6 +7,7 @@ body {
 }
 
 #vn-div {
+  overflow: hidden;
   background: white;
   position: relative;
   margin: 0 auto;
@@ -120,4 +121,10 @@ body {
   user-select: none;
   -moz-user-select: none;
   z-index: 20;
+}
+
+#vn-sprite-renderer img {
+  position: absolute;
+  top: 0px;
+  left: 0px;
 }

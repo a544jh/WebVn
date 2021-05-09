@@ -8,8 +8,6 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 
-import "../test-assets/sprites/A1/idle.png"
-
 const state: VnPlayerState = {
   ...initialState,
   actors: {
@@ -23,11 +21,12 @@ const state: VnPlayerState = {
     A1: {
       name: "Actor",
       nameTagColor: "purple",
-      sprites: ["idle.png"],
+      sprites: ["idle.png", "2.png"],
     },
     A2: {
       name: "Actor2",
       nameTagColor: "orange",
+      sprites: ["idle.png", "2.png"],
     },
   },
 }
@@ -45,10 +44,17 @@ story:
       actor: A1
       sprite: idle.png
   - A1: Here I am
+  - show:
+      actor: A1
+      sprite: 2.png
   - A1: Just talking...
+  - show:
+      actor: A2
+      sprite: idle.png
   - A2: But here I come
   - set: [$a, +=, 1]
   - A2: Bye
+  - hide: A2
   - Bye bye, actors
   - hide: A1
   - jump:

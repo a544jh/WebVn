@@ -1,10 +1,6 @@
 (Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
-Conditions, variables
-
-Image asset loading
-
-Basic sprite system, positioning, basic transitoins
+Basic sprite system, positioning, basic transitoins (fade in/out, move)
 
 Backgrounds
 

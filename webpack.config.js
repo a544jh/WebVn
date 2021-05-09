@@ -1,4 +1,5 @@
 let path = require("path");
+const CopyPlugin = require("copy-webpack-plugin");
 
 const isDevServer = process.env.WEBPACK_DEV_SERVER;
 
@@ -18,6 +19,14 @@ module.exports = {
     extensions: [".tsx", ".ts", ".js", ".pegjs"]
   },
 
+  plugins : [
+    new CopyPlugin({
+      patterns: [
+        {from: "test-assets"}
+      ]
+    })
+  ],
+
   module: {
     rules: [
       {
@@ -26,6 +35,7 @@ module.exports = {
         loader: "file-loader",
         options: {name: "[name].[ext]"}
       },
+      // "Legacy webpack"
       /*{
         test: /\.(png|jpe?g|gif)$/i,
         loader: "file-loader",
@@ -36,7 +46,8 @@ module.exports = {
           return path.relative(path.join(context, "test-assets"), resourcePath)
         }, emitFile: true}
       },*/
-      {
+      // Webpack 5
+      /*{
         test: /\.(png|jpe?g|gif)$/i,
         type: "asset/resource",
         generator: {
@@ -47,7 +58,7 @@ module.exports = {
             return one.filename.replace("test-assets/", "")
           }
         }
-      },
+      },*/
       // may want to handle the theme loading ourselves...
       {
         test: /\.css$/,

@@ -51,7 +51,6 @@ export class SpriteRenderer {
       const elem = this.assetLoader.getAsset(getSpriteAssetPath(sprite))
       if (!elem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
       elem.dataset.vnSpriteId = id
-      elem.style.position = "absolute"
 
       // TODO transform, normalize coords..
 

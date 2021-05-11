@@ -22,15 +22,16 @@ export class SpriteRenderer {
     for (const id in sprites) {
       const spriteElem = this.getSpriteElem(id)
       if (spriteElem !== null) {
+        if (!animate) spriteElem.style.transitionDuration = ""
+
         const prevSprite = this.renderer.getCommittedState()?.animatableState.sprites[id]
         if (prevSprite !== undefined && sprites[id] !== prevSprite) {
+          // handle sprite change
           this.setPosition(spriteElem, sprites[id])
 
           if (animate) {
             spriteElem.style.transitionDuration = this.TRANSITION_DURATION
             this.addTransitionEndPromise(animPromises, spriteElem)
-          } else {
-            spriteElem.style.transitionDuration = ""
           }
 
           if (prevSprite.sprite !== sprites[id].sprite) {

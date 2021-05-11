@@ -62,7 +62,7 @@ export class DomRenderer implements Renderer {
     this.finished = false
     this.arrow.style.display = "none"
 
-    const animationsFinished: Array<Promise<void>> = []
+    const animationsFinished: Array<Promise<void | void[]>> = []
 
     // TODO: diffing (when we know more about other animations)
     const committedText = this.committedState === null ? null : this.committedState.animatableState.text

@@ -79,4 +79,6 @@ export interface Sprite {
   sprite: string
   x: number
   y: number
+  anchorX: number
+  anchorY: number
 }

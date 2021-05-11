@@ -51,8 +51,19 @@ story:
   - show:
       actor: A2
       sprite: idle.png
+      x: 0
+      y: 0
+      anchorX: 0
+      anchorY: 0
   - A2: But here I come
   - set: [$a, +=, 1]
+  - show:
+      actor: A2
+      sprite: idle.png
+      x: 1
+      y: 1
+      anchorX: 1
+      anchorY: 1
   - A2: Bye
   - hide: A2
   - Bye bye, actors

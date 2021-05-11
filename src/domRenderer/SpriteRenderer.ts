@@ -4,63 +4,82 @@ import { DomRenderer } from "./DomRenderer"
 
 export class SpriteRenderer {
   private root: HTMLDivElement
+  private readonly TRANSITION_DURATION = "2000ms"
+  private readonly sceneWidth: number
+  private readonly sceneHeight: number
 
   constructor(vnRoot: HTMLDivElement, private renderer: DomRenderer, private assetLoader: ImageAssetLoaderSrc) {
     this.root = document.createElement("div")
     this.root.id = "vn-sprite-renderer"
     vnRoot.appendChild(this.root)
+    this.sceneWidth = this.root.clientWidth
+    this.sceneHeight = this.root.clientHeight
   }
 
   public async render(sprites: Record<string, Sprite>, animate: boolean): Promise<void> {
-    // add new sprites
     for (const id in sprites) {
       const spriteElem = this.getSpriteElem(id)
       if (spriteElem !== null) {
         const prevSprite = this.renderer.getCommittedState()?.animatableState.sprites[id]
         if (prevSprite !== undefined && sprites[id] !== prevSprite) {
+          this.setPosition(spriteElem, sprites[id])
+
+          if (animate) {
+            spriteElem.style.transitionDuration = this.TRANSITION_DURATION
+          } else {
+            spriteElem.style.transitionDuration = ""
+          }
+
           if (prevSprite.sprite !== sprites[id].sprite) {
-            // TODO set position ...
+            // handle sprite image change
+
+            const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))
+            if (!newElem) throw new Error("Can't render unloaded sprite")
+            newElem.dataset.vnSpriteId = id
+
             if (animate) {
               // fade out current
+              spriteElem.dataset.vnSpriteId = undefined // clean up the elem if we skip animation
               spriteElem.addEventListener("transitionend", () => {
                 spriteElem.remove()
               })
               spriteElem.style.opacity = "0"
-              spriteElem.style.transitionDuration = "200ms"
+              spriteElem.style.transitionDuration = this.TRANSITION_DURATION
 
               // fade in new ...
-              const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))
-              if (!newElem) throw new Error("Can't render unloaded sprite")
               newElem.style.opacity = "0"
-              newElem.style.transitionDuration = "200ms"
-              newElem.offsetHeight // force reflow
-              newElem.style.opacity = "1"
-              newElem.dataset.vnSpriteId = id
+              newElem.style.transitionDuration = this.TRANSITION_DURATION
+              this.setPosition(newElem, prevSprite)
+
               this.root.appendChild(newElem)
+              newElem.offsetHeight // force reflow
+
+              newElem.style.opacity = "1"
+              this.setPosition(newElem, sprites[id])
             } else {
-              const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))
-              if (!newElem) throw new Error("Can't render unloaded sprite")
-              newElem.dataset.vnSpriteId = id
+              this.setPosition(newElem, sprites[id])
               spriteElem.replaceWith(newElem)
             }
           }
         }
         continue
       }
-      const sprite = sprites[id]
-      const elem = this.assetLoader.getAsset(getSpriteAssetPath(sprite))
-      if (!elem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
-      elem.dataset.vnSpriteId = id
 
-      // TODO transform, normalize coords..
+      // add new sprite
+      const newSprite = sprites[id]
+      const newElem = this.assetLoader.getAsset(getSpriteAssetPath(newSprite))
+      if (!newElem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
+      newElem.dataset.vnSpriteId = id
+      this.setPosition(newElem, newSprite)
 
-      this.root.appendChild(elem)
+      this.root.appendChild(newElem)
 
       if (animate) {
-        elem.style.opacity = "0"
-        elem.style.transitionDuration = "200ms"
-        elem.offsetHeight // force reflow
-        elem.style.opacity = "1"
+        // fade in
+        newElem.style.opacity = "0"
+        newElem.style.transitionDuration = this.TRANSITION_DURATION
+        newElem.offsetHeight // force reflow
+        newElem.style.opacity = "1"
       }
     }
 
@@ -72,7 +91,7 @@ export class SpriteRenderer {
         if (!animate) {
           elem.remove()
         } else {
-          elem.style.transitionDuration = "200ms"
+          elem.style.transitionDuration = this.TRANSITION_DURATION
           elem.style.opacity = "0"
           elem.addEventListener("transitionend", () => {
             elem.remove()
@@ -83,11 +102,21 @@ export class SpriteRenderer {
       }
     }
 
+    // TODO return when all animtions finished .....
     return Promise.resolve()
   }
 
-  private getSpriteElem(id: string): HTMLElement {
-    return this.root.querySelector(`[data-vn-sprite-id=${id}]`) as HTMLElement
+  private getSpriteElem(id: string): HTMLImageElement {
+    return this.root.querySelector(`[data-vn-sprite-id=${id}]`) as HTMLImageElement
+  }
+
+  private setPosition(elem: HTMLImageElement, sprite: Sprite): void {
+    const xPos = this.sceneWidth * sprite.x - elem.width * sprite.anchorX
+    const yPos = this.sceneHeight * sprite.y - elem.height * sprite.anchorY
+
+    const transformStr = `translate(${Math.round(xPos)}px, ${Math.round(yPos)}px)`
+
+    elem.style.transform = transformStr
   }
 }
 

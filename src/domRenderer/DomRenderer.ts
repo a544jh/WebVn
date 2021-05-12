@@ -55,6 +55,7 @@ export class DomRenderer implements Renderer {
   }
 
   public render(animate: boolean): void {
+    this.ignoreInputs = false
     const state = this.player.state
 
     this.onRenderCallbacks.forEach((cb) => cb())

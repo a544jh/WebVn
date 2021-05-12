@@ -46,15 +46,11 @@ export class DecisionRenderer {
       elem.addEventListener("click", () => {
         if (this.renderer.ignoreInputs) return
         this.renderer.ignoreInputs = true
-        elem.addEventListener(
-          "animationend",
-          (e) => {
-            this.renderer.ignoreInputs = false
-            this.renderer.makeDecision(i)
-            e.stopPropagation()
-          },
-          { capture: true }
-        )
+        // bug: if we get a click BEFORE next state renders, the elem goes poof on next render before animation finishes, and we get stuck
+        // solved: we set ignoreInputs to false on each render...
+        elem.addEventListener("animationend", () => {
+          this.renderer.makeDecision(i)
+        })
         elem.classList.add("vn-decision-item-blink")
       })
       elems.push(elem)

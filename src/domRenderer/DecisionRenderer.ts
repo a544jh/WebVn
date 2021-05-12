@@ -44,6 +44,7 @@ export class DecisionRenderer {
       // TODO handle showIf option
       const elem = createOptionElem(i, item.title)
       elem.addEventListener("click", () => {
+        if (this.renderer.getCommittedState()?.decision === null) return // let click go through to advance() to skip exit animation
         if (this.renderer.ignoreInputs) return
         this.renderer.ignoreInputs = true
         // bug: if we get a click BEFORE next state renders, the elem goes poof on next render before animation finishes, and we get stuck

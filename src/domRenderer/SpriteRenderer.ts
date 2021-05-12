@@ -43,8 +43,8 @@ export class SpriteRenderer {
 
             if (animate) {
               // fade out current
-              // delete spriteElem.dataset.vnSpriteId // clean up the elem if we skip animation
-              // ^ bug: TODO elem gets removed from dom before animation completes -> no event
+              delete spriteElem.dataset.vnSpriteId // clean up the elem if we skip animation
+
               spriteElem.addEventListener("transitionend", () => {
                 spriteElem.remove()
               })
@@ -94,7 +94,7 @@ export class SpriteRenderer {
     const elems = [...this.root.children]
     for (const elem of elems as HTMLImageElement[]) {
       const id = elem.dataset.vnSpriteId
-      if (id !== undefined && sprites[id] === undefined) {
+      if (id === undefined || (id !== undefined && sprites[id] === undefined)) {
         if (!animate) {
           elem.remove()
         } else {
@@ -111,8 +111,6 @@ export class SpriteRenderer {
             resolve()
           })
         }
-      } else if (id === undefined) {
-        elem.remove()
       }
     }
 

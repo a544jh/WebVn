@@ -47,6 +47,7 @@ story:
   - show:
       actor: A1
       sprite: 2.png
+      x: .2
   - A1: Just talking...
   - show:
       actor: A2

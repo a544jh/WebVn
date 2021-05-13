@@ -20,21 +20,25 @@ export class SpriteRenderer {
     const animPromises: Promise<void>[] = []
 
     for (const id in sprites) {
-      const spriteElem = this.getSpriteElem(id)
+      let spriteElem = this.getSpriteElem(id)
       if (spriteElem !== null) {
-        if (!animate) spriteElem.style.transitionDuration = ""
-
         const prevSprite = this.renderer.getCommittedState()?.animatableState.sprites[id]
-        if (prevSprite !== undefined && sprites[id] !== prevSprite) {
+        if ((prevSprite !== undefined && sprites[id] !== prevSprite) || !animate) {
           // handle sprite change
-          this.setPosition(spriteElem, sprites[id])
-
+          // handle position change
           if (animate) {
             spriteElem.style.transitionDuration = this.TRANSITION_DURATION
             this.addTransitionEndPromise(animPromises, spriteElem)
+          } else {
+            // cancel transition (skip to end)
+            spriteElem.style.transitionDuration = ""
+            const clone = spriteElem.cloneNode() as HTMLImageElement
+            spriteElem.replaceWith(clone)
+            spriteElem = clone
           }
+          this.setPosition(spriteElem, sprites[id])
 
-          if (prevSprite.sprite !== sprites[id].sprite) {
+          if (prevSprite !== undefined && prevSprite.sprite !== sprites[id].sprite) {
             // handle sprite image change
 
             const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))
@@ -103,7 +107,7 @@ export class SpriteRenderer {
 
           // bug (solved) ... promise needs to be resolved AFTER elem is removed from dom
           // otherwise next render won't resolve, because elem is still in dom ....
-
+          delete elem.dataset.vnSpriteId
           elem.style.transitionDuration = this.TRANSITION_DURATION
           elem.style.opacity = "0"
           elem.addEventListener("transitionend", () => {

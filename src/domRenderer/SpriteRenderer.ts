@@ -4,7 +4,7 @@ import { createResolvablePromise, DomRenderer } from "./DomRenderer"
 
 export class SpriteRenderer {
   private root: HTMLDivElement
-  private readonly TRANSITION_DURATION = "2000ms"
+  private readonly TRANSITION_DURATION = "500ms"
   private readonly sceneWidth: number
   private readonly sceneHeight: number
 
@@ -132,11 +132,11 @@ export class SpriteRenderer {
   }
 
   private addTransitionEndPromise(animPromises: Promise<void>[], elem: HTMLImageElement): void {
-    console.log("Adding promise to", elem)
+    // console.log("Adding promise to", elem)
     const [promise, resolve] = createResolvablePromise()
     animPromises.push(promise)
     const handler = () => {
-      console.log("Resolving", elem)
+      // console.log("Resolving", elem)
       elem.removeEventListener("transitionend", handler)
       resolve()
     }

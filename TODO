@@ -1,8 +1,9 @@
 (Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
-Basic sprite system, positioning, basic transitoins (fade in/out, move)
-
 Backgrounds
+
+  Panning
+  Transitions (registering commands) blinds, fade ...
 
 Audio
 
@@ -14,4 +15,14 @@ Better YAML parsing, actors etc..
 
 Standalone Player entrypoint
 
+---
+
 NVL Mode
+
+Note (text message) system
+
+---
+
+Sprite flipping
+
+Position presets

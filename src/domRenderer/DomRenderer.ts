@@ -8,6 +8,7 @@ import "./defaultTheme.css"
 import { DecisionRenderer } from "./DecisionRenderer"
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { SpriteRenderer } from "./SpriteRenderer"
+import { BackgroundRenderer } from "./BackgroundRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -25,8 +26,10 @@ export class DomRenderer implements Renderer {
   private textBoxRenderer: TextBoxRenderer
   private decisionRenderer: DecisionRenderer
   private spriteRenderer: SpriteRenderer
+  private backgroundRenderer: BackgroundRenderer
 
   private spriteLoader: ImageAssetLoaderSrc
+  private bgLoader: ImageAssetLoaderSrc
 
   private arrow: HTMLDivElement
 
@@ -42,10 +45,12 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
     this.spriteLoader = new ImageAssetLoaderSrc()
+    this.bgLoader = new ImageAssetLoaderSrc()
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
     this.spriteRenderer = new SpriteRenderer(this.root, this, this.spriteLoader)
+    this.backgroundRenderer = new BackgroundRenderer(this.root, this, this.bgLoader)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -71,6 +76,7 @@ export class DomRenderer implements Renderer {
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
+    animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background))
 
     this.committedState = state
 
@@ -130,6 +136,7 @@ export class DomRenderer implements Renderer {
         this.spriteLoader.registerAsset(path)
       }
     }
+    // TODO: load backgrounds ....
 
     return this.spriteLoader.loadAll()
   }

@@ -21,6 +21,15 @@ export const initialState: VnPlayerState = {
   animatableState: {
     text: null,
     sprites: {},
+    background: {
+      image: "#FFFFFF",
+      panDuration: 0,
+      panFrom: { x: 0, y: 0, w: 0, h: 0 },
+      panTo: { x: 0, y: 0, w: 0, h: 0 },
+      waitForPan: false,
+      transition: "fade",
+      transitonDuration: 0,
+    },
   },
   decision: null,
   variables: {},

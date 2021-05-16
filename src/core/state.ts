@@ -14,6 +14,7 @@ export interface VnPlayerState {
 export interface AnimatableState {
   readonly text: TextBox | null
   readonly sprites: Record<string, Sprite>
+  readonly background: Background
   // bg, actors, bgn, sfx...
 }
 
@@ -81,4 +82,22 @@ export interface Sprite {
   y: number
   anchorX: number
   anchorY: number
+}
+
+export interface Background {
+  image: string
+  panFrom: ViewBox
+  panTo: ViewBox
+  panDuration: number
+  waitForPan: boolean
+  transition: string
+  transitonDuration: number
+  transitionOptions?: unknown // TODO...
+}
+
+export interface ViewBox {
+  x: number
+  y: number
+  h: number
+  w: number
 }

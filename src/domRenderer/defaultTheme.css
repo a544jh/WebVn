@@ -129,3 +129,10 @@ body {
   left: 0px;
   transition-timing-function: linear;
 }
+
+#vn-background-renderer {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  z-index: 10;
+}

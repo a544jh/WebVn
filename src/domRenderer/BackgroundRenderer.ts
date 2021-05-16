@@ -31,12 +31,23 @@ export class BackgroundRenderer {
     const prev = this.renderer.getCommittedState()
 
     // TESTING
-    const from: ViewBox = { x: 0, y: 0, w: 0, h: 0 }
-    const to: ViewBox = { x: 0, y: 0, w: 800, h: 600 }
+    const from: ViewBox = { x: 0, y: 0, w: 563, h: 422 }
+    const to: ViewBox = { x: 330, y: 248, w: 710, h: 532 }
     const asset = new Image()
     asset.src = "backgrounds/a.png"
     await asset.decode() // TODO use asset loader...
-    this.currentRenderable = new BgPan(asset, from, to, 2000, this.sceneWidth, this.sceneHeight, this.lastTick)
+    const pan1 = new BgPan(asset, from, to, 10000, this.sceneWidth, this.sceneHeight, this.lastTick)
+    const pan2 = new BgPan(
+      asset,
+      from,
+      { x: 440, y: 400, w: 400, h: 400 },
+      10000,
+      this.sceneWidth,
+      this.sceneHeight,
+      this.lastTick
+    )
+    const transition = new FadeTransition(pan1, pan2, 2000, this.lastTick)
+    this.currentRenderable = transition
 
     return Promise.resolve()
   }
@@ -82,6 +93,21 @@ class BgPan implements Renderable {
     const h = lerp(this.from.h, this.to.h, completion)
 
     target.drawImage(this.image, x, y, w, h, 0, 0, this.canvasWidth, this.canvasHeight)
+  }
+}
+
+class FadeTransition implements Renderable {
+  constructor(private from: Renderable, private to: Renderable, private duration: number, private startTime: number) {}
+
+  public render(target: CanvasRenderingContext2D, time: number): void {
+    let completion = (time - this.startTime) / this.duration
+    if (completion > 1) completion = 1
+
+    target.save()
+    this.from.render(target, time)
+    target.globalAlpha = completion
+    this.to.render(target, time)
+    target.restore()
   }
 }
 

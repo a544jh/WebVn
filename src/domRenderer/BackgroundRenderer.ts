@@ -37,22 +37,20 @@ export class BackgroundRenderer {
     const asset = new Image()
     asset.src = "backgrounds/a.png"
     await asset.decode() // TODO use asset loader...
-    const pan1 = new BgPan(asset, from, to, 10000, this.sceneWidth, this.sceneHeight, this.lastTick)
-    const pan2 = new BgPan(
-      asset,
-      from,
-      { x: 440, y: 400, w: 400, h: 400 },
-      10000,
-      this.sceneWidth,
-      this.sceneHeight,
-      this.lastTick
-    )
-    const transition = new FadeTransition(pan1, pan2, 2000, this.lastTick)
+
+    const asset2 = new Image()
+    asset2.src = "backgrounds/b.png"
+    await asset2.decode()
+
+    const pan1 = new BgPan(asset, from, to, 10000, this.lastTick)
+    const pan2 = new BgPan(asset2, from, { x: 440, y: 400, w: 400, h: 400 }, 10000, this.lastTick)
+    const transition = new BlindsTransition(pan1, pan2, 2000, this.lastTick)
     this.currentRenderable = transition
 
     return Promise.resolve()
   }
 
+  // TODO: only render frames when needed ..?
   private renderFrame(time: number) {
     this.lastTick = time
 
@@ -78,8 +76,6 @@ class BgPan implements Renderable {
     private from: ViewBox,
     private to: ViewBox,
     private duration: number,
-    private canvasWidth: number,
-    private canvasHeight: number,
     private startTime: number
   ) {}
 
@@ -93,7 +89,7 @@ class BgPan implements Renderable {
     const w = lerp(this.from.w, this.to.w, completion)
     const h = lerp(this.from.h, this.to.h, completion)
 
-    target.drawImage(this.image, x, y, w, h, 0, 0, this.canvasWidth, this.canvasHeight)
+    target.drawImage(this.image, x, y, w, h, 0, 0, target.canvas.width, target.canvas.height)
   }
 }
 
@@ -114,4 +110,36 @@ class FadeTransition implements Renderable {
 
 function lerp(start: number, end: number, t: number): number {
   return start * (1 - t) + end * t
+}
+
+class BlindsTransition implements Renderable {
+  constructor(private from: Renderable, private to: Renderable, private duration: number, private startTime: number) {}
+
+  public render(target: CanvasRenderingContext2D, time: number): void {
+    let completion = (time - this.startTime) / this.duration
+    if (completion > 1) completion = 1
+
+    this.from.render(target, time)
+
+    const slices = 12
+    const staggerFactor = 0.5
+    const sliceWidth = target.canvas.width / slices
+
+    target.save()
+    target.beginPath()
+    for (let i = 0; i < slices; i++) {
+      const startC = lerp(0, i / slices, staggerFactor)
+      const endC = lerp(1, (i + 1) / slices, staggerFactor)
+
+      let sliceCompletion = (completion - startC) / (endC - startC)
+      if (sliceCompletion > 1) sliceCompletion = 1
+      if (sliceCompletion < 0) sliceCompletion = 0
+
+      const width = sliceWidth * sliceCompletion
+      target.rect(i * sliceWidth, 0, width, target.canvas.height)
+    }
+    target.clip()
+    this.to.render(target, time)
+    target.restore()
+  }
 }

@@ -102,7 +102,7 @@ export class TextBoxRenderer {
           span.style.animationTimingFunction = "step-end"
           span.style.animationDuration = delay + "ms"
           if (i === text.length - 1) {
-            span.addEventListener("animationend", resolveAnimationFinished)
+            span.addEventListener("animationend", () => resolveAnimationFinished())
           }
         }
 

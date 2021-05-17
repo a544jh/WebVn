@@ -17,6 +17,7 @@ export class BackgroundRenderer {
     this.root.id = "vn-background-renderer"
     this.root.width = this.sceneWidth
     this.root.height = this.sceneHeight
+    this.lastTick = 0
     const ctx = this.root.getContext("2d")
     if (ctx === null) throw new Error("Counld not create 2d rendering context")
     this.rootContext = ctx

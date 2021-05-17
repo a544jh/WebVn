@@ -142,7 +142,7 @@ export class DomRenderer implements Renderer {
   }
 }
 
-export type ResolvePromiseFn = (value?: unknown | PromiseLike<unknown> | undefined) => void
+export type ResolvePromiseFn = (value?: void | PromiseLike<void>) => void
 
 export const createResolvablePromise = (): [Promise<void>, ResolvePromiseFn] => {
   let resolveFn: ResolvePromiseFn | undefined = undefined

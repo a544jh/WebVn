@@ -37,7 +37,7 @@ interface CommandHandlers {
 }
 
 class StatementConverter {
-  private sayHandler: SayHandler
+  private sayHandler: SayHandler | undefined
   private commandHandlers: CommandHandlers = {}
 
   public setSayHandler(handler: SayHandler) {
@@ -52,6 +52,7 @@ class StatementConverter {
     const ret: Command[] = []
     for (const s of statements) {
       if (isSayStatement(s)) {
+        if (this.sayHandler === undefined) throw new Error("No say handler set")
         ret.push(this.sayHandler(s))
       } else if (isCommandStatement(s)) {
         const handler = this.commandHandlers[s.command]

@@ -86,8 +86,8 @@ export interface Sprite {
 
 export interface Background {
   image: string
-  panFrom: ViewBox
-  panTo: ViewBox
+  panFrom?: ViewBox
+  panTo?: ViewBox
   panDuration: number
   waitForPan: boolean
   transition: string

@@ -121,7 +121,7 @@ class BlindsTransition implements Renderable {
 
     this.from.render(target, time)
 
-    const slices = 12
+    const slices = 16
     const staggerFactor = 0.5
     const sliceWidth = target.canvas.width / slices
 

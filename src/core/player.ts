@@ -5,6 +5,7 @@ import "./commands/text/CloseTextBox"
 import "./commands/controlFlow/variables"
 import "./commands/sprites/Show"
 import "./commands/sprites/Hide"
+import "./commands/backgrounds/Background"
 
 export const initialState: VnPlayerState = {
   actors: {

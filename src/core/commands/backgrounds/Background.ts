@@ -1,7 +1,7 @@
 import { Background, ViewBox, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
-import { AnyZodObject, z, ZodError, ZodTypeAny } from "zod"
+import { z, ZodError, ZodTypeAny } from "zod"
 
 class SetBackground extends Command {
   constructor(location: SourceLocation, private cmd: BgCommand) {
@@ -11,7 +11,7 @@ class SetBackground extends Command {
   public apply(state: VnPlayerState): VnPlayerState {
     const newBackground: Background = {
       image: this.cmd.image,
-      panDuration: this.cmd.pan?.duration || 3000,
+      panDuration: this.cmd.pan?.duration ?? 0,
       panFrom: parseViewBox(this.cmd.pan?.from),
       panTo: parseViewBox(this.cmd.pan?.to),
       waitForPan: false, // TODO handle

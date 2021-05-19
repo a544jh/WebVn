@@ -13,6 +13,7 @@ export class BackgroundRenderer {
   private readonly sceneHeight: number
   public lastTick: number
   private currentRenderable: Renderable
+  private needMoreFrames: boolean
 
   constructor(vnRoot: HTMLDivElement, private renderer: DomRenderer, private assetLoader: ImageAssetLoaderSrc) {
     this.sceneWidth = vnRoot.clientWidth
@@ -26,23 +27,36 @@ export class BackgroundRenderer {
     if (ctx === null) throw new Error("Counld not create 2d rendering context")
     this.rootContext = ctx
     this.currentRenderable = new NullRender()
+    this.needMoreFrames = false
 
     vnRoot.appendChild(this.root)
-
-    window.requestAnimationFrame(this.renderFrame.bind(this))
   }
 
   public async render(state: Background, animate: boolean): Promise<void> {
     if (state.shouldTransition) {
+      this.needMoreFrames = true
+      this.lastTick = await new Promise((resolve) => {
+        window.requestAnimationFrame((time) => {
+          resolve(time)
+          window.requestAnimationFrame(this.renderFrame.bind(this))
+        })
+      })
+
       if (!animate) {
         const newBg = this.getLastFrame(state)
+        newBg.onFinish(() => (this.needMoreFrames = false))
         this.currentRenderable = newBg
         return Promise.resolve()
       }
       const [promise, resolve] = createResolvablePromise()
 
-      const newTransition = this.getTransition(state)
-      newTransition.onFinish(resolve)
+      // BUG: longer transition than pan messes things up...
+      const [newTransition, newPan] = this.getTransition(state)
+      newTransition.onFinish(() => {
+        resolve()
+        this.currentRenderable = newPan
+      })
+      newPan.onFinish(() => (this.needMoreFrames = false))
 
       this.currentRenderable = newTransition
       return promise
@@ -53,7 +67,6 @@ export class BackgroundRenderer {
     return Promise.resolve()
   }
 
-  // TODO: only render frames when needed ..?
   private renderFrame(time: number) {
     this.lastTick = time
 
@@ -63,10 +76,10 @@ export class BackgroundRenderer {
     } catch (e) {
       console.error(e)
     }
-    window.requestAnimationFrame(this.renderFrame.bind(this))
+    if (this.needMoreFrames) window.requestAnimationFrame(this.renderFrame.bind(this))
   }
 
-  private getTransition(state: Background): Renderable {
+  private getTransition(state: Background): [Renderable, Renderable] {
     const image = this.assetLoader.getAsset("backgrounds/" + state.image)
     if (!image) throw new Error(`Could not load ${state.image}`)
 
@@ -90,7 +103,7 @@ export class BackgroundRenderer {
       state.transitonDuration,
       state.transitionOptions
     )
-    return transition
+    return [transition, newPan]
   }
 
   private getLastFrame(state: Background): Renderable {

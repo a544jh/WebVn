@@ -14,13 +14,17 @@ class SetBackground extends Command {
       panDuration: this.cmd.pan?.duration || 3000,
       panFrom: parseViewBox(this.cmd.pan?.from),
       panTo: parseViewBox(this.cmd.pan?.to),
-      waitForPan: false,
+      waitForPan: false, // TODO handle
       transition: this.cmd.transition,
       transitonDuration: this.cmd.duration,
       transitionOptions: this.cmd.options,
       shouldTransition: true,
     }
-    return { ...state, animatableState: { ...state.animatableState, background: newBackground } }
+    return {
+      ...state,
+      animatableState: { ...state.animatableState, background: newBackground },
+      stopAfterRender: false,
+    }
   }
 }
 

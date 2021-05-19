@@ -74,7 +74,7 @@ export class DomRenderer implements Renderer {
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
-    animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background))
+    animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))
 
     this.committedState = state
 

@@ -1,8 +1,21 @@
-import { registeredSchemas, registerSchema } from "../../core/commands/backgrounds/Background"
-import { AnyZodObject, ZodTypeAny } from "zod"
+import { registerSchema } from "../../core/commands/backgrounds/Background"
+import { ZodTypeAny } from "zod"
 
-export interface Renderable {
-  render(target: CanvasRenderingContext2D, time: number): void
+export abstract class Renderable {
+  abstract render(target: CanvasRenderingContext2D, time: number): void
+  private onFinishCallbacks: (() => void)[] = []
+  public onFinish(cb: () => void): void {
+    this.onFinishCallbacks.push(cb)
+  }
+  private finished = false
+
+  protected animationFinished(): void {
+    if (this.finished) return
+    this.finished = true
+    for (const cb of this.onFinishCallbacks) {
+      cb()
+    }
+  }
 }
 
 export type TransitionFactory = (

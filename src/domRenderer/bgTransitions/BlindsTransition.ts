@@ -3,7 +3,7 @@ import { registeredSchemas } from "../../core/commands/backgrounds/Background"
 import { registerTransition, Renderable } from "./transitionFactories"
 import { lerp } from "../DomRenderer"
 
-class BlindsTransition implements Renderable {
+class BlindsTransition extends Renderable {
   constructor(
     private from: Renderable,
     private to: Renderable,
@@ -11,11 +11,16 @@ class BlindsTransition implements Renderable {
     private duration: number,
     private slices: number,
     private staggerFactor: number
-  ) {}
+  ) {
+    super()
+  }
 
   public render(target: CanvasRenderingContext2D, time: number): void {
     let completion = (time - this.startTime) / this.duration
-    if (completion > 1) completion = 1
+    if (completion > 1) {
+      completion = 1
+      this.animationFinished()
+    }
 
     this.from.render(target, time)
 

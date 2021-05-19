@@ -1,6 +1,6 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { Background, ViewBox } from "../core/state"
-import { DomRenderer, lerp } from "./DomRenderer"
+import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
 
 import { Renderable, transitionFactories } from "./bgTransitions/transitionFactories"
 import "./bgTransitions/BlindsTransition"
@@ -32,14 +32,23 @@ export class BackgroundRenderer {
     window.requestAnimationFrame(this.renderFrame.bind(this))
   }
 
-  public async render(state: Background): Promise<void> {
-    const prev = this.renderer.getCommittedState()?.animatableState.background
-
-    // should transition
+  public async render(state: Background, animate: boolean): Promise<void> {
     if (state.shouldTransition) {
+      if (!animate) {
+        const newBg = this.getLastFrame(state)
+        this.currentRenderable = newBg
+        return Promise.resolve()
+      }
+      const [promise, resolve] = createResolvablePromise()
+
       const newTransition = this.getTransition(state)
+      newTransition.onFinish(resolve)
+
       this.currentRenderable = newTransition
+      return promise
     }
+
+    // TODO bgPan command
 
     return Promise.resolve()
   }
@@ -58,11 +67,6 @@ export class BackgroundRenderer {
   }
 
   private getTransition(state: Background): Renderable {
-    // find the constructor ...
-    // transition: string, options -> Renderable
-
-    const factory = transitionFactories[state.transition]
-
     const image = this.assetLoader.getAsset("backgrounds/" + state.image)
     if (!image) throw new Error(`Could not load ${state.image}`)
 
@@ -78,6 +82,7 @@ export class BackgroundRenderer {
 
     const newPan = new BgPan(image, from, to, state.panDuration, this.lastTick)
 
+    const factory = transitionFactories[state.transition]
     const transition = factory(
       this.currentRenderable,
       newPan,
@@ -87,27 +92,50 @@ export class BackgroundRenderer {
     )
     return transition
   }
+
+  private getLastFrame(state: Background): Renderable {
+    const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+    if (!image) throw new Error(`Could not load ${state.image}`)
+
+    const defaultView: ViewBox = {
+      x: 0,
+      y: 0,
+      w: this.sceneWidth,
+      h: this.sceneHeight,
+    }
+
+    const from = state.panFrom ?? defaultView
+    const to = state.panTo ?? defaultView
+
+    const newPan = new BgPan(image, from, to, 0, this.lastTick)
+    return newPan
+  }
 }
 
-class NullRender implements Renderable {
-  public render(target: CanvasRenderingContext2D, time: number): void {
+class NullRender extends Renderable {
+  public render(): void {
     return undefined
   }
 }
 
-class BgPan implements Renderable {
+class BgPan extends Renderable {
   constructor(
     private image: HTMLImageElement,
     private from: ViewBox,
     private to: ViewBox,
     private duration: number,
     private startTime: number
-  ) {}
+  ) {
+    super()
+  }
 
   public render(target: CanvasRenderingContext2D, time: number): void {
     let completion = (time - this.startTime) / this.duration
 
-    if (completion > 1) completion = 1
+    if (completion > 1) {
+      completion = 1
+      this.animationFinished()
+    }
 
     const x = lerp(this.from.x, this.to.x, completion)
     const y = lerp(this.from.y, this.to.y, completion)

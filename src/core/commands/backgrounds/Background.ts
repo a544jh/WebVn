@@ -1,7 +1,7 @@
 import { Background, ViewBox, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
-import { z, ZodError } from "zod"
+import { AnyZodObject, z, ZodError, ZodTypeAny } from "zod"
 
 class SetBackground extends Command {
   constructor(location: SourceLocation, private cmd: BgCommand) {
@@ -24,25 +24,21 @@ class SetBackground extends Command {
   }
 }
 
-const BlindTransitionSchema = z.object({
-  slices: z.number().optional(),
-  staggerFactor: z.number().optional(),
-})
+export const registeredSchemas: Record<string, z.ZodTypeAny> = {}
 
-export type BlindsTransitionOptions = z.infer<typeof BlindTransitionSchema>
-
-// TODO: renderer should register supported transtions here...
-export const registeredTransitions: Record<string, z.AnyZodObject> = {
-  blinds: BlindTransitionSchema,
+export function registerSchema(transition: string, schema: ZodTypeAny): void {
+  registeredSchemas[transition] = schema
+  const registeredTransitions = Object.keys(registeredSchemas) as [string, ...string[]]
+  BgCommandSchema = BgCommandSchema.extend({ transition: z.enum(registeredTransitions) })
 }
 
-const registeredTransitionKeys = Object.keys(registeredTransitions) as [string, ...string[]]
+const registeredTransitions = Object.keys(registeredSchemas) as [string, ...string[]]
 
 const ViewBoxSchema = z.number().array().length(4)
 type ViewBoxArr = z.infer<typeof ViewBoxSchema>
 
-const BgCommandSchema = z.object({
-  transition: z.enum(registeredTransitionKeys),
+let BgCommandSchema = z.object({
+  transition: z.enum(registeredTransitions),
   options: z.optional(z.unknown()),
   duration: z.number(),
   image: z.string(),
@@ -64,7 +60,7 @@ function bgCommandHandler(obj: unknown, location: SourceLocation): SetBackground
     if (options === undefined) {
       return new SetBackground(location, cmd)
     }
-    const optionsSchema = registeredTransitions[cmd.transition]
+    const optionsSchema = registeredSchemas[cmd.transition]
     const CmdWOptsSchema = BgCommandSchema.extend({ options: optionsSchema })
     const cmdWOpts = CmdWOptsSchema.parse(obj)
     return new SetBackground(location, cmdWOpts)

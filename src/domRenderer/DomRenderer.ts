@@ -144,6 +144,8 @@ export class DomRenderer implements Renderer {
   }
 }
 
+// util stuff ...
+
 export type ResolvePromiseFn = (value?: void | PromiseLike<void>) => void
 
 export const createResolvablePromise = (): [Promise<void>, ResolvePromiseFn] => {
@@ -158,4 +160,7 @@ export const createResolvablePromise = (): [Promise<void>, ResolvePromiseFn] => 
   }
 
   return [promise, resolveFn]
+}
+export function lerp(start: number, end: number, t: number): number {
+  return start * (1 - t) + end * t
 }

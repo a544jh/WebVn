@@ -48,6 +48,14 @@ story:
         to: [0,0,200,200]
         duration: 10000
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - bg:
+      image: b.png
+      transition: fade
+      duration: 2000
+      pan:
+        from: [0,0,100,100]
+        to: [0,0,1000,1000]
+        duration: 10000
   - label: loop
   - show:
       actor: A1

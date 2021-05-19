@@ -1,7 +1,10 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
-import { registeredTransitions, BlindsTransitionOptions } from "../core/commands/backgrounds/Background"
 import { Background, ViewBox } from "../core/state"
-import { DomRenderer } from "./DomRenderer"
+import { DomRenderer, lerp } from "./DomRenderer"
+
+import { Renderable, transitionFactories } from "./bgTransitions/transitionFactories"
+import "./bgTransitions/BlindsTransition"
+import "./bgTransitions/FadeTransition"
 
 export class BackgroundRenderer {
   private root: HTMLCanvasElement
@@ -45,6 +48,7 @@ export class BackgroundRenderer {
   private renderFrame(time: number) {
     this.lastTick = time
 
+    this.rootContext.clearRect(0, 0, this.sceneWidth, this.sceneHeight)
     try {
       this.currentRenderable.render(this.rootContext, time)
     } catch (e) {
@@ -85,34 +89,10 @@ export class BackgroundRenderer {
   }
 }
 
-interface Renderable {
-  render(target: CanvasRenderingContext2D, time: number): void
-}
-
 class NullRender implements Renderable {
   public render(target: CanvasRenderingContext2D, time: number): void {
     return undefined
   }
-}
-
-type TransitionFactory = (
-  from: Renderable,
-  to: Renderable,
-  startTime: number,
-  duration: number,
-  options: unknown
-) => Renderable
-
-const transitionFactories: Record<string, TransitionFactory> = {
-  blinds: (from: Renderable, to: Renderable, startTime: number, duration: number, options: unknown): Renderable => {
-    const Schema = registeredTransitions["blinds"].optional()
-    const blindsOptions = Schema.parse(options) as BlindsTransitionOptions | undefined
-
-    const slices = blindsOptions?.slices ?? 16
-    const stagger = blindsOptions?.staggerFactor ?? 0.5
-
-    return new BlindsTransition(from, to, startTime, duration, slices, stagger)
-  },
 }
 
 class BgPan implements Renderable {
@@ -135,61 +115,5 @@ class BgPan implements Renderable {
     const h = lerp(this.from.h, this.to.h, completion)
 
     target.drawImage(this.image, x, y, w, h, 0, 0, target.canvas.width, target.canvas.height)
-  }
-}
-
-class FadeTransition implements Renderable {
-  constructor(private from: Renderable, private to: Renderable, private startTime: number, private duration: number) {}
-
-  public render(target: CanvasRenderingContext2D, time: number): void {
-    let completion = (time - this.startTime) / this.duration
-    if (completion > 1) completion = 1
-
-    target.save()
-    this.from.render(target, time)
-    target.globalAlpha = completion
-    this.to.render(target, time)
-    target.restore()
-  }
-}
-
-function lerp(start: number, end: number, t: number): number {
-  return start * (1 - t) + end * t
-}
-
-class BlindsTransition implements Renderable {
-  constructor(
-    private from: Renderable,
-    private to: Renderable,
-    private startTime: number,
-    private duration: number,
-    private slices: number,
-    private staggerFactor: number
-  ) {}
-
-  public render(target: CanvasRenderingContext2D, time: number): void {
-    let completion = (time - this.startTime) / this.duration
-    if (completion > 1) completion = 1
-
-    this.from.render(target, time)
-
-    const sliceWidth = target.canvas.width / this.slices
-
-    target.save()
-    target.beginPath()
-    for (let i = 0; i < this.slices; i++) {
-      const startC = lerp(0, i / this.slices, this.staggerFactor)
-      const endC = lerp(1, (i + 1) / this.slices, this.staggerFactor)
-
-      let sliceCompletion = (completion - startC) / (endC - startC)
-      if (sliceCompletion > 1) sliceCompletion = 1
-      if (sliceCompletion < 0) sliceCompletion = 0
-
-      const width = sliceWidth * sliceCompletion
-      target.rect(i * sliceWidth, 0, width, target.canvas.height)
-    }
-    target.clip()
-    this.to.render(target, time)
-    target.restore()
   }
 }

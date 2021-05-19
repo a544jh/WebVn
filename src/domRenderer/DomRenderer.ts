@@ -28,8 +28,7 @@ export class DomRenderer implements Renderer {
   private spriteRenderer: SpriteRenderer
   private backgroundRenderer: BackgroundRenderer
 
-  private spriteLoader: ImageAssetLoaderSrc
-  private bgLoader: ImageAssetLoaderSrc
+  private imageLoader: ImageAssetLoaderSrc
 
   private arrow: HTMLDivElement
 
@@ -44,13 +43,12 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("click", this.advance.bind(this))
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
-    this.spriteLoader = new ImageAssetLoaderSrc()
-    this.bgLoader = new ImageAssetLoaderSrc()
+    this.imageLoader = new ImageAssetLoaderSrc()
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
-    this.spriteRenderer = new SpriteRenderer(this.root, this, this.spriteLoader)
-    this.backgroundRenderer = new BackgroundRenderer(this.root, this, this.bgLoader)
+    this.spriteRenderer = new SpriteRenderer(this.root, this, this.imageLoader)
+    this.backgroundRenderer = new BackgroundRenderer(this.root, this, this.imageLoader)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -133,12 +131,16 @@ export class DomRenderer implements Renderer {
       for (const sprite of sprites) {
         const path = "sprites/" + actor + "/" + sprite
 
-        this.spriteLoader.registerAsset(path)
+        this.imageLoader.registerAsset(path)
       }
     }
-    // TODO: load backgrounds ....
+    // load backgrounds ....
+    for (const bg of state.backgrounds) {
+      const path = "backgrounds/" + bg
+      this.imageLoader.registerAsset(path)
+    }
 
-    return this.spriteLoader.loadAll()
+    return this.imageLoader.loadAll()
   }
 }
 

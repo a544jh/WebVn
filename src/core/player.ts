@@ -15,6 +15,7 @@ export const initialState: VnPlayerState = {
     },
     [NARRATOR_ACTOR_ID]: {},
   },
+  backgrounds: [],
   commandIndex: 0, // the command to be applied next
   commands: [],
   labels: {},
@@ -30,6 +31,7 @@ export const initialState: VnPlayerState = {
       waitForPan: false,
       transition: "fade",
       transitonDuration: 0,
+      shouldTransition: false,
     },
   },
   decision: null,
@@ -46,6 +48,17 @@ export class VnPlayer {
     if (this.state.decision !== null) return
 
     let newState = { ...this.state }
+
+    // TODO: after-render, pre-command hooks for "one off" things?
+
+    newState.animatableState = {
+      ...this.state.animatableState,
+      background: { ...this.state.animatableState.background, shouldTransition: false },
+    }
+
+    // TODO: if we implement custom sprite removal effects,
+    // sprites to be removed should actually be deleted from the state here..
+
     if (newState.commandIndex < newState.commands.length) {
       newState = newState.commands[newState.commandIndex].apply(newState)
       newState.commandIndex++
@@ -76,7 +89,7 @@ export class VnPlayer {
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }
-    // case for preCommand hooks...? (to reset decision...)
+    // case for preCommand hooks...? (to reset decision and "one-off" state)
     this.state = { ...this.state, commandIndex: cmdIndex - 1, decision: null }
     this.advance()
   }

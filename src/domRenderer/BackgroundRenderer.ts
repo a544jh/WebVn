@@ -1,4 +1,5 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
+import { registeredTransitions, BlindsTransitionOptions } from "../core/commands/backgrounds/Background"
 import { Background, ViewBox } from "../core/state"
 import { DomRenderer } from "./DomRenderer"
 
@@ -29,23 +30,13 @@ export class BackgroundRenderer {
   }
 
   public async render(state: Background): Promise<void> {
-    const prev = this.renderer.getCommittedState()
+    const prev = this.renderer.getCommittedState()?.animatableState.background
 
-    // TESTING
-    const from: ViewBox = { x: 0, y: 0, w: 563, h: 422 }
-    const to: ViewBox = { x: 330, y: 248, w: 710, h: 532 }
-    const asset = new Image()
-    asset.src = "backgrounds/a.png"
-    await asset.decode() // TODO use asset loader...
-
-    const asset2 = new Image()
-    asset2.src = "backgrounds/b.png"
-    await asset2.decode()
-
-    const pan1 = new BgPan(asset, from, to, 10000, this.lastTick)
-    const pan2 = new BgPan(asset2, from, { x: 440, y: 400, w: 400, h: 400 }, 10000, this.lastTick)
-    const transition = new BlindsTransition(pan1, pan2, 2000, this.lastTick)
-    this.currentRenderable = transition
+    // should transition
+    if (state.shouldTransition) {
+      const newTransition = this.getTransition(state)
+      this.currentRenderable = newTransition
+    }
 
     return Promise.resolve()
   }
@@ -54,9 +45,43 @@ export class BackgroundRenderer {
   private renderFrame(time: number) {
     this.lastTick = time
 
-    this.currentRenderable.render(this.rootContext, time)
-
+    try {
+      this.currentRenderable.render(this.rootContext, time)
+    } catch (e) {
+      console.error(e)
+    }
     window.requestAnimationFrame(this.renderFrame.bind(this))
+  }
+
+  private getTransition(state: Background): Renderable {
+    // find the constructor ...
+    // transition: string, options -> Renderable
+
+    const factory = transitionFactories[state.transition]
+
+    const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+    if (!image) throw new Error(`Could not load ${state.image}`)
+
+    const defaultView: ViewBox = {
+      x: 0,
+      y: 0,
+      w: this.sceneWidth,
+      h: this.sceneHeight,
+    }
+
+    const from = state.panFrom ?? defaultView
+    const to = state.panTo ?? defaultView
+
+    const newPan = new BgPan(image, from, to, state.panDuration, this.lastTick)
+
+    const transition = factory(
+      this.currentRenderable,
+      newPan,
+      this.lastTick,
+      state.transitonDuration,
+      state.transitionOptions
+    )
+    return transition
   }
 }
 
@@ -68,6 +93,26 @@ class NullRender implements Renderable {
   public render(target: CanvasRenderingContext2D, time: number): void {
     return undefined
   }
+}
+
+type TransitionFactory = (
+  from: Renderable,
+  to: Renderable,
+  startTime: number,
+  duration: number,
+  options: unknown
+) => Renderable
+
+const transitionFactories: Record<string, TransitionFactory> = {
+  blinds: (from: Renderable, to: Renderable, startTime: number, duration: number, options: unknown): Renderable => {
+    const Schema = registeredTransitions["blinds"].optional()
+    const blindsOptions = Schema.parse(options) as BlindsTransitionOptions | undefined
+
+    const slices = blindsOptions?.slices ?? 16
+    const stagger = blindsOptions?.staggerFactor ?? 0.5
+
+    return new BlindsTransition(from, to, startTime, duration, slices, stagger)
+  },
 }
 
 class BgPan implements Renderable {
@@ -94,7 +139,7 @@ class BgPan implements Renderable {
 }
 
 class FadeTransition implements Renderable {
-  constructor(private from: Renderable, private to: Renderable, private duration: number, private startTime: number) {}
+  constructor(private from: Renderable, private to: Renderable, private startTime: number, private duration: number) {}
 
   public render(target: CanvasRenderingContext2D, time: number): void {
     let completion = (time - this.startTime) / this.duration
@@ -113,7 +158,14 @@ function lerp(start: number, end: number, t: number): number {
 }
 
 class BlindsTransition implements Renderable {
-  constructor(private from: Renderable, private to: Renderable, private duration: number, private startTime: number) {}
+  constructor(
+    private from: Renderable,
+    private to: Renderable,
+    private startTime: number,
+    private duration: number,
+    private slices: number,
+    private staggerFactor: number
+  ) {}
 
   public render(target: CanvasRenderingContext2D, time: number): void {
     let completion = (time - this.startTime) / this.duration
@@ -121,15 +173,13 @@ class BlindsTransition implements Renderable {
 
     this.from.render(target, time)
 
-    const slices = 16
-    const staggerFactor = 0.5
-    const sliceWidth = target.canvas.width / slices
+    const sliceWidth = target.canvas.width / this.slices
 
     target.save()
     target.beginPath()
-    for (let i = 0; i < slices; i++) {
-      const startC = lerp(0, i / slices, staggerFactor)
-      const endC = lerp(1, (i + 1) / slices, staggerFactor)
+    for (let i = 0; i < this.slices; i++) {
+      const startC = lerp(0, i / this.slices, this.staggerFactor)
+      const endC = lerp(1, (i + 1) / this.slices, this.staggerFactor)
 
       let sliceCompletion = (completion - startC) / (endC - startC)
       if (sliceCompletion > 1) sliceCompletion = 1

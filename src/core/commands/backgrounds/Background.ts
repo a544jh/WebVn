@@ -17,6 +17,8 @@ class SetBackground extends Command {
       waitForPan: false,
       transition: this.cmd.transition,
       transitonDuration: this.cmd.duration,
+      transitionOptions: this.cmd.options,
+      shouldTransition: true,
     }
     return { ...state, animatableState: { ...state.animatableState, background: newBackground } }
   }
@@ -27,10 +29,10 @@ const BlindTransitionSchema = z.object({
   staggerFactor: z.number().optional(),
 })
 
-type BlindsTransitionOptions = z.infer<typeof BlindTransitionSchema>
+export type BlindsTransitionOptions = z.infer<typeof BlindTransitionSchema>
 
 // TODO: renderer should register supported transtions here...
-const registeredTransitions: Record<string, z.AnyZodObject> = {
+export const registeredTransitions: Record<string, z.AnyZodObject> = {
   blinds: BlindTransitionSchema,
 }
 

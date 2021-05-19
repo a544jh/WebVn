@@ -29,6 +29,7 @@ const state: VnPlayerState = {
       sprites: ["idle.png", "2.png"],
     },
   },
+  backgrounds: ["a.png", "b.png"],
 }
 
 const yamlText = `
@@ -39,7 +40,7 @@ story:
   - set: [$a, =, 0]
   - textbox: close
   - bg:
-      image: asd.png
+      image: a.png
       transition: blinds
       duration: 2000
       pan:

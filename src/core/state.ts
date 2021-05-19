@@ -1,6 +1,7 @@
 import { Command } from "./commands/Command"
 export interface VnPlayerState {
   readonly actors: Actors
+  readonly backgrounds: string[]
   readonly commandIndex: number
   readonly commands: Command[]
   readonly labels: Record<string, number>
@@ -93,6 +94,7 @@ export interface Background {
   transition: string
   transitonDuration: number
   transitionOptions?: unknown // TODO...
+  shouldTransition: boolean
 }
 
 export interface ViewBox {

@@ -24,21 +24,26 @@ export class SpriteRenderer {
       if (spriteElem !== null) {
         const prevSprite = this.renderer.getCommittedState()?.animatableState.sprites[id]
         if ((prevSprite !== undefined && sprites[id] !== prevSprite) || !animate) {
-          // handle sprite change
           // handle position change
-          if (animate) {
-            spriteElem.style.transitionDuration = this.TRANSITION_DURATION
-            this.addTransitionEndPromise(animPromises, spriteElem)
-          } else {
-            // cancel transition (skip to end)
-            spriteElem.style.transitionDuration = ""
-            const clone = spriteElem.cloneNode() as HTMLImageElement
-            spriteElem.replaceWith(clone)
-            spriteElem = clone
+          if (
+            prevSprite?.x !== sprites[id].x ||
+            prevSprite?.y !== sprites[id].y ||
+            prevSprite?.anchorX !== sprites[id].anchorX ||
+            prevSprite?.anchorY !== sprites[id].anchorY
+          ) {
+            if (animate) {
+              spriteElem.style.transitionDuration = this.TRANSITION_DURATION
+              this.addTransitionEndPromise(animPromises, spriteElem)
+            } else {
+              // cancel transition (skip to end)
+              spriteElem.style.transitionDuration = ""
+              const clone = spriteElem.cloneNode() as HTMLImageElement
+              spriteElem.replaceWith(clone)
+              spriteElem = clone
+            }
+            this.setPosition(spriteElem, sprites[id])
           }
-          this.setPosition(spriteElem, sprites[id])
-
-          if (prevSprite !== undefined && prevSprite.sprite !== sprites[id].sprite) {
+          if (prevSprite !== undefined && getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
             // handle sprite image change
 
             const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))

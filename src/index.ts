@@ -66,6 +66,9 @@ story:
       sprite: 2.png
       x: .2
   - A1: Just talking...
+  - bgPan:
+      to: [20,20,20,20]
+      duration: 2000
   - show:
       actor: A2
       sprite: idle.png

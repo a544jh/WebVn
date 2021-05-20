@@ -14,7 +14,7 @@ class SetBackground extends Command {
       panDuration: this.cmd.pan?.duration ?? 0,
       panFrom: parseViewBox(this.cmd.pan?.from),
       panTo: parseViewBox(this.cmd.pan?.to),
-      waitForPan: false, // TODO handle
+      waitForPan: this.cmd.pan?.wait ?? false,
       transition: this.cmd.transition,
       transitonDuration: this.cmd.duration,
       transitionOptions: this.cmd.options,
@@ -23,7 +23,6 @@ class SetBackground extends Command {
     return {
       ...state,
       animatableState: { ...state.animatableState, background: newBackground },
-      stopAfterRender: false,
     }
   }
 }
@@ -51,6 +50,7 @@ let BgCommandSchema = z.object({
       from: z.optional(ViewBoxSchema),
       to: z.optional(ViewBoxSchema),
       duration: z.optional(z.number()),
+      wait: z.optional(z.boolean()),
     })
   ),
 })
@@ -82,3 +82,40 @@ function parseViewBox(arr: ViewBoxArr | undefined): ViewBox | undefined {
   const box: ViewBox = { x, y, w, h }
   return box
 }
+
+const BgPanSchema = z.object({ to: ViewBoxSchema, duration: z.number(), wait: z.optional(z.boolean()) })
+type BgPanCmd = z.infer<typeof BgPanSchema>
+
+class BgPan extends Command {
+  constructor(location: SourceLocation, private cmd: BgPanCmd) {
+    super(location)
+  }
+
+  public apply(state: VnPlayerState): VnPlayerState {
+    return {
+      ...state,
+      animatableState: {
+        ...state.animatableState,
+        background: {
+          ...state.animatableState.background,
+          panFrom: state.animatableState.background.panTo,
+          panTo: parseViewBox(this.cmd.to),
+          panDuration: this.cmd.duration,
+          waitForPan: this.cmd.wait ?? false,
+        },
+      },
+    }
+  }
+}
+
+function bgPanHandler(obj: unknown, location: SourceLocation): Command | ParserError {
+  try {
+    const cmd = BgPanSchema.parse(obj)
+    return new BgPan(location, cmd)
+  } catch (e) {
+    const zodError = e as ZodError
+    return new ParserError(zodError.message, location, ErrorLevel.WARNING)
+  }
+}
+
+registerCommandHandler("bgPan", bgPanHandler)

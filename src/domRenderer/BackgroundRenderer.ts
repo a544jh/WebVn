@@ -33,7 +33,8 @@ export class BackgroundRenderer {
   }
 
   public async render(state: Background, animate: boolean): Promise<void> {
-    if (state.shouldTransition) {
+    const prev = this.renderer.getCommittedState()?.animatableState.background
+    if (state.shouldTransition || state.panTo !== prev?.panTo) {
       this.lastTick = await new Promise((resolve) => {
         window.requestAnimationFrame((time) => {
           resolve(time)
@@ -47,19 +48,56 @@ export class BackgroundRenderer {
         this.currentRenderable = newBg
         return Promise.resolve()
       }
-      const [promise, resolve] = createResolvablePromise()
 
-      const [newTransition, newPan] = this.getTransition(state)
-      newTransition.onFinish(() => {
-        resolve()
+      if (state.shouldTransition) {
+        const [promise, resolve] = createResolvablePromise()
+
+        const [newTransition, newPan] = this.getTransition(state)
+
+        newTransition.onFinish(() => {
+          this.currentRenderable = newPan
+        })
+
+        if (state.waitForPan) {
+          newPan.onFinish(resolve)
+        } else {
+          newTransition.onFinish(resolve)
+        }
+
+        this.currentRenderable = newTransition
+        return promise
+      } else {
+        // bgPan
+
+        const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+        if (!image) throw new Error(`Could not load ${state.image}`)
+
+        const defaultView: ViewBox = {
+          x: 0,
+          y: 0,
+          w: this.sceneWidth,
+          h: this.sceneHeight,
+        }
+
+        const newPan = new BgPan(
+          image,
+          state.panFrom ?? defaultView,
+          state.panTo ?? defaultView,
+          state.panDuration,
+          this.lastTick
+        )
+
         this.currentRenderable = newPan
-      })
 
-      this.currentRenderable = newTransition
-      return promise
+        if (state.waitForPan) {
+          const [promise, resolve] = createResolvablePromise()
+          newPan.onFinish(resolve)
+          return promise
+        }
+
+        return Promise.resolve()
+      }
     }
-
-    // TODO bgPan command
 
     return Promise.resolve()
   }

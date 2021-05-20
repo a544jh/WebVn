@@ -55,6 +55,7 @@ export class VnPlayer {
       ...this.state.animatableState,
       background: { ...this.state.animatableState.background, shouldTransition: false },
     }
+    newState.stopAfterRender = false
 
     // TODO: if we implement custom sprite removal effects,
     // sprites to be removed should actually be deleted from the state here..

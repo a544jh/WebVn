@@ -1,27 +1,22 @@
 import { z } from "zod"
 import { registeredSchemas } from "../../core/commands/backgrounds/Background"
-import { registerTransition, Renderable } from "./transitionFactories"
+import { registerTransition } from "./transitionFactories"
 import { lerp } from "../DomRenderer"
+import { Renderable } from "./Renderable"
 
 class BlindsTransition extends Renderable {
   constructor(
     private from: Renderable,
     private to: Renderable,
-    private startTime: number,
-    private duration: number,
+    startTime: number,
+    duration: number,
     private slices: number,
     private staggerFactor: number
   ) {
-    super()
+    super(startTime, duration)
   }
 
-  public render(target: CanvasRenderingContext2D, time: number): void {
-    let completion = (time - this.startTime) / this.duration
-    if (completion > 1) {
-      completion = 1
-      this.animationFinished()
-    }
-
+  public renderFrame(target: CanvasRenderingContext2D, completion: number, time: number): boolean {
     this.from.render(target, time)
 
     const sliceWidth = target.canvas.width / this.slices
@@ -40,8 +35,10 @@ class BlindsTransition extends Renderable {
       target.rect(i * sliceWidth, 0, width, target.canvas.height)
     }
     target.clip()
-    this.to.render(target, time)
+    const toNeedsFrames = this.to.render(target, time)
     target.restore()
+
+    return completion < 1 || toNeedsFrames
   }
 }
 

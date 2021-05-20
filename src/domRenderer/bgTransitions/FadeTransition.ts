@@ -1,23 +1,19 @@
 import { z } from "zod"
-import { registerTransition, Renderable } from "./transitionFactories"
+import { Renderable } from "./Renderable"
+import { registerTransition } from "./transitionFactories"
 
 class FadeTransition extends Renderable {
-  constructor(private from: Renderable, private to: Renderable, private startTime: number, private duration: number) {
-    super()
+  constructor(private from: Renderable, private to: Renderable, startTime: number, duration: number) {
+    super(startTime, duration)
   }
 
-  public render(target: CanvasRenderingContext2D, time: number): void {
-    let completion = (time - this.startTime) / this.duration
-    if (completion > 1) {
-      completion = 1
-      this.animationFinished()
-    }
-
+  public renderFrame(target: CanvasRenderingContext2D, completion: number, time: number): boolean {
     target.save()
     this.from.render(target, time)
     target.globalAlpha = completion
-    this.to.render(target, time)
+    const toNeedsFrames = this.to.render(target, time)
     target.restore()
+    return completion < 1 || toNeedsFrames
   }
 }
 

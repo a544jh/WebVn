@@ -1,8 +1,8 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { Background, ViewBox } from "../core/state"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
-
-import { Renderable, transitionFactories } from "./bgTransitions/transitionFactories"
+import { transitionFactories } from "./bgTransitions/transitionFactories"
+import { Renderable } from "./bgTransitions/Renderable"
 import "./bgTransitions/BlindsTransition"
 import "./bgTransitions/FadeTransition"
 
@@ -26,7 +26,7 @@ export class BackgroundRenderer {
     const ctx = this.root.getContext("2d")
     if (ctx === null) throw new Error("Counld not create 2d rendering context")
     this.rootContext = ctx
-    this.currentRenderable = new NullRender()
+    this.currentRenderable = new NullRender(0, 0)
     this.needMoreFrames = false
 
     vnRoot.appendChild(this.root)
@@ -34,7 +34,6 @@ export class BackgroundRenderer {
 
   public async render(state: Background, animate: boolean): Promise<void> {
     if (state.shouldTransition) {
-      this.needMoreFrames = true
       this.lastTick = await new Promise((resolve) => {
         window.requestAnimationFrame((time) => {
           resolve(time)
@@ -50,13 +49,11 @@ export class BackgroundRenderer {
       }
       const [promise, resolve] = createResolvablePromise()
 
-      // BUG: longer transition than pan messes things up...
       const [newTransition, newPan] = this.getTransition(state)
       newTransition.onFinish(() => {
         resolve()
         this.currentRenderable = newPan
       })
-      newPan.onFinish(() => (this.needMoreFrames = false))
 
       this.currentRenderable = newTransition
       return promise
@@ -72,7 +69,7 @@ export class BackgroundRenderer {
 
     this.rootContext.clearRect(0, 0, this.sceneWidth, this.sceneHeight)
     try {
-      this.currentRenderable.render(this.rootContext, time)
+      this.needMoreFrames = this.currentRenderable.render(this.rootContext, time)
     } catch (e) {
       console.error(e)
     }
@@ -126,8 +123,8 @@ export class BackgroundRenderer {
 }
 
 class NullRender extends Renderable {
-  public render(): void {
-    return undefined
+  public renderFrame(): boolean {
+    return false
   }
 }
 
@@ -136,25 +133,19 @@ class BgPan extends Renderable {
     private image: HTMLImageElement,
     private from: ViewBox,
     private to: ViewBox,
-    private duration: number,
-    private startTime: number
+    duration: number,
+    startTime: number
   ) {
-    super()
+    super(startTime, duration)
   }
 
-  public render(target: CanvasRenderingContext2D, time: number): void {
-    let completion = (time - this.startTime) / this.duration
-
-    if (completion > 1) {
-      completion = 1
-      this.animationFinished()
-    }
-
+  public renderFrame(target: CanvasRenderingContext2D, completion: number): boolean {
     const x = lerp(this.from.x, this.to.x, completion)
     const y = lerp(this.from.y, this.to.y, completion)
     const w = lerp(this.from.w, this.to.w, completion)
     const h = lerp(this.from.h, this.to.h, completion)
 
     target.drawImage(this.image, x, y, w, h, 0, 0, target.canvas.width, target.canvas.height)
+    return completion < 1
   }
 }

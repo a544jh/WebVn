@@ -69,23 +69,29 @@ export class BackgroundRenderer {
       } else {
         // bgPan
 
-        const image = this.assetLoader.getAsset("backgrounds/" + state.image)
-        if (!image) throw new Error(`Could not load ${state.image}`)
+        let newPan: Renderable
 
-        const defaultView: ViewBox = {
-          x: 0,
-          y: 0,
-          w: this.sceneWidth,
-          h: this.sceneHeight,
+        if (state.image.charAt(0) === "#") {
+          newPan = new StaticColor(state.image, state.panDuration, this.lastTick)
+        } else {
+          const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+          if (!image) throw new Error(`Could not load ${state.image}`)
+
+          const defaultView: ViewBox = {
+            x: 0,
+            y: 0,
+            w: this.sceneWidth,
+            h: this.sceneHeight,
+          }
+
+          newPan = new BgPan(
+            image,
+            state.panFrom ?? defaultView,
+            state.panTo ?? defaultView,
+            state.panDuration,
+            this.lastTick
+          )
         }
-
-        const newPan = new BgPan(
-          image,
-          state.panFrom ?? defaultView,
-          state.panTo ?? defaultView,
-          state.panDuration,
-          this.lastTick
-        )
 
         this.currentRenderable = newPan
 
@@ -115,33 +121,42 @@ export class BackgroundRenderer {
   }
 
   private getTransition(state: Background): [Renderable, Renderable] {
-    const image = this.assetLoader.getAsset("backgrounds/" + state.image)
-    if (!image) throw new Error(`Could not load ${state.image}`)
+    let newRenderable: Renderable
+    if (state.image.charAt(0) === "#") {
+      newRenderable = new StaticColor(state.image, state.panDuration, this.lastTick)
+    } else {
+      const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+      if (!image) throw new Error(`Could not load ${state.image}`)
 
-    const defaultView: ViewBox = {
-      x: 0,
-      y: 0,
-      w: this.sceneWidth,
-      h: this.sceneHeight,
+      const defaultView: ViewBox = {
+        x: 0,
+        y: 0,
+        w: this.sceneWidth,
+        h: this.sceneHeight,
+      }
+
+      const from = state.panFrom ?? defaultView
+      const to = state.panTo ?? defaultView
+
+      newRenderable = new BgPan(image, from, to, state.panDuration, this.lastTick)
     }
-
-    const from = state.panFrom ?? defaultView
-    const to = state.panTo ?? defaultView
-
-    const newPan = new BgPan(image, from, to, state.panDuration, this.lastTick)
 
     const factory = transitionFactories[state.transition]
     const transition = factory(
       this.currentRenderable,
-      newPan,
+      newRenderable,
       this.lastTick,
       state.transitonDuration,
       state.transitionOptions
     )
-    return [transition, newPan]
+    return [transition, newRenderable]
   }
 
   private getLastFrame(state: Background): Renderable {
+    if (state.image.charAt(0) === "#") {
+      return new StaticColor(state.image, 0, this.lastTick)
+    }
+
     const image = this.assetLoader.getAsset("backgrounds/" + state.image)
     if (!image) throw new Error(`Could not load ${state.image}`)
 
@@ -184,6 +199,20 @@ class BgPan extends Renderable {
     const h = lerp(this.from.h, this.to.h, completion)
 
     target.drawImage(this.image, x, y, w, h, 0, 0, target.canvas.width, target.canvas.height)
+    return completion < 1
+  }
+}
+
+class StaticColor extends Renderable {
+  constructor(private color: string, duration: number, startTime: number) {
+    super(startTime, duration)
+  }
+
+  public renderFrame(target: CanvasRenderingContext2D, completion: number): boolean {
+    target.save()
+    target.fillStyle = this.color
+    target.fillRect(0, 0, target.canvas.width, target.canvas.height)
+    target.restore()
     return completion < 1
   }
 }

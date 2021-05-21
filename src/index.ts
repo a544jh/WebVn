@@ -67,7 +67,7 @@ story:
       x: .2
   - A1: Just talking...
   - bgPan:
-      to: [20,20,20,20]
+      to: [20,20,500,500]
       duration: 2000
   - show:
       actor: A2
@@ -95,6 +95,14 @@ story:
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor
+  - bg:
+      image: "#000000"
+      transition: blinds
+      duration: 1000
+  - bg:
+      image: "b.png"
+      transition: blinds
+      duration: 1000
   - What decision are you going to make?
   - decision:
     - Option 1:
@@ -115,6 +123,14 @@ story:
   - textbox: close
   - label: bad
   - That was a bad choice.
+  - bg:
+      image: "#ffffff"
+      transition: fade
+      duration: 200
+  - bg:
+      image: "b.png"
+      transition: fade
+      duration: 200
   - jump: loop
 `
 

@@ -30,7 +30,7 @@ const state: VnPlayerState = {
     },
   },
   backgrounds: ["a.png", "b.png"],
-  audioAssets: ["bgm/map01.ogg"],
+  audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"],
 }
 
 const yamlText = `
@@ -49,7 +49,9 @@ story:
         to: [0,0,2000,2000]
         duration: 10000
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
-  - bgm: "bgm/map01.ogg"
+  - bgm:
+      audio: "bgm/map01.ogg"
+      loop: false
   - bg:
       image: b.png
       transition: fade
@@ -58,6 +60,8 @@ story:
         from: [0,0,100,100]
         to: [0,0,1000,1000]
         duration: 10000
+  - "Wait for audio to stop"
+  - bgm: "bgm/map01.ogg"
   - label: loop
   - show:
       actor: A1
@@ -68,6 +72,7 @@ story:
       sprite: 2.png
       x: .2
   - A1: Just talking...
+  - bgm: "bgm/dayl_preview.ogg"
   - bgPan:
       to: [20,20,500,500]
       duration: 2000

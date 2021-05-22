@@ -23,7 +23,7 @@ export class AudioRenderer {
       const newAudio = this.assetLoader.getAsset("audio/" + state.bgm)
       if (!newAudio) throw new Error("Could not play audio " + state.bgm)
       this.bgmElem = newAudio
-      this.bgmElem.addEventListener("pause", () => {
+      this.bgmElem.addEventListener("ended", () => {
         this.bgmElem = null
       })
       this.bgmElem.loop = state.loopBgm

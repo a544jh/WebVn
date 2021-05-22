@@ -1,7 +1,7 @@
-import { z, ZodError } from "zod"
+import { z } from "zod"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
 
 class Bgm extends Command {
   constructor(location: SourceLocation, private cmd: BgmCommand) {
@@ -41,12 +41,4 @@ const BgmCommandSchema = z.union([
 
 type BgmCommand = z.infer<typeof BgmCommandSchema>
 
-registerCommandHandler("bgm", (obj: unknown, location: SourceLocation): Command | ParserError => {
-  try {
-    const cmd = BgmCommandSchema.parse(obj)
-    return new Bgm(location, cmd)
-  } catch (e) {
-    const zodError = e as ZodError
-    return new ParserError(zodError.message, location, ErrorLevel.WARNING)
-  }
-})
+registerCommandHandler("bgm", makeZodCmdHandler(BgmCommandSchema, Bgm))

@@ -113,10 +113,11 @@ story:
       duration: 1000
   - What decision are you going to make?
   - decision:
-    - Option 1:
-        jump: loop
-    - Option 2:
+    - "asd: asd ":
+        jump: asd
+    - A bad one.:
         jump: bad
+  - label: asd
   - 2
   - "2"
   - no
@@ -129,8 +130,9 @@ story:
   - Rando: I'm just some random dude
   - A1: But I'm a defined actor
   - textbox: close
+  - jump: loop
   - label: bad
-  - That was a bad choice.
+  - sfx: "sfx/bigthump.ogg"
   - bg:
       image: "#ffffff"
       transition: fade
@@ -139,6 +141,7 @@ story:
       image: "b.png"
       transition: fade
       duration: 200
+  - That was a bad choice.
   - jump: loop
 `
 

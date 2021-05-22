@@ -7,6 +7,7 @@ import "./commands/sprites/Show"
 import "./commands/sprites/Hide"
 import "./commands/backgrounds/Background"
 import "./commands/audio/Bgm"
+import "./commands/audio/Sfx"
 
 export const initialState: VnPlayerState = {
   actors: {

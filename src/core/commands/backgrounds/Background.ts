@@ -1,6 +1,6 @@
 import { Background, ViewBox, VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { ErrorLevel, makeZodCmdHandler, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 import { z, ZodError, ZodTypeAny } from "zod"
 
 class SetBackground extends Command {
@@ -108,14 +108,4 @@ class BgPan extends Command {
   }
 }
 
-function bgPanHandler(obj: unknown, location: SourceLocation): Command | ParserError {
-  try {
-    const cmd = BgPanSchema.parse(obj)
-    return new BgPan(location, cmd)
-  } catch (e) {
-    const zodError = e as ZodError
-    return new ParserError(zodError.message, location, ErrorLevel.WARNING)
-  }
-}
-
-registerCommandHandler("bgPan", bgPanHandler)
+registerCommandHandler("bgPan", makeZodCmdHandler(BgPanSchema, BgPan))

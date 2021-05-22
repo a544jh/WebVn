@@ -11,7 +11,12 @@ export class AudioRenderer {
 
   public async render(state: AudioState): Promise<void> {
     const prev = this.renderer.getCommittedState()?.animatableState.audio
-    // TODO sfx
+
+    if (state.sfx !== null) {
+      const newAudio = this.assetLoader.getAsset("audio/" + state.sfx)
+      if (!newAudio) throw new Error("Could not play audio " + state.sfx)
+      newAudio.play()
+    }
 
     if (this.bgmElem != null && state.bgm === null) {
       // stop audio

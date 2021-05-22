@@ -1,3 +1,4 @@
+import { ZodAny, ZodError } from "zod"
 import { VnPlayerState } from "../state"
 import { Command } from "./Command"
 
@@ -59,4 +60,21 @@ export function tsHasOwnProperty<X extends unknown, Y extends PropertyKey>(
   prop: Y
 ): obj is X & Record<Y, unknown> {
   return Object.prototype.hasOwnProperty.call(obj, prop)
+}
+
+export interface ZodCommandCtor {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  new (location: SourceLocation, cmd: any): Command
+}
+
+export function makeZodCmdHandler(schema: ZodAny, cmdConstuctor: ZodCommandCtor): ObjectToCommand {
+  return (obj: unknown, location: SourceLocation) => {
+    try {
+      const cmd = schema.parse(obj)
+      return new cmdConstuctor(location, cmd)
+    } catch (e) {
+      const zodError = e as ZodError
+      return new ParserError(zodError.message, location, ErrorLevel.WARNING)
+    }
+  }
 }

@@ -6,6 +6,7 @@ import "./commands/controlFlow/variables"
 import "./commands/sprites/Show"
 import "./commands/sprites/Hide"
 import "./commands/backgrounds/Background"
+import "./commands/audio/Bgm"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -16,6 +17,7 @@ export const initialState: VnPlayerState = {
     [NARRATOR_ACTOR_ID]: {},
   },
   backgrounds: [],
+  audioAssets: [],
   commandIndex: 0, // the command to be applied next
   commands: [],
   labels: {},
@@ -32,6 +34,11 @@ export const initialState: VnPlayerState = {
       transition: "fade",
       transitonDuration: 0,
       shouldTransition: false,
+    },
+    audio: {
+      bgm: null,
+      loopBgm: true,
+      sfx: null,
     },
   },
   decision: null,
@@ -54,6 +61,7 @@ export class VnPlayer {
     newState.animatableState = {
       ...this.state.animatableState,
       background: { ...this.state.animatableState.background, shouldTransition: false },
+      audio: { ...this.state.animatableState.audio, sfx: null },
     }
     newState.stopAfterRender = false
 

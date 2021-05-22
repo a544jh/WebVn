@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Audio loading</title>
+  </head>
+  <body></body>
+  <script>
+    const audio = new Audio("map01.ogg")
+    console.log("audio created")
+
+    audio.addEventListener("canplaythrough", () => {
+      console.log("audio can play through")
+    })
+
+    const btn = document.createElement("button")
+    btn.innerText = "play"
+    btn.addEventListener("click", () => {
+      audio.play()
+    })
+    document.body.appendChild(btn)
+    audio.controls = true
+    document.body.appendChild(audio)
+
+    const cloneBtn = document.createElement("button")
+    cloneBtn.innerText = "clone"
+    cloneBtn.addEventListener("click", () => {
+      const clone = audio.cloneNode()
+      clone.addEventListener("canplaythrough", () => {
+        console.log("clone can play thorugh")
+      })
+      document.body.appendChild(clone)
+    })
+    document.body.appendChild(cloneBtn)
+  </script>
+</html>

@@ -9,6 +9,8 @@ import { DecisionRenderer } from "./DecisionRenderer"
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { SpriteRenderer } from "./SpriteRenderer"
 import { BackgroundRenderer } from "./BackgroundRenderer"
+import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
+import { AudioRenderer } from "./audioRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -27,8 +29,10 @@ export class DomRenderer implements Renderer {
   private decisionRenderer: DecisionRenderer
   private spriteRenderer: SpriteRenderer
   private backgroundRenderer: BackgroundRenderer
+  private audioRenderer: AudioRenderer
 
   private imageLoader: ImageAssetLoaderSrc
+  private audioLoader: AudioAssetLoaderSrc
 
   private arrow: HTMLDivElement
 
@@ -44,11 +48,13 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
 
     this.imageLoader = new ImageAssetLoaderSrc()
+    this.audioLoader = new AudioAssetLoaderSrc()
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
     this.spriteRenderer = new SpriteRenderer(this.root, this, this.imageLoader)
     this.backgroundRenderer = new BackgroundRenderer(this.root, this, this.imageLoader)
+    this.audioRenderer = new AudioRenderer(this, this.audioLoader)
 
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow")
@@ -75,6 +81,7 @@ export class DomRenderer implements Renderer {
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
     animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))
+    animationsFinished.push(this.audioRenderer.render(state.animatableState.audio))
 
     this.committedState = state
 
@@ -123,7 +130,7 @@ export class DomRenderer implements Renderer {
     this.render(false)
   }
 
-  public loadAssets(): Promise<void[]> {
+  public loadAssets(): Promise<unknown> {
     const state = this.player.state
     for (const actor in state.actors) {
       const sprites = state.actors[actor].sprites
@@ -140,7 +147,12 @@ export class DomRenderer implements Renderer {
       this.imageLoader.registerAsset(path)
     }
 
-    return this.imageLoader.loadAll()
+    for (const asset of state.audioAssets) {
+      const path = "audio/" + asset
+      this.audioLoader.registerAsset(path)
+    }
+
+    return Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
   }
 }
 

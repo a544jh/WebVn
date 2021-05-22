@@ -1,4 +1,6 @@
-export class ImageAssetLoaderSrc {
+import { AssetLoader } from "./AssetLoader"
+
+export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
   private assets: Record<string, HTMLImageElement | null> = {}
 
   public registerAsset(path: string): void {

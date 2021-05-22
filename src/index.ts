@@ -30,6 +30,7 @@ const state: VnPlayerState = {
     },
   },
   backgrounds: ["a.png", "b.png"],
+  audioAssets: ["bgm/map01.ogg"],
 }
 
 const yamlText = `
@@ -48,6 +49,7 @@ story:
         to: [0,0,2000,2000]
         duration: 10000
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - bgm: "bgm/map01.ogg"
   - bg:
       image: b.png
       transition: fade
@@ -95,6 +97,7 @@ story:
   - ugh: this is an unregonized command
   - textbox: close
   - *anchor
+  - bgm: stop
   - bg:
       image: "#000000"
       transition: blinds

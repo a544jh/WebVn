@@ -2,6 +2,7 @@ import { Command } from "./commands/Command"
 export interface VnPlayerState {
   readonly actors: Actors
   readonly backgrounds: string[]
+  readonly audioAssets: string[]
   readonly commandIndex: number
   readonly commands: Command[]
   readonly labels: Record<string, number>
@@ -16,7 +17,7 @@ export interface AnimatableState {
   readonly text: TextBox | null
   readonly sprites: Record<string, Sprite>
   readonly background: Background
-  // bg, actors, bgn, sfx...
+  readonly audio: AudioState
 }
 
 export type TextBox = ADVTextBox | null
@@ -93,7 +94,7 @@ export interface Background {
   waitForPan: boolean
   transition: string
   transitonDuration: number
-  transitionOptions?: unknown // TODO...
+  transitionOptions?: unknown
   shouldTransition: boolean
 }
 
@@ -102,4 +103,10 @@ export interface ViewBox {
   y: number
   h: number
   w: number
+}
+
+export interface AudioState {
+  bgm: string | null
+  loopBgm: boolean
+  sfx: string | null
 }

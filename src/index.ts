@@ -62,6 +62,11 @@ story:
         duration: 10000
   - "Wait for audio to stop"
   - bgm: "bgm/map01.ogg"
+  - asd
+  - bgm: "bgm/dayl_preview.ogg"
+  - asd
+  - bgm: stop
+  - asd
   - label: loop
   - show:
       actor: A1

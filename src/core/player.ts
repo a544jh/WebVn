@@ -55,6 +55,9 @@ export class VnPlayer {
   public advance(): void {
     if (this.state.decision !== null) return
 
+    // TODO for Path history
+    // if stopAfterRender -> add 1 to path ?
+
     let newState = { ...this.state }
 
     // TODO: after-render, pre-command hooks for "one off" things?

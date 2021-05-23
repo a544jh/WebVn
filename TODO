@@ -1,12 +1,5 @@
 (Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
 
-Backgrounds
-
-  Panning
-  Transitions (registering commands) blinds, fade ...
-
-Audio
-
 Rollback & History
 
 Save/Load
@@ -26,3 +19,7 @@ Note (text message) system
 Sprite flipping
 
 Position presets
+
+Arbitrary trasformation matrix for bg
+
+Rewrite audio renderer with WebAudiContext (to solve chrome looping gap...)

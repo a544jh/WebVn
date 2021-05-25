@@ -16,9 +16,12 @@ Note (text message) system
 
 ---
 
-Sprite flipping
+Sprites
+  Sprite flipping
+  Position presets
+  Custom sprite IDs (multiple instances of same actor)
 
-Position presets
+Decision showIf
 
 Arbitrary trasformation matrix for bg
 

@@ -10,7 +10,7 @@ import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { SpriteRenderer } from "./SpriteRenderer"
 import { BackgroundRenderer } from "./BackgroundRenderer"
 import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
-import { AudioRenderer } from "./audioRenderer"
+import { AudioRenderer } from "./AudioRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []

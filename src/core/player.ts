@@ -1,4 +1,3 @@
-import { Command } from "./commands/Command"
 import { NARRATOR_ACTOR_ID, State, VnPlayerState } from "./state"
 import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"

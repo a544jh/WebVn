@@ -1,5 +1,6 @@
 import { Command } from "./commands/Command"
-import { NARRATOR_ACTOR_ID, VnPlayerState } from "./state"
+import { NARRATOR_ACTOR_ID, State, VnPlayerState } from "./state"
+import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"
 import "./commands/text/CloseTextBox"
 import "./commands/controlFlow/variables"
@@ -48,62 +49,41 @@ export const initialState: VnPlayerState = {
 
 export class VnPlayer {
   public state: VnPlayerState
+  public path: VnPath
+  public startingState: VnPlayerState
+
   constructor(state: VnPlayerState | undefined) {
     this.state = state === undefined ? initialState : state
+    this.path = VnPath.emptyPath()
+    this.startingState = this.state
   }
 
   public advance(): void {
-    if (this.state.decision !== null) return
-
-    // TODO for Path history
-    // if stopAfterRender -> add 1 to path ?
-
-    let newState = { ...this.state }
-
-    // TODO: after-render, pre-command hooks for "one off" things?
-
-    newState.animatableState = {
-      ...this.state.animatableState,
-      background: { ...this.state.animatableState.background, shouldTransition: false },
-      audio: { ...this.state.animatableState.audio, sfx: null },
+    const newState = State.advance(this.state)
+    if (this.state.stopAfterRender && newState !== this.state) {
+      this.path = this.path.advance()
     }
-    newState.stopAfterRender = false
-
-    // TODO: if we implement custom sprite removal effects,
-    // sprites to be removed should actually be deleted from the state here..
-
-    if (newState.commandIndex < newState.commands.length) {
-      newState = newState.commands[newState.commandIndex].apply(newState)
-      newState.commandIndex++
-      this.state = newState
-    }
-  }
-
-  public makeDecision(id: number): void {
-    if (this.state.decision === null) return
-    if (id < 0 || id > this.state.decision.length - 1) return
-    const item = this.state.decision[id]
-
-    const newState = { ...this.state }
-    if (this.state.labels[item.jumpLabel] === undefined) {
-      throw new Error("Target label does not exist.")
-    }
-    newState.commandIndex = this.state.labels[item.jumpLabel]
-    newState.stopAfterRender = false
-    newState.decision = null
     this.state = newState
   }
 
-  public loadCommands(commands: Command[]): void {
-    this.state = { ...this.state, commands, commandIndex: 0 }
+  public makeDecision(id: number): void {
+    const newState = State.makeDecision(id, this.state)
+    if (newState !== this.state) this.path = this.path.makeDecision(id)
+    this.state = newState
   }
 
-  public goToCommand(cmdIndex: number): void {
+  public goToCommandDirect(cmdIndex: number): void {
     if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
       return
     }
-    // case for preCommand hooks...? (to reset decision and "one-off" state)
     this.state = { ...this.state, commandIndex: cmdIndex - 1, decision: null }
     this.advance()
+  }
+
+  // TODO: goToCommandFromBeginning
+
+  public undo(): void {
+    this.path = this.path.undo(1)
+    this.state = State.fromPath(this.startingState, this.path)
   }
 }

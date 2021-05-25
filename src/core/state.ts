@@ -1,4 +1,5 @@
 import { Command } from "./commands/Command"
+import { VnPath } from "./vnPath"
 export interface VnPlayerState {
   readonly actors: Actors
   readonly backgrounds: string[]
@@ -109,4 +110,78 @@ export interface AudioState {
   bgm: string | null
   loopBgm: boolean
   sfx: string | null
+}
+
+function advance(state: VnPlayerState): VnPlayerState {
+  if (state.decision !== null) return state
+
+  let newState = { ...state }
+
+  // TODO: after-render, pre-command hooks for "one off" things?
+
+  newState.animatableState = {
+    ...state.animatableState,
+    background: { ...state.animatableState.background, shouldTransition: false },
+    audio: { ...state.animatableState.audio, sfx: null },
+  }
+  newState.stopAfterRender = false
+
+  // TODO: if we implement custom sprite removal effects,
+  // sprites to be removed should actually be deleted from the state here..
+
+  if (newState.commandIndex < newState.commands.length) {
+    newState = newState.commands[newState.commandIndex].apply(newState)
+    newState.commandIndex++
+  }
+  return newState
+}
+
+function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
+  if (state.decision === null) return state
+  if (id < 0 || id > state.decision.length - 1) return state
+  const item = state.decision[id]
+
+  const newState = { ...state }
+  if (state.labels[item.jumpLabel] === undefined) {
+    throw new Error("Target label does not exist.")
+  }
+  newState.commandIndex = state.labels[item.jumpLabel]
+  newState.stopAfterRender = false
+  newState.decision = null
+  return newState
+}
+
+function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
+  return fromShorthandPath(startingState, path.getDecisions(), path.getRemainingAdvances())
+}
+
+function fromShorthandPath(
+  startingState: VnPlayerState,
+  decisions: number[],
+  remainingAdvances: number
+): VnPlayerState {
+  let state = startingState
+  let decisionIndex = 0
+  while (decisionIndex < decisions.length) {
+    while (state.decision === null) {
+      state = advance(state)
+    }
+    state = makeDecision(decisions[decisionIndex], state)
+    decisionIndex++
+  }
+  while (remainingAdvances > 0) {
+    if (state.stopAfterRender) remainingAdvances--
+    state = advance(state)
+  }
+  while (!state.stopAfterRender) {
+    state = advance(state)
+  }
+  return state
+}
+
+export const State = {
+  advance,
+  makeDecision,
+  fromShorthandPath,
+  fromPath,
 }

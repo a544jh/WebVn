@@ -46,6 +46,7 @@ export class DomRenderer implements Renderer {
 
     this.root.addEventListener("click", this.advance.bind(this))
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
+    document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
 
     this.imageLoader = new ImageAssetLoaderSrc()
     this.audioLoader = new AudioAssetLoaderSrc()
@@ -111,6 +112,11 @@ export class DomRenderer implements Renderer {
     this.render(true)
   }
 
+  public undo(): void {
+    this.player.undo()
+    this.render(false)
+  }
+
   public getCommittedState(): VnPlayerState | null {
     return this.committedState
   }
@@ -121,13 +127,20 @@ export class DomRenderer implements Renderer {
     // TODO: proper backlog rollback
     // down
     if (e.deltaY > 0) {
-      this.player.goToCommand(this.player.state.commandIndex + 1)
+      this.player.goToCommandDirect(this.player.state.commandIndex + 1)
       // up
     } else if (e.deltaY < 0) {
-      this.player.goToCommand(this.player.state.commandIndex - 1)
+      this.player.goToCommandDirect(this.player.state.commandIndex - 1)
     }
 
     this.render(false)
+  }
+
+  private handleKeyDownEvent(e: KeyboardEvent) {
+    if (e.key === "PageUp") {
+      e.preventDefault()
+      this.undo()
+    }
   }
 
   public loadAssets(): Promise<unknown> {

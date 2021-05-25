@@ -66,7 +66,7 @@ export class VnEditor {
 
     await this.renderer.loadAssets()
 
-    this.player.goToCommand(1)
+    this.player.goToCommandDirect(1)
     this.renderer.render(false)
   }
 
@@ -80,7 +80,7 @@ export class VnEditor {
     })
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
-    this.player.goToCommand(commandIndex + 1)
+    this.player.goToCommandDirect(commandIndex + 1)
     this.renderer.render(false)
   }
 

@@ -44,10 +44,10 @@ export class ReactRenderer implements Renderer {
     // TODO: proper backlog rollback
     // down
     if (e.deltaY > 0) {
-      this.player.goToCommand(this.player.state.commandIndex + 1)
+      this.player.goToCommandDirect(this.player.state.commandIndex + 1)
       // up
     } else if (e.deltaY < 0) {
-      this.player.goToCommand(this.player.state.commandIndex - 1)
+      this.player.goToCommandDirect(this.player.state.commandIndex - 1)
     }
 
     this.render(false)

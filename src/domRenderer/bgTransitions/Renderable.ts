@@ -3,7 +3,7 @@ export abstract class Renderable {
 
   render(target: CanvasRenderingContext2D, time: number): boolean {
     let completion = (time - this.startTime) / this.duration
-    if (completion > 1) {
+    if (completion >= 1) {
       completion = 1
       this.animationFinished()
     }

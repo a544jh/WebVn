@@ -178,7 +178,6 @@ function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
   for (const action of path.getActions()) {
     state = action.perform(state)
   }
-  state = advanceUntilStop(state)
   return state
 }
 

@@ -57,6 +57,7 @@ export class VnEditor {
       this.setErrorMarker(error)
     }
     this.player.state = state
+    this.player.startingState = state
     this.vnEditor.getDoc().markClean()
   }
 
@@ -81,6 +82,10 @@ export class VnEditor {
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
     this.player.goToCommandDirect(commandIndex + 1)
+    // TODO: on blur, restore from shorthand path instead (w/ breakpoint)?
+    // or just keep doing it like this and push a jump to the undo history each time we recompile?
+    // or re-record a full path using a shorthand path ??
+    // or just pop off the last jump step from the history if there was one?
     this.renderer.render(false)
   }
 

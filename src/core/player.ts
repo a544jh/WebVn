@@ -72,14 +72,11 @@ export class VnPlayer {
   }
 
   public goToCommandDirect(cmdIndex: number): void {
-    if (cmdIndex < 1 || cmdIndex > this.state.commands.length) {
-      return
-    }
-    this.state = { ...this.state, commandIndex: cmdIndex - 1, decision: null }
-    this.advance()
+    this.state = State.goToCommandDirect(cmdIndex, this.state)
+    this.path = this.path.goToCommand(cmdIndex)
   }
 
-  // TODO: goToCommandFromBeginning
+  // TODO: goToCommandFromBeginning (i.e. breakpoints while editing) ?
 
   public undo(): void {
     this.path = this.path.undo(1)

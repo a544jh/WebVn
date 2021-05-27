@@ -151,8 +151,24 @@ function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
   return newState
 }
 
+function goToCommandDirect(cmdIndex: number, state: VnPlayerState): VnPlayerState {
+  if (cmdIndex < 1 || cmdIndex > state.commands.length) {
+    return state
+  }
+  state = { ...state, commandIndex: cmdIndex - 1, decision: null }
+  return advance(state)
+}
+
 function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
-  return fromShorthandPath(startingState, path.getDecisions(), path.getRemainingAdvances())
+  let state = startingState
+  for (const action of path.getActions()) {
+    state = action.perform(state)
+  }
+  while (!state.stopAfterRender) {
+    state = advance(state)
+    // TODO infinite loop detection?
+  }
+  return state
 }
 
 function fromShorthandPath(
@@ -182,6 +198,7 @@ function fromShorthandPath(
 export const State = {
   advance,
   makeDecision,
+  goToCommandDirect,
   fromShorthandPath,
   fromPath,
 }

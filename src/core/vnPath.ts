@@ -1,3 +1,5 @@
+import { State, VnPlayerState } from "./state"
+
 // Immutable representaion of actions taken through the VN
 export class VnPath {
   private readonly path: VnAction[]
@@ -27,15 +29,16 @@ export class VnPath {
     return new VnPath([...this.path, new MakeDecision(id)])
   }
 
+  public goToCommand(id: number): VnPath {
+    return new VnPath([...this.path, new GoToCommand(id)])
+  }
+
   public undo(steps: number): VnPath {
     let stepsLeft = steps
     const arr = [...this.path]
     while (stepsLeft !== 0) {
       const last = arr[arr.length - 1]
-      if (last instanceof MakeDecision) {
-        arr.pop()
-        stepsLeft -= 1
-      } else if (last instanceof Advance) {
+      if (last instanceof Advance) {
         if (last.times <= stepsLeft) {
           arr.pop()
           stepsLeft -= last.times
@@ -44,11 +47,18 @@ export class VnPath {
           arr.push(new Advance(last.times - stepsLeft))
           stepsLeft -= stepsLeft
         }
+      } else if (last !== undefined) {
+        arr.pop()
+        stepsLeft -= 1
       } else {
         return new VnPath([])
       }
     }
     return new VnPath(arr)
+  }
+
+  public getActions(): VnAction[] {
+    return this.path
   }
 
   public getDecisions(): number[] {
@@ -64,16 +74,40 @@ export class VnPath {
   }
 }
 
-abstract class VnAction {}
+abstract class VnAction {
+  public abstract perform(state: VnPlayerState): VnPlayerState
+}
 
 class Advance extends VnAction {
   constructor(public readonly times: number) {
     super()
+  }
+
+  public perform(state: VnPlayerState): VnPlayerState {
+    for (let i = 0; i < this.times; i++) {
+      state = State.advance(state)
+      while (!state.stopAfterRender) state = State.advance(state) // TODO loop detection..
+    }
+    return state
   }
 }
 
 class MakeDecision extends VnAction {
   constructor(public readonly id: number) {
     super()
+  }
+
+  public perform(state: VnPlayerState): VnPlayerState {
+    return State.makeDecision(this.id, state)
+  }
+}
+
+class GoToCommand extends VnAction {
+  constructor(public readonly id: number) {
+    super()
+  }
+
+  public perform(state: VnPlayerState): VnPlayerState {
+    return State.goToCommandDirect(this.id, state)
   }
 }

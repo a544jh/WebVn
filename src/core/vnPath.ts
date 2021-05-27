@@ -85,8 +85,7 @@ class Advance extends VnAction {
 
   public perform(state: VnPlayerState): VnPlayerState {
     for (let i = 0; i < this.times; i++) {
-      state = State.advance(state)
-      while (!state.stopAfterRender) state = State.advance(state) // TODO loop detection..
+      state = State.advanceUntilStop(state)
     }
     return state
   }
@@ -98,7 +97,8 @@ class MakeDecision extends VnAction {
   }
 
   public perform(state: VnPlayerState): VnPlayerState {
-    return State.makeDecision(this.id, state)
+    state = State.makeDecision(this.id, state)
+    return State.advanceUntilStop(state)
   }
 }
 

@@ -159,15 +159,26 @@ function goToCommandDirect(cmdIndex: number, state: VnPlayerState): VnPlayerStat
   return advance(state)
 }
 
+function advanceUntilStop(state: VnPlayerState): VnPlayerState {
+  let advances = 0
+  state = advance(state)
+  while (!state.stopAfterRender) {
+    state = advance(state)
+    advances++
+    if (advances > 10000) {
+      alert("Looks like we're stuck in an infinite loop")
+      throw new Error("Got stuck in infinite loop while replaying path")
+    }
+  }
+  return state
+}
+
 function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
   let state = startingState
   for (const action of path.getActions()) {
     state = action.perform(state)
   }
-  while (!state.stopAfterRender) {
-    state = advance(state)
-    // TODO infinite loop detection?
-  }
+  state = advanceUntilStop(state)
   return state
 }
 
@@ -176,21 +187,25 @@ function fromShorthandPath(
   decisions: number[],
   remainingAdvances: number
 ): VnPlayerState {
+  // TODO: Construct full path? (e.g. when loading save)
   let state = startingState
   let decisionIndex = 0
   while (decisionIndex < decisions.length) {
+    let advances = 0
     while (state.decision === null) {
       state = advance(state)
+      advances++
+      if (advances > 10000) {
+        alert("Looks like we're stuck in an infinite loop")
+        throw new Error("Got stuck in infinite loop while replaying path")
+      }
     }
     state = makeDecision(decisions[decisionIndex], state)
     decisionIndex++
   }
+  state = advanceUntilStop(state)
   while (remainingAdvances > 0) {
-    if (state.stopAfterRender) remainingAdvances--
-    state = advance(state)
-  }
-  while (!state.stopAfterRender) {
-    state = advance(state)
+    state = advanceUntilStop(state)
   }
   return state
 }
@@ -199,6 +214,7 @@ export const State = {
   advance,
   makeDecision,
   goToCommandDirect,
+  advanceUntilStop,
   fromShorthandPath,
   fromPath,
 }

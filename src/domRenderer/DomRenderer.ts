@@ -15,6 +15,7 @@ import { AudioRenderer } from "./AudioRenderer"
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
+  private consecutiveCommands = 0
 
   private finished: boolean
 
@@ -90,7 +91,14 @@ export class DomRenderer implements Renderer {
       if (this.committedState?.decision === null) this.arrow.style.display = ""
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
+      if (this.consecutiveCommands > 10000) {
+        alert("Seems like we're stuck in an infinite loop")
+        throw new Error("Got stuck in infinite loop while rendering")
+
+        return
+      }
       if (!this.player.state.stopAfterRender) {
+        this.consecutiveCommands++
         this.player.advance()
         this.render(animate)
       }
@@ -99,6 +107,7 @@ export class DomRenderer implements Renderer {
 
   public advance(): void {
     if (this.ignoreInputs) return
+    this.consecutiveCommands = 0
     if (this.finished) {
       this.player.advance()
       this.render(true)
@@ -108,11 +117,13 @@ export class DomRenderer implements Renderer {
   }
 
   public makeDecision(id: number): void {
+    this.consecutiveCommands = 0
     this.player.makeDecision(id)
     this.render(true)
   }
 
   public undo(): void {
+    this.consecutiveCommands = 0
     this.player.undo()
     this.render(false)
   }

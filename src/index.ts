@@ -8,6 +8,8 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 
+import bigstory from "raw-loader!../util-scripts/bigstory.yaml"
+
 const state: VnPlayerState = {
   ...initialState,
   actors: {
@@ -150,7 +152,7 @@ story:
   - jump: loop
 `
 
-const [yamlState] = YamlParser.updateState(yamlText, state)
+const [yamlState] = YamlParser.updateState(bigstory, state)
 const player = new VnPlayer(yamlState)
 
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
@@ -180,4 +182,4 @@ renderer.onRenderCallbacks.push(() => {
   varsContainer.innerText = text
 })
 
-editor.loadScript(yamlText)
+editor.loadScript(bigstory)

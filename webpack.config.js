@@ -1,30 +1,28 @@
-let path = require("path");
-const CopyPlugin = require("copy-webpack-plugin");
+let path = require("path")
+const CopyPlugin = require("copy-webpack-plugin")
 
-const isDevServer = process.env.WEBPACK_DEV_SERVER;
+const isDevServer = process.env.WEBPACK_DEV_SERVER
 
 module.exports = {
   mode: "development",
 
   entry: {
-    app: ["./src/index.ts"]
+    app: ["./src/index.ts"],
   },
 
   output: {
     path: path.resolve(__dirname + "/dist"),
-    filename: "[name].js"
+    filename: "[name].js",
   },
 
   resolve: {
-    extensions: [".tsx", ".ts", ".js", ".pegjs"]
+    extensions: [".tsx", ".ts", ".js", ".pegjs"],
   },
 
-  plugins : [
+  plugins: [
     new CopyPlugin({
-      patterns: [
-        {from: "test-assets"}
-      ]
-    })
+      patterns: [{ from: "test-assets" }],
+    }),
   ],
 
   module: {
@@ -33,7 +31,7 @@ module.exports = {
         test: /\.html$/,
         exclude: /node_modules/,
         loader: "file-loader",
-        options: {name: "[name].[ext]"}
+        options: { name: "[name].[ext]" },
       },
       // "Legacy webpack"
       /*{
@@ -62,25 +60,25 @@ module.exports = {
       // may want to handle the theme loading ourselves...
       {
         test: /\.css$/,
-        use: [ 'style-loader', 'css-loader' ]
+        use: ["style-loader", "css-loader"],
       },
       {
         test: /\.tsx?$/,
         use: "ts-loader",
-        exclude: /node_modules/
+        exclude: /node_modules/,
       },
       {
         test: /\.pegjs$/,
-        loader: 'pegjs-loader'
-      }
-    ]
+        loader: "pegjs-loader",
+      },
+    ],
   },
 
   devServer: {
     inline: true,
-    stats: { colors: true }
-  }
-};
+    stats: { colors: true },
+  },
+}
 
 if (isDevServer) {
   module.exports.devtool = "eval-source-map"

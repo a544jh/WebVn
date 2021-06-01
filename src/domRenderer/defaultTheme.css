@@ -11,8 +11,8 @@ body {
   background: white;
   position: relative;
   margin: 0 auto;
-  width: 800px;
-  height: 600px;
+  width: 1280px;
+  height: 720px;
 }
 
 #vn-textbox-renderer {
@@ -31,7 +31,7 @@ body {
 
 .vn-arrow {
   position: absolute;
-  right: 10px;
+  right: 250px;
   bottom: 20px;
   width: 0;
   height: 0;
@@ -48,8 +48,9 @@ body {
 
 .vn-adv-textbox {
   position: absolute;
+  left: 240px;
   bottom: 12px;
-  width: 100%;
+  width: 800px;
   height: 106px;
   padding: 5px;
   box-sizing: border-box;
@@ -62,7 +63,7 @@ body {
 
 .vn-adv-nametag {
   position: absolute;
-  left: 8px;
+  left: 248px;
   bottom: 112px;
   padding: 2px;
   box-sizing: border-box;
@@ -135,4 +136,33 @@ body {
   top: 0px;
   left: 0px;
   z-index: 10;
+}
+
+#vn-actions {
+  z-index: 50;
+  position: absolute;
+  height: 111px;
+  bottom: 0px;
+  width: 100%;
+  text-transform: uppercase;
+  font-size: 24px;
+  color: white;
+  opacity: 20%;
+  transition-duration: 500ms;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+#vn-actions:hover {
+  opacity: 100%;
+}
+
+.vn-action-back {
+  position: absolute;
+  bottom: 77px;
+  height: 40px;
+  width: 120px;
+  display: flex;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.4);
 }

@@ -49,6 +49,10 @@ export class VnEditor {
     this.vnEditor.on("blur", () => {
       this.goToLine(getCurrentLocation(this.player).startLine)
     })
+    this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
+      // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
+      event.preventDefault()
+    })
   }
 
   private parseDocument() {

@@ -180,4 +180,8 @@ renderer.onRenderCallbacks.push(() => {
   varsContainer.innerText = text
 })
 
+document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
+  document.getElementById("vn-div-container")?.requestFullscreen()
+})
+
 editor.loadScript(yamlText)

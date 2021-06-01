@@ -181,7 +181,30 @@ renderer.onRenderCallbacks.push(() => {
 })
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
-  document.getElementById("vn-div-container")?.requestFullscreen()
+  document
+    .getElementById("vn-div-container")
+    ?.requestFullscreen()
+    .then(() => window.setTimeout(setScale, 500)) // hackety hack to let mobile ui settle..
 })
 
 editor.loadScript(yamlText)
+
+function setScale() {
+  const container = document.getElementById("vn-div-container") as HTMLDivElement
+  const containerWidth = container.clientWidth // width of screen in css pixels
+  const vnWidth = vnDiv.clientWidth
+  const containerHeight = container.clientHeight
+  const vnHeight = vnDiv.clientHeight
+
+  let scale
+  if (containerWidth / containerHeight > vnWidth / vnHeight) {
+    scale = containerHeight / vnHeight
+  } else {
+    scale = containerWidth / vnWidth
+  }
+  const transform = `scale(${scale})`
+  vnDiv.style.transform = transform
+  vnDiv.style.transformOrigin = "top left"
+  //vnDiv.style.margin = "initial"
+  // TODO i guess we have to set the padding manuallly to center the vnDiv, horizontally on phone at least
+}

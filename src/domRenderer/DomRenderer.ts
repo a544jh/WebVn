@@ -5,6 +5,7 @@ import { TextBoxRenderer } from "./TextBoxRenderer"
 
 import "./animations.css"
 import "./defaultTheme.css"
+import "./gg.css"
 import { DecisionRenderer } from "./DecisionRenderer"
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
 import { SpriteRenderer } from "./SpriteRenderer"
@@ -48,6 +49,10 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("click", this.advance.bind(this))
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
+    this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
+      e.stopPropagation()
+      this.undo()
+    })
 
     this.imageLoader = new ImageAssetLoaderSrc()
     this.audioLoader = new AudioAssetLoaderSrc()

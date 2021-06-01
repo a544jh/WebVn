@@ -1,5 +1,6 @@
 body {
   background-color: dimgray;
+  touch-action: manipulation;
 }
 
 #vn-state {
@@ -151,6 +152,7 @@ body {
   transition-duration: 500ms;
   user-select: none;
   -moz-user-select: none;
+  --ggs: 1.5;
 }
 
 #vn-actions:hover {

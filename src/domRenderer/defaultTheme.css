@@ -19,9 +19,9 @@ body {
 #vn-textbox-renderer {
   font-family: "Source Code Pro";
   font-weight: bold;
-  font-size: 24px;
-  line-height: 24px;
-  text-shadow: 2px 2px 0px black;
+  font-size: 42px;
+  line-height: 1;
+  text-shadow: 3px 3px 0px black;
   color: white;
   user-select: none;
   -moz-user-select: none;
@@ -32,27 +32,27 @@ body {
 
 .vn-arrow {
   position: absolute;
-  right: 250px;
-  bottom: 20px;
+  right: 13.9%;
+  bottom: 2.8%;
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 13.9px 8px 0 8px;
+  border-width: 20px 12px 0 12px;
   border-color: white transparent transparent transparent;
   animation: vn-blink;
   animation-duration: 1s;
   animation-iteration-count: infinite;
   animation-timing-function: step-end;
-  filter: drop-shadow(2px 2px 0px black);
+  filter: drop-shadow(2.5px 2.5px 0px black);
   z-index: 30;
 }
 
 .vn-adv-textbox {
   position: absolute;
-  left: 240px;
-  bottom: 12px;
-  width: 800px;
-  height: 106px;
+  left: 13.3%;
+  bottom: 1.67%;
+  width: 73.4%;
+  height: 178px;
   padding: 5px;
   box-sizing: border-box;
   background-color: rgba(0, 0, 0, 0.4);
@@ -64,11 +64,11 @@ body {
 
 .vn-adv-nametag {
   position: absolute;
-  left: 248px;
-  bottom: 112px;
+  left: 14.1%;
+  bottom: 25.8%;
   padding: 2px;
   box-sizing: border-box;
-  text-shadow: 2px 2px 0px black;
+  text-shadow: 3px 3px 0px black;
   background-color: rgba(0, 0, 0, 0.4);
   overflow: hidden;
   transition-property: transform;
@@ -77,14 +77,14 @@ body {
 }
 
 #vn-decision-renderer {
-  height: 460px; /*with textbox shown TODO handle without*/
+  height: 73.6%; /*with textbox shown TODO handle without*/
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
   font-family: "Source Code Pro";
   font-weight: bold;
-  font-size: 24px;
-  line-height: 24px;
+  font-size: 42px;
+  line-height: 1;
   text-shadow: 2px 2px 0px black;
   color: white;
   user-select: none;
@@ -142,17 +142,20 @@ body {
 #vn-actions {
   z-index: 50;
   position: absolute;
-  height: 111px;
+  height: 183px;
   bottom: 0px;
   width: 100%;
   text-transform: uppercase;
-  font-size: 24px;
+  font-size: 28px;
+  font-family: "Source Code Pro";
+  font-weight: 600;
+  text-shadow: 2px 2px 0 black;
   color: white;
   opacity: 20%;
   transition-duration: 500ms;
   user-select: none;
   -moz-user-select: none;
-  --ggs: 1.5;
+  --ggs: 2.5;
 }
 
 #vn-actions:hover {
@@ -161,10 +164,15 @@ body {
 
 .vn-action-back {
   position: absolute;
-  bottom: 77px;
-  height: 40px;
-  width: 120px;
+  bottom: 63.7%;
+  height: 60px;
+  width: 11.4%;
   display: flex;
   align-items: center;
   background-color: rgba(0, 0, 0, 0.4);
+}
+
+.vn-action-back i {
+  margin: 0 2px;
+  filter: drop-shadow(1.5px 1.5px 0px black);
 }

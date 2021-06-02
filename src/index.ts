@@ -153,6 +153,7 @@ story:
 const [yamlState] = YamlParser.updateState(yamlText, state)
 const player = new VnPlayer(yamlState)
 
+const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, player)
 
@@ -183,28 +184,46 @@ renderer.onRenderCallbacks.push(() => {
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
   document
     .getElementById("vn-div-container")
-    ?.requestFullscreen()
-    .then(() => window.setTimeout(setScale, 500)) // hackety hack to let mobile ui settle..
+    ?.requestFullscreen({ navigationUI: "hide" })
+    .then(() => {
+      screen.orientation.lock("landscape")
+      window.setTimeout(setScale, 500)
+    }) // hackety hack to let mobile ui settle..
+})
+
+document.addEventListener("fullscreenchange", () => {
+  if (document.fullscreenElement === null) {
+    restoreOnFullscreenExit()
+  }
 })
 
 editor.loadScript(yamlText)
 
 function setScale() {
-  const container = document.getElementById("vn-div-container") as HTMLDivElement
-  const containerWidth = container.clientWidth // width of screen in css pixels
+  const containerWidth = vnDivContainer.clientWidth // width of screen in css pixels
   const vnWidth = vnDiv.clientWidth
-  const containerHeight = container.clientHeight
+  const containerHeight = vnDivContainer.clientHeight
   const vnHeight = vnDiv.clientHeight
 
   let scale
+  // if screen is wider than vn aspect ratio
   if (containerWidth / containerHeight > vnWidth / vnHeight) {
     scale = containerHeight / vnHeight
+    vnDivContainer.style.paddingLeft = (containerWidth - vnWidth * scale) / 2 + "px"
   } else {
     scale = containerWidth / vnWidth
+    vnDivContainer.style.paddingTop = (containerHeight - vnHeight * scale) / 2 + "px"
   }
   const transform = `scale(${scale})`
+  vnDiv.style.margin = "initial"
   vnDiv.style.transform = transform
   vnDiv.style.transformOrigin = "top left"
-  //vnDiv.style.margin = "initial"
-  // TODO i guess we have to set the padding manuallly to center the vnDiv, horizontally on phone at least
+}
+
+function restoreOnFullscreenExit() {
+  vnDivContainer.style.paddingLeft = ""
+  vnDivContainer.style.paddingTop = ""
+  vnDiv.style.margin = ""
+  vnDiv.style.transform = ""
+  vnDiv.style.transformOrigin = ""
 }

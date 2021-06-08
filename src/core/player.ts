@@ -65,6 +65,14 @@ export class VnPlayer {
     this.state = newState
   }
 
+  public advanceUntilStop(): void {
+    const newState = State.advanceUntilStop(this.state)
+    if (this.state.stopAfterRender && newState !== this.state) {
+      this.path = this.path.advance()
+    }
+    this.state = newState
+  }
+
   public makeDecision(id: number): void {
     const newState = State.makeDecision(id, this.state)
     if (newState !== this.state) this.path = this.path.makeDecision(id)

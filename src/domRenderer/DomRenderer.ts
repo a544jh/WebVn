@@ -25,7 +25,10 @@ export class DomRenderer implements Renderer {
 
   private committedState: VnPlayerState | null
 
+  private SKIP_DELAY = 50
+
   public ignoreInputs = false
+  public skipMode = false
 
   private textBoxRenderer: TextBoxRenderer
   private decisionRenderer: DecisionRenderer
@@ -45,13 +48,29 @@ export class DomRenderer implements Renderer {
     this.player = player
 
     this.committedState = null
-
-    this.root.addEventListener("click", this.advance.bind(this))
+    this.root.addEventListener(
+      "click",
+      (e) => {
+        // click anywhere to cancel skip mode
+        if (this.skipMode) {
+          this.skipMode = false
+          e.stopPropagation()
+        }
+      },
+      { capture: true }
+    )
+    this.root.addEventListener("click", () => {
+      this.advance()
+    })
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
       this.undo()
+    })
+    this.root.querySelector(".vn-action-skip")?.addEventListener("click", (e) => {
+      e.stopPropagation()
+      this.enterSkipMode()
     })
 
     this.imageLoader = new ImageAssetLoaderSrc()
@@ -131,6 +150,21 @@ export class DomRenderer implements Renderer {
     this.consecutiveCommands = 0
     this.player.undo()
     this.render(false)
+  }
+
+  private skip() {
+    this.player.advanceUntilStop()
+    this.render(false)
+    if (this.player.state.decision !== null) {
+      // TODO also stop if next command is unseen
+      this.skipMode = false
+    }
+    if (this.skipMode) setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+  }
+
+  public enterSkipMode(): void {
+    this.skipMode = true
+    setTimeout(this.skip.bind(this), this.SKIP_DELAY)
   }
 
   public getCommittedState(): VnPlayerState | null {

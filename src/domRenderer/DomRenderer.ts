@@ -83,7 +83,7 @@ export class DomRenderer implements Renderer {
     this.audioRenderer = new AudioRenderer(this, this.audioLoader)
 
     this.arrow = document.createElement("div")
-    this.arrow.classList.add("vn-arrow")
+    this.arrow.classList.add("vn-arrow", "vn-anim-bounce")
     this.root.appendChild(this.arrow)
 
     this.render(true)

@@ -8,6 +8,7 @@ import "./commands/sprites/Hide"
 import "./commands/backgrounds/Background"
 import "./commands/audio/Bgm"
 import "./commands/audio/Sfx"
+import { ConsecutiveIntegerSet } from "../lib/ConsequtiveIntegerSet"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -44,6 +45,7 @@ export const initialState: VnPlayerState = {
   },
   decision: null,
   variables: {},
+  seenCommands: new ConsecutiveIntegerSet(),
 }
 
 export class VnPlayer {

@@ -1,3 +1,4 @@
+import { ConsecutiveIntegerSet } from "../lib/ConsequtiveIntegerSet"
 import { Command } from "./commands/Command"
 import { VnPath } from "./vnPath"
 export interface VnPlayerState {
@@ -11,6 +12,7 @@ export interface VnPlayerState {
   readonly animatableState: AnimatableState
   readonly decision: DecisionItem[] | null
   readonly variables: Record<string, VnVariableValue>
+  seenCommands: ConsecutiveIntegerSet // should maybe be global instead (mutable...)
   // user settings, saves...
 }
 
@@ -131,7 +133,9 @@ function advance(state: VnPlayerState): VnPlayerState {
 
   if (newState.commandIndex < newState.commands.length) {
     newState = newState.commands[newState.commandIndex].apply(newState)
-    newState.commandIndex++
+    newState.seenCommands.add(newState.commandIndex)
+    // if applied command doesn't change the next command (jumps), go to the next one
+    if (newState.commandIndex === state.commandIndex) newState.commandIndex++
   }
   return newState
 }

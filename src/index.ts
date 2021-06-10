@@ -179,6 +179,7 @@ renderer.onRenderCallbacks.push(() => {
   for (const variable in player.state.variables) {
     text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
   }
+  text += `Seen commands: ${player.state.seenCommands.toJson()}\n`
   varsContainer.innerText = text
 })
 
@@ -200,6 +201,7 @@ document.addEventListener("fullscreenchange", () => {
 
 editor.loadScript(yamlText)
 
+// TODO move to DomRenderer
 function setScale() {
   const containerWidth = vnDivContainer.clientWidth // width of screen in css pixels
   const vnWidth = vnDiv.clientWidth

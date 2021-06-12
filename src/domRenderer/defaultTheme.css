@@ -173,7 +173,7 @@ body {
   background-color: rgba(0, 0, 0, 0.4);
 }
 
-.vn-action:active {
+.vn-action:not(.vn-action-disabled):active {
   background-color: rgba(0, 0, 0, 0.2);
 }
 
@@ -181,6 +181,10 @@ body {
   filter: drop-shadow(1.5px 1.5px 0px black);
 }
 
+.vn-action-disabled {
+  color: hsl(0, 0%, 30%);
+  opacity: 0.3;
+}
 .vn-action-back {
   position: absolute;
   bottom: 63.7%;

@@ -113,6 +113,13 @@ export class DomRenderer implements Renderer {
 
     Promise.all(animationsFinished).then(() => {
       if (this.committedState?.decision === null) this.arrow.style.display = ""
+
+      if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) {
+        this.root.querySelector(".vn-action-skip")?.classList.add("vn-action-disabled")
+      } else {
+        this.root.querySelector(".vn-action-skip")?.classList.remove("vn-action-disabled")
+      }
+
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
       if (this.consecutiveCommands > 10000) {
@@ -168,6 +175,8 @@ export class DomRenderer implements Renderer {
   }
 
   public enterSkipMode(): void {
+    if (this.skipMode) return
+    if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
     setTimeout(this.skip.bind(this), this.SKIP_DELAY)
   }

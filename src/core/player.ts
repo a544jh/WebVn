@@ -92,4 +92,8 @@ export class VnPlayer {
     this.path = this.path.undo(1)
     this.state = State.fromPath(this.startingState, this.path)
   }
+
+  public isNextCommandSeen(): boolean {
+    return this.state.seenCommands.contains(this.state.commandIndex)
+  }
 }

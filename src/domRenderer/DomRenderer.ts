@@ -153,10 +153,15 @@ export class DomRenderer implements Renderer {
   }
 
   private skip() {
-    this.player.advanceUntilStop()
-    this.render(false)
+    if (!this.player.isNextCommandSeen()) {
+      this.player.advanceUntilStop()
+      this.render(true)
+      this.skipMode = false
+    } else {
+      this.player.advanceUntilStop()
+      this.render(false)
+    }
     if (this.player.state.decision !== null) {
-      // TODO also stop if next command is unseen
       this.skipMode = false
     }
     if (this.skipMode) setTimeout(this.skip.bind(this), this.SKIP_DELAY)

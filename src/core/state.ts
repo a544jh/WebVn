@@ -132,8 +132,8 @@ function advance(state: VnPlayerState): VnPlayerState {
   // sprites to be removed should actually be deleted from the state here..
 
   if (newState.commandIndex < newState.commands.length) {
-    newState = newState.commands[newState.commandIndex].apply(newState)
     newState.seenCommands.add(newState.commandIndex)
+    newState = newState.commands[newState.commandIndex].apply(newState)
     // if applied command doesn't change the next command (jumps), go to the next one
     if (newState.commandIndex === state.commandIndex) newState.commandIndex++
   }

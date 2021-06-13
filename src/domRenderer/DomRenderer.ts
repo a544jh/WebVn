@@ -185,6 +185,16 @@ export class DomRenderer implements Renderer {
     setTimeout(this.skip.bind(this), this.SKIP_DELAY)
   }
 
+  public saveToSlot(slot: number): void {
+    this.player.saveToSlot(slot)
+    saveToLocalStorage("test", this.player.getGlobalSaveData())
+  }
+
+  public loadFromSlot(slot: number): void {
+    this.player.loadFromSlot(slot)
+    this.render(false)
+  }
+
   public getCommittedState(): VnPlayerState | null {
     return this.committedState
   }

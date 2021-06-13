@@ -189,14 +189,17 @@ function fromShorthandPath(
   startingState: VnPlayerState,
   decisions: number[],
   remainingAdvances: number
-): VnPlayerState {
-  // TODO: Construct full path? (e.g. when loading save)
+): [VnPlayerState, VnPath] {
+  let path = VnPath.emptyPath()
   let state = startingState
   let decisionIndex = 0
   while (decisionIndex < decisions.length) {
     let advances = 0
     while (state.decision === null) {
       state = advance(state)
+      if (state.stopAfterRender) {
+        path = path.advance()
+      }
       advances++
       if (advances > 10000) {
         alert("Looks like we're stuck in an infinite loop")
@@ -204,13 +207,17 @@ function fromShorthandPath(
       }
     }
     state = makeDecision(decisions[decisionIndex], state)
+    path = path.makeDecision(decisions[decisionIndex])
     decisionIndex++
   }
   state = advanceUntilStop(state)
+  path = path.advance()
   while (remainingAdvances > 0) {
     state = advanceUntilStop(state)
+    path = path.advance()
+    remainingAdvances--
   }
-  return state
+  return [state, path]
 }
 
 export const State = {

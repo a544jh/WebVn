@@ -156,9 +156,19 @@ const [yamlState] = YamlParser.updateState(yamlText, state)
 // TODO: id from VN title
 const player = new VnPlayer(yamlState, loadFromLocalStorage("test"))
 
+declare global {
+  interface Window {
+    vnPlayer: VnPlayer
+    vnDomRenderer: DomRenderer
+  }
+}
+
+window.vnPlayer = player
+
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, player)
+window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)

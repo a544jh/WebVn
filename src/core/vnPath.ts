@@ -12,7 +12,7 @@ export class VnPath {
     return new VnPath([])
   }
 
-  // Advances the VN when an interaction is expected.
+  // Advances the VN when an interaction is expected (state.stopAfterRender).
   public advance(): VnPath {
     const last = this.path[this.path.length - 1]
     if (last instanceof Advance) {

@@ -75,7 +75,7 @@ export class VnEditor {
 
     await this.renderer.loadAssets()
 
-    this.player.goToCommandDirect(1)
+    this.player.advance()
     this.renderer.render(false)
   }
 

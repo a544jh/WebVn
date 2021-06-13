@@ -109,6 +109,14 @@ export class VnPlayer {
     this.saves[slot] = save
   }
 
+  public loadFromSlot(slot: number): void {
+    const save = this.saves[slot]
+    if (save === undefined) throw new Error("No save at slot " + slot)
+    const [state, path] = State.fromShorthandPath(this.startingState, save.path.slice(0, -1), save.path.slice(-1)[0])
+    this.state = state
+    this.path = path
+  }
+
   public getGlobalSaveData(): VnGlobalSaveData {
     return {
       seenCommands: this.state.seenCommands.toJSON(),

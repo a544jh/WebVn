@@ -12,6 +12,7 @@ import { SpriteRenderer } from "./SpriteRenderer"
 import { BackgroundRenderer } from "./BackgroundRenderer"
 import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
 import { AudioRenderer } from "./AudioRenderer"
+import { saveToLocalStorage } from "../core/save"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -145,6 +146,9 @@ export class DomRenderer implements Renderer {
     } else {
       this.render(false)
     }
+
+    // TODO get id from vn "title" ?
+    saveToLocalStorage("test", this.player.getGlobalSaveData())
   }
 
   public makeDecision(id: number): void {

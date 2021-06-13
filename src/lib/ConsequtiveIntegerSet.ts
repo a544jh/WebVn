@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 const Schema = z.array(z.union([z.number(), z.tuple([z.number(), z.number()])]))
-type Intervals = z.infer<typeof Schema>
+export type Intervals = z.infer<typeof Schema>
 
 export class ConsecutiveIntegerSet {
   private arr: Intervals = []
@@ -71,13 +71,13 @@ export class ConsecutiveIntegerSet {
     return false
   }
 
-  public toJson(): string {
-    return JSON.stringify(this.arr)
+  public toJSON(): Intervals {
+    return this.arr // should deep clone..?
   }
 
-  public static fromJson(s: string): ConsecutiveIntegerSet {
+  public static fromJSON(obj: Intervals): ConsecutiveIntegerSet {
     const newSet = new ConsecutiveIntegerSet()
-    newSet.arr = Schema.parse(JSON.parse(s))
+    newSet.arr = Schema.parse(obj)
     return newSet
   }
 }

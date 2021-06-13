@@ -72,6 +72,14 @@ export class VnPath {
     }
     return 0
   }
+
+  // JSON serializable for saving..
+  public toShorthandPath(): number[] {
+    if (this.path.find((a) => a instanceof GoToCommand) !== undefined) {
+      throw new Error("Can't get shorthand of path containing goto action")
+    }
+    return [...this.getDecisions(), this.getRemainingAdvances()]
+  }
 }
 
 abstract class VnAction {

@@ -7,6 +7,7 @@ import "./index.html"
 import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
+import { loadFromLocalStorage } from "./core/save"
 
 const state: VnPlayerState = {
   ...initialState,
@@ -152,7 +153,8 @@ story:
 `
 
 const [yamlState] = YamlParser.updateState(yamlText, state)
-const player = new VnPlayer(yamlState)
+// TODO: id from VN title
+const player = new VnPlayer(yamlState, loadFromLocalStorage("test"))
 
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
@@ -179,7 +181,7 @@ renderer.onRenderCallbacks.push(() => {
   for (const variable in player.state.variables) {
     text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
   }
-  text += `Seen commands: ${player.state.seenCommands.toJson()}\n`
+  text += `Seen commands: ${JSON.stringify(player.state.seenCommands.toJSON())}\n`
   varsContainer.innerText = text
 })
 

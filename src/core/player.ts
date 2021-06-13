@@ -9,6 +9,7 @@ import "./commands/backgrounds/Background"
 import "./commands/audio/Bgm"
 import "./commands/audio/Sfx"
 import { ConsecutiveIntegerSet } from "../lib/ConsequtiveIntegerSet"
+import { VnGlobalSaveData, VnSaveSlotData } from "./save"
 
 export const initialState: VnPlayerState = {
   actors: {
@@ -52,11 +53,14 @@ export class VnPlayer {
   public state: VnPlayerState
   public path: VnPath
   public startingState: VnPlayerState
+  public saves: VnSaveSlotData[]
 
-  constructor(state: VnPlayerState | undefined) {
+  constructor(state?: VnPlayerState, saveData?: VnGlobalSaveData) {
     this.state = state === undefined ? initialState : state
     this.path = VnPath.emptyPath()
     this.startingState = this.state
+    this.saves = saveData?.saves ?? []
+    if (saveData) this.state.seenCommands = ConsecutiveIntegerSet.fromJSON(saveData.seenCommands)
   }
 
   public advance(): void {
@@ -95,5 +99,20 @@ export class VnPlayer {
 
   public isNextCommandSeen(): boolean {
     return this.state.seenCommands.contains(this.state.commandIndex)
+  }
+
+  public saveToSlot(slot: number): void {
+    const save = {
+      path: this.path.toShorthandPath(),
+      timestamp: new Date().getTime(),
+    }
+    this.saves[slot] = save
+  }
+
+  public getGlobalSaveData(): VnGlobalSaveData {
+    return {
+      seenCommands: this.state.seenCommands.toJSON(),
+      saves: this.saves,
+    }
   }
 }

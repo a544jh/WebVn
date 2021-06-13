@@ -13,6 +13,7 @@ import { BackgroundRenderer } from "./BackgroundRenderer"
 import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
 import { AudioRenderer } from "./AudioRenderer"
 import { saveToLocalStorage } from "../core/save"
+import { toPng } from "html-to-image"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -244,6 +245,14 @@ export class DomRenderer implements Renderer {
     }
 
     return Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
+  }
+
+  public screenshot(): void {
+    toPng(this.root, { canvasWidth: 178, canvasHeight: 100, style: { margin: "initial" } }).then((dataUrl) => {
+      const img = new Image()
+      img.src = dataUrl
+      this.root.parentElement?.appendChild(img)
+    })
   }
 }
 

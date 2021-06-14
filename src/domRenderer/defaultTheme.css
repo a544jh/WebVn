@@ -144,6 +144,7 @@ body {
   width: 100%;
   text-transform: uppercase;
   font-size: 28px;
+  line-height: 28px;
   font-family: "Source Code Pro";
   font-weight: 600;
   text-shadow: 2px 2px 0 black;
@@ -173,7 +174,8 @@ body {
   background-color: rgba(0, 0, 0, 0.4);
 }
 
-.vn-action:not(.vn-action-disabled):active {
+.vn-action:not(.vn-action-disabled):active,
+.vn-pause-menu-item:active {
   background-color: rgba(0, 0, 0, 0.2);
 }
 
@@ -207,4 +209,38 @@ body {
   bottom: 18.6%;
   right: 0px;
   --ggs: 1.5;
+}
+
+.vn-menu-container {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.vn-pause-menu-container {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  top: 30%;
+  width: 30%;
+  height: 40%;
+}
+
+.vn-pause-menu-item {
+  font-size: 28px;
+  line-height: 28px;
+  font-family: "Source Code Pro";
+  font-weight: 600;
+  text-shadow: 2px 2px 0 black;
+  user-select: none;
+  -moz-user-select: none;
+  color: white;
+  background-color: rgba(0, 0, 0, 0.4);
+  height: 30px;
+  padding: 2px 2px 2px 8px;
 }

@@ -13,6 +13,8 @@ import { BackgroundRenderer } from "./BackgroundRenderer"
 import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
 import { AudioRenderer } from "./AudioRenderer"
 import { saveToLocalStorage } from "../core/save"
+import { MenuCreator } from "./menus/MenuCreator"
+import { pauseMenu } from "./menus/PauseMenu"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -22,6 +24,7 @@ export class DomRenderer implements Renderer {
   private finished: boolean
 
   private root: HTMLDivElement
+  private menuDiv: HTMLDivElement
   private player: VnPlayer
 
   private committedState: VnPlayerState | null
@@ -46,6 +49,14 @@ export class DomRenderer implements Renderer {
     this.finished = true
 
     this.root = elem
+
+    this.menuDiv = document.createElement("div")
+    this.menuDiv.classList.add("vn-menu-container")
+    this.menuDiv.addEventListener("click", (e) => {
+      // prevent interacting with VN when menu is open..
+      e.stopPropagation()
+    })
+
     this.player = player
 
     this.committedState = null
@@ -72,6 +83,10 @@ export class DomRenderer implements Renderer {
     this.root.querySelector(".vn-action-skip")?.addEventListener("click", (e) => {
       e.stopPropagation()
       this.enterSkipMode()
+    })
+    this.root.querySelector(".vn-action-menu")?.addEventListener("click", (e) => {
+      e.stopPropagation()
+      this.showMenu(pauseMenu)
     })
 
     this.imageLoader = new ImageAssetLoaderSrc()
@@ -135,6 +150,17 @@ export class DomRenderer implements Renderer {
         this.render(animate)
       }
     })
+  }
+
+  public showMenu(menuCreator: MenuCreator): void {
+    this.menuDiv.innerHTML = ""
+    menuCreator(this.menuDiv, this)
+    this.root.appendChild(this.menuDiv)
+  }
+
+  public closeMenu(): void {
+    this.root.removeChild(this.menuDiv)
+    this.menuDiv.innerHTML = ""
   }
 
   public advance(): void {

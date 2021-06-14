@@ -154,7 +154,13 @@ story:
 
 const [yamlState] = YamlParser.updateState(yamlText, state)
 // TODO: id from VN title
-const player = new VnPlayer(yamlState, loadFromLocalStorage("test"))
+let save
+try {
+  save = loadFromLocalStorage("test")
+} catch (e) {
+  save = undefined
+}
+const player = new VnPlayer(yamlState, save)
 
 declare global {
   interface Window {

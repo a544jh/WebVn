@@ -244,3 +244,49 @@ body {
   height: 30px;
   padding: 2px 2px 2px 8px;
 }
+
+.vn-saves-container {
+  position: absolute;
+  left: 25%;
+  width: 50%;
+  height: 100%;
+  overflow-y: scroll;
+}
+
+.vn-save-item {
+  position: relative;
+  height: 100px;
+  padding: 2px;
+  margin-bottom: 5px;
+}
+
+.vn-save-new {
+  height: 30px;
+}
+
+.vn-save-del {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.vn-save-return {
+  position: absolute;
+  left: 0%;
+  bottom: 12%;
+  width: 20%;
+}
+
+.vn-save-heading {
+  font-size: 32px;
+  line-height: 32px;
+  font-family: "Source Code Pro";
+  font-weight: 600;
+  text-shadow: 2px 2px 0 black;
+  user-select: none;
+  -moz-user-select: none;
+  color: white;
+  position: absolute;
+  left: 0;
+  top: 0;
+}

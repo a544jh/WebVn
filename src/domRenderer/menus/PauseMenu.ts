@@ -1,4 +1,5 @@
 import { DomRenderer } from "../DomRenderer"
+import { saveMenu, loadMenu } from "./SaveLoadMenu"
 
 export function pauseMenu(root: HTMLDivElement, renderer: DomRenderer): void {
   const container = document.createElement("div")
@@ -12,13 +13,13 @@ export function pauseMenu(root: HTMLDivElement, renderer: DomRenderer): void {
 
   container.appendChild(
     createItem("Save", () => {
-      undefined
+      renderer.showMenu(saveMenu)
     })
   )
 
   container.appendChild(
     createItem("Load", () => {
-      undefined
+      renderer.showMenu(loadMenu)
     })
   )
 

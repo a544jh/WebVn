@@ -12,7 +12,7 @@ import { SpriteRenderer } from "./SpriteRenderer"
 import { BackgroundRenderer } from "./BackgroundRenderer"
 import { AudioAssetLoaderSrc } from "../assetLoaders/AudioAssetLoaderSrc"
 import { AudioRenderer } from "./AudioRenderer"
-import { saveToLocalStorage } from "../core/save"
+import { saveToLocalStorage, VnSaveSlotData } from "../core/save"
 import { MenuCreator } from "./menus/MenuCreator"
 import { pauseMenu } from "./menus/PauseMenu"
 
@@ -74,7 +74,8 @@ export class DomRenderer implements Renderer {
     this.root.addEventListener("click", () => {
       this.advance()
     })
-    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
+    // TODO we might not want this at all.. (conficts with menu too...)
+    //this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
@@ -211,6 +212,10 @@ export class DomRenderer implements Renderer {
     setTimeout(this.skip.bind(this), this.SKIP_DELAY)
   }
 
+  public getSaves(): VnSaveSlotData[] {
+    return this.player.saves
+  }
+
   public saveToSlot(slot: number): void {
     this.player.saveToSlot(slot)
     saveToLocalStorage("test", this.player.getGlobalSaveData())
@@ -219,6 +224,10 @@ export class DomRenderer implements Renderer {
   public loadFromSlot(slot: number): void {
     this.player.loadFromSlot(slot)
     this.render(false)
+  }
+
+  public deleteSave(slot: number): void {
+    this.player.saves.splice(slot, 1)
   }
 
   public getCommittedState(): VnPlayerState | null {

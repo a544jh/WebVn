@@ -64,11 +64,11 @@ story:
         duration: 10000
   - "Wait for audio to stop"
   - bgm: "bgm/map01.ogg"
-  - asd
+  - Looping audio
   - bgm: "bgm/dayl_preview.ogg"
-  - asd
+  - Another song...
   - bgm: stop
-  - asd
+  - And now... Actors!
   - label: loop
   - show:
       actor: A1
@@ -90,7 +90,7 @@ story:
       y: 0
       anchorX: 0
       anchorY: 0
-  - A2: But here I come
+  - A2: And here I come
   - set: [$a, +=, 1]
   - show:
       actor: A2
@@ -99,6 +99,7 @@ story:
       y: 1
       anchorX: 1
       anchorY: 1
+  - A2: Whee!
   - A2: Bye
   - hide: A2
   - Bye bye, actors
@@ -120,11 +121,12 @@ story:
       duration: 1000
   - What decision are you going to make?
   - decision:
-    - "asd: asd ":
+    - "asd: asd (quoted string)":
         jump: asd
     - A bad one.:
         jump: bad
   - label: asd
+  - More YAML quoting tests...
   - 2
   - "2"
   - no
@@ -149,6 +151,7 @@ story:
       transition: fade
       duration: 200
   - That was a bad choice.
+  - And here we go again...
   - jump: loop
 `
 

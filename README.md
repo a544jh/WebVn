@@ -18,7 +18,7 @@ Features:
 - Animated ADV text box with name tags
 - Animated decision prompts
 - Control flow with variables, arithmetic and boolean logic
-- Sprites (translation, scaling)
+- Sprites (translation)
 - Backgrounds (panning, scaling)
 - Background transitions
 - Background music and sound effects
@@ -32,6 +32,9 @@ Technical feats:
 - Redux-inspired immutable state management
 - Rendering and UI code directly against browser DOM APIs, no frameworks or
   libraries involved. (Experiments with React & others still left in the repo)
+- Seen text nodes stored using custom ConsecutiveIntegerSet data structure
+- The "path" taken through the VN in the only thing persisted upon saving.
+  Full state is simulated upon loading.
 
 ### How to run
 

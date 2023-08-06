@@ -7,7 +7,8 @@ import "./player.html"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
-import { decompress } from "brotli-compress"
+import toReadableStream from "to-readable-stream"
+import { Base64 } from "js-base64"
 
 const state: VnPlayerState = {
   ...initialState,
@@ -194,18 +195,10 @@ function loadYaml(yamlText: string) {
 }
 
 async function loadEncodedScript(script: string) {
-  const buffer = await base64ToArray(script)
-  const yamlBuffer = await decompress(buffer)
-  const yamlString = new TextDecoder().decode(yamlBuffer)
+  const bufferStream = toReadableStream(Base64.toUint8Array(script))
+  const decompressedStream = bufferStream.pipeThrough(new DecompressionStream("gzip"))
+  const yamlString = await new Response(decompressedStream).text()
   loadYaml(yamlString)
-}
-
-async function base64ToArray(base64: string) {
-  var dataUrl = "data:application/octet-binary;base64," + base64;
-
-  const res = await fetch(dataUrl)
-  const buffer = await res.arrayBuffer()
-  return new Uint8Array(buffer)
 }
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {

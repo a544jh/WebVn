@@ -7,7 +7,8 @@ module.exports = {
   mode: "development",
 
   entry: {
-    app: ["./src/index.ts"]
+    app: ["./src/index.ts"],
+    playerIndex: ["./src/playerIndex.ts"]
   },
 
   output: {

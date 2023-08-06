@@ -61,10 +61,8 @@ export class VnEditor {
     for (const error of errors) {
       this.setErrorMarker(error)
     }
-    this.player.state = state
 
-    this.player.startingState = state
-    this.player.path = VnPath.emptyPath()
+    this.player.loadState(state)
 
     this.vnEditor.getDoc().markClean()
   }

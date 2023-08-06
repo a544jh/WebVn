@@ -183,9 +183,7 @@ loadYaml(yamlText)
 
 function loadYaml(yamlText: string) {
   const [state, errors] = YamlParser.updateState(yamlText, player.state)
-  player.state = state
-  player.startingState = state
-  player.path = VnPath.emptyPath()
+  player.loadState(state)
   renderer.loadAssets()
 }
 

@@ -117,6 +117,12 @@ export class VnPlayer {
     this.path = path
   }
 
+  public loadState(state: VnPlayerState): void {
+    this.state = state
+    this.startingState = state
+    this.path = VnPath.emptyPath()
+  }
+
   public getGlobalSaveData(): VnGlobalSaveData {
     return {
       seenCommands: this.state.seenCommands.toJSON(),

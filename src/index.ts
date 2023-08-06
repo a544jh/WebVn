@@ -8,6 +8,7 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
+import { compress } from "brotli-compress"
 
 const state: VnPlayerState = {
   ...initialState,
@@ -250,4 +251,32 @@ function restoreOnFullscreenExit() {
   vnDiv.style.margin = ""
   vnDiv.style.transform = ""
   vnDiv.style.transformOrigin = ""
+}
+
+document.getElementById("vn-btn-export-url")?.addEventListener("click", getCompressedScript)
+
+async function getCompressedScript() {
+  const script = editor.getScript()
+  const compressed = await compress(new TextEncoder().encode(script))
+  const base64 = await arrayToBase64(compressed)
+  console.log(base64)
+  return compressed
+}
+
+// move to util??
+async function arrayToBase64(data: Uint8Array) {
+  // Use a FileReader to generate a base64 data URI
+  const base64url: string | null | ArrayBuffer = await new Promise((r) => {
+    const reader = new FileReader()
+    reader.onload = () => r(reader.result)
+    reader.readAsDataURL(new Blob([data]))
+  })
+
+  /*
+  The result looks like
+  "data:application/octet-stream;base64,<your base64 data>",
+  so we split off the beginning:
+  */
+  if (typeof base64url == "string")
+    return base64url.substring(base64url.indexOf(',') + 1)
 }

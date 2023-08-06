@@ -77,6 +77,10 @@ export class VnEditor {
     this.renderer.render(false)
   }
 
+  public getScript(): string {
+    return this.vnEditor.getDoc().getValue()
+  }
+
   private goToLine(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
       this.parseDocument()

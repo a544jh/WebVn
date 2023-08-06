@@ -7,6 +7,7 @@ import "./player.html"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
+import { decompress } from "brotli-compress"
 
 const state: VnPlayerState = {
   ...initialState,
@@ -178,13 +179,33 @@ const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
 
-loadYaml(yamlText)
+const params = new URLSearchParams(location.search)
 
+if (params.has('vn')) {
+  loadEncodedScript(params.get('vn') as string)
+} else {
+  loadYaml(yamlText)
+}
 
 function loadYaml(yamlText: string) {
   const [state, errors] = YamlParser.updateState(yamlText, player.state)
   player.loadState(state)
   renderer.loadAssets()
+}
+
+async function loadEncodedScript(script: string) {
+  const buffer = await base64ToArray(script)
+  const yamlBuffer = await decompress(buffer)
+  const yamlString = new TextDecoder().decode(yamlBuffer)
+  loadYaml(yamlString)
+}
+
+async function base64ToArray(base64: string) {
+  var dataUrl = "data:application/octet-binary;base64," + base64;
+
+  const res = await fetch(dataUrl)
+  const buffer = await res.arrayBuffer()
+  return new Uint8Array(buffer)
 }
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {

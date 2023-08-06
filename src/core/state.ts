@@ -137,6 +137,11 @@ function advance(state: VnPlayerState): VnPlayerState {
     // if applied command doesn't change the next command (jumps), go to the next one
     if (newState.commandIndex === state.commandIndex) newState.commandIndex++
   }
+
+  // prevent render loop if we reach last command in state
+  if (newState.commandIndex == newState.commands.length)
+    newState.stopAfterRender = true
+
   return newState
 }
 

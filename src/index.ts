@@ -21,24 +21,14 @@ const state: VnPlayerState = {
     [NARRATOR_ACTOR_ID]: {
       textColor: "#60baff",
     },
-    A1: {
-      name: "Actor",
-      nameTagColor: "purple",
-      sprites: ["idle.png", "2.png"],
-    },
-    A2: {
-      name: "Actor2",
-      nameTagColor: "orange",
-      sprites: ["idle.png", "2.png"],
-    },
     Anthony: {
       name: "Anthony",
       nameTagColor: "orange",
       sprites: [],
     },
   },
-  backgrounds: ["a.png", "b.png", "scene1.webp", "scene2.webp", "scene3.webp", "scene4.webp"],
-  audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "bgm/The Ant and the Fridge.ogg", "sfx/bigthump.ogg"],
+  backgrounds: ["scene1.webp", "scene2.webp", "scene3.webp", "scene4.webp"],
+  audioAssets: ["bgm/The Ant and the Fridge.ogg", "sfx/bigthump.ogg"],
 }
 
 const yamlText = `
@@ -84,6 +74,7 @@ story:
             to: [0,0,1792,1024]
             duration: 4000
 
+  - sfx: "sfx/bigthump.ogg"
   - Anthony: "What’s that? A low rumble… growing stronger…"
   - A gleaming refrigerator appears, being dragged awkwardly on a wagon. Its surface sparkles in the moonlight.
   - Anthony: "By the stars! What is this? A metallic monolith… a celestial being!"
@@ -139,120 +130,6 @@ story:
       duration: 2000
 
   - "Antony’s dramatic heart found its purpose. The refrigerator became both his sanctuary and his partner in destiny. Together, they stood watch at the edge of the world. The End."
-
-  - set: [$a, =, 0]
-  - textbox: close
-  - bg:
-      image: a.png
-      transition: blinds
-      duration: 2000
-      pan:
-        from: [0,0,100,100]
-        to: [0,0,2000,2000]
-        duration: 10000
-  - Hello, This is WebVn - A fast visual novel engine for the modern web.
-  - The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
-  - bgm:
-      audio: "bgm/map01.ogg"
-      loop: false
-  - bg:
-      image: b.png
-      transition: fade
-      duration: 2000
-      pan:
-        from: [0,0,100,100]
-        to: [0,0,1000,1000]
-        duration: 10000
-  - "Wait for audio to stop"
-  - bgm: "bgm/map01.ogg"
-  - Looping audio
-  - bgm: "bgm/dayl_preview.ogg"
-  - Another song...
-  - bgm: stop
-  - And now... Actors!
-  - label: loop
-  - show:
-      actor: A1
-      sprite: idle.png
-  - A1: Here I am
-  - show:
-      actor: A1
-      sprite: 2.png
-      x: .2
-  - A1: Just talking...
-  - bgm: "bgm/dayl_preview.ogg"
-  - bgPan:
-      to: [20,20,500,500]
-      duration: 2000
-  - show:
-      actor: A2
-      sprite: idle.png
-      x: 0
-      y: 0
-      anchorX: 0
-      anchorY: 0
-  - A2: And here I come
-  - set: [$a, +=, 1]
-  - show:
-      actor: A2
-      sprite: idle.png
-      x: 1
-      y: 1
-      anchorX: 1
-      anchorY: 1
-  - A2: Whee!
-  - A2: Bye
-  - hide: A2
-  - Bye bye, actors
-  - hide: A1
-  - jump:
-      to: loop
-      if: [$a, ==, 1]
-  - ugh: this is an unregonized command
-  - textbox: close
-  - bgm: stop
-  - bg:
-      image: "#000000"
-      transition: blinds
-      duration: 1000
-  - bg:
-      image: "b.png"
-      transition: blinds
-      duration: 1000
-  - What decision are you going to make?
-  - decision:
-    - "asd: asd (quoted string)":
-        jump: asd
-    - A bad one.:
-        jump: bad
-  - label: asd
-  - More YAML quoting tests...
-  - 2
-  - "2"
-  - no
-  - false
-  - "Quoted"
-  - |
-    This is a
-    Multiline
-    Node
-  - Rando: I'm just some random dude
-  - A1: But I'm a defined actor
-  - textbox: close
-  - jump: loop
-  - label: bad
-  - sfx: "sfx/bigthump.ogg"
-  - bg:
-      image: "#ffffff"
-      transition: fade
-      duration: 200
-  - bg:
-      image: "b.png"
-      transition: fade
-      duration: 200
-  - That was a bad choice.
-  - And here we go again...
-  - jump: loop
 `
 
 const [yamlState] = YamlParser.updateState(yamlText, state)

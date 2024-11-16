@@ -85,6 +85,7 @@ story:
             duration: 4000
 
   - Anthony: "What’s that? A low rumble… growing stronger…"
+  - A gleaming refrigerator appears, being dragged awkwardly on a wagon. Its surface sparkles in the moonlight.
   - Anthony: "By the stars! What is this? A metallic monolith… a celestial being!"
   - Anthony: "Could it be a gift from the heavens? A challenge to prove my worth?"
   - Anthony: "Yes. This is my destiny."
@@ -105,8 +106,11 @@ story:
             to: [0,0,1792,1024]
             duration: 4000
 
+  - The wagon shifts, and the refrigerator begins to roll toward the cliff. Antony stumbles.
   - Anthony: "No! Stop, great one! I won’t let you fall!"
+  - Anthony starts chasing the refrigerator, the cliff edge growing closer with every second.
   - Anthony: "If I must risk everything to save you, so be it!"
+  - The refrigerator hits a rock and flies off the wagon. Time slows as Antony leaps, grabbing the fridge’s corner as they both plummet over the cliff.
 
   - bg:
       image: "#000000"
@@ -125,11 +129,13 @@ story:
             duration: 4000
 
   - Anthony: "We’ve made it… You’re safe now, my friend."
+  - The lighthouse keeper approaches. He inspects the fridge, discovering a complex system of tunnels carved into the frost. Antony watches him from a high shelf inside the fridge.
   - Anthony: "This is my new home. My throne. Together, we will stand as guardians of this lighthouse, watching over the world."
+  - The lighthouse keeper chuckles and closes the fridge door.
 
   - bg:
       image: "#000000"
-      transition: blinds
+      transition: fade
       duration: 2000
 
   - "Antony’s dramatic heart found its purpose. The refrigerator became both his sanctuary and his partner in destiny. Together, they stood watch at the edge of the world. The End."

@@ -37,7 +37,7 @@ const state: VnPlayerState = {
       sprites: [],
     },
   },
-  backgrounds: ["a.png", "b.png"],
+  backgrounds: ["a.png", "b.png", "scene1.webp", "scene2.webp", "scene3.webp", "scene4.webp"],
   audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"],
 }
 
@@ -45,6 +45,15 @@ const yamlText = `
 story:
 
   - The Ant and the Refrigerator
+
+  - bg:
+        image: scene1.webp
+        transition: blinds
+        duration: 2000
+        pan:
+          from: [903,108,637,364]
+          to: [0,0,1792,1024]
+          duration: 10000
 
   - "Act 1 - The Lighthouse"
 

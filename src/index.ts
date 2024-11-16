@@ -31,16 +31,46 @@ const state: VnPlayerState = {
       nameTagColor: "orange",
       sprites: ["idle.png", "2.png"],
     },
+    Anthony: {
+      name: "Anthony",
+      nameTagColor: "orange",
+      sprites: [],
+    },
   },
   backgrounds: ["a.png", "b.png"],
   audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"],
 }
 
 const yamlText = `
-anchor: &anchor
-  A1: "This is a YAML anchor"
-
 story:
+
+  - The Ant and the Refrigerator
+
+  - "Act 1 - The Lighthouse"
+
+  - Anthony: "The golden light of the setting sun casts its warm glow over our colony. The others scurry about, obsessed with their endless work. Crumbs, twigs, leaves—it’s all so… mundane."
+  - Anthony: "But I am different. I am destined for something greater. Do they not feel it? The earth trembles beneath us, the winds whisper of adventure!"
+  - Anthony: "Fine, laugh at me. But one day, they’ll see."
+
+  - "Act 2 - The Arrival"
+
+  - Anthony: "What’s that? A low rumble… growing stronger…"
+  - Anthony: "By the stars! What is this? A metallic monolith… a celestial being!"
+  - Anthony: "Could it be a gift from the heavens? A challenge to prove my worth?"
+  - Anthony: "Yes. This is my destiny."
+
+  - "Act 3 - The Pursuit"
+
+  - Anthony: "No! Stop, great one! I won’t let you fall!"
+  - Anthony: "If I must risk everything to save you, so be it!"
+
+  - "Act 4 - The Fall"
+
+  - Anthony: "We’ve made it… You’re safe now, my friend."
+  - Anthony: "This is my new home. My throne. Together, we will stand as guardians of this lighthouse, watching over the world."
+
+  - "Antony’s dramatic heart found its purpose. The refrigerator became both his sanctuary and his partner in destiny. Together, they stood watch at the edge of the world."
+
   - set: [$a, =, 0]
   - textbox: close
   - bg:
@@ -111,7 +141,6 @@ story:
       if: [$a, ==, 1]
   - ugh: this is an unregonized command
   - textbox: close
-  - *anchor
   - bgm: stop
   - bg:
       image: "#000000"

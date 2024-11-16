@@ -38,13 +38,22 @@ const state: VnPlayerState = {
     },
   },
   backgrounds: ["a.png", "b.png", "scene1.webp", "scene2.webp", "scene3.webp", "scene4.webp"],
-  audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"],
+  audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "bgm/The Ant and the Fridge.ogg", "sfx/bigthump.ogg"],
 }
 
 const yamlText = `
 story:
 
+  - bg:
+      image: "#000000"
+      transition: fade
+      duration: 0
+
   - The Ant and the Refrigerator
+
+  - "Act 1 - The Lighthouse"
+
+  - bgm: "bgm/The Ant and the Fridge.ogg"
 
   - bg:
         image: scene1.webp
@@ -53,32 +62,77 @@ story:
         pan:
           from: [903,108,637,364]
           to: [0,0,1792,1024]
-          duration: 10000
-
-  - "Act 1 - The Lighthouse"
+          duration: 4000
 
   - Anthony: "The golden light of the setting sun casts its warm glow over our colony. The others scurry about, obsessed with their endless work. Crumbs, twigs, leaves—it’s all so… mundane."
   - Anthony: "But I am different. I am destined for something greater. Do they not feel it? The earth trembles beneath us, the winds whisper of adventure!"
   - Anthony: "Fine, laugh at me. But one day, they’ll see."
 
+  - bg:
+      image: "#000000"
+      transition: blinds
+      duration: 2000
+
   - "Act 2 - The Arrival"
+
+  - bg:
+          image: scene2.webp
+          transition: blinds
+          duration: 2000
+          pan:
+            from: [113,626,684,391]
+            to: [0,0,1792,1024]
+            duration: 4000
 
   - Anthony: "What’s that? A low rumble… growing stronger…"
   - Anthony: "By the stars! What is this? A metallic monolith… a celestial being!"
   - Anthony: "Could it be a gift from the heavens? A challenge to prove my worth?"
   - Anthony: "Yes. This is my destiny."
 
+  - bg:
+        image: "#000000"
+        transition: blinds
+        duration: 2000
+
   - "Act 3 - The Pursuit"
+
+  - bg:
+          image: scene3.webp
+          transition: blinds
+          duration: 2000
+          pan:
+            from: [76,299,856,489]
+            to: [0,0,1792,1024]
+            duration: 4000
 
   - Anthony: "No! Stop, great one! I won’t let you fall!"
   - Anthony: "If I must risk everything to save you, so be it!"
 
+  - bg:
+      image: "#000000"
+      transition: blinds
+      duration: 2000
+
   - "Act 4 - The Fall"
+
+  - bg:
+          image: scene4.webp
+          transition: blinds
+          duration: 2000
+          pan:
+            from: [692,258,873,499]
+            to: [0,0,1792,1024]
+            duration: 4000
 
   - Anthony: "We’ve made it… You’re safe now, my friend."
   - Anthony: "This is my new home. My throne. Together, we will stand as guardians of this lighthouse, watching over the world."
 
-  - "Antony’s dramatic heart found its purpose. The refrigerator became both his sanctuary and his partner in destiny. Together, they stood watch at the edge of the world."
+  - bg:
+      image: "#000000"
+      transition: blinds
+      duration: 2000
+
+  - "Antony’s dramatic heart found its purpose. The refrigerator became both his sanctuary and his partner in destiny. Together, they stood watch at the edge of the world. The End."
 
   - set: [$a, =, 0]
   - textbox: close

@@ -211,6 +211,10 @@ body {
   --ggs: 1.5;
 }
 
+.vn-actionstate-enabled {
+  color: mediumspringgreen;
+}
+
 .vn-menu-container {
   position: absolute;
   top: 0px;

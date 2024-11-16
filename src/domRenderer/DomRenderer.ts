@@ -33,6 +33,7 @@ export class DomRenderer implements Renderer {
 
   public ignoreInputs = false
   public skipMode = false
+  public autoplayInterval: number | null = null
 
   private textBoxRenderer: TextBoxRenderer
   private decisionRenderer: DecisionRenderer
@@ -72,6 +73,7 @@ export class DomRenderer implements Renderer {
       { capture: true }
     )
     this.root.addEventListener("click", () => {
+      this.disableAutoplay()
       this.advance()
     })
     // TODO we might not want this at all.. (conficts with menu too...)
@@ -84,6 +86,10 @@ export class DomRenderer implements Renderer {
     this.root.querySelector(".vn-action-skip")?.addEventListener("click", (e) => {
       e.stopPropagation()
       this.enterSkipMode()
+    })
+    this.root.querySelector(".vn-action-auto")?.addEventListener("click", (e) => {
+      e.stopPropagation()
+      this.toggleAutoplay()
     })
     this.root.querySelector(".vn-action-menu")?.addEventListener("click", (e) => {
       e.stopPropagation()
@@ -154,6 +160,7 @@ export class DomRenderer implements Renderer {
   }
 
   public showMenu(menuCreator: MenuCreator): void {
+    this.disableAutoplay()
     this.menuDiv.innerHTML = ""
     menuCreator(this.menuDiv, this)
     this.root.appendChild(this.menuDiv)
@@ -206,10 +213,33 @@ export class DomRenderer implements Renderer {
   }
 
   public enterSkipMode(): void {
+    this.disableAutoplay()
     if (this.skipMode) return
     if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
     setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+  }
+
+  public toggleAutoplay(): void {
+    if (this.autoplayInterval) {
+      this.disableAutoplay()
+    } else {
+      this.enableAutoplay()
+    }
+  }
+
+  public enableAutoplay(): void {
+    document.querySelector('.vn-action-auto')?.classList.add('vn-actionstate-enabled')
+    this.autoplayInterval = window.setInterval(() => { this.advance() }, 7000)
+    // TODO: less hacky with timeout based on text length
+  }
+
+  public disableAutoplay(): void {
+    if (this.autoplayInterval) {
+      document.querySelector('.vn-action-auto')?.classList.remove('vn-actionstate-enabled')
+      window.clearInterval(this.autoplayInterval)
+      this.autoplayInterval = null
+    }
   }
 
   public getSaves(): VnSaveSlotData[] {

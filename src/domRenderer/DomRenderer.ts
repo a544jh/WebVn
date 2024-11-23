@@ -15,6 +15,7 @@ import { AudioRenderer } from "./AudioRenderer"
 import { saveToLocalStorage, VnSaveSlotData } from "../core/save"
 import { MenuCreator } from "./menus/MenuCreator"
 import { pauseMenu } from "./menus/PauseMenu"
+import { FreeformTextRenderer } from "./FreeformTextRenderer"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -36,6 +37,7 @@ export class DomRenderer implements Renderer {
   public autoplayInterval: number | null = null
 
   private textBoxRenderer: TextBoxRenderer
+  private freeformTextRenderer: FreeformTextRenderer
   private decisionRenderer: DecisionRenderer
   private spriteRenderer: SpriteRenderer
   private backgroundRenderer: BackgroundRenderer
@@ -100,6 +102,7 @@ export class DomRenderer implements Renderer {
     this.audioLoader = new AudioAssetLoaderSrc()
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
+    this.freeformTextRenderer = new FreeformTextRenderer(this.root)
     this.decisionRenderer = new DecisionRenderer(this.root, this)
     this.spriteRenderer = new SpriteRenderer(this.root, this, this.imageLoader)
     this.backgroundRenderer = new BackgroundRenderer(this.root, this, this.imageLoader)
@@ -127,6 +130,7 @@ export class DomRenderer implements Renderer {
     const committedText = this.committedState === null ? null : this.committedState.animatableState.text
 
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
+    animationsFinished.push(this.freeformTextRenderer.render(state.animatableState.freeformText, state.animatableState.freeformInsertionPoint, this.committedState?.animatableState.freeformText, animate))
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
     animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))

@@ -16,7 +16,7 @@ body {
   height: 720px;
 }
 
-#vn-textbox-renderer {
+.vn-textbox-renderer {
   font-family: "Source Code Pro";
   font-weight: bold;
   font-size: 32px;
@@ -25,8 +25,9 @@ body {
   color: white;
   user-select: none;
   -moz-user-select: none;
+  position: absolute;
   height: 100%;
-  position: relative;
+  width: 100%;
   z-index: 30;
 }
 
@@ -57,6 +58,13 @@ body {
   transition-property: transform;
   transition-duration: 150ms;
   transition-timing-function: linear;
+}
+
+.vn-freeform-textbox {
+  position: absolute;
+  box-sizing: border-box;
+  background-color: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
 }
 
 .vn-adv-nametag {

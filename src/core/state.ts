@@ -9,15 +9,18 @@ export interface VnPlayerState {
   readonly commands: Command[]
   readonly labels: Record<string, number>
   readonly stopAfterRender: boolean
+  readonly mode: TextMode
   readonly animatableState: AnimatableState
   readonly decision: DecisionItem[] | null
   readonly variables: Record<string, VnVariableValue>
   seenCommands: ConsecutiveIntegerSet // should maybe be global instead (mutable...)
-  // user settings, saves...
+  // user settings
 }
 
 export interface AnimatableState {
   readonly text: TextBox | null
+  readonly freeformInsertionPoint: FreeformInsertionPoint
+  readonly freeformText: FreeformTextBox[]
   readonly sprites: Record<string, Sprite>
   readonly background: Background
   readonly audio: AudioState
@@ -40,10 +43,27 @@ export interface ADVNameTag {
   color: string
 }
 
-export const enum TextBoxType {
+export enum TextBoxType {
   ADV = "adv",
-  NVL = "nvl",
+  // todo maybe "note" at some point
+}
+
+export enum TextMode {
+  ADV = "adv",
   freeform = "freeform",
+}
+
+export interface FreeformTextBox {
+  x: number
+  y: number
+  width: number
+  textNodes: TextNode[]
+}
+
+export interface FreeformInsertionPoint {
+  x: number
+  y: number
+  width: number
 }
 
 export interface TextNode {

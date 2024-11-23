@@ -52,6 +52,7 @@ story:
         to: [0,0,2000,2000]
         duration: 10000
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - mode: freeform
   - The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
   - bgm:
       audio: "bgm/map01.ogg"
@@ -65,6 +66,10 @@ story:
         to: [0,0,1000,1000]
         duration: 10000
   - "Wait for audio to stop"
+  - freeformPos:
+      x: .5
+      y: .5
+      width: .2
   - bgm: "bgm/map01.ogg"
   - Looping audio
   - bgm: "bgm/dayl_preview.ogg"

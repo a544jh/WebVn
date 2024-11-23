@@ -1,7 +1,9 @@
-import { NARRATOR_ACTOR_ID, State, VnPlayerState } from "./state"
+import { NARRATOR_ACTOR_ID, State, TextMode, VnPlayerState } from "./state"
 import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"
-import "./commands/text/CloseTextBox"
+import "./commands/text/TextBox"
+import "./commands/text/FreeformPos"
+import "./commands/text/Mode"
 import "./commands/controlFlow/variables"
 import "./commands/sprites/Show"
 import "./commands/sprites/Hide"
@@ -25,8 +27,11 @@ export const initialState: VnPlayerState = {
   commands: [],
   labels: {},
   stopAfterRender: false,
+  mode: TextMode.ADV,
   animatableState: {
     text: null,
+    freeformInsertionPoint: { x: 0, y: 0, width: 1 },
+    freeformText: [],
     sprites: {},
     background: {
       image: "#FFFFFF",

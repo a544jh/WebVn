@@ -1,5 +1,5 @@
-import { ADVNameTag, ADVTextBox, TextBox, TextBoxType } from "../core/state"
-import { createResolvablePromise } from "./DomRenderer"
+import { ADVNameTag, ADVTextBox, TextBox, TextBoxType, TextNode } from "../core/state"
+import { createResolvablePromise, ResolvePromiseFn } from "./DomRenderer"
 
 export class TextBoxRenderer {
   private root: HTMLDivElement
@@ -9,6 +9,7 @@ export class TextBoxRenderer {
   constructor(vnRoot: HTMLDivElement) {
     this.root = document.createElement("div")
     this.root.id = "vn-textbox-renderer"
+    this.root.classList.add("vn-textbox-renderer")
     vnRoot.appendChild(this.root)
 
     this.advTextBox = document.createElement("div")
@@ -22,7 +23,7 @@ export class TextBoxRenderer {
     if (animate && textBox === committedTextBox) {
       return Promise.resolve()
     }
-    // if we're NOT animating, we want to go ahead and clear the event listners
+    // if we're NOT animating, we want to go ahead and clear the event listeners
 
     if (!animate) {
       const clone = this.advTextBox.cloneNode() as HTMLDivElement
@@ -85,36 +86,8 @@ export class TextBoxRenderer {
 
     const prevNameTag = committedAdv === null ? undefined : committedAdv.nameTag
     await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
-
-    const fragment = document.createDocumentFragment()
-
-    let delay = 0
-
-    adv.textNodes.forEach((node) => {
-      const text = node.text
-
-      for (let i = 0; i < text.length; i++) {
-        const span = document.createElement("span")
-        span.innerText = text.charAt(i)
-
-        if (animate) {
-          span.style.animation = "appear"
-          span.style.animationTimingFunction = "step-end"
-          span.style.animationDuration = delay + "ms"
-          if (i === text.length - 1) {
-            span.addEventListener("animationend", () => resolveAnimationFinished())
-          }
-        }
-
-        span.style.color = node.color
-
-        fragment.appendChild(span)
-
-        delay += node.characterDelay
-      }
-    })
-
-    this.advTextBox.appendChild(fragment)
+    
+    appendTextNodesToDiv(adv.textNodes, this.advTextBox, animate, resolveAnimationFinished)
 
     if (!animate) {
       return
@@ -204,4 +177,36 @@ export class TextBoxRenderer {
 
     return animationFinished
   }
+}
+
+export const appendTextNodesToDiv = (nodes: TextNode[], targetDiv: HTMLDivElement, animate: boolean, resolveAnimationFinished: ResolvePromiseFn ): void => {
+  const fragment = document.createDocumentFragment()
+
+    let delay = 0
+
+    nodes.forEach((node) => {
+      const text = node.text
+
+      for (let i = 0; i < text.length; i++) {
+        const span = document.createElement("span")
+        span.innerText = text.charAt(i)
+
+        if (animate) {
+          span.style.animation = "appear"
+          span.style.animationTimingFunction = "step-end"
+          span.style.animationDuration = delay + "ms"
+          if (i === text.length - 1) {
+            span.addEventListener("animationend", () => resolveAnimationFinished())
+          }
+        }
+
+        span.style.color = node.color
+
+        fragment.appendChild(span)
+
+        delay += node.characterDelay
+      }
+    })
+
+    targetDiv.appendChild(fragment)
 }

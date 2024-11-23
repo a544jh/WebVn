@@ -86,14 +86,10 @@ export class TextBoxRenderer {
 
     const prevNameTag = committedAdv === null ? undefined : committedAdv.nameTag
     await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
-    
+
     appendTextNodesToDiv(adv.textNodes, this.advTextBox, animate, resolveAnimationFinished)
 
-    if (!animate) {
-      return
-    } else {
-      return animationFinished
-    }
+    return animationFinished
   }
 
   private async renderAdvNameTag(
@@ -179,34 +175,43 @@ export class TextBoxRenderer {
   }
 }
 
-export const appendTextNodesToDiv = (nodes: TextNode[], targetDiv: HTMLDivElement, animate: boolean, resolveAnimationFinished: ResolvePromiseFn ): void => {
+export const appendTextNodesToDiv = (
+  nodes: TextNode[],
+  targetDiv: HTMLDivElement,
+  animate: boolean,
+  resolveAnimationFinished: ResolvePromiseFn
+): void => {
   const fragment = document.createDocumentFragment()
 
-    let delay = 0
+  let delay = 0
 
-    nodes.forEach((node) => {
-      const text = node.text
+  nodes.forEach((node, nodeIndex) => {
+    const text = node.text
 
-      for (let i = 0; i < text.length; i++) {
-        const span = document.createElement("span")
-        span.innerText = text.charAt(i)
+    for (let i = 0; i < text.length; i++) {
+      const span = document.createElement("span")
+      span.innerText = text.charAt(i)
 
-        if (animate) {
-          span.style.animation = "appear"
-          span.style.animationTimingFunction = "step-end"
-          span.style.animationDuration = delay + "ms"
-          if (i === text.length - 1) {
-            span.addEventListener("animationend", () => resolveAnimationFinished())
-          }
+      if (animate) {
+        span.style.animation = "appear"
+        span.style.animationTimingFunction = "step-end"
+        span.style.animationDuration = delay + "ms"
+        if (nodeIndex === nodes.length - 1 && i === text.length - 1) {
+          span.addEventListener("animationend", () => resolveAnimationFinished())
         }
-
-        span.style.color = node.color
-
-        fragment.appendChild(span)
-
-        delay += node.characterDelay
       }
-    })
 
-    targetDiv.appendChild(fragment)
+      span.style.color = node.color
+
+      fragment.appendChild(span)
+
+      delay += node.characterDelay
+    }
+  })
+
+  targetDiv.appendChild(fragment)
+
+  if (!animate) {
+    resolveAnimationFinished()
+  }
 }

@@ -130,7 +130,7 @@ export class DomRenderer implements Renderer {
     const committedText = this.committedState === null ? null : this.committedState.animatableState.text
 
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
-    animationsFinished.push(this.freeformTextRenderer.render(state.animatableState.freeformText, state.animatableState.freeformInsertionPoint, this.committedState?.animatableState.freeformText, animate))
+    animationsFinished.push(this.freeformTextRenderer.render(state.animatableState.freeformText, this.committedState?.animatableState.freeformText, animate))
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
     animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))
@@ -152,8 +152,6 @@ export class DomRenderer implements Renderer {
       if (this.consecutiveCommands > 10000) {
         alert("Seems like we're stuck in an infinite loop")
         throw new Error("Got stuck in infinite loop while rendering")
-
-        return
       }
       if (!this.player.state.stopAfterRender) {
         this.consecutiveCommands++

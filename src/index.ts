@@ -52,7 +52,6 @@ story:
         to: [0,0,2000,2000]
         duration: 10000
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
-  - mode: freeform
   - The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
   - bgm:
       audio: "bgm/map01.ogg"
@@ -66,10 +65,6 @@ story:
         to: [0,0,1000,1000]
         duration: 10000
   - "Wait for audio to stop"
-  - freeformPos:
-      x: .5
-      y: .5
-      width: .2
   - bgm: "bgm/map01.ogg"
   - Looping audio
   - bgm: "bgm/dayl_preview.ogg"
@@ -111,6 +106,29 @@ story:
   - hide: A2
   - Bye bye, actors
   - hide: A1
+  - Let's enter freeform mode!
+  - mode: freeform
+  - Wheee!
+  - Eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee (should be appended!)
+  - freeformPos:
+      x: .5
+      y: .5
+      width: .2
+  - I'm a new box
+  - That also has text appended to it!
+  - freeformPos:
+      x: .2
+      y: .2
+      width: .2
+  - Yet another one!
+  - A1: Actors can talk too!
+  - Not let's clear everything
+  - textbox: clear
+  - And a new box should appear now
+  - And back to ADV mode!
+  - mode: adv
+  - Hello again!
+  - Let's try some jumps
   - jump:
       to: loop
       if: [$a, ==, 1]
@@ -126,6 +144,7 @@ story:
       image: "b.png"
       transition: blinds
       duration: 1000
+  - mode: adv
   - What decision are you going to make?
   - decision:
     - "asd: asd (quoted string)":

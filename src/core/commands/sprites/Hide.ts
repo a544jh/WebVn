@@ -1,9 +1,14 @@
+import { z } from "zod"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
+
+const HideCommandSchema = z.string()
+
+type HideCommand = z.infer<typeof HideCommandSchema>
 
 class Hide extends Command {
-  constructor(location: SourceLocation, private id: string) {
+  constructor(location: SourceLocation, private id: HideCommand) {
     super(location)
   }
 
@@ -17,9 +22,4 @@ class Hide extends Command {
   }
 }
 
-registerCommandHandler("hide", (obj, location) => {
-  if (typeof obj !== "string") {
-    return new ParserError("Sprite id must be a string.", location, ErrorLevel.WARNING)
-  }
-  return new Hide(location, obj)
-})
+registerCommandHandler("hide", makeZodCmdHandler(HideCommandSchema, Hide))

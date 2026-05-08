@@ -1,10 +1,29 @@
+import { z } from "zod"
 import { DecisionItem, VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
+
+const DecisionCommandSchema = z
+  .array(
+    z
+      .record(z.object({ jump: z.string() }))
+      .refine((obj) => Object.keys(obj).length === 1, "Decision must be a single-keyed map.")
+  )
+  .transform((arr): DecisionItem[] =>
+    arr.map((item) => {
+      const title = Object.keys(item)[0]
+      return { title, jumpLabel: item[title].jump }
+    })
+  )
+
+type DecisionCommand = z.infer<typeof DecisionCommandSchema>
 
 export class Decision extends Command {
-  constructor(location: SourceLocation, public items: DecisionItem[]) {
+  public items: DecisionItem[]
+
+  constructor(location: SourceLocation, cmd: DecisionCommand) {
     super(location)
+    this.items = cmd
   }
 
   public apply(state: VnPlayerState): VnPlayerState {
@@ -12,30 +31,4 @@ export class Decision extends Command {
   }
 }
 
-registerCommandHandler("decision", (obj, location) => {
-  const decisionItems: DecisionItem[] = []
-
-  if (!Array.isArray(obj)) {
-    return new ParserError("Decisions must be a seq.", location, ErrorLevel.WARNING)
-  }
-  for (const item of obj) {
-    if (typeof item !== "object") {
-      return new ParserError("Decision must be a single-keyed map.", location, ErrorLevel.WARNING)
-    }
-    if (Object.keys(item).length !== 1) {
-      return new ParserError("Decision must be a single-keyed map.", location, ErrorLevel.WARNING)
-    }
-    const title = Object.keys(item)[0]
-    const value = item[title]
-    if (typeof value !== "object") {
-      return new ParserError(`Decision "${title}"'s value must be a map.`, location, ErrorLevel.WARNING)
-    }
-    const jumpLabel = value.jump
-    if (typeof jumpLabel !== "string")
-      return new ParserError(`Decision "${title}" must have a jump label`, location, ErrorLevel.WARNING)
-    const decisionItem: DecisionItem = { title, jumpLabel }
-    decisionItems.push(decisionItem)
-  }
-
-  return new Decision(location, decisionItems)
-})
+registerCommandHandler("decision", makeZodCmdHandler(DecisionCommandSchema, Decision))

@@ -1,3 +1,4 @@
+import { z, ZodError } from "zod"
 import { VnPlayerState, VnVariableValue } from "../../state"
 import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
@@ -90,24 +91,24 @@ class BinaryOperation extends Command {
   }
 }
 
+const VnVariableValueSchema = z.union([z.string(), z.number(), z.boolean()])
+
+const SetCommandSchema = z.tuple([
+  z.string().refine((s) => s.charAt(0) === "$", "Identifier must begin with a dollar sign."),
+  z.enum(["=", "+=", "-=", "*=", "/="]),
+  VnVariableValueSchema,
+])
+
 registerCommandHandler("set", (obj, location) => {
-  if (!Array.isArray(obj) || obj.length !== 3)
-    return new ParserError(
-      "set command must be a seq of format [<identifier>, <operator>, <value>].",
-      location,
-      ErrorLevel.WARNING
-    )
-  if (typeof obj[0] !== "string") return new ParserError("Identifier must be a string.", location, ErrorLevel.WARNING)
-  if (obj[0].charAt(0) !== "$")
-    return new ParserError("Identifier must begin with a dollar sign.", location, ErrorLevel.WARNING)
-  const identifier = obj[0].slice(1)
-  if (typeof obj[1] !== "string") {
-    return new ParserError("Operator must be a string.", location, ErrorLevel.WARNING)
+  let cmd
+  try {
+    cmd = SetCommandSchema.parse(obj)
+  } catch (e) {
+    return new ParserError((e as ZodError).message, location, ErrorLevel.WARNING)
   }
-  const operator = obj[1]
-  if (!isVnVariableValue(obj[2]))
-    return new ParserError("Value must be a string, number or boolean.", location, ErrorLevel.WARNING)
-  const expr = new ValueExpression(obj[2])
+  const identifier = cmd[0].slice(1)
+  const operator = cmd[1]
+  const expr = new ValueExpression(cmd[2])
   switch (operator) {
     case "=":
       return new SetVariable(location, identifier, expr)
@@ -119,8 +120,6 @@ registerCommandHandler("set", (obj, location) => {
       return new BinaryOperation(location, identifier, expr, mul)
     case "/=":
       return new BinaryOperation(location, identifier, expr, div)
-    default:
-      return new ParserError(`${operator} is not a valid operator.`, location, ErrorLevel.WARNING)
   }
 })
 

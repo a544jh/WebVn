@@ -52,7 +52,7 @@ test-assets/       runtime assets copied to dist/ by CopyPlugin
 - Sub-renderers read prev state via `renderer.getCommittedState()`. `DomRenderer.committedState` is set synchronously **before** the `Promise.all(...).then()` runs, so reads inside scheduled microtasks see the *new* state. Always capture `prev` synchronously at the top of a sub-renderer's `render`.
 
 ### Save/load
-- `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`.
+- `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
 - Save slots are `{ timestamp, path: number[] }` where `path` is `[...decisions, remainingAdvances]`.
 - Persisted via `saveToLocalStorage(id, data)` under key `vn-<id>`. Currently `id` is hardcoded `"test"` — TODOed to be derived from VN title.
 - `loadFromLocalStorage` does **not** validate shape beyond `JSON.parse`. Only `ConsecutiveIntegerSet.fromJSON` uses Zod. Be defensive if you add fields.

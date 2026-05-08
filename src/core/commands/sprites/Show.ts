@@ -6,7 +6,7 @@ interface ShowCommand {
   actor: string
   sprite: string
   id?: string //TODO handle..
-  postion?: string //TODO preset positions...
+  position?: string //TODO preset positions...
   x?: number
   y?: number
   anchorX?: number
@@ -26,7 +26,7 @@ class Show extends Command {
       y: this.cmd.y === undefined ? 0.5 : this.cmd.y,
       anchorX: this.cmd.anchorX === undefined ? 0.5 : this.cmd.anchorX,
       anchorY: this.cmd.anchorY === undefined ? 0.5 : this.cmd.anchorY,
-    } // TODO: better default postion handling .. if any coord set default should be zero ...
+    } // TODO: better default position handling .. if any coord set default should be zero ...
 
     const newSprites = { ...state.animatableState.sprites, [this.cmd.actor]: newSprite }
     const newState = { ...state, stopAfterRender: false }

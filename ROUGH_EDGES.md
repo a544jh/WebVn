@@ -2,12 +2,6 @@
 
 Real issues that actively confuse new contributors. If you touch the area, consider fixing rather than working around.
 
-- **Typos that travel through imports:**
-  - `src/lib/ConsequtiveIntegerSet.ts` (class is spelled correctly as `ConsecutiveIntegerSet`)
-  - `transitonDuration` in `state.ts`, `Background.ts`, `BackgroundRenderer.ts`
-  - `lable` / `lables` in `Label.ts` (`updateLabels`)
-  - `postion` in `Show.ts`
-  - Wrong error text in `Jump.ts:34` — says `"of"` should say `"to"`
 - **`VnPath.undo` contains `stepsLeft -= stepsLeft`**. Works by accident (exits loop at 0). Harmless, but don't copy-paste.
 - **Dead code paths:** `DomRenderer.handleScrollWheelEvent` is defined but its listener is commented out. `animations.css` has unused keyframes.
 - **Zod type used in `Parser.ts:makeZodCmdHandler` is `ZodAny`** but callers pass object schemas. `ZodTypeAny` would be more accurate; don't tighten without checking every call site.

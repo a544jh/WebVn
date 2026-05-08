@@ -10,7 +10,7 @@ import "./commands/sprites/Hide"
 import "./commands/backgrounds/Background"
 import "./commands/audio/Bgm"
 import "./commands/audio/Sfx"
-import { ConsecutiveIntegerSet } from "../lib/ConsequtiveIntegerSet"
+import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
 import { VnGlobalSaveData, VnSaveSlotData } from "./save"
 
 export const initialState: VnPlayerState = {
@@ -40,7 +40,7 @@ export const initialState: VnPlayerState = {
       panTo: { x: 0, y: 0, w: 0, h: 0 },
       waitForPan: false,
       transition: "fade",
-      transitonDuration: 0,
+      transitionDuration: 0,
       shouldTransition: false,
     },
     audio: {

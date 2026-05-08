@@ -22,17 +22,17 @@ registerCommandHandler("label", (obj, location) => {
 
 export function updateLabels(state: VnPlayerState): VnPlayerState {
   const newState = { ...state }
-  const lables: Record<string, number> = {}
+  const labels: Record<string, number> = {}
   state.commands.forEach((command, index) => {
     if (command instanceof Label) {
-      const lable = command.name
-      if (lables[lable] !== undefined) {
-        throw new Error(`Label ${lable} already exists in story.`)
+      const label = command.name
+      if (labels[label] !== undefined) {
+        throw new Error(`Label ${label} already exists in story.`)
       } else {
-        lables[lable] = index
+        labels[label] = index
       }
     }
   })
-  newState.labels = lables
+  newState.labels = labels
   return newState
 }

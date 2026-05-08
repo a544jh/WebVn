@@ -146,7 +146,7 @@ export class BackgroundRenderer {
       this.currentRenderable,
       newRenderable,
       this.lastTick,
-      state.transitonDuration,
+      state.transitionDuration,
       state.transitionOptions
     )
     return [transition, newRenderable]

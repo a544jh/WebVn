@@ -1,4 +1,4 @@
-import { Intervals } from "../lib/ConsequtiveIntegerSet"
+import { Intervals } from "../lib/ConsecutiveIntegerSet"
 
 export interface VnGlobalSaveData {
   seenCommands: Intervals

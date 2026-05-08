@@ -16,7 +16,7 @@ class SetBackground extends Command {
       panTo: parseViewBox(this.cmd.pan?.to),
       waitForPan: this.cmd.pan?.wait ?? false,
       transition: this.cmd.transition,
-      transitonDuration: this.cmd.duration,
+      transitionDuration: this.cmd.duration,
       transitionOptions: this.cmd.options,
       shouldTransition: true,
     }

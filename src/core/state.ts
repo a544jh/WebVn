@@ -1,4 +1,4 @@
-import { ConsecutiveIntegerSet } from "../lib/ConsequtiveIntegerSet"
+import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
 import { Command } from "./commands/Command"
 import { VnPath } from "./vnPath"
 export interface VnPlayerState {
@@ -116,7 +116,7 @@ export interface Background {
   panDuration: number
   waitForPan: boolean
   transition: string
-  transitonDuration: number
+  transitionDuration: number
   transitionOptions?: unknown
   shouldTransition: boolean
 }

@@ -31,7 +31,7 @@ registerCommandHandler("jump", (obj, location) => {
       return new ParserError(`Value of "to" must be a string`, location, ErrorLevel.WARNING)
     to = obj.to
   } else {
-    return new ParserError(`map form of jump command must have key "of"`, location, ErrorLevel.WARNING)
+    return new ParserError(`map form of jump command must have key "to"`, location, ErrorLevel.WARNING)
   }
   if (tsHasOwnProperty(obj, "if")) {
     expr = parseBooleanExpression(obj.if, location)

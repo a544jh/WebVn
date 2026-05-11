@@ -6,7 +6,10 @@
   "scripts": {
     "build": "webpack --mode=production",
     "dev": "webpack serve",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:browser": "vitest run --project browser",
+    "test:watch": "vitest",
     "lint": "eslint '**/*.ts'",
     "prettier": "prettier -c '**/*.ts'"
   },
@@ -30,6 +33,9 @@
     "style-loader": "^3.3.3",
     "ts-loader": "^9.4.4",
     "typescript": "^5.1.6",
+    "vitest": "^3.2.4",
+    "@vitest/browser": "^3.2.4",
+    "playwright": "^1.49.0",
     "webpack": "^5.88.2",
     "webpack-cli": "^4.6.0",
     "webpack-dev-server": "^3.11.2"

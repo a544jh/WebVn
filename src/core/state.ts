@@ -159,8 +159,7 @@ function advance(state: VnPlayerState): VnPlayerState {
   }
 
   // prevent render loop if we reach last command in state
-  if (newState.commandIndex == newState.commands.length)
-    newState.stopAfterRender = true
+  if (newState.commandIndex == newState.commands.length) newState.stopAfterRender = true
 
   return newState
 }
@@ -195,7 +194,20 @@ function advanceUntilStop(state: VnPlayerState): VnPlayerState {
     state = advance(state)
     advances++
     if (advances > 10000) {
-      alert("Looks like we're stuck in an infinite loop")
+      throw new Error("Got stuck in infinite loop while replaying path")
+    }
+  }
+  return state
+}
+
+// The unrecorded "auto-run" the renderer performs: advance only if not already stopped.
+// (advanceUntilStop always forces one step - that is a recorded user advance.)
+function runToStop(state: VnPlayerState): VnPlayerState {
+  let advances = 0
+  while (!state.stopAfterRender) {
+    state = advance(state)
+    advances++
+    if (advances > 10000) {
       throw new Error("Got stuck in infinite loop while replaying path")
     }
   }
@@ -203,7 +215,8 @@ function advanceUntilStop(state: VnPlayerState): VnPlayerState {
 }
 
 function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
-  let state = startingState
+  // the automatic run to the first stop is not part of the path
+  let state = runToStop(startingState)
   for (const action of path.getActions()) {
     state = action.perform(state)
   }
@@ -216,27 +229,25 @@ function fromShorthandPath(
   remainingAdvances: number
 ): [VnPlayerState, VnPath] {
   let path = VnPath.emptyPath()
-  let state = startingState
-  let decisionIndex = 0
-  while (decisionIndex < decisions.length) {
+  let state = runToStop(startingState)
+  for (const id of decisions) {
     let advances = 0
     while (state.decision === null) {
-      state = advance(state)
-      if (state.stopAfterRender) {
-        path = path.advance()
-      }
+      state = advanceUntilStop(state)
+      path = path.advance()
       advances++
       if (advances > 10000) {
-        alert("Looks like we're stuck in an infinite loop")
         throw new Error("Got stuck in infinite loop while replaying path")
       }
     }
-    state = makeDecision(decisions[decisionIndex], state)
-    path = path.makeDecision(decisions[decisionIndex])
-    decisionIndex++
+    const decided = makeDecision(id, state)
+    if (decided === state) {
+      throw new Error("Invalid decision id in saved path")
+    }
+    path = path.makeDecision(id)
+    // the run from the decision to the next stop is automatic, not a recorded advance
+    state = advanceUntilStop(decided)
   }
-  state = advanceUntilStop(state)
-  path = path.advance()
   while (remainingAdvances > 0) {
     state = advanceUntilStop(state)
     path = path.advance()
@@ -250,6 +261,7 @@ export const State = {
   makeDecision,
   goToCommandDirect,
   advanceUntilStop,
+  runToStop,
   fromShorthandPath,
   fromPath,
 }

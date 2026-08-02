@@ -45,7 +45,7 @@ export class VnPath {
         } else if (last.times > stepsLeft) {
           arr.pop()
           arr.push(new Advance(last.times - stepsLeft))
-          stepsLeft -= stepsLeft
+          stepsLeft = 0
         }
       } else if (last !== undefined) {
         arr.pop()
@@ -105,8 +105,14 @@ class MakeDecision extends VnAction {
   }
 
   public perform(state: VnPlayerState): VnPlayerState {
-    state = State.makeDecision(this.id, state)
-    return State.advanceUntilStop(state)
+    const decided = State.makeDecision(this.id, state)
+    if (decided === state) {
+      // makeDecision no-ops when no decision is pending or the id is out of range -
+      // silently continuing would let the replay diverge from what the path describes
+      throw new Error("Could not replay decision - path does not match the story")
+    }
+    // the run from the decision to the next stop is automatic, not a recorded advance
+    return State.advanceUntilStop(decided)
   }
 }
 
@@ -116,6 +122,7 @@ class GoToCommand extends VnAction {
   }
 
   public perform(state: VnPlayerState): VnPlayerState {
-    return State.goToCommandDirect(this.id, state)
+    // finish the automatic run the renderer would perform after the goto
+    return State.runToStop(State.goToCommandDirect(this.id, state))
   }
 }

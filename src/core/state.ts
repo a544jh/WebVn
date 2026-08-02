@@ -159,8 +159,7 @@ function advance(state: VnPlayerState): VnPlayerState {
   }
 
   // prevent render loop if we reach last command in state
-  if (newState.commandIndex == newState.commands.length)
-    newState.stopAfterRender = true
+  if (newState.commandIndex == newState.commands.length) newState.stopAfterRender = true
 
   return newState
 }
@@ -195,7 +194,6 @@ function advanceUntilStop(state: VnPlayerState): VnPlayerState {
     state = advance(state)
     advances++
     if (advances > 10000) {
-      alert("Looks like we're stuck in an infinite loop")
       throw new Error("Got stuck in infinite loop while replaying path")
     }
   }
@@ -227,7 +225,6 @@ function fromShorthandPath(
       }
       advances++
       if (advances > 10000) {
-        alert("Looks like we're stuck in an infinite loop")
         throw new Error("Got stuck in infinite loop while replaying path")
       }
     }

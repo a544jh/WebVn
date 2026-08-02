@@ -24,8 +24,12 @@ export class DecisionRenderer {
         this.root.innerHTML = ""
         return Promise.resolve()
       }
-      const [promise, resolve] = createResolvablePromise()
       const elems = this.root.children
+      if (elems.length === 0) {
+        // nothing to animate out (e.g. the very first render) — don't wait for a transitionend that never comes
+        return Promise.resolve()
+      }
+      const [promise, resolve] = createResolvablePromise()
       for (let i = 0; i < elems.length; i++) {
         const elem = elems[i] as HTMLDivElement
         if (i === elems.length - 1) {

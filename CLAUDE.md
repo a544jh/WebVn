@@ -15,7 +15,7 @@ Two entry points:
 - `yarn build` — production build
 - `yarn lint` — ESLint over `**/*.ts`
 - `yarn prettier` — prettier check
-- `yarn test` — **currently a stub** (`echo Error: no test specified && exit 1`). No test runner is configured.
+- `yarn test` — vitest, both projects: `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). `yarn test:unit` / `yarn test:browser` run one project; `yarn test:watch` for watch mode. Browser tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## Top-level layout
 ```
@@ -85,7 +85,7 @@ If you're tempted to import from any of these, don't.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: none exist. The pure-logic modules most worth covering first are `ConsecutiveIntegerSet`, `VnPath` (especially `undo` and `toShorthandPath`), `parseBooleanExpression`, and `State.fromShorthandPath`.
+- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production). `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
 - `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due.

@@ -23,6 +23,7 @@ export class DomRenderer implements Renderer {
   private consecutiveCommands = 0
 
   private finished: boolean
+  private renderGeneration = 0
 
   private root: HTMLDivElement
   private menuDiv: HTMLDivElement
@@ -116,6 +117,11 @@ export class DomRenderer implements Renderer {
   }
 
   public render(animate: boolean): void {
+    // A new render supersedes any render still waiting on animations. Its completion
+    // callback below must then do nothing: sub-renderer promises can resolve long after
+    // (e.g. a sprite's transitionend), and acting on them would mark the renderer
+    // finished (or auto-advance) based on a render that is no longer on screen.
+    const generation = ++this.renderGeneration
     this.ignoreInputs = false
     const state = this.player.state
 
@@ -130,7 +136,13 @@ export class DomRenderer implements Renderer {
     const committedText = this.committedState === null ? null : this.committedState.animatableState.text
 
     animationsFinished.push(this.textBoxRenderer.render(committedText, state.animatableState.text, animate))
-    animationsFinished.push(this.freeformTextRenderer.render(state.animatableState.freeformText, this.committedState?.animatableState.freeformText, animate))
+    animationsFinished.push(
+      this.freeformTextRenderer.render(
+        state.animatableState.freeformText,
+        this.committedState?.animatableState.freeformText,
+        animate
+      )
+    )
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
     animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
     animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))
@@ -139,6 +151,7 @@ export class DomRenderer implements Renderer {
     this.committedState = state
 
     Promise.all(animationsFinished).then(() => {
+      if (generation !== this.renderGeneration) return
       if (this.committedState?.decision === null) this.arrow.style.display = ""
 
       if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) {
@@ -231,14 +244,16 @@ export class DomRenderer implements Renderer {
   }
 
   public enableAutoplay(): void {
-    document.querySelector('.vn-action-auto')?.classList.add('vn-actionstate-enabled')
-    this.autoplayInterval = window.setInterval(() => { this.advance() }, 7000)
+    document.querySelector(".vn-action-auto")?.classList.add("vn-actionstate-enabled")
+    this.autoplayInterval = window.setInterval(() => {
+      this.advance()
+    }, 7000)
     // TODO: less hacky with timeout based on text length
   }
 
   public disableAutoplay(): void {
     if (this.autoplayInterval) {
-      document.querySelector('.vn-action-auto')?.classList.remove('vn-actionstate-enabled')
+      document.querySelector(".vn-action-auto")?.classList.remove("vn-actionstate-enabled")
       window.clearInterval(this.autoplayInterval)
       this.autoplayInterval = null
     }

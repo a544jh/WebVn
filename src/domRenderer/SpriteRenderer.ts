@@ -20,61 +20,66 @@ export class SpriteRenderer {
     const animPromises: Promise<void>[] = []
 
     for (const id in sprites) {
-      let spriteElem = this.getSpriteElem(id)
+      const spriteElem = this.getSpriteElem(id)
       if (spriteElem !== null) {
         const prevSprite = this.renderer.getCommittedState()?.animatableState.sprites[id]
-        if ((prevSprite !== undefined && sprites[id] !== prevSprite) || !animate) {
+
+        if (!animate) {
+          // skip to end state, even if the state didn't change: an animation from a
+          // previous render may still be in flight, and its transitionend listeners
+          // must not stay armed on the element
+          if (prevSprite !== undefined && getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
+            const newElem = this.createSpriteElem(id, sprites[id])
+            this.setPosition(newElem, sprites[id])
+            spriteElem.replaceWith(newElem)
+          } else {
+            // cancel transitions and drop listeners
+            const clone = spriteElem.cloneNode() as HTMLImageElement
+            clone.style.transitionDuration = ""
+            clone.style.opacity = ""
+            this.setPosition(clone, sprites[id])
+            spriteElem.replaceWith(clone)
+          }
+          continue
+        }
+
+        if (prevSprite !== undefined && sprites[id] !== prevSprite) {
           // handle position change
           if (
-            prevSprite?.x !== sprites[id].x ||
-            prevSprite?.y !== sprites[id].y ||
-            prevSprite?.anchorX !== sprites[id].anchorX ||
-            prevSprite?.anchorY !== sprites[id].anchorY
+            prevSprite.x !== sprites[id].x ||
+            prevSprite.y !== sprites[id].y ||
+            prevSprite.anchorX !== sprites[id].anchorX ||
+            prevSprite.anchorY !== sprites[id].anchorY
           ) {
-            if (animate) {
-              spriteElem.style.transitionDuration = this.TRANSITION_DURATION
-              this.addTransitionEndPromise(animPromises, spriteElem)
-            } else {
-              // cancel transition (skip to end)
-              spriteElem.style.transitionDuration = ""
-              const clone = spriteElem.cloneNode() as HTMLImageElement
-              spriteElem.replaceWith(clone)
-              spriteElem = clone
-            }
+            spriteElem.style.transitionDuration = this.TRANSITION_DURATION
+            this.addTransitionEndPromise(animPromises, spriteElem)
             this.setPosition(spriteElem, sprites[id])
           }
-          if (prevSprite !== undefined && getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
+          if (getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
             // handle sprite image change
 
-            const newElem = this.assetLoader.getAsset(getSpriteAssetPath(sprites[id]))
-            if (!newElem) throw new Error("Can't render unloaded sprite")
-            newElem.dataset.vnSpriteId = id
+            const newElem = this.createSpriteElem(id, sprites[id])
 
-            if (animate) {
-              // fade out current
-              delete spriteElem.dataset.vnSpriteId // clean up the elem if we skip animation
+            // fade out current
+            delete spriteElem.dataset.vnSpriteId // the removal loop below cleans the elem up if we skip animation
 
-              spriteElem.addEventListener("transitionend", () => {
-                spriteElem.remove()
-              })
-              spriteElem.style.opacity = "0"
-              spriteElem.style.transitionDuration = this.TRANSITION_DURATION
+            spriteElem.addEventListener("transitionend", () => {
+              spriteElem.remove()
+            })
+            spriteElem.style.opacity = "0"
+            spriteElem.style.transitionDuration = this.TRANSITION_DURATION
 
-              // fade in new ...
-              this.addTransitionEndPromise(animPromises, newElem)
-              newElem.style.opacity = "0"
-              newElem.style.transitionDuration = this.TRANSITION_DURATION
-              this.setPosition(newElem, prevSprite)
+            // fade in new ...
+            this.addTransitionEndPromise(animPromises, newElem)
+            newElem.style.opacity = "0"
+            newElem.style.transitionDuration = this.TRANSITION_DURATION
+            this.setPosition(newElem, prevSprite)
 
-              this.root.appendChild(newElem)
-              newElem.offsetHeight // force reflow
+            this.root.appendChild(newElem)
+            newElem.offsetHeight // force reflow
 
-              newElem.style.opacity = "1"
-              this.setPosition(newElem, sprites[id])
-            } else {
-              this.setPosition(newElem, sprites[id])
-              spriteElem.replaceWith(newElem)
-            }
+            newElem.style.opacity = "1"
+            this.setPosition(newElem, sprites[id])
           }
         }
         continue
@@ -82,9 +87,7 @@ export class SpriteRenderer {
 
       // add new sprite
       const newSprite = sprites[id]
-      const newElem = this.assetLoader.getAsset(getSpriteAssetPath(newSprite))
-      if (!newElem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
-      newElem.dataset.vnSpriteId = id
+      const newElem = this.createSpriteElem(id, newSprite)
       this.setPosition(newElem, newSprite)
 
       this.root.appendChild(newElem)
@@ -125,6 +128,13 @@ export class SpriteRenderer {
 
     // TODO return when all animtions finished .....
     return Promise.all(animPromises)
+  }
+
+  private createSpriteElem(id: string, sprite: Sprite): HTMLImageElement {
+    const elem = this.assetLoader.getAsset(getSpriteAssetPath(sprite))
+    if (!elem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
+    elem.dataset.vnSpriteId = id
+    return elem
   }
 
   private getSpriteElem(id: string): HTMLImageElement {

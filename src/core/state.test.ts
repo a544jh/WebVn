@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { initialState, VnPlayer } from "./player"
 import { State, VnPlayerState } from "./state"
+import { VnPath } from "./vnPath"
 import { Command } from "./commands/Command"
 import { getCommandHandler, ParserError, SourceLocation } from "./commands/Parser"
 import { Say } from "./commands/text/Say"
@@ -255,23 +256,20 @@ describe("State.fromShorthandPath", () => {
   })
 })
 
-// Known replay bugs, documented as expected failures. Root cause: live play never records the
-// automatic run to the first stop (VnPlayer only records advances made from a stopped state),
-// but replay's Advance.perform spends one recorded advance on that same journey - so replayed
-// paths sit one stop behind live ones. When this is fixed these tests will be reported as
-// "expected to fail, but passed" - then drop the .fails to turn them into regression tests.
-describe("known replay off-by-one bugs", () => {
-  it.fails("undo goes back exactly one stop", () => {
+// Replay invariant: a path means "what the user did" - Advance(n) is n presses made from a stop,
+// and the automatic runs (initial, post-decision, post-goto) are never part of the path. Replay
+// performs those runs without consuming recorded advances, so replayed paths match live ones.
+describe("path replay matches live play", () => {
+  it("undo goes back exactly one stop", () => {
     const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
     autorun(player)
     press(player)
     press(player) // showing s3
     player.undo()
-    // should show s2; currently shows s1
-    expect(player.state.commandIndex).toBe(2)
+    expect(player.state.commandIndex).toBe(2) // showing s2
   })
 
-  it.fails("fromPath reproduces the live state after a decision", () => {
+  it("fromPath reproduces the live state after a decision", () => {
     const player = new VnPlayer(makeState(branchingScript()))
     autorun(player)
     press(player)
@@ -279,13 +277,18 @@ describe("known replay off-by-one bugs", () => {
     autorun(player)
     press(player)
     press(player)
-    // currently gets stuck at the unchosen decision: the replayed MakeDecision arrives one stop
-    // early where no decision is pending, silently no-ops, and later advances are swallowed
     const replayed = State.fromPath(player.startingState, player.path)
     expect(replayed.commandIndex).toBe(player.state.commandIndex)
+    expect(replayed.animatableState.text).toEqual(player.state.animatableState.text)
   })
 
-  it.fails("save -> load -> save -> load does not drift", () => {
+  it("fromPath of the empty path is the first stop", () => {
+    const replayed = State.fromPath(makeState(branchingScript()), VnPath.emptyPath())
+    expect(replayed.commandIndex).toBe(1)
+    expect(replayed.animatableState.text?.textNodes[0].text).toBe("one")
+  })
+
+  it("save -> load -> save -> load does not drift", () => {
     const player = new VnPlayer(makeState(branchingScript()))
     autorun(player)
     press(player)
@@ -293,13 +296,94 @@ describe("known replay off-by-one bugs", () => {
     autorun(player)
     press(player) // "left2"
     const cmdIndexAtSave = player.state.commandIndex
+    const shorthandAtSave = player.path.toShorthandPath()
 
     player.saveToSlot(0)
     player.loadFromSlot(0)
-    expect(player.state.commandIndex).toBe(cmdIndexAtSave) // first load is fine
+    expect(player.state.commandIndex).toBe(cmdIndexAtSave)
+    expect(player.path.toShorthandPath()).toEqual(shorthandAtSave)
     player.saveToSlot(0)
     player.loadFromSlot(0)
-    // currently one stop further per save/load cycle: the reconstructed path gains a trailing advance
     expect(player.state.commandIndex).toBe(cmdIndexAtSave)
+    expect(player.path.toShorthandPath()).toEqual(shorthandAtSave)
+  })
+
+  it("undo walks back through the story one visible stop at a time", () => {
+    const player = new VnPlayer(makeState(branchingScript()))
+    autorun(player)
+    press(player)
+    player.makeDecision(0)
+    autorun(player)
+    press(player)
+    press(player) // "fin"
+    expect(player.state.commandIndex).toBe(11)
+
+    player.undo()
+    expect(player.state.commandIndex).toBe(6) // "left2"
+    player.undo()
+    expect(player.state.commandIndex).toBe(5) // "left1"
+    player.undo()
+    expect(player.state.commandIndex).toBe(3) // the decision prompt again
+    expect(player.state.decision).not.toBeNull()
+    player.undo()
+    expect(player.state.commandIndex).toBe(1) // "one"
+    player.undo() // undoing past the beginning stays at the first stop
+    expect(player.state.commandIndex).toBe(1)
+  })
+
+  it("handles a decision as the very first stop", () => {
+    const script = [
+      new Decision(loc, [
+        { title: "a", jumpLabel: "L1" },
+        { title: "b", jumpLabel: "L2" },
+      ]),
+      new Label(loc, "L1"),
+      say("a1"),
+      new Jump(loc, "end"),
+      new Label(loc, "L2"),
+      say("b1"),
+      new Label(loc, "end"),
+      say("done"),
+    ]
+    const player = new VnPlayer(makeState(script))
+    autorun(player) // the decision comes up with no advances recorded
+    expect(player.state.decision).not.toBeNull()
+    player.makeDecision(1)
+    autorun(player) // "b1"
+    press(player) // "done"
+    expect(player.path.toShorthandPath()).toEqual([1, 1])
+
+    const replayed = loadShorthand(player.startingState, player.path.toShorthandPath())
+    expect(replayed.commandIndex).toBe(player.state.commandIndex)
+
+    player.undo()
+    expect(player.state.animatableState.text?.textNodes[0].text).toBe("b1")
+  })
+
+  it("undo works across a goto", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
+    autorun(player)
+    player.goToCommandDirect(3)
+    autorun(player) // showing s3
+    press(player) // showing s4
+    player.undo()
+    expect(player.state.commandIndex).toBe(3)
+    expect(player.state.animatableState.text?.textNodes[0].text).toBe("s3")
+  })
+
+  it("throws instead of hanging when a saved path expects a decision that never comes", () => {
+    const start = makeState([say("s1"), say("s2"), say("s3"), say("s4")])
+    expect(() => State.fromShorthandPath(start, [0], 0)).toThrow(/infinite loop/)
+  })
+
+  it("throws on an out-of-range decision id in a saved path", () => {
+    const start = makeState(branchingScript())
+    expect(() => State.fromShorthandPath(start, [5], 0)).toThrow(/Invalid decision id/)
+  })
+
+  it("throws when replaying a decision the story does not offer", () => {
+    const start = makeState([say("s1"), say("s2")])
+    const path = VnPath.emptyPath().makeDecision(0)
+    expect(() => State.fromPath(start, path)).toThrow(/does not match the story/)
   })
 })

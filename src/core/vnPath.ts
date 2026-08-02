@@ -45,7 +45,7 @@ export class VnPath {
         } else if (last.times > stepsLeft) {
           arr.pop()
           arr.push(new Advance(last.times - stepsLeft))
-          stepsLeft -= stepsLeft
+          stepsLeft = 0
         }
       } else if (last !== undefined) {
         arr.pop()

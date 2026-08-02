@@ -2,7 +2,6 @@
 
 Real issues that actively confuse new contributors. If you touch the area, consider fixing rather than working around.
 
-- **`VnPath.undo` contains `stepsLeft -= stepsLeft`**. Works by accident (exits loop at 0). Harmless, but don't copy-paste. (`undo` is now covered by `vnPath.test.ts`, so cleaning this up is low-risk.)
 - **Dead code paths:** `DomRenderer.handleScrollWheelEvent` is defined but its listener is commented out. `animations.css` has unused keyframes.
 - **Zod type used in `Parser.ts:makeZodCmdHandler` is `ZodAny`** but callers pass object schemas. `ZodTypeAny` would be more accurate; don't tighten without checking every call site.
 - **Asset loaders have no error handling.** A single broken image rejects `ImageAssetLoaderSrc.loadAll`. Audio waits for `canplaythrough` with no error listener — a broken audio file hangs startup.

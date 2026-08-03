@@ -8,8 +8,9 @@ import { YamlParser } from "../yamlParser/YamlParser"
 import { demoState, demoYaml } from "../demoStory"
 import { DomRenderer } from "./DomRenderer"
 
-// End-to-end coverage of the demo VN shipped by src/playerIndex.ts. The script is imported
-// from src/demoStory.ts, so these tests exercise what the standalone player actually loads.
+// End-to-end coverage of the demo VN. The script lives in src/demoStory.ts, which both entry
+// points load - the editor (src/index.ts) and the standalone player (src/playerIndex.ts) - so
+// these tests exercise what actually ships.
 //
 // Importing DomRenderer is what pulls in BackgroundRenderer -> BlindsTransition/FadeTransition,
 // which is what makes "blinds"/"fade" valid values for the bg command's transition enum. Without
@@ -28,9 +29,77 @@ const CLOSED = "<textbox closed>"
 const OPTION_GOOD = "asd: asd (quoted string)"
 const OPTION_BAD = "A bad one."
 
+// The freeform section. There is no ADV textbox in freeform mode; lines accumulate into boxes
+// placed by `freeformPos`, and consecutive lines at the same insertion point are appended to the
+// same box with a line break between them. A stop is written here as every box currently on
+// screen, joined by BOX_SEPARATOR.
+const BOX_SEPARATOR = " || "
+
+const FF_WHEEE = "Wheee!"
+const FF_APPENDED = "Eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee (should be appended!)"
+const FF_NEW_BOX = "I'm a new box"
+const FF_ALSO_APPENDED = "That also has text appended to it!"
+const FF_ANOTHER = "Yet another one!"
+const FF_ACTOR_LINE = "Actors can talk too!"
+const FF_BEFORE_CLEAR = "Not let's clear everything"
+const FF_AFTER_CLEAR = "And a new box should appear now"
+const FF_BACK_TO_ADV = "And back to ADV mode!"
+
+const FF_BOX_A = [FF_WHEEE, FF_APPENDED].join("\n")
+const FF_BOX_B = [FF_NEW_BOX, FF_ALSO_APPENDED].join("\n")
+const FF_BOX_C = [FF_ANOTHER, FF_ACTOR_LINE].join("\n")
+const FF_BOX_C_FULL = [FF_ANOTHER, FF_ACTOR_LINE, FF_BEFORE_CLEAR].join("\n")
+const FF_BOX_D = [FF_AFTER_CLEAR, FF_BACK_TO_ADV].join("\n")
+
+const FREEFORM_STOPS_FIRST_PASS = [
+  FF_WHEEE, // `mode: freeform` closes the ADV box; the first line opens a box at the default 0,0
+  FF_BOX_A, // same insertion point, so this line is appended to it
+  [FF_BOX_A, FF_NEW_BOX].join(BOX_SEPARATOR), // `freeformPos: {x: .5, y: .5, width: .2}`
+  [FF_BOX_A, FF_BOX_B].join(BOX_SEPARATOR),
+  [FF_BOX_A, FF_BOX_B, FF_ANOTHER].join(BOX_SEPARATOR), // `freeformPos: {x: .2, y: .2, width: .2}`
+  [FF_BOX_A, FF_BOX_B, FF_BOX_C].join(BOX_SEPARATOR), // an actor line lands in the box too
+  [FF_BOX_A, FF_BOX_B, FF_BOX_C_FULL].join(BOX_SEPARATOR),
+  FF_AFTER_CLEAR, // `textbox: clear` wiped all three, and the next line reopens the last one
+  FF_BOX_D,
+]
+
+// `mode: freeform` clears the boxes but NOT the insertion point, and the first pass left it at
+// {x: .2, y: .2, width: .2}. So the second pass opens there instead of at 0,0 - which means the
+// third `freeformPos` returns to a box that already exists and appends to it rather than opening
+// a new one, and the section only ever has two boxes on screen.
+const FF_MERGED = [FF_WHEEE, FF_APPENDED, FF_ANOTHER].join("\n")
+const FF_MERGED_C = [FF_MERGED, FF_ACTOR_LINE].join("\n")
+const FF_MERGED_FULL = [FF_MERGED_C, FF_BEFORE_CLEAR].join("\n")
+
+const FREEFORM_STOPS_SECOND_PASS = [
+  FF_WHEEE,
+  FF_BOX_A,
+  [FF_BOX_A, FF_NEW_BOX].join(BOX_SEPARATOR),
+  [FF_BOX_A, FF_BOX_B].join(BOX_SEPARATOR),
+  [FF_MERGED, FF_BOX_B].join(BOX_SEPARATOR),
+  [FF_MERGED_C, FF_BOX_B].join(BOX_SEPARATOR),
+  [FF_MERGED_FULL, FF_BOX_B].join(BOX_SEPARATOR),
+  FF_AFTER_CLEAR,
+  FF_BOX_D,
+]
+
+// The scene between `label: loop` and the conditional jump back to it, which the demo plays twice.
+const actorScene = (freeformStops: string[]) => [
+  "Here I am",
+  "Just talking...",
+  "And here I come",
+  "Whee!",
+  "Bye",
+  "Bye bye, actors",
+  "Let's enter freeform mode!",
+  ...freeformStops,
+  "Hello again!", // `mode: adv` cleared the freeform boxes and reopened the ADV textbox
+  "Let's try some jumps",
+]
+
 // The stops the player comes to rest at, in order, from the first stop up to the decision.
-// The demo loops through the actor scene twice: `$a` is 0 on the first pass so
-// `jump: {to: loop, if: [$a, ==, 1]}` fires once, and 2 on the second so it falls through.
+// `$a` is 0 on the first pass through the actor scene so `jump: {to: loop, if: [$a, ==, 1]}` fires
+// once, and 2 on the second pass, so it falls through.
 const STOPS_UP_TO_DECISION = [
   CLOSED, // textbox: close
   FIRST_LINE,
@@ -39,22 +108,17 @@ const STOPS_UP_TO_DECISION = [
   "Looping audio",
   "Another song...",
   "And now... Actors!",
-  "Here I am",
-  "Just talking...",
-  "And here I come",
-  "Whee!",
-  "Bye",
-  "Bye bye, actors",
-  "Here I am", // second pass through `label: loop`
-  "Just talking...",
-  "And here I come",
-  "Whee!",
-  "Bye",
-  "Bye bye, actors",
+  ...actorScene(FREEFORM_STOPS_FIRST_PASS),
+  ...actorScene(FREEFORM_STOPS_SECOND_PASS),
   CLOSED, // textbox: close
   "This is a YAML anchor", // the *anchor alias
   DECISION_QUESTION, // rendered together with the decision, since Say does not stop before one
 ]
+
+const FIRST_ACTOR_LINE = STOPS_UP_TO_DECISION.indexOf("Here I am")
+const LOOPED_ACTOR_LINE = STOPS_UP_TO_DECISION.lastIndexOf("Here I am")
+const FREEFORM_START = STOPS_UP_TO_DECISION.indexOf(FF_WHEEE)
+const DECISION_STOP = STOPS_UP_TO_DECISION.length - 1
 
 // After picking the first option (jump: asd).
 const STOPS_AFTER_GOOD_CHOICE = [
@@ -88,15 +152,29 @@ const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void> =>
   })
 
 // appendTextNodesToDiv assigns each character to `span.innerText`, and the innerText setter
-// turns a "\n" into a <br>. textContent alone would silently drop the demo's multiline node's
-// line breaks, so put them back.
+// turns a "\n" into a <br>. textContent alone would silently drop the demo's multiline node and
+// its freeform line breaks, so put them back.
+const boxText = (box: Element): string =>
+  [...box.children].map((span) => (span.querySelector("br") === null ? span.textContent : "\n")).join("")
+
 const textBoxText = (root: HTMLDivElement): string | null => {
   const box = root.querySelector(".vn-adv-textbox")
-  if (box === null) return null
-  return [...box.children].map((span) => (span.querySelector("br") === null ? span.textContent : "\n")).join("")
+  return box === null ? null : boxText(box)
 }
 
-const textBoxTextOrClosed = (root: HTMLDivElement): string => textBoxText(root) ?? CLOSED
+const freeformBoxes = (root: HTMLDivElement): HTMLDivElement[] =>
+  [...root.querySelectorAll("#vn-freeform-renderer .vn-freeform-textbox")] as HTMLDivElement[]
+
+const freeformTexts = (root: HTMLDivElement): string[] => freeformBoxes(root).map(boxText)
+
+// Everything legible on screen: the ADV textbox if the story is in adv mode, the freeform boxes
+// if it is in freeform mode, and CLOSED when neither is showing anything.
+const screenText = (root: HTMLDivElement): string => {
+  const adv = textBoxText(root)
+  if (adv !== null) return adv
+  const boxes = freeformTexts(root)
+  return boxes.length === 0 ? CLOSED : boxes.join(BOX_SEPARATOR)
+}
 
 const nameTag = (root: HTMLDivElement): HTMLDivElement | null => root.querySelector(".vn-adv-nametag")
 
@@ -273,8 +351,7 @@ const advanceFast = async (h: Harness): Promise<void> => {
     if (stopped) break
     if (performance.now() > deadline) {
       throw new Error(
-        `advance stalled at command ${h.player.state.commandIndex} ` +
-          `(text: ${JSON.stringify(textBoxTextOrClosed(h.root))})`
+        `advance stalled at command ${h.player.state.commandIndex} ` + `(text: ${JSON.stringify(screenText(h.root))})`
       )
     }
     h.renderer.advance()
@@ -287,7 +364,7 @@ const advanceCollect = async (h: Harness, steps: number): Promise<string[]> => {
   const texts: string[] = []
   for (let i = 0; i < steps; i++) {
     await advanceFast(h)
-    texts.push(textBoxTextOrClosed(h.root))
+    texts.push(screenText(h.root))
   }
   return texts
 }
@@ -317,15 +394,15 @@ describe("demo story - script", () => {
     const [state, errors] = YamlParser.updateState(demoYaml, freshDemoState())
 
     expect(errors.map((e) => `L${e.location.startLine}: ${e.message}`)).toEqual([
-      "L74: ugh is not a recognized command.",
-      "L94: Unrecognized item. A command should be a string or a single-keyed map.",
-      "L97: Unrecognized item. A command should be a string or a single-keyed map.",
+      "L97: ugh is not a recognized command.",
+      "L118: Unrecognized item. A command should be a string or a single-keyed map.",
+      "L121: Unrecognized item. A command should be a string or a single-keyed map.",
     ])
     expect(errors.every((e) => e.level === ErrorLevel.WARNING)).toBe(true)
 
     // The three warned-about items produce no command at all, so the story just skips them.
-    expect(state.labels).toEqual({ loop: 14, asd: 38, bad: 48 })
-    expect(state.commands).toHaveLength(55)
+    expect(state.labels).toEqual({ loop: 14, asd: 56, bad: 66 })
+    expect(state.commands).toHaveLength(73)
   })
 })
 
@@ -333,8 +410,8 @@ describe("demo story - narrative", () => {
   it("stops on each line in order, loops the actor scene exactly twice, and reaches the decision", async () => {
     const h = await startDemo()
 
-    expect(textBoxTextOrClosed(h.root)).toBe(STOPS_UP_TO_DECISION[0])
-    const texts = await advanceCollect(h, STOPS_UP_TO_DECISION.length - 1)
+    expect(screenText(h.root)).toBe(STOPS_UP_TO_DECISION[0])
+    const texts = await advanceCollect(h, DECISION_STOP)
     expect(texts).toEqual(STOPS_UP_TO_DECISION.slice(1))
 
     // $a drives the loop: incremented once per pass, so the conditional jump fires only the first time.
@@ -343,11 +420,11 @@ describe("demo story - narrative", () => {
 
   it("plays the quoting-test branch after the first decision option", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
 
     decisionItems(h.root)[0].click()
     await nextStop(h.renderer, h.player)
-    expect(textBoxTextOrClosed(h.root)).toBe(STOPS_AFTER_GOOD_CHOICE[0])
+    expect(screenText(h.root)).toBe(STOPS_AFTER_GOOD_CHOICE[0])
 
     const texts = await advanceCollect(h, STOPS_AFTER_GOOD_CHOICE.length - 1)
     expect(texts).toEqual(STOPS_AFTER_GOOD_CHOICE.slice(1))
@@ -355,11 +432,11 @@ describe("demo story - narrative", () => {
 
   it("plays the bad branch after the second decision option", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
 
     decisionItems(h.root)[1].click()
     await nextStop(h.renderer, h.player)
-    expect(textBoxTextOrClosed(h.root)).toBe(STOPS_AFTER_BAD_CHOICE[0])
+    expect(screenText(h.root)).toBe(STOPS_AFTER_BAD_CHOICE[0])
 
     const texts = await advanceCollect(h, STOPS_AFTER_BAD_CHOICE.length - 1)
     expect(texts).toEqual(STOPS_AFTER_BAD_CHOICE.slice(1))
@@ -367,7 +444,7 @@ describe("demo story - narrative", () => {
 
   it("renders the multiline YAML node as line breaks", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
     decisionItems(h.root)[0].click()
     await nextStop(h.renderer, h.player)
 
@@ -434,7 +511,7 @@ describe("demo story - textbox", () => {
   it("shows each actor's name tag and removes it for narrator lines", async () => {
     const h = await startDemo()
 
-    await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("Here I am"))
+    await advanceToStop(h, FIRST_ACTOR_LINE)
     expect(nameTag(h.root)?.textContent).toBe("Actor") // A1's `name`, not its id
     expect(getComputedStyle(nameTag(h.root) as HTMLDivElement).color).toBe("rgb(128, 0, 128)") // purple
 
@@ -446,13 +523,13 @@ describe("demo story - textbox", () => {
     expect(getComputedStyle(nameTag(h.root) as HTMLDivElement).color).toBe("rgb(255, 165, 0)") // orange
 
     await advanceCollect(h, 3) // "Whee!", "Bye", "Bye bye, actors" (narrator)
-    expect(textBoxTextOrClosed(h.root)).toBe("Bye bye, actors")
+    expect(screenText(h.root)).toBe("Bye bye, actors")
     expect(nameTag(h.root)).toBeNull()
   }, 30000)
 
   it("names an undefined actor by its key and falls back to the default tag color", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
     decisionItems(h.root)[0].click()
     await nextStop(h.renderer, h.player)
     await advanceCollect(h, STOPS_AFTER_GOOD_CHOICE.indexOf("I'm just some random dude"))
@@ -461,7 +538,7 @@ describe("demo story - textbox", () => {
     expect(getComputedStyle(nameTag(h.root) as HTMLDivElement).color).toBe("rgb(255, 255, 255)")
 
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("But I'm a defined actor")
+    expect(screenText(h.root)).toBe("But I'm a defined actor")
     expect(nameTag(h.root)?.textContent).toBe("Actor")
   }, 30000)
 
@@ -481,6 +558,97 @@ describe("demo story - textbox", () => {
   }, 30000)
 })
 
+describe("demo story - freeform mode", () => {
+  // The insertion points the demo's `freeformPos` commands set, in the order they are used. The
+  // first box uses the default insertion point, which no command in the demo ever sets.
+  const DEFAULT_POS = { x: 0, y: 0, width: 1 }
+  const SECOND_POS = { x: 0.5, y: 0.5, width: 0.2 }
+  const THIRD_POS = { x: 0.2, y: 0.2, width: 0.2 }
+
+  const expectBoxAt = (box: HTMLDivElement, pos: { x: number; y: number; width: number }) => {
+    expect(box.dataset.vnFreeform).toBe(`${pos.x}-${pos.y}-${pos.width}`)
+    expect(box.style.transform).toBe(
+      `translate(${Math.round(SCENE_WIDTH * pos.x)}px, ${Math.round(SCENE_HEIGHT * pos.y)}px)`
+    )
+    expect(box.style.width).toBe(`${pos.width * 100}%`)
+  }
+
+  it("swaps the ADV textbox for positioned freeform boxes and back again", async () => {
+    const h = await startDemo()
+    await advanceToStop(h, FREEFORM_START - 1) // "Let's enter freeform mode!", still adv
+    expect(h.root.querySelector(".vn-adv-textbox")).not.toBeNull()
+    expect(freeformBoxes(h.root)).toEqual([])
+
+    // `mode: freeform` closes the ADV box, and the first line opens a freeform one
+    await advanceFast(h)
+    expect(h.root.querySelector(".vn-adv-textbox")).toBeNull()
+    expect(nameTag(h.root)).toBeNull()
+    let boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(1)
+    expectBoxAt(boxes[0], DEFAULT_POS)
+    expect(boxText(boxes[0])).toBe(FF_WHEEE)
+
+    // a second line at the same insertion point is appended to the same box
+    await advanceFast(h)
+    boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(1)
+    expect(boxText(boxes[0])).toBe(FF_BOX_A)
+
+    // `freeformPos` moves the insertion point, so the next line opens a box of its own
+    await advanceFast(h)
+    boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(2)
+    expectBoxAt(boxes[1], SECOND_POS)
+    expect(boxText(boxes[1])).toBe(FF_NEW_BOX)
+
+    await advanceCollect(h, 2) // appended line, then the third `freeformPos` and its line
+    boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(3)
+    expectBoxAt(boxes[2], THIRD_POS)
+
+    // an actor line in freeform mode is plain text in the box - no name tag anywhere
+    await advanceFast(h)
+    expect(boxText(freeformBoxes(h.root)[2])).toBe(FF_BOX_C)
+    expect(nameTag(h.root)).toBeNull()
+    expect(h.root.querySelector(".vn-adv-textbox")).toBeNull()
+
+    // `textbox: clear` empties the freeform state, and the next line reopens the last position
+    await advanceCollect(h, 2)
+    boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(1)
+    expectBoxAt(boxes[0], THIRD_POS)
+    expect(boxText(boxes[0])).toBe(FF_AFTER_CLEAR)
+
+    // `mode: adv` clears the freeform boxes and brings the ADV textbox back
+    await advanceCollect(h, 2)
+    expect(screenText(h.root)).toBe("Hello again!")
+    expect(freeformBoxes(h.root)).toEqual([])
+    expect(h.player.state.animatableState.freeformText).toEqual([])
+    expect(textBoxText(h.root)).toBe("Hello again!")
+  }, 30000)
+
+  it("carries the insertion point over the loop, so the second pass opens elsewhere", async () => {
+    const h = await startDemo()
+    await advanceToStop(h, LOOPED_ACTOR_LINE + (FREEFORM_START - FIRST_ACTOR_LINE))
+
+    // `mode: adv` and `mode: freeform` both reset the boxes but leave freeformInsertionPoint
+    // alone, so the second pass starts where the first one finished instead of at 0,0
+    expect(h.player.state.animatableState.freeformInsertionPoint).toEqual({ x: 0.2, y: 0.2, width: 0.2 })
+    const boxes = freeformBoxes(h.root)
+    expect(boxes).toHaveLength(1)
+    expectBoxAt(boxes[0], THIRD_POS)
+    expect(boxText(boxes[0])).toBe(FF_WHEEE)
+  }, 30000)
+
+  it("leaves no freeform boxes behind once the story reaches the decision", async () => {
+    const h = await startDemo()
+    await advanceToStop(h, DECISION_STOP)
+
+    expect(freeformBoxes(h.root)).toEqual([])
+    expect(textBoxText(h.root)).toBe(DECISION_QUESTION)
+  }, 30000)
+})
+
 describe("demo story - sprites", () => {
   it("shows, moves, swaps and hides the demo's actors", async () => {
     const h = await startDemo()
@@ -489,7 +657,7 @@ describe("demo story - sprites", () => {
     const a2Idle = h.images["sprites/A2/idle.png"]
 
     // `show: {actor: A1, sprite: idle.png}` - centered, since x/y/anchors all default to 0.5
-    await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("Here I am"))
+    await advanceToStop(h, FIRST_ACTOR_LINE)
     let sprites = liveSprites(h.root)
     expect(Object.keys(sprites)).toEqual(["A1"])
     expect(sprites["A1"].dataset.testAsset).toBe("sprites/A1/idle.png")
@@ -517,16 +685,21 @@ describe("demo story - sprites", () => {
 
     await advanceFast(h) // "Bye"
     await advanceFast(h) // `hide: A2` then "Bye bye, actors"
-    expect(textBoxTextOrClosed(h.root)).toBe("Bye bye, actors")
+    expect(screenText(h.root)).toBe("Bye bye, actors")
     expect(Object.keys(liveSprites(h.root))).toEqual(["A1"])
     expect(spriteElems(h.root)).toHaveLength(1)
 
-    // `hide: A1` then the conditional jump back to `label: loop`, which re-shows A1
+    // `hide: A1` then the line that leads into the freeform section - the stage is empty
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("Here I am")
+    expect(screenText(h.root)).toBe("Let's enter freeform mode!")
+    expect(liveSprites(h.root)).toEqual({})
+
+    // and the conditional jump back to `label: loop` re-shows A1 from scratch
+    await advanceToStop(h, LOOPED_ACTOR_LINE)
     const looped = liveSprites(h.root)
     expect(Object.keys(looped)).toEqual(["A1"])
     expect(looped["A1"].dataset.testAsset).toBe("sprites/A1/idle.png")
+    expect(looped["A1"].style.transform).toBe(expectedSpriteTransform(a1Idle, 0.5, 0.5, 0.5, 0.5))
   }, 30000)
 
   it("keeps the DOM sprites in sync with state at every stop of the whole demo", async () => {
@@ -542,7 +715,7 @@ describe("demo story - sprites", () => {
       }
     })
 
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
     decisionItems(h.root)[0].click()
     await nextStop(h.renderer, h.player)
     await advanceCollect(h, STOPS_AFTER_GOOD_CHOICE.length - 1)
@@ -552,9 +725,9 @@ describe("demo story - sprites", () => {
 
   it("clears all sprites when the story hides them", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.lastIndexOf(CLOSED))
+    await advanceToStop(h, FREEFORM_START)
 
-    // `hide: A2` / `hide: A1` ran before the second-pass jump fell through
+    // `hide: A2` / `hide: A1` ran just before the freeform section
     expect(h.player.state.animatableState.sprites).toEqual({})
     expect(spriteElems(h.root)).toEqual([])
   }, 30000)
@@ -563,7 +736,7 @@ describe("demo story - sprites", () => {
 describe("demo story - decision", () => {
   it("renders both options with a staggered entry animation", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 2) // "This is a YAML anchor"
+    await advanceToStop(h, DECISION_STOP - 1) // "This is a YAML anchor"
 
     // let this one play out fully, so the decision's entry animation actually runs
     const stop = nextStop(h.renderer, h.player)
@@ -585,7 +758,7 @@ describe("demo story - decision", () => {
 
   it("jumps to the chosen label, blinking the picked option, and clears the options", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
 
     const items = decisionItems(h.root)
     const stop = nextStop(h.renderer, h.player)
@@ -597,7 +770,7 @@ describe("demo story - decision", () => {
     expect(h.renderer.ignoreInputs).toBe(true)
 
     await stop
-    expect(textBoxTextOrClosed(h.root)).toBe("More YAML quoting tests...")
+    expect(screenText(h.root)).toBe("More YAML quoting tests...")
     expect(decisionItems(h.root)).toEqual([])
     expect(h.player.state.decision).toBeNull()
     expect(arrow(h.root).style.display).toBe("")
@@ -605,13 +778,13 @@ describe("demo story - decision", () => {
 
   it("takes the bad branch to `label: bad` for the second option", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
 
     const stop = nextStop(h.renderer, h.player)
     decisionItems(h.root)[1].click()
     await stop
 
-    expect(textBoxTextOrClosed(h.root)).toBe("That was a bad choice.")
+    expect(screenText(h.root)).toBe("That was a bad choice.")
     expect(decisionItems(h.root)).toEqual([])
   }, 30000)
 })
@@ -633,7 +806,7 @@ describe("demo story - audio", () => {
 
     // `bgm: "bgm/map01.ogg"` - same track, but looping this time, and nothing is playing
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("Looping audio")
+    expect(screenText(h.root)).toBe("Looping audio")
     expect(playCalls).toEqual([
       { asset: "bgm/map01.ogg", loop: false },
       { asset: "bgm/map01.ogg", loop: true },
@@ -641,7 +814,7 @@ describe("demo story - audio", () => {
 
     // `bgm: "bgm/dayl_preview.ogg"` - the old track fades out first (1500ms), then the new one starts
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("Another song...")
+    expect(screenText(h.root)).toBe("Another song...")
     expect(h.player.state.animatableState.audio.bgm).toBe("bgm/dayl_preview.ogg")
     expect(playCalls).toHaveLength(2) // not yet - still crossfading
     await sleep(2000)
@@ -649,14 +822,14 @@ describe("demo story - audio", () => {
 
     // `bgm: stop`
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("And now... Actors!")
+    expect(screenText(h.root)).toBe("And now... Actors!")
     expect(h.player.state.animatableState.audio.bgm).toBeNull()
     expect(h.renderer["audioRenderer"]["bgmElem"]).toBeNull()
   }, 30000)
 
   it("fires the sfx once on the bad branch", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
 
     const before = playCalls.length
     const stop = nextStop(h.renderer, h.player)
@@ -711,7 +884,7 @@ describe("demo story - background", () => {
 
   it("keeps painting the background across the rest of the demo", async () => {
     const h = await startDemo()
-    await advanceToStop(h, STOPS_UP_TO_DECISION.length - 1)
+    await advanceToStop(h, DECISION_STOP)
     await nextFrame()
     await nextFrame()
 
@@ -726,11 +899,11 @@ describe("demo story - player actions", () => {
     const h = await startDemo()
 
     // first pass through the actor scene: everything ahead is new
-    await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("Here I am"))
+    await advanceToStop(h, FIRST_ACTOR_LINE)
     expect(skipAction(h.root).classList.contains("vn-action-disabled")).toBe(true)
 
     // second pass: the same commands, now seen, so skipping is allowed
-    await advanceToStop(h, STOPS_UP_TO_DECISION.lastIndexOf("Here I am"))
+    await advanceToStop(h, LOOPED_ACTOR_LINE)
     expect(skipAction(h.root).classList.contains("vn-action-disabled")).toBe(false)
   }, 30000)
 
@@ -742,11 +915,11 @@ describe("demo story - player actions", () => {
     ;(h.root.querySelector(".vn-action-back") as HTMLDivElement).click()
     await stop
 
-    expect(textBoxTextOrClosed(h.root)).toBe(FOX_LINE)
+    expect(screenText(h.root)).toBe(FOX_LINE)
 
     // and forward again to the same line
     await advanceFast(h)
-    expect(textBoxTextOrClosed(h.root)).toBe("Wait for audio to stop")
+    expect(screenText(h.root)).toBe("Wait for audio to stop")
   }, 30000)
 
   it("persists seen commands under the demo's save id, so a reload remembers them", async () => {
@@ -763,6 +936,6 @@ describe("demo story - player actions", () => {
     const reloaded = new VnPlayer(state, saved)
     expect(reloaded.state.seenCommands.contains(0)).toBe(true)
     expect(reloaded.state.seenCommands.contains(11)).toBe(true) // "Another song..."
-    expect(reloaded.state.seenCommands.contains(54)).toBe(false) // the final jump, never reached
+    expect(reloaded.state.seenCommands.contains(72)).toBe(false) // the final jump, never reached
   }, 30000)
 })

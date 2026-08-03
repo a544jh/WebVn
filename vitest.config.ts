@@ -1,3 +1,4 @@
+/// <reference types="@vitest/browser/providers/playwright" />
 import { defineConfig } from "vitest/config"
 
 // When the only display is a Wayland compositor (e.g. a waypipe-forwarded session on a

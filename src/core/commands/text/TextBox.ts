@@ -1,3 +1,4 @@
+import { z, ZodError } from "zod"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { ErrorLevel, ObjectToCommand, ParserError, registerCommandHandler } from "../Parser"
@@ -17,15 +18,21 @@ export class CloseTextBox extends Command {
 
 class ClearFreeform extends Command {
   public apply(state: VnPlayerState): VnPlayerState {
-    return {...state, animatableState: {...state.animatableState, freeformText: []}}
+    return { ...state, animatableState: { ...state.animatableState, freeformText: [] } }
   }
 }
 
-const textboxHandler: ObjectToCommand = (obj, location) => {
-  if (obj === "close") return new CloseTextBox(location)
-  if (obj === "clear") return new ClearFreeform(location)
+const TextBoxCommandSchema = z.enum(["close", "clear"])
 
-  return new ParserError("Not a valid textbox command.", location, ErrorLevel.WARNING)
+const textboxHandler: ObjectToCommand = (obj, location) => {
+  try {
+    const cmd = TextBoxCommandSchema.parse(obj)
+    if (cmd === "close") return new CloseTextBox(location)
+    return new ClearFreeform(location)
+  } catch (e) {
+    const zodError = e as ZodError
+    return new ParserError(zodError.message, location, ErrorLevel.WARNING)
+  }
 }
 
 registerCommandHandler("textbox", textboxHandler)

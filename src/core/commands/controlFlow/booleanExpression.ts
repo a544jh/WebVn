@@ -154,6 +154,8 @@ export const parseBooleanExpression = (obj: unknown, location: SourceLocation): 
 }
 
 function getSingleKeyedObjValue(obj: unknown, key: string): unknown | null {
+  // tsHasOwnProperty throws on null/undefined, which would escape the parser as an uncaught TypeError.
+  if (obj === null || obj === undefined) return null
   if (tsHasOwnProperty(obj, key)) {
     return obj[key]
   }

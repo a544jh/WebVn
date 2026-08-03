@@ -1,7 +1,19 @@
+import { z, ZodError } from "zod"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation, tsHasOwnProperty } from "../Parser"
+import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 import { BooleanExpression, parseBooleanExpression } from "./booleanExpression"
+
+// z.unknown() is optional by default, so the presence of "if" has to be asserted separately.
+const JumpCommandSchema = z.union([
+  z.string(),
+  z
+    .object({
+      to: z.string(),
+      if: z.unknown(),
+    })
+    .refine((cmd) => "if" in cmd, `map form of jump command must have key "if"`),
+])
 
 export class Jump extends Command {
   constructor(location: SourceLocation, public targetLabel: string, public condition?: BooleanExpression) {
@@ -21,23 +33,14 @@ export class Jump extends Command {
 }
 
 registerCommandHandler("jump", (obj, location) => {
-  if (typeof obj === "string") return new Jump(location, obj)
-  let to
-  let expr
-  if (typeof obj !== "object" || obj === null)
-    return new ParserError("Target label must be a string or map.", location, ErrorLevel.WARNING)
-  if (tsHasOwnProperty(obj, "to")) {
-    if (typeof obj.to !== "string")
-      return new ParserError(`Value of "to" must be a string`, location, ErrorLevel.WARNING)
-    to = obj.to
-  } else {
-    return new ParserError(`map form of jump command must have key "to"`, location, ErrorLevel.WARNING)
+  let cmd
+  try {
+    cmd = JumpCommandSchema.parse(obj)
+  } catch (e) {
+    return new ParserError((e as ZodError).message, location, ErrorLevel.WARNING)
   }
-  if (tsHasOwnProperty(obj, "if")) {
-    expr = parseBooleanExpression(obj.if, location)
-    if (expr instanceof ParserError) return expr
-  } else {
-    return new ParserError(`map form of jump command must have key "if"`, location, ErrorLevel.WARNING)
-  }
-  return new Jump(location, to, expr)
+  if (typeof cmd === "string") return new Jump(location, cmd)
+  const expr = parseBooleanExpression(cmd.if, location)
+  if (expr instanceof ParserError) return expr
+  return new Jump(location, cmd.to, expr)
 })

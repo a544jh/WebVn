@@ -1,17 +1,20 @@
+import { z } from "zod"
 import { Sprite, VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation, tsHasOwnProperty } from "../Parser"
+import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
 
-interface ShowCommand {
-  actor: string
-  sprite: string
-  id?: string //TODO handle..
-  position?: string //TODO preset positions...
-  x?: number
-  y?: number
-  anchorX?: number
-  anchorY?: number
-}
+const ShowCommandSchema = z.object({
+  actor: z.string(),
+  sprite: z.string(),
+  id: z.string().optional(),
+  position: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  anchorX: z.number().optional(),
+  anchorY: z.number().optional(),
+})
+
+type ShowCommand = z.infer<typeof ShowCommandSchema>
 
 class Show extends Command {
   constructor(location: SourceLocation, public cmd: ShowCommand) {
@@ -36,51 +39,4 @@ class Show extends Command {
   }
 }
 
-registerCommandHandler("show", (obj, location) => {
-  if (typeof obj !== "object" || obj === null) {
-    return new ParserError("Show command must be a map", location, ErrorLevel.WARNING)
-  }
-  if (!tsHasOwnProperty(obj, "actor")) {
-    return new ParserError("Show command must have actor property", location, ErrorLevel.WARNING)
-  }
-  const actor = getRequiredProperty(obj, "actor", location)
-  if (actor instanceof ParserError) return actor
-  const sprite = getRequiredProperty(obj, "sprite", location)
-  if (sprite instanceof ParserError) return sprite
-
-  try {
-    const cmd = new Show(location, {
-      actor,
-      sprite,
-      x: getOptionalNumber(obj, "x"),
-      y: getOptionalNumber(obj, "y"),
-      anchorX: getOptionalNumber(obj, "anchorX"),
-      anchorY: getOptionalNumber(obj, "anchorY"),
-    })
-    return cmd
-  } catch (e) {
-    const msg = (e as Error).message
-    return new ParserError(msg, location, ErrorLevel.WARNING)
-  }
-})
-
-// TODO move to utils maybe... or make/use a validation library...
-function getRequiredProperty(obj: unknown, prop: string, location: SourceLocation): string | ParserError {
-  if (!tsHasOwnProperty(obj, prop)) {
-    return new ParserError(`Show command must have ${prop} property.`, location, ErrorLevel.WARNING)
-  }
-  const val = obj[prop]
-  if (typeof val !== "string") {
-    return new ParserError(`${prop} must be a string.`, location, ErrorLevel.WARNING)
-  }
-  return val
-}
-
-function getOptionalNumber(obj: unknown, prop: string): number | undefined {
-  if (!tsHasOwnProperty(obj, prop)) return undefined
-  const value = obj[prop]
-  if (typeof value === "number" || value === undefined) {
-    return value
-  }
-  throw new Error(`${prop} must be a number.`)
-}
+registerCommandHandler("show", makeZodCmdHandler(ShowCommandSchema, Show))

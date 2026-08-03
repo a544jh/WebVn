@@ -1,11 +1,19 @@
+import { z } from "zod"
 import { VnPlayerState } from "../../state"
 import { Command } from "../Command"
-import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
+import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
 import "./Jump"
 
+const LabelCommandSchema = z.string()
+
+type LabelCommand = z.infer<typeof LabelCommandSchema>
+
 export class Label extends Command {
-  constructor(location: SourceLocation, public name: string) {
+  public name: string
+
+  constructor(location: SourceLocation, cmd: LabelCommand) {
     super(location)
+    this.name = cmd
   }
 
   public apply(state: VnPlayerState): VnPlayerState {
@@ -13,12 +21,7 @@ export class Label extends Command {
   }
 }
 
-registerCommandHandler("label", (obj, location) => {
-  if (typeof obj === "string") {
-    return new Label(location, obj)
-  }
-  return new ParserError("Label must be a string.", location, ErrorLevel.WARNING)
-})
+registerCommandHandler("label", makeZodCmdHandler(LabelCommandSchema, Label))
 
 export function updateLabels(state: VnPlayerState): VnPlayerState {
   const newState = { ...state }

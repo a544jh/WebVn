@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:browser": "vitest run --project browser",
+    "test:browser:headful": "vitest run --project browser --browser.headless=false",
     "test:watch": "vitest",
     "lint": "eslint '**/*.ts'",
     "prettier": "prettier -c '**/*.ts'"

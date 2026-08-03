@@ -4,12 +4,15 @@ import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 import { BooleanExpression, parseBooleanExpression } from "./booleanExpression"
 
+// z.unknown() is optional by default, so the presence of "if" has to be asserted separately.
 const JumpCommandSchema = z.union([
   z.string(),
-  z.object({
-    to: z.string(),
-    if: z.unknown(),
-  }),
+  z
+    .object({
+      to: z.string(),
+      if: z.unknown(),
+    })
+    .refine((cmd) => "if" in cmd, `map form of jump command must have key "if"`),
 ])
 
 export class Jump extends Command {

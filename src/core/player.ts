@@ -1,6 +1,8 @@
 import { NARRATOR_ACTOR_ID, State, TextMode, VnPlayerState } from "./state"
 import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"
+import "./commands/controlFlow/Label"
+import "./commands/controlFlow/Jump"
 import "./commands/text/TextBox"
 import "./commands/text/FreeformPos"
 import "./commands/text/Mode"

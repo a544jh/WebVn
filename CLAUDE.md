@@ -15,7 +15,7 @@ Two entry points:
 - `yarn build` — production build
 - `yarn lint` — ESLint over `**/*.ts`
 - `yarn prettier` — prettier check
-- `yarn test` — vitest, both projects: `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). `yarn test:unit` / `yarn test:browser` run one project; `yarn test:watch` for watch mode. Browser tests need Playwright's Chromium installed (`npx playwright install chromium`).
+- `yarn test` — vitest, both projects: `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). `yarn test:unit` / `yarn test:browser` run one project; `yarn test:watch` for watch mode. Browser tests need Playwright's Chromium installed (`npx playwright install chromium`). Where that download is unavailable — prebuilt CI images and agent sandboxes usually preinstall some other Chromium revision under `PLAYWRIGHT_BROWSERS_PATH` and block the CDN — `vitest.config.ts` falls back to the preinstalled binary and logs which one it picked; `CHROMIUM_EXECUTABLE_PATH` overrides the choice.
 
 ## Top-level layout
 ```

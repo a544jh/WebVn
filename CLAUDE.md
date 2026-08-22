@@ -13,6 +13,7 @@ Two entry points:
 - `npm install` — install
 - `npm run dev` — webpack-dev-server
 - `npm run build` — production build
+- `npm run typecheck` — `tsc --noEmit`. Vitest transpiles via esbuild and does **not** typecheck, so this is the only fast type gate; `npm run build` also typechecks, via ts-loader.
 - `npm run lint` — ESLint over `**/*.ts`
 - `npm run prettier` — prettier check
 - `npm test` — the fast gate: vitest projects `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). ~6s.
@@ -94,7 +95,7 @@ If you're tempted to import from any of these, don't.
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here, see "Deferred upgrades" for why.
 - `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due. Nothing automated covers `npm run dev` — verify it by hand after touching webpack config.
 - `@types/react` is in `dependencies` but should be `devDependencies`.
-- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck` is not set, so a bare `tsc --noEmit` fails inside `node_modules`; use `npx tsc --noEmit --skipLibCheck`.
+- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under TS 5.1. Without it `tsc --noEmit` reports 151 errors, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.
 - The YAML lib is installed under an alias — `"yaml-vn": "npm:yaml@2.0.0-4"` — and `YamlParser.ts` imports from `"yaml-vn"`, not `"yaml"`. This is deliberate; see below.
 - `zod` and `typescript` are held at exact versions. See below.
 

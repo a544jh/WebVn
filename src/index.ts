@@ -7,8 +7,8 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
-import { Base64 } from "js-base64"
 import { demoState, demoYaml } from "./demoStory"
+import { encodeScript, playerUrl } from "./scriptUrl"
 
 const [yamlState] = YamlParser.updateState(demoYaml, demoState)
 // TODO: id from VN title
@@ -121,17 +121,19 @@ function restoreOnFullscreenExit() {
   vnDiv.style.transformOrigin = ""
 }
 
-document.getElementById("vn-btn-export-url")?.addEventListener("click", getCompressedScript)
+const exportUrlMessage = document.getElementById("vn-btn-export-url-message") as HTMLSpanElement
 
-async function getCompressedScript() {
-  const script = editor.getScript()
-  const stringStream = new Response(new TextEncoder().encode(script)).body
-  if (stringStream === null) {
-    throw new Error("Could not read the script.")
+document.getElementById("vn-btn-export-url")?.addEventListener("click", exportUrl)
+
+async function exportUrl() {
+  const url = playerUrl(await encodeScript(editor.getScript()), location.href)
+  try {
+    await navigator.clipboard.writeText(url)
+    exportUrlMessage.textContent = "Copied the story URL to the clipboard"
+  } catch (e) {
+    // writeText needs a secure context and can still be refused by permission policy. There is
+    // nothing to retry, so leave the url somewhere the user can still get at it.
+    console.log(url)
+    exportUrlMessage.textContent = "Could not write to the clipboard - the URL is in the console instead"
   }
-  const compressedStream = stringStream.pipeThrough(new CompressionStream("gzip"))
-  const ab = await new Response(compressedStream).arrayBuffer()
-  const base64 = Base64.fromUint8Array(new Uint8Array(ab), true)
-  console.log(base64)
-  return base64
 }

@@ -16,8 +16,8 @@ jobs:
     name: Lint, format, typecheck, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -31,8 +31,8 @@ jobs:
     name: Unit + browser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -40,7 +40,7 @@ jobs:
 
       # The browser cache holds ~/.cache/ms-playwright only. The apt system
       # libraries live outside it, so install-deps still runs on a cache hit.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -52,7 +52,7 @@ jobs:
 
       - run: npm test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-failure-screenshots
@@ -66,14 +66,14 @@ jobs:
     name: Demo playthrough
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -85,7 +85,7 @@ jobs:
 
       - run: npm run test:demo
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: demo-failure-screenshots

@@ -22,7 +22,8 @@ Two entry points:
 
 ## CI
 `.github/workflows/ci.yml` runs on pushes to `master`, on every pull request, and on manual
-dispatch. Three parallel jobs, roughly two minutes wall clock:
+dispatch. Three parallel jobs, roughly two minutes wall clock, then a deploy that only fires on
+`master`:
 
 - **check** — `npm ci`, then lint, prettier, typecheck, build.
 - **test** — the fast gate (`npm test`). Playwright's Chromium is cached on `package-lock.json`;
@@ -31,12 +32,54 @@ dispatch. Three parallel jobs, roughly two minutes wall clock:
   ~35s and is the likeliest place for a timing flake on a shared runner. A flake there should read
   as "demo red" rather than poisoning the fast gate. If it does turn flaky, the ladder is
   `--retry=1`, then restricting the job to `push`.
+- **deploy** — publishes the demo, `needs: [check, test, demo]` and gated on
+  `github.event_name == 'push' && github.ref == 'refs/heads/master'`, so pull requests never reach
+  it. See below.
 
-Two things worth knowing before editing it:
+Things worth knowing before editing it:
 - **Nothing in CI exercises `npm run dev`.** webpack-dev-server changes must be verified by hand.
 - **The test jobs deliberately have no build step.** Vitest serves `test-assets/` straight from the
   repo root, so `dist/` never enters the test path — verified by running the demo suite with `dist/`
   deleted.
+- **Deploy does not rebuild.** `check` uploads `dist/` as the `dist` artifact (on PRs too, where it
+  is just a downloadable preview build) and `deploy` downloads it, so the bytes that go live are the
+  ones that were linted, typechecked and built. Do not add a second `npm run build` to `deploy`.
+
+## Demo deployment
+`deploy` clones [a544jh/webvn-demo](https://github.com/a544jh/webvn-demo), replaces its contents
+with `dist/`, and pushes to `main` — which GitHub Pages serves at
+<https://a544jh.github.io/webvn-demo/>. That repo is pure build output: no source, no CI, nothing
+hand-written. Anything committed there by hand is gone on the next master push.
+
+- **The copy is a mirror, not an overlay.** Everything but `.git` is deleted before `dist/` is
+  copied in, so files the build stops emitting also disappear from the demo. (The first run prunes
+  the stale `app.js.LICENSE.txt` / `playerIndex.js.LICENSE.txt` left by the 2023 hand-deploy.)
+- **A `.nojekyll` marker is written on every deploy** so Pages serves the output verbatim instead of
+  running it through Jekyll.
+- **An unchanged build is a no-op.** The step stages the tree, and exits 0 without committing if the
+  diff is empty — so re-running a deploy never adds a hollow commit.
+- **Auth is a deploy key, not a token.** `DEMO_DEPLOY_KEY` holds the private half; the public half
+  is registered with write access on `webvn-demo`, so it reaches that one repo and nothing else.
+  `GITHUB_TOKEN` is read-only here (top-level `permissions:`) and has no access to the demo repo at
+  all. To rotate, generate a new keypair and replace both halves.
+- **That secret is an environment secret on the `demo` environment, not a repository secret.** Only
+  a job declaring `environment: demo` can read it, so the other three jobs — and any workflow added
+  later — cannot. Keep the environment's deployment branch rule limited to `master`: the job's `if:`
+  is only yaml and anyone with write access can push a branch that edits it, whereas the environment
+  rule is enforced by GitHub. Do not also create a repository secret of the same name. (Environments
+  on a Free plan work because this repo is public.)
+- **One deploy at a time, newest wins.** The job's own `deploy-demo` group (`cancel-in-progress:
+  false`) keeps two deploys from ever running at once, and the default `queue: single` allows one
+  pending entry, so a third arrival cancels and replaces the one waiting. Do not reach for
+  `queue: max` (up to 100 pending) here — it would let an older build deploy over a newer one. None
+  of this makes a deploy uninterruptible: the workflow-level group is keyed on `github.ref`, which
+  every master push shares, so a newer push cancels the older run with its deploy job in it. That is
+  the behaviour to want, and it is the other half of why ordering holds — exempting master from
+  cancellation would let two runs race to completion and serialize on `deploy-demo` in test-finish
+  order. A cancelled `git push` is not corrupting either: the ref update is atomic server-side, and
+  the newer run deploys regardless.
+- **Host keys come from `api.github.com/meta` over TLS**, not `ssh-keyscan`, so a fresh runner is not
+  trusting whatever answers on port 22.
 
 ## Top-level layout
 ```

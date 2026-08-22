@@ -211,7 +211,7 @@ export class DomRenderer implements Renderer {
     this.render(false)
   }
 
-  private skip() {
+  private skipModeTick() {
     if (!this.player.isNextCommandSeen()) {
       this.player.advanceUntilStop()
       this.render(true)
@@ -223,7 +223,7 @@ export class DomRenderer implements Renderer {
     if (this.player.state.decision !== null) {
       this.skipMode = false
     }
-    if (this.skipMode) setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+    if (this.skipMode) setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public enterSkipMode(): void {
@@ -231,7 +231,7 @@ export class DomRenderer implements Renderer {
     if (this.skipMode) return
     if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
-    setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+    setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public toggleAutoplay(): void {

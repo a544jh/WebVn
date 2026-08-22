@@ -56,8 +56,20 @@ renderer.onRenderCallbacks.push(() => {
     text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
   }
   text += `Seen commands: ${JSON.stringify(player.state.seenCommands.toJSON())}\n`
+  text += `Path (shorthand): ${shorthandPath()}\n`
   varsContainer.innerText = text
 })
+
+// [...decisions, remainingAdvances] - what a save slot stores. toShorthandPath throws once the
+// path contains a goto, which is what clicking a line in the editor records, so that is a normal
+// state to be in here rather than something worth blowing up the panel over.
+function shorthandPath(): string {
+  try {
+    return JSON.stringify(player.path.toShorthandPath())
+  } catch (e) {
+    return "n/a - path contains a goto"
+  }
+}
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
   document

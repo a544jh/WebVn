@@ -15,7 +15,9 @@ Two entry points:
 - `yarn build` — production build
 - `yarn lint` — ESLint over `**/*.ts`
 - `yarn prettier` — prettier check
-- `yarn test` — vitest, both projects: `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). `yarn test:unit` / `yarn test:browser` run one project; `yarn test:watch` for watch mode. Browser tests need Playwright's Chromium installed (`npx playwright install chromium`).
+- `yarn test` — the fast gate: vitest projects `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). ~6s.
+- `yarn test:demo` — the `demo` project (`src/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `yarn test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
+- `yarn test:all` — all three projects. `yarn test:unit` / `yarn test:browser` / `yarn test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `yarn test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## Top-level layout
 ```
@@ -82,11 +84,11 @@ If you're tempted to import from any of these, don't.
 
 ## Typical tasks and where to start
 
-- **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. Add an example line to the demo YAML in `src/index.ts` and `src/playerIndex.ts`.
+- **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `DemoStory.demo.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production). `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
+- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs go in `src/**/*.demo.test.ts`, which only `yarn test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
 - `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due.

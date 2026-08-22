@@ -6,11 +6,14 @@
   "scripts": {
     "build": "webpack --mode=production",
     "dev": "webpack serve",
-    "test": "vitest run",
+    "test": "vitest run --project unit --project browser",
+    "test:all": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:browser": "vitest run --project browser",
     "test:browser:headful": "vitest run --project browser --browser.headless=false",
-    "test:watch": "vitest",
+    "test:demo": "vitest run --project demo",
+    "test:demo:headful": "vitest run --project demo --browser.headless=false",
+    "test:watch": "vitest --project unit --project browser",
     "lint": "eslint '**/*.ts'",
     "prettier": "prettier -c '**/*.ts'"
   },

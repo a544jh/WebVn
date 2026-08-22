@@ -1,4 +1,13 @@
-import { Actor, ADVNameTag, ADVTextBox, NARRATOR_ACTOR_ID, TextBoxType, TextMode, TextNode, VnPlayerState } from "../../state"
+import {
+  Actor,
+  ADVNameTag,
+  ADVTextBox,
+  NARRATOR_ACTOR_ID,
+  TextBoxType,
+  TextMode,
+  TextNode,
+  VnPlayerState,
+} from "../../state"
 import { Command } from "../Command"
 import { Decision } from "../controlFlow/Decision"
 import { SourceLocation } from "../Parser"
@@ -44,25 +53,29 @@ export class Say extends Command {
       animatableState.text = text
     } else if (state.mode == TextMode.freeform) {
       const ip = state.animatableState.freeformInsertionPoint
-      const existingBox = state.animatableState.freeformText.find(b => b.x == ip.x && b.y == ip.y && b.width == ip.width)
+      const existingBox = state.animatableState.freeformText.find(
+        (b) => b.x == ip.x && b.y == ip.y && b.width == ip.width
+      )
       const newBoxes = [...state.animatableState.freeformText]
 
       const newlineNode = [
         {
-          text: '\n',
+          text: "\n",
           characterDelay: 20,
           color,
         },
       ]
 
       if (existingBox) {
-        newBoxes[newBoxes.indexOf(existingBox)] = {...existingBox, textNodes: existingBox.textNodes.concat(newlineNode, textNodes)}
+        newBoxes[newBoxes.indexOf(existingBox)] = {
+          ...existingBox,
+          textNodes: existingBox.textNodes.concat(newlineNode, textNodes),
+        }
       } else {
-        newBoxes.push({...ip, textNodes})
+        newBoxes.push({ ...ip, textNodes })
       }
       animatableState.freeformText = newBoxes
     }
-
 
     const stopAfterRender = !(state.commands[state.commandIndex + 1] instanceof Decision)
 

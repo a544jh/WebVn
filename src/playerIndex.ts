@@ -33,11 +33,10 @@ const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
-
 const params = new URLSearchParams(location.search)
 
-if (params.has('vn')) {
-  loadEncodedScript(params.get('vn') as string)
+if (params.has("vn")) {
+  loadEncodedScript(params.get("vn") as string)
 } else {
   loadYaml(demoYaml)
 }

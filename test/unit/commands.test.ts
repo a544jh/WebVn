@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { Command } from "../src/core/commands/Command"
-import { ParserError } from "../src/core/commands/Parser"
-import { parseCommand } from "./helpers/commands"
+import { Command } from "../../src/core/commands/Command"
+import { ParserError } from "../../src/core/commands/Parser"
+import { parseCommand } from "../helpers/commands"
 
 function expectAccepted(name: string, obj: unknown): void {
   const result = parseCommand(name, obj)

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { VnPlayer } from "../src/core/player"
-import { DomRenderer } from "../src/domRenderer/DomRenderer"
-import { saveMenu } from "../src/domRenderer/menus/SaveLoadMenu"
-import { nextStop, settle, startVn, textBoxText } from "./helpers/vnHarness"
+import { VnPlayer } from "../../src/core/player"
+import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { saveMenu } from "../../src/domRenderer/menus/SaveLoadMenu"
+import { nextStop, settle, startVn, textBoxText } from "../helpers/vnHarness"
 
 const script = `
 story:

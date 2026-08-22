@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { VnPlayer } from "../src/core/player"
-import { VnPlayerState } from "../src/core/state"
-import { ErrorLevel } from "../src/core/commands/Parser"
-import { loadFromLocalStorage } from "../src/core/save"
-import { YamlParser } from "../src/yamlParser/YamlParser"
-import { demoState, demoYaml } from "../src/demoStory"
-import { DomRenderer } from "../src/domRenderer/DomRenderer"
+import { VnPlayer } from "../../src/core/player"
+import { VnPlayerState } from "../../src/core/state"
+import { ErrorLevel } from "../../src/core/commands/Parser"
+import { loadFromLocalStorage } from "../../src/core/save"
+import { YamlParser } from "../../src/yamlParser/YamlParser"
+import { demoState, demoYaml } from "../../src/demoStory"
+import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import {
   boxText,
   createVnRoot,
@@ -21,7 +21,7 @@ import {
   sleep,
   spriteElems,
   textBoxText,
-} from "./helpers/vnHarness"
+} from "../helpers/vnHarness"
 
 // End-to-end coverage of the demo VN. The script lives in src/demoStory.ts, which both entry
 // points load - the editor (src/index.ts) and the standalone player (src/playerIndex.ts) - so

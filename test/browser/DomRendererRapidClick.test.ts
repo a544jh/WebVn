@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { DomRenderer } from "../src/domRenderer/DomRenderer"
-import { nextStop, sleep, spriteElems, startVn, textBoxText } from "./helpers/vnHarness"
+import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { nextStop, sleep, spriteElems, startVn, textBoxText } from "../helpers/vnHarness"
 
 // Long enough that its typing animation (characterDelay 20ms) is still running when the test clicks again.
 const LINE_3 = "Line 3 is deliberately long so that its typing animation is still running when the next click arrives"

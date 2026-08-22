@@ -2,7 +2,7 @@ import { initialState } from "./core/player"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
 
 // The demo VN shipped by the standalone player (src/playerIndex.ts). Kept in its own module
-// so DemoStory.demo.test.ts exercises the script that actually ships instead of a copy of it.
+// so test/demo/DemoStory.test.ts exercises the script that actually ships instead of a copy of it.
 
 export const demoState: VnPlayerState = {
   ...initialState,

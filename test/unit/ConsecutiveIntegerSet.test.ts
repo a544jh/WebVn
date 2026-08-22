@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { ConsecutiveIntegerSet } from "../src/lib/ConsecutiveIntegerSet"
+import { ConsecutiveIntegerSet } from "../../src/lib/ConsecutiveIntegerSet"
 
 describe("ConsecutiveIntegerSet", () => {
   it("reports contains=false for an empty set", () => {

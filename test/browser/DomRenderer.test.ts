@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { nextStop, startVn, textBoxText } from "./helpers/vnHarness"
+import { nextStop, startVn, textBoxText } from "../helpers/vnHarness"
 
 const script = `
 story:

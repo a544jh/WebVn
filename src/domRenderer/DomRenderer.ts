@@ -36,6 +36,7 @@ export class DomRenderer implements Renderer {
   public ignoreInputs = false
   public skipMode = false
   public autoplayInterval: number | null = null
+  private wheelDelta = 0
 
   private textBoxRenderer: TextBoxRenderer
   private freeformTextRenderer: FreeformTextRenderer
@@ -79,8 +80,7 @@ export class DomRenderer implements Renderer {
       this.disableAutoplay()
       this.advance()
     })
-    // TODO we might not want this at all.. (conficts with menu too...)
-    //this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this))
+    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false })
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
@@ -196,8 +196,7 @@ export class DomRenderer implements Renderer {
       this.render(false)
     }
 
-    // TODO get id from vn "title" ?
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    this.persistGlobalSave()
   }
 
   public makeDecision(id: number): void {
@@ -212,7 +211,7 @@ export class DomRenderer implements Renderer {
     this.render(false)
   }
 
-  private skip() {
+  private skipModeTick() {
     if (!this.player.isNextCommandSeen()) {
       this.player.advanceUntilStop()
       this.render(true)
@@ -224,7 +223,7 @@ export class DomRenderer implements Renderer {
     if (this.player.state.decision !== null) {
       this.skipMode = false
     }
-    if (this.skipMode) setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+    if (this.skipMode) setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public enterSkipMode(): void {
@@ -232,7 +231,7 @@ export class DomRenderer implements Renderer {
     if (this.skipMode) return
     if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
-    setTimeout(this.skip.bind(this), this.SKIP_DELAY)
+    setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public toggleAutoplay(): void {
@@ -259,13 +258,18 @@ export class DomRenderer implements Renderer {
     }
   }
 
+  private persistGlobalSave(): void {
+    // TODO get id from vn "title" ?
+    saveToLocalStorage("test", this.player.getGlobalSaveData())
+  }
+
   public getSaves(): VnSaveSlotData[] {
     return this.player.saves
   }
 
   public saveToSlot(slot: number): void {
     this.player.saveToSlot(slot)
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    this.persistGlobalSave()
   }
 
   public loadFromSlot(slot: number): void {
@@ -281,22 +285,57 @@ export class DomRenderer implements Renderer {
     return this.committedState
   }
 
+  // Scrolling down replays one step of already-seen story with no animations, scrolling up
+  // undoes one step. A wheel gesture is not one event: mice send one notch (100px in pixel
+  // mode, a few lines in line mode) but trackpads send a burst of small pixel deltas, so
+  // pixel deltas are accumulated until they add up to about a notch.
   private handleScrollWheelEvent(e: WheelEvent) {
-    e.preventDefault()
-    if (this.ignoreInputs) return
-    // TODO: proper backlog rollback
-    // down
-    if (e.deltaY > 0) {
-      this.player.goToCommandDirect(this.player.state.commandIndex + 1)
-      // up
-    } else if (e.deltaY < 0) {
-      this.player.goToCommandDirect(this.player.state.commandIndex - 1)
+    if (this.isMenuOpen()) {
+      // the menu owns the wheel while it is up - the save list scrolls
+      this.wheelDelta = 0
+      return
     }
+    e.preventDefault()
 
+    const delta = normalizeWheelDelta(e)
+    if (delta === 0) return
+    // a change of direction starts a new gesture
+    if (Math.sign(delta) !== Math.sign(this.wheelDelta)) this.wheelDelta = 0
+    this.wheelDelta += delta
+    if (Math.abs(this.wheelDelta) < WHEEL_STEP_THRESHOLD) return
+    this.wheelDelta = 0
+
+    // scrolling is a deliberate input - it takes over from skip/auto, like a click does
+    this.skipMode = false
+    this.disableAutoplay()
+
+    if (delta > 0) {
+      this.skipToNextStop()
+    } else {
+      this.undo()
+    }
+  }
+
+  // One tick of what skip mode does: move to the next stop with the animations skipped, but
+  // never past the end of what has already been seen - fast-forwarding into unread text is
+  // what skip mode deliberately refuses to do.
+  public skipToNextStop(): void {
+    if (this.ignoreInputs) return
+    if (this.player.state.decision !== null) return
+    if (!this.player.isNextCommandSeen()) return
+    this.consecutiveCommands = 0
+    this.player.advanceUntilStop()
     this.render(false)
+
+    this.persistGlobalSave()
+  }
+
+  public isMenuOpen(): boolean {
+    return this.menuDiv.parentNode !== null
   }
 
   private handleKeyDownEvent(e: KeyboardEvent) {
+    if (this.isMenuOpen()) return
     if (e.key === "PageUp") {
       e.preventDefault()
       this.undo()
@@ -330,6 +369,16 @@ export class DomRenderer implements Renderer {
 }
 
 // util stuff ...
+
+// About one mouse wheel notch: Chrome reports 100px per notch in pixel mode.
+const WHEEL_STEP_THRESHOLD = 100
+
+// Line- and page-mode wheels are discrete devices, so one of their events is one whole
+// step regardless of the reported magnitude.
+const normalizeWheelDelta = (e: WheelEvent): number => {
+  if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return e.deltaY
+  return Math.sign(e.deltaY) * WHEEL_STEP_THRESHOLD
+}
 
 export type ResolvePromiseFn = (value?: void | PromiseLike<void>) => void
 

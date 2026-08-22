@@ -28,14 +28,13 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.browser.test.ts", "src/**/*.demo.test.ts"],
+          include: ["test/unit/**/*.test.ts"],
         },
       },
       {
         test: {
           name: "browser",
-          include: ["src/**/*.browser.test.ts"],
+          include: ["test/browser/**/*.test.ts"],
           browser: browserConfig(),
         },
       },
@@ -44,7 +43,7 @@ export default defineConfig({
         // they are not part of `yarn test` -- run `yarn test:demo` (or `yarn test:all`).
         test: {
           name: "demo",
-          include: ["src/**/*.demo.test.ts"],
+          include: ["test/demo/**/*.test.ts"],
           browser: browserConfig(),
         },
       },

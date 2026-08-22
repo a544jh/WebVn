@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { VnPath } from "./vnPath"
+import { VnPath } from "../../src/core/vnPath"
 
 describe("VnPath", () => {
   describe("advance", () => {

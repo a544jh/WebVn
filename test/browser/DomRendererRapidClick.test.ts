@@ -1,28 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest"
-import { initialState, VnPlayer } from "../core/player"
-import { YamlParser } from "../yamlParser/YamlParser"
-import { DomRenderer } from "./DomRenderer"
+import { describe, expect, it } from "vitest"
+import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { nextStop, sleep, spriteElems, startVn, textBoxText } from "../helpers/vnHarness"
 
 // Long enough that its typing animation (characterDelay 20ms) is still running when the test clicks again.
 const LINE_3 = "Line 3 is deliberately long so that its typing animation is still running when the next click arrives"
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-// Resolves the next time a render pass finishes with the player stopped (i.e. waiting for input).
-const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void> =>
-  new Promise((resolve) => {
-    const callback = () => {
-      if (!player.state.stopAfterRender) return
-      renderer.onFinishedCallbacks.splice(renderer.onFinishedCallbacks.indexOf(callback), 1)
-      resolve()
-    }
-    renderer.onFinishedCallbacks.push(callback)
-  })
-
-const textBoxText = (root: HTMLDivElement): string | null => root.querySelector(".vn-adv-textbox")?.textContent ?? null
-
-const spriteElems = (root: HTMLDivElement): HTMLImageElement[] =>
-  [...root.querySelectorAll("#vn-sprite-renderer img")] as HTMLImageElement[]
 
 const SPRITE_COLORS = ["#9b59b6", "#2980b9", "#27ae60", "#e67e22"]
 
@@ -58,18 +39,6 @@ const registerTestSprites = async (renderer: DomRenderer, paths: string[]): Prom
 }
 
 describe("DomRenderer rapid clicking with sprites", () => {
-  let root: HTMLDivElement
-
-  beforeEach(() => {
-    localStorage.clear()
-    document.body.innerHTML = ""
-    root = document.createElement("div")
-    root.id = "vn-div"
-    root.style.width = "1280px"
-    root.style.height = "720px"
-    document.body.appendChild(root)
-  })
-
   it("does not skip a stop or lose a sprite when clicks land during sprite animations", async () => {
     const script = `
 story:
@@ -85,14 +54,9 @@ story:
   - hide: A1
   - Line 4
 `
-    const [state, errors] = YamlParser.updateState(script, initialState)
-    expect(errors).toEqual([])
-
-    const player = new VnPlayer(state)
-    const renderer = new DomRenderer(root, player)
+    const { root, player, renderer } = await startVn(script)
+    // The first stop is already up; sprites are only needed from the first advance on.
     await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png"])
-
-    await nextStop(renderer, player)
     expect(textBoxText(root)).toBe("Line 1")
 
     // Click: show A1 a.png starts its 500ms fade-in.
@@ -158,11 +122,7 @@ story:
   - hide: A2
   - The end
 `
-    const [state, errors] = YamlParser.updateState(script, initialState)
-    expect(errors).toEqual([])
-
-    const player = new VnPlayer(state)
-    const renderer = new DomRenderer(root, player)
+    const { root, player, renderer } = await startVn(script)
     await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png", "sprites/A2/a.png"])
 
     // After every finished render pass at a stop, the id-bearing sprite elements
@@ -178,8 +138,6 @@ story:
         violations.push(`at command ${player.state.commandIndex}: state=[${stateIds}] dom=[${domIds}]`)
       }
     })
-
-    await nextStop(renderer, player)
 
     const delays = [15, 40, 90, 140, 30, 60]
     let clicks = 0

@@ -1,27 +1,18 @@
 import { describe, expect, it } from "vitest"
-import { initialState, VnPlayer } from "./player"
-import { State, VnPlayerState } from "./state"
-import { VnPath } from "./vnPath"
-import { Command } from "./commands/Command"
-import { getCommandHandler, ParserError, SourceLocation } from "./commands/Parser"
-import { Say } from "./commands/text/Say"
-import { Decision } from "./commands/controlFlow/Decision"
-import { Jump } from "./commands/controlFlow/Jump"
-import { Label, updateLabels } from "./commands/controlFlow/Label"
-import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
-
-const loc: SourceLocation = { startLine: 1, endLine: 1 }
+import { initialState, VnPlayer } from "../../src/core/player"
+import { State, VnPlayerState } from "../../src/core/state"
+import { VnPath } from "../../src/core/vnPath"
+import { Command } from "../../src/core/commands/Command"
+import { Say } from "../../src/core/commands/text/Say"
+import { Decision } from "../../src/core/commands/controlFlow/Decision"
+import { Jump } from "../../src/core/commands/controlFlow/Jump"
+import { Label, updateLabels } from "../../src/core/commands/controlFlow/Label"
+import { ConsecutiveIntegerSet } from "../../src/lib/ConsecutiveIntegerSet"
+import { loc, makeCommand } from "../helpers/commands"
 
 const say = (text: string) => new Say(loc, "narrator", text)
 
-// The "set" command class isn't exported; build one through its registered handler like the YAML parser would.
-function set(args: unknown): Command {
-  const handler = getCommandHandler("set")
-  if (handler === undefined) throw new Error("set command not registered")
-  const cmd = handler(args, loc)
-  if (cmd instanceof ParserError) throw new Error("failed to parse set command: " + cmd.message)
-  return cmd
-}
+const set = (args: unknown) => makeCommand("set", args)
 
 function makeState(commands: Command[]): VnPlayerState {
   return updateLabels({ ...initialState, commands, seenCommands: new ConsecutiveIntegerSet() })

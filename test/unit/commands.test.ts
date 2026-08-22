@@ -1,30 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { getCommandHandler, ObjectToCommand, ParserError, SourceLocation } from "./Parser"
-import { Command } from "./Command"
-import "../player"
-
-const loc: SourceLocation = { startLine: 1, endLine: 1 }
-
-function handlerFor(name: string): ObjectToCommand {
-  const handler = getCommandHandler(name)
-  if (handler === undefined) throw new Error(`${name} command not registered`)
-  return handler
-}
-
-// Parsing must never throw: YamlParser calls handlers directly, so an exception
-// escaping one crashes the editor's parse-on-keystroke instead of surfacing a warning.
-function parse(name: string, obj: unknown): Command | ParserError {
-  return handlerFor(name)(obj, loc)
-}
+import { Command } from "../../src/core/commands/Command"
+import { ParserError } from "../../src/core/commands/Parser"
+import { parseCommand } from "../helpers/commands"
 
 function expectAccepted(name: string, obj: unknown): void {
-  const result = parse(name, obj)
+  const result = parseCommand(name, obj)
   expect(result, `${name} should accept ${JSON.stringify(obj)}`).not.toBeInstanceOf(ParserError)
 }
 
 function expectRejected(name: string, obj: unknown): void {
   let result: Command | ParserError | undefined
-  expect(() => (result = parse(name, obj)), `${name} should not throw on ${JSON.stringify(obj)}`).not.toThrow()
+  expect(() => (result = parseCommand(name, obj)), `${name} should not throw on ${JSON.stringify(obj)}`).not.toThrow()
   expect(result, `${name} should reject ${JSON.stringify(obj)}`).toBeInstanceOf(ParserError)
 }
 

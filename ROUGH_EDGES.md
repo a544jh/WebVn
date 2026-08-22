@@ -2,7 +2,7 @@
 
 Real issues that actively confuse new contributors. If you touch the area, consider fixing rather than working around.
 
-- **Dead code paths:** `DomRenderer.handleScrollWheelEvent` is defined but its listener is commented out. `animations.css` has unused keyframes.
+- **Dead code paths:** `animations.css` has unused keyframes.
 - **Asset loaders have no error handling.** A single broken image rejects `ImageAssetLoaderSrc.loadAll`. Audio waits for `canplaythrough` with no error listener — a broken audio file hangs startup.
 - **Duplicated bootstrap between `src/index.ts` and `src/playerIndex.ts`.** The demo script and its actor/asset state now live in `src/demoStory.ts` and both entry points import it, but the fullscreen listener, `setScale` and `restoreOnFullscreenExit` are still copied verbatim into both. If you fix one, fix the other, or extract shared bootstrap.
 - **Infinite-loop guard calls `alert()`** in `DomRenderer.ts:153`. Blocks the UI thread. Prefer a silent console error + hard cap if you rewrite. (The equivalent guards in `core/state.ts` used to `alert()` too — they now just throw, keeping `core/` free of browser globals.)

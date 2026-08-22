@@ -196,8 +196,7 @@ export class DomRenderer implements Renderer {
       this.render(false)
     }
 
-    // TODO get id from vn "title" ?
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    this.persistGlobalSave()
   }
 
   public makeDecision(id: number): void {
@@ -259,13 +258,18 @@ export class DomRenderer implements Renderer {
     }
   }
 
+  private persistGlobalSave(): void {
+    // TODO get id from vn "title" ?
+    saveToLocalStorage("test", this.player.getGlobalSaveData())
+  }
+
   public getSaves(): VnSaveSlotData[] {
     return this.player.saves
   }
 
   public saveToSlot(slot: number): void {
     this.player.saveToSlot(slot)
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    this.persistGlobalSave()
   }
 
   public loadFromSlot(slot: number): void {
@@ -323,8 +327,7 @@ export class DomRenderer implements Renderer {
     this.player.advanceUntilStop()
     this.render(false)
 
-    // TODO get id from vn "title" ?
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    this.persistGlobalSave()
   }
 
   public isMenuOpen(): boolean {

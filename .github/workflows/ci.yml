@@ -11,6 +11,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The deploy pushes over SSH with its own deploy key, so no job needs write
+# access through GITHUB_TOKEN.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   check:
     name: Lint, format, typecheck, build
@@ -26,6 +32,15 @@ jobs:
       - run: npm run prettier
       - run: npm run typecheck
       - run: npm run build
+
+      # Deploy publishes exactly these bytes, so nothing is rebuilt between the
+      # checks passing and the demo going live. Uploaded on PRs too, where it is
+      # a downloadable preview build rather than a deploy candidate.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
 
   test:
     name: Unit + browser
@@ -91,3 +106,70 @@ jobs:
           name: demo-failure-screenshots
           path: src/**/__screenshots__/
           if-no-files-found: ignore
+
+  deploy:
+    # Publishes the build to a544jh/webvn-demo, whose main branch GitHub Pages
+    # serves at https://a544jh.github.io/webvn-demo/. Master only, and only once
+    # all three check jobs are green.
+    name: Deploy demo
+    needs: [check, test, demo]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment:
+      name: demo
+      url: https://a544jh.github.io/webvn-demo/
+    # At most one deploy at a time; a queued one waits instead of cancelling
+    # the running one. This does not make a deploy uninterruptible — the
+    # workflow-level group above is keyed on ref, so a newer master push still
+    # cancels this whole run. That is the ordering we want (newest commit wins),
+    # and a cancelled push either landed or did not; it cannot land halfway.
+    concurrency:
+      group: deploy-demo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish to the demo repo
+        env:
+          # Private half of a deploy key registered with write access on
+          # a544jh/webvn-demo. Scoped to that repo and nothing else.
+          DEPLOY_KEY: ${{ secrets.DEMO_DEPLOY_KEY }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          key="$RUNNER_TEMP/deploy_key"
+          install -m 600 /dev/null "$key"
+          printf '%s\n' "$DEPLOY_KEY" > "$key"
+
+          # Take GitHub's host keys from the API over TLS rather than trusting
+          # whatever ssh-keyscan happens to answer on a fresh runner.
+          known="$RUNNER_TEMP/known_hosts"
+          curl -fsS https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com \(.)"' > "$known"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$known"
+
+          git clone --depth 1 git@github.com:a544jh/webvn-demo.git demo
+
+          # Mirror dist/ exactly: drop what is there, then copy the build in, so
+          # files the build stops emitting also disappear from the demo.
+          find demo -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          cp -R dist/. demo/
+          # Keep Pages from running the output through Jekyll.
+          touch demo/.nojekyll
+
+          cd demo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --staged --quiet; then
+            echo "Demo already matches this build, nothing to deploy."
+            exit 0
+          fi
+
+          git commit -m "Deploy a544jh/WebVn@$SOURCE_SHA" \
+                     -m "https://github.com/a544jh/WebVn/commit/$SOURCE_SHA"
+          git push origin HEAD:main

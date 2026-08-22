@@ -10,14 +10,33 @@ Two entry points:
 - `src/playerIndex.ts` → standalone player, can load a script from `?vn=<base64 gzip YAML>`
 
 ## Commands
-- `yarn` — install
-- `yarn dev` — webpack-dev-server
-- `yarn build` — production build
-- `yarn lint` — ESLint over `**/*.ts`
-- `yarn prettier` — prettier check
-- `yarn test` — the fast gate: vitest projects `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). ~6s.
-- `yarn test:demo` — the `demo` project (`src/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `yarn test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
-- `yarn test:all` — all three projects. `yarn test:unit` / `yarn test:browser` / `yarn test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `yarn test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
+- `npm install` — install
+- `npm run dev` — webpack-dev-server
+- `npm run build` — production build
+- `npm run typecheck` — `tsc --noEmit`. Vitest transpiles via esbuild and does **not** typecheck, so this is the only fast type gate; `npm run build` also typechecks, via ts-loader.
+- `npm run lint` — ESLint over `**/*.ts`
+- `npm run prettier` — prettier check
+- `npm test` — the fast gate: vitest projects `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). ~6s.
+- `npm run test:demo` — the `demo` project (`src/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
+- `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
+
+## CI
+`.github/workflows/ci.yml` runs on pushes to `master`, on every pull request, and on manual
+dispatch. Three parallel jobs, roughly two minutes wall clock:
+
+- **check** — `npm ci`, then lint, prettier, typecheck, build.
+- **test** — the fast gate (`npm test`). Playwright's Chromium is cached on `package-lock.json`;
+  the apt system libraries are not in that cache, so `install-deps` still runs on a cache hit.
+- **demo** — `npm run test:demo`, kept as its own job because it waits on real CSS transitions for
+  ~35s and is the likeliest place for a timing flake on a shared runner. A flake there should read
+  as "demo red" rather than poisoning the fast gate. If it does turn flaky, the ladder is
+  `--retry=1`, then restricting the job to `push`.
+
+Two things worth knowing before editing it:
+- **Nothing in CI exercises `npm run dev`.** webpack-dev-server changes must be verified by hand.
+- **The test jobs deliberately have no build step.** Vitest serves `test-assets/` straight from the
+  repo root, so `dist/` never enters the test path — verified by running the demo suite with `dist/`
+  deleted.
 
 ## Top-level layout
 ```
@@ -88,10 +107,54 @@ If you're tempted to import from any of these, don't.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs go in `src/**/*.demo.test.ts`, which only `yarn test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
+- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs go in `src/**/*.demo.test.ts`, which only `npm run test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
-- `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due.
-- `@types/react` and `@types/yaml` are in `dependencies` but should be `devDependencies`.
-- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only.
-- `yaml` is pinned at `2.0.0-4` (a pre-release). `YamlParser.ts:84-90` has an explicit `any` hack to copy the internal `Symbol.for("yaml.node.type")` off an alias source — the first TODO item is upgrading this lib.
+- Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here, see "Deferred upgrades" for why.
+- `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due. Nothing automated covers `npm run dev` — verify it by hand after touching webpack config.
+- `@types/react` is in `dependencies` but should be `devDependencies`.
+- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under TS 5.1. Without it `tsc --noEmit` reports 151 errors, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.
+- The YAML lib is installed under an alias — `"yaml-vn": "npm:yaml@2.0.0-4"` — and `YamlParser.ts` imports from `"yaml-vn"`, not `"yaml"`. This is deliberate; see below.
+- `zod` and `typescript` are held at exact versions. See below.
+
+## Deferred upgrades
+
+Switching from yarn to npm regenerated the lockfile, which pulls every dependency to the top of
+its semver range. Three things are deliberately held back so that switch changed the package
+manager and nothing else. Each is safe to do on its own, in its own session.
+
+- **`yaml` — held at `2.0.0-4` via the `yaml-vn` alias.**
+  vite 6+ declares `yaml: "^2.4.2"` as an *optional* peer dependency. npm enforces peer deps
+  (yarn 1 ignored them entirely), so a root `yaml@2.0.0-4` makes npm refuse to hoist `vite`,
+  which breaks `@vitest/browser` — every test file dies with `Cannot find package 'vite'`.
+  Nesting a second yaml cannot fix it: peers resolve at or above the dependent's position, so a
+  hoisted vite can only ever see a top-level `yaml`. Aliasing our copy out of the name `yaml`
+  sidesteps the collision, and vite then has no yaml at all — fine, because the peer is optional
+  and we use neither YAML config files nor `.yaml` imports.
+  *To undo:* upgrade to `yaml@^2.9`, import from `"yaml"` again, drop the alias. The migration is
+  ~15 lines, all in `updateState`: `Options` no longer exists (just delete `docOptions`);
+  `Composer`/`Parser` went callback-based to generator-based
+  (`Array.from(new Composer().compose(parser.parse(text)))`); and `Alias.source` is now the anchor
+  *name* rather than the node, with a new `Alias.resolve(doc)` returning the node — which lets the
+  `Symbol.for("yaml.node.type")` hack at `YamlParser.ts:84-90` be deleted outright. Everything
+  else the file uses (the `isX` guards, `LineCounter`, `doc.get`, `node.range`) is unchanged in 2.9.
+
+- **`zod` — pinned to exact `3.0.0`.**
+  3.25 brands `ZodAny` with a `_any` property, so the concrete schemas every caller passes to
+  `makeZodCmdHandler` stop being assignable: 9 compile errors across `Bgm`, `Sfx`, `Background`,
+  `Decision`, `Label`, `Hide`, `Show`, `FreeformPos`, `Mode`.
+  *To unpin:* change `ZodAny` to `ZodTypeAny` on `Parser.ts:1` and `Parser.ts:70`. That is the
+  entire fix (verified), and it is the `ZodAny` item in ROUGH_EDGES. Type-only, no runtime effect.
+  zod 4 is a separate and much larger migration.
+
+- **`typescript` — pinned to exact `5.1.6`.**
+  5.9's `lib.dom.d.ts` drops `ScreenOrientation.lock` (`index.ts:68`, `playerIndex.ts:63` — the
+  duplicated fullscreen bootstrap) and makes TypedArrays generic over their backing buffer, which
+  breaks `pipeThrough(new DecompressionStream("gzip"))` at `playerIndex.ts:53`.
+  *To unpin:* augment `ScreenOrientation` — and add the `.catch()` it never had, since `lock()`
+  rejects on desktop — then either cast at `playerIndex.ts:53` or drop `to-readable-stream` in
+  favour of `new Response(bytes).body`.
+
+Every other dependency did move to the top of its range during the switch, verified green: lint
+(0 errors, 8 warnings), prettier (the same 6 unformatted files as before), `tsc --skipLibCheck`,
+build, 83 unit+browser tests, 28 demo tests, and `npm run dev`.

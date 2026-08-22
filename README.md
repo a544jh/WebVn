@@ -41,8 +41,8 @@ Technical feats:
 ### How to run
 
 ```
-yarn
-yarn dev
+npm install
+npm run dev
 ```
 
 and off you go!

@@ -21,7 +21,6 @@ export class FreeformTextRenderer {
     committedBoxes: FreeformTextBox[] | undefined,
     animate: boolean
   ): Promise<void> {
-
     // Handle non-animated state reset
     if (!animate) {
       this.resetAnimations()

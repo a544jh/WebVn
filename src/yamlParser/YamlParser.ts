@@ -12,7 +12,7 @@ import {
   Options,
   Parser,
   YAMLSeq,
-} from "yaml"
+} from "yaml-vn"
 import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"

@@ -3,4 +3,5 @@ node_modules/
 elm-stuff/
 dist/
 .idea/
-yarn-error.log
+npm-debug.log*
+__screenshots__/

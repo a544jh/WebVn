@@ -49,6 +49,7 @@ src/
   editor/          CodeMirror editor
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
+  types/           global .d.ts augmentations of lib.dom
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
 test-assets/       runtime assets copied to dist/ by CopyPlugin
 ```
@@ -110,51 +111,8 @@ If you're tempted to import from any of these, don't.
 - **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs go in `src/**/*.demo.test.ts`, which only `npm run test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
-- Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here, see "Deferred upgrades" for why.
+- Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.
 - `webpack-dev-server` is pinned at `^3.11.2` while `webpack` is `^5.88.2`. The v3 dev-server config shape (`inline`, `stats`) still works but upgrading to v4 is due. Nothing automated covers `npm run dev` — verify it by hand after touching webpack config.
 - `@types/react` is in `dependencies` but should be `devDependencies`.
-- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under TS 5.1. Without it `tsc --noEmit` reports 151 errors, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.
-- The YAML lib is installed under an alias — `"yaml-vn": "npm:yaml@2.0.0-4"` — and `YamlParser.ts` imports from `"yaml-vn"`, not `"yaml"`. This is deliberate; see below.
-- `zod` and `typescript` are held at exact versions. See below.
-
-## Deferred upgrades
-
-Switching from yarn to npm regenerated the lockfile, which pulls every dependency to the top of
-its semver range. Three things are deliberately held back so that switch changed the package
-manager and nothing else. Each is safe to do on its own, in its own session.
-
-- **`yaml` — held at `2.0.0-4` via the `yaml-vn` alias.**
-  vite 6+ declares `yaml: "^2.4.2"` as an *optional* peer dependency. npm enforces peer deps
-  (yarn 1 ignored them entirely), so a root `yaml@2.0.0-4` makes npm refuse to hoist `vite`,
-  which breaks `@vitest/browser` — every test file dies with `Cannot find package 'vite'`.
-  Nesting a second yaml cannot fix it: peers resolve at or above the dependent's position, so a
-  hoisted vite can only ever see a top-level `yaml`. Aliasing our copy out of the name `yaml`
-  sidesteps the collision, and vite then has no yaml at all — fine, because the peer is optional
-  and we use neither YAML config files nor `.yaml` imports.
-  *To undo:* upgrade to `yaml@^2.9`, import from `"yaml"` again, drop the alias. The migration is
-  ~15 lines, all in `updateState`: `Options` no longer exists (just delete `docOptions`);
-  `Composer`/`Parser` went callback-based to generator-based
-  (`Array.from(new Composer().compose(parser.parse(text)))`); and `Alias.source` is now the anchor
-  *name* rather than the node, with a new `Alias.resolve(doc)` returning the node — which lets the
-  `Symbol.for("yaml.node.type")` hack at `YamlParser.ts:84-90` be deleted outright. Everything
-  else the file uses (the `isX` guards, `LineCounter`, `doc.get`, `node.range`) is unchanged in 2.9.
-
-- **`zod` — pinned to exact `3.0.0`.**
-  3.25 brands `ZodAny` with a `_any` property, so the concrete schemas every caller passes to
-  `makeZodCmdHandler` stop being assignable: 9 compile errors across `Bgm`, `Sfx`, `Background`,
-  `Decision`, `Label`, `Hide`, `Show`, `FreeformPos`, `Mode`.
-  *To unpin:* change `ZodAny` to `ZodTypeAny` on `Parser.ts:1` and `Parser.ts:70`. That is the
-  entire fix (verified), and it is the `ZodAny` item in ROUGH_EDGES. Type-only, no runtime effect.
-  zod 4 is a separate and much larger migration.
-
-- **`typescript` — pinned to exact `5.1.6`.**
-  5.9's `lib.dom.d.ts` drops `ScreenOrientation.lock` (`index.ts:68`, `playerIndex.ts:63` — the
-  duplicated fullscreen bootstrap) and makes TypedArrays generic over their backing buffer, which
-  breaks `pipeThrough(new DecompressionStream("gzip"))` at `playerIndex.ts:53`.
-  *To unpin:* augment `ScreenOrientation` — and add the `.catch()` it never had, since `lock()`
-  rejects on desktop — then either cast at `playerIndex.ts:53` or drop `to-readable-stream` in
-  favour of `new Response(bytes).body`.
-
-Every other dependency did move to the top of its range during the switch, verified green: lint
-(0 errors, 8 warnings), prettier (the same 6 unformatted files as before), `tsc --skipLibCheck`,
-build, 83 unit+browser tests, 28 demo tests, and `npm run dev`.
+- `src/types/screenOrientation.d.ts` declares `ScreenOrientation.lock` back into `lib.dom`, which dropped it in TS 5.9. It is a global augmentation (no imports/exports), picked up because `tsconfig.json` has no `include`. Both fullscreen call sites `.catch()` the rejection non-mobile browsers give.
+- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under the TypeScript we build with. Without it `tsc --noEmit` reports 17 errors under TS 5.9, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.

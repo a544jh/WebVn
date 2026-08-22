@@ -7,7 +7,6 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
-import toReadableStream from "to-readable-stream"
 import { Base64 } from "js-base64"
 import { demoState, demoYaml } from "./demoStory"
 
@@ -65,7 +64,9 @@ document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
     .getElementById("vn-div-container")
     ?.requestFullscreen({ navigationUI: "hide" })
     .then(() => {
-      screen.orientation.lock("landscape")
+      // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
+      // do about that, and the scaling below still works, so swallow it.
+      screen.orientation.lock("landscape").catch(() => undefined)
       window.setTimeout(setScale, 500)
     }) // hackety hack to let mobile ui settle..
 })
@@ -112,7 +113,10 @@ document.getElementById("vn-btn-export-url")?.addEventListener("click", getCompr
 
 async function getCompressedScript() {
   const script = editor.getScript()
-  const stringStream = toReadableStream(new TextEncoder().encode(script))
+  const stringStream = new Response(new TextEncoder().encode(script)).body
+  if (stringStream === null) {
+    throw new Error("Could not read the script.")
+  }
   const compressedStream = stringStream.pipeThrough(new CompressionStream("gzip"))
   const ab = await new Response(compressedStream).arrayBuffer()
   const base64 = Base64.fromUint8Array(new Uint8Array(ab), true)

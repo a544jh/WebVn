@@ -9,10 +9,9 @@ import {
   isSeq,
   LineCounter,
   Node,
-  Options,
   Parser,
   YAMLSeq,
-} from "yaml-vn"
+} from "yaml"
 import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { Command } from "../core/commands/Command"
@@ -22,19 +21,16 @@ import { updateLabels } from "../core/commands/controlFlow/Label"
 const updateState = (text: string, state: VnPlayerState): [VnPlayerState, ParserError[]] => {
   let newState = { ...state }
   let errors: ParserError[] = []
-  const docOptions: Options = {}
 
-  const docs: Document[] = []
   const lineCounter = new LineCounter()
-  const composer = new Composer((doc: Document) => docs.push(doc), docOptions)
-  const parser = new Parser(composer.next, lineCounter.addNewLine)
-  parser.parse(text)
-  composer.end()
+  const parser = new Parser(lineCounter.addNewLine)
+  const composer = new Composer()
+  const docs = Array.from(composer.compose(parser.parse(text), true, text.length))
 
   console.dir(docs[0])
 
   for (const docWarning of docs[0].warnings) {
-    const line = lineCounter.linePos(docWarning.offset).line
+    const line = lineCounter.linePos(docWarning.pos[0]).line
     errors.push(
       new ParserError(
         "YAML parse warning: " + docWarning.message,
@@ -45,7 +41,7 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
   }
 
   for (const docError of docs[0].errors) {
-    const line = lineCounter.linePos(docError.offset).line
+    const line = lineCounter.linePos(docError.pos[0]).line
     errors.push(
       new ParserError("YAML parse error: " + docError.message, { startLine: line, endLine: line }, ErrorLevel.ERROR)
     )
@@ -57,7 +53,7 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
   } else if (!isSeq(storyNode) && isNode(storyNode)) {
     errors.push(new ParserError("story must be a sequence", getLines(storyNode, lineCounter), ErrorLevel.ERROR))
   } else if (isSeq(storyNode)) {
-    const [commands, storyErrors] = storyToCommands(storyNode, lineCounter)
+    const [commands, storyErrors] = storyToCommands(storyNode, docs[0], lineCounter)
     errors = errors.concat(storyErrors)
     newState.commands = commands
   }
@@ -68,7 +64,7 @@ const updateState = (text: string, state: VnPlayerState): [VnPlayerState, Parser
   return [newState, errors]
 }
 
-const storyToCommands = (story: YAMLSeq<unknown>, lc: LineCounter): [Command[], ParserError[]] => {
+const storyToCommands = (story: YAMLSeq<unknown>, doc: Document, lc: LineCounter): [Command[], ParserError[]] => {
   const commands: Command[] = []
   const errors: ParserError[] = []
 
@@ -76,18 +72,15 @@ const storyToCommands = (story: YAMLSeq<unknown>, lc: LineCounter): [Command[], 
 
   for (let item of story.items) {
     if (isAlias(item)) {
-      //const resolvedNode = Object.assign(Object.create(item.source), item.source) // WTF JS ... (need to preserve the type)
-      // ^ works too but relies on prototype chain
-
-      // Hack to clone the Node and set its type using symbol used by yaml lib internally...
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const sourceAsAny = item.source as any
-      const resolvedNode = { ...item.source } as any
-      /* eslint-enable @typescript-eslint/no-explicit-any */
-      const symbol = Symbol.for("yaml.node.type")
-      resolvedNode[symbol] = sourceAsAny[symbol]
-      resolvedNode.range = item.range // use line numbers where anchor is dereferenced
-      item = resolvedNode
+      const source = item.resolve(doc)
+      if (source === undefined) {
+        errors.push(new ParserError(`Unknown anchor *${item.source}.`, getLines(item, lc), ErrorLevel.ERROR))
+        continue
+      }
+      // Object.create keeps the resolved node on the prototype chain, and with it the internal
+      // type symbol the isX guards read - a spread would drop it, since it is non-enumerable.
+      // The own range shadows the source's, so errors point at where the anchor is dereferenced.
+      item = Object.assign(Object.create(source), { range: item.range })
     }
 
     let recognized = false

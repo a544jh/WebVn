@@ -6,7 +6,6 @@ import "./player.html"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
-import toReadableStream from "to-readable-stream"
 import { Base64 } from "js-base64"
 import { demoState, demoYaml } from "./demoStory"
 
@@ -48,7 +47,14 @@ function loadYaml(yamlText: string) {
 }
 
 async function loadEncodedScript(script: string) {
-  const bufferStream = toReadableStream(Base64.toUint8Array(script))
+  // js-base64 declares toUint8Array as a bare Uint8Array, which TypeScript 5.9 widens to
+  // Uint8Array<ArrayBufferLike>. BodyInit wants one backed by a plain ArrayBuffer, which is
+  // what js-base64 allocates; only the declaration is imprecise.
+  const bytes = Base64.toUint8Array(script) as Uint8Array<ArrayBuffer>
+  const bufferStream = new Response(bytes).body
+  if (bufferStream === null) {
+    throw new Error("Could not read the encoded script.")
+  }
   const decompressedStream = bufferStream.pipeThrough(new DecompressionStream("gzip"))
   const yamlString = await new Response(decompressedStream).text()
   loadYaml(yamlString)
@@ -59,7 +65,9 @@ document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
     .getElementById("vn-div-container")
     ?.requestFullscreen({ navigationUI: "hide" })
     .then(() => {
-      screen.orientation.lock("landscape")
+      // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
+      // do about that, and the scaling below still works, so swallow it.
+      screen.orientation.lock("landscape").catch(() => undefined)
       window.setTimeout(setScale, 500)
     }) // hackety hack to let mobile ui settle..
 })

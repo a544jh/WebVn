@@ -3,6 +3,7 @@ import { initialState, VnPlayer } from "../core/player"
 import { YamlParser } from "../yamlParser/YamlParser"
 import { DomRenderer } from "./DomRenderer"
 import { pauseMenu } from "./menus/PauseMenu"
+import { saveMenu } from "./menus/SaveLoadMenu"
 
 const script = `
 story:
@@ -25,8 +26,8 @@ const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void> =>
 const textBoxText = (root: HTMLDivElement): string | null => root.querySelector(".vn-adv-textbox")?.textContent ?? null
 
 // Returns false when the handler called preventDefault, i.e. when the VN claimed the gesture.
-const wheel = (root: HTMLDivElement, deltaY: number, deltaMode = 0): boolean =>
-  root.dispatchEvent(new WheelEvent("wheel", { deltaY, deltaMode, bubbles: true, cancelable: true }))
+const wheel = (target: Element, deltaY: number, deltaMode = 0): boolean =>
+  target.dispatchEvent(new WheelEvent("wheel", { deltaY, deltaMode, bubbles: true, cancelable: true }))
 
 const NOTCH = 100
 
@@ -129,16 +130,17 @@ describe("DomRenderer scroll wheel", () => {
     expect(textBoxText(root)).toBe("First line")
   })
 
-  it("is disabled while a menu is open, leaving the wheel to the menu", async () => {
+  it("steps no story while a menu is open, and still swallows the wheel", async () => {
     const stop = nextStop(renderer, player)
     renderer.advance()
     await stop
     expect(textBoxText(root)).toBe("Second line")
 
     renderer.showMenu(pauseMenu)
-    // not cancelled: the save list scrolls with the wheel, so the menu must keep the default
-    expect(wheel(root, -NOTCH)).toBe(true)
-    expect(wheel(root, NOTCH)).toBe(true)
+    // cancelled even though the VN does nothing with it: nothing in the pause menu scrolls,
+    // and the page hosting the VN must not scroll out from under the menu either
+    expect(wheel(root, -NOTCH)).toBe(false)
+    expect(wheel(root, NOTCH)).toBe(false)
     await settle()
     expect(textBoxText(root)).toBe("Second line")
 
@@ -147,5 +149,27 @@ describe("DomRenderer scroll wheel", () => {
     wheel(root, -NOTCH)
     await undone
     expect(textBoxText(root)).toBe("First line")
+  })
+
+  it("leaves the wheel to a save list that can still scroll, and swallows it at either end", async () => {
+    for (let slot = 0; slot < 10; slot++) {
+      renderer.saveToSlot(slot)
+    }
+    renderer.showMenu(saveMenu)
+
+    const list = root.querySelector(".vn-saves-container") as HTMLDivElement
+    const scrollableHeight = list.scrollHeight - list.clientHeight
+    expect(scrollableHeight).toBeGreaterThan(0)
+
+    // at the top of the list only the downward gesture is the list's to use
+    expect(wheel(list, -NOTCH)).toBe(false)
+    expect(wheel(list, NOTCH)).toBe(true)
+
+    list.scrollTop = scrollableHeight
+    expect(wheel(list, NOTCH)).toBe(false)
+    expect(wheel(list, -NOTCH)).toBe(true)
+
+    // the wheel over the rest of the menu is swallowed wherever the list happens to sit
+    expect(wheel(root.querySelector(".vn-save-return") as HTMLDivElement, -NOTCH)).toBe(false)
   })
 })

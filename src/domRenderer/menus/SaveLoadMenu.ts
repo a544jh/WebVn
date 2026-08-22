@@ -59,7 +59,9 @@ export function createSaveItem(
 
   if (saving) {
     saveDiv.addEventListener("click", (e) => {
-      // TODO need to implment own dialogs. this breaks fullscreen.
+      // TODO need to implement own dialogs. A browser confirm breaks out of fullscreen, which
+      // on mobile means the player loses fullscreen just by answering it. Same for the load and
+      // delete confirms below.
       const result = window.confirm("Are you sure you want to overwrite?")
       if (!result) return
       renderer.closeMenu()
@@ -67,6 +69,7 @@ export function createSaveItem(
     })
   } else {
     saveDiv.addEventListener("click", (e) => {
+      // TODO in-game dialog, as above - this one drops mobile out of fullscreen too
       const result = window.confirm("Are you sure you want to load?")
       if (!result) return
       renderer.loadFromSlot(slot)
@@ -79,6 +82,7 @@ export function createSaveItem(
   delDiv.classList.add("vn-save-del")
   delDiv.addEventListener("click", (e) => {
     e.stopPropagation()
+    // TODO in-game dialog, as above - this one drops mobile out of fullscreen too
     const result = window.confirm("Are you sure you want to delete the save?")
     if (!result) return
     renderer.deleteSave(slot)

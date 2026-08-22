@@ -2,9 +2,7 @@
 
 Real issues that actively confuse new contributors. If you touch the area, consider fixing rather than working around.
 
-- **`YamlParser.ts` imports from `"yaml-vn"`, not `"yaml"`.** That is an npm alias for `yaml@2.0.0-4`, not a different library. It exists because vite 6+ declares an optional peer on `yaml@^2.4.2` and npm — unlike yarn 1 — enforces peer deps, so a root `yaml@2.0.0-4` stops vite from hoisting and breaks the whole browser test suite. Don't "fix" the import back to `"yaml"` on its own; the alias goes away as part of upgrading the lib. See "Deferred upgrades" in CLAUDE.md.
 - **Dead code paths:** `DomRenderer.handleScrollWheelEvent` is defined but its listener is commented out. `animations.css` has unused keyframes.
-- **Zod type used in `Parser.ts:makeZodCmdHandler` is `ZodAny`** but callers pass object schemas. `ZodTypeAny` is the correct supertype. This is now the reason `zod` is pinned to exact `3.0.0` — newer zod brands `ZodAny` and the 9 call sites stop compiling. Changing it is a two-line, type-only fix (`Parser.ts:1` and `:70`), verified against zod 3.25; see "Deferred upgrades" in CLAUDE.md.
 - **Asset loaders have no error handling.** A single broken image rejects `ImageAssetLoaderSrc.loadAll`. Audio waits for `canplaythrough` with no error listener — a broken audio file hangs startup.
 - **Duplicated bootstrap between `src/index.ts` and `src/playerIndex.ts`.** The demo script and its actor/asset state now live in `src/demoStory.ts` and both entry points import it, but the fullscreen listener, `setScale` and `restoreOnFullscreenExit` are still copied verbatim into both. If you fix one, fix the other, or extract shared bootstrap.
 - **Infinite-loop guard calls `alert()`** in `DomRenderer.ts:153`. Blocks the UI thread. Prefer a silent console error + hard cap if you rewrite. (The equivalent guards in `core/state.ts` used to `alert()` too — they now just throw, keeping `core/` free of browser globals.)

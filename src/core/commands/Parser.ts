@@ -1,4 +1,4 @@
-import { ZodAny, ZodError } from "zod"
+import { ZodTypeAny, ZodError } from "zod"
 import { VnPlayerState } from "../state"
 import { Command } from "./Command"
 
@@ -67,7 +67,7 @@ export interface ZodCommandCtor {
   new (location: SourceLocation, cmd: any): Command
 }
 
-export function makeZodCmdHandler(schema: ZodAny, cmdConstuctor: ZodCommandCtor): ObjectToCommand {
+export function makeZodCmdHandler(schema: ZodTypeAny, cmdConstuctor: ZodCommandCtor): ObjectToCommand {
   return (obj: unknown, location: SourceLocation) => {
     try {
       const cmd = schema.parse(obj)

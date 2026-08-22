@@ -20,6 +20,24 @@ Two entry points:
 - `npm run test:demo` — the `demo` project (`src/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
 - `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
+## CI
+`.github/workflows/ci.yml` runs on pushes to `master`, on every pull request, and on manual
+dispatch. Three parallel jobs, roughly two minutes wall clock:
+
+- **check** — `npm ci`, then lint, prettier, typecheck, build.
+- **test** — the fast gate (`npm test`). Playwright's Chromium is cached on `package-lock.json`;
+  the apt system libraries are not in that cache, so `install-deps` still runs on a cache hit.
+- **demo** — `npm run test:demo`, kept as its own job because it waits on real CSS transitions for
+  ~35s and is the likeliest place for a timing flake on a shared runner. A flake there should read
+  as "demo red" rather than poisoning the fast gate. If it does turn flaky, the ladder is
+  `--retry=1`, then restricting the job to `push`.
+
+Two things worth knowing before editing it:
+- **Nothing in CI exercises `npm run dev`.** webpack-dev-server changes must be verified by hand.
+- **The test jobs deliberately have no build step.** Vitest serves `test-assets/` straight from the
+  repo root, so `dist/` never enters the test path — verified by running the demo suite with `dist/`
+  deleted.
+
 ## Top-level layout
 ```
 src/

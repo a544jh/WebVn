@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { initialState } from "../core/player"
-import { ErrorLevel } from "../core/commands/Parser"
-import { ADVTextBox } from "../core/state"
-import { YamlParser } from "./YamlParser"
+import { initialState } from "../src/core/player"
+import { ErrorLevel } from "../src/core/commands/Parser"
+import { ADVTextBox } from "../src/core/state"
+import { YamlParser } from "../src/yamlParser/YamlParser"
 
 // storyToCommands dereferences aliases by hand, so these cover the seam between the yaml
 // lib's Alias.resolve and the isX guards the node evaluators rely on. A clone that loses

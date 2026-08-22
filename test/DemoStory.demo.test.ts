@@ -1,12 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { VnPlayer } from "../core/player"
-import { VnPlayerState } from "../core/state"
-import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
-import { ErrorLevel } from "../core/commands/Parser"
-import { loadFromLocalStorage } from "../core/save"
-import { YamlParser } from "../yamlParser/YamlParser"
-import { demoState, demoYaml } from "../demoStory"
-import { DomRenderer } from "./DomRenderer"
+import { VnPlayer } from "../src/core/player"
+import { VnPlayerState } from "../src/core/state"
+import { ErrorLevel } from "../src/core/commands/Parser"
+import { loadFromLocalStorage } from "../src/core/save"
+import { YamlParser } from "../src/yamlParser/YamlParser"
+import { demoState, demoYaml } from "../src/demoStory"
+import { DomRenderer } from "../src/domRenderer/DomRenderer"
+import {
+  boxText,
+  createVnRoot,
+  decisionItems,
+  freshState,
+  liveSprites,
+  mountVn,
+  nameTag,
+  nextFrame,
+  nextStop,
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
+  sleep,
+  spriteElems,
+  textBoxText,
+} from "./helpers/vnHarness"
 
 // End-to-end coverage of the demo VN. The script lives in src/demoStory.ts, which both entry
 // points load - the editor (src/index.ts) and the standalone player (src/playerIndex.ts) - so
@@ -15,9 +30,6 @@ import { DomRenderer } from "./DomRenderer"
 // Importing DomRenderer is what pulls in BackgroundRenderer -> BlindsTransition/FadeTransition,
 // which is what makes "blinds"/"fade" valid values for the bg command's transition enum. Without
 // it every bg command in the demo fails to parse.
-
-const SCENE_WIDTH = 1280
-const SCENE_HEIGHT = 720
 
 const FIRST_LINE = "Hello, This is WebVn - A fast visual novel engine for the modern web."
 const FOX_LINE = new Array(6).fill("The quick brown fox jumps over the lazy dog.").join(" ")
@@ -136,32 +148,6 @@ const STOPS_AFTER_GOOD_CHOICE = [
 // After picking the second option (jump: bad).
 const STOPS_AFTER_BAD_CHOICE = ["That was a bad choice.", "And here we go again...", "Here I am"]
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-
-// Resolves the next time a render pass finishes with the player stopped (i.e. waiting for input).
-const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void> =>
-  new Promise((resolve) => {
-    const callback = () => {
-      if (!player.state.stopAfterRender) return
-      renderer.onFinishedCallbacks.splice(renderer.onFinishedCallbacks.indexOf(callback), 1)
-      resolve()
-    }
-    renderer.onFinishedCallbacks.push(callback)
-  })
-
-// appendTextNodesToDiv assigns each character to `span.innerText`, and the innerText setter
-// turns a "\n" into a <br>. textContent alone would silently drop the demo's multiline node and
-// its freeform line breaks, so put them back.
-const boxText = (box: Element): string =>
-  [...box.children].map((span) => (span.querySelector("br") === null ? span.textContent : "\n")).join("")
-
-const textBoxText = (root: HTMLDivElement): string | null => {
-  const box = root.querySelector(".vn-adv-textbox")
-  return box === null ? null : boxText(box)
-}
-
 const freeformBoxes = (root: HTMLDivElement): HTMLDivElement[] =>
   [...root.querySelectorAll("#vn-freeform-renderer .vn-freeform-textbox")] as HTMLDivElement[]
 
@@ -175,23 +161,6 @@ const screenText = (root: HTMLDivElement): string => {
   const boxes = freeformTexts(root)
   return boxes.length === 0 ? CLOSED : boxes.join(BOX_SEPARATOR)
 }
-
-const nameTag = (root: HTMLDivElement): HTMLDivElement | null => root.querySelector(".vn-adv-nametag")
-
-const spriteElems = (root: HTMLDivElement): HTMLImageElement[] =>
-  [...root.querySelectorAll("#vn-sprite-renderer img")] as HTMLImageElement[]
-
-// Only the sprites the renderer still considers live - elements mid fade-out have their id deleted.
-const liveSprites = (root: HTMLDivElement): Record<string, HTMLImageElement> => {
-  const result: Record<string, HTMLImageElement> = {}
-  for (const elem of spriteElems(root)) {
-    if (elem.dataset.vnSpriteId !== undefined) result[elem.dataset.vnSpriteId] = elem
-  }
-  return result
-}
-
-const decisionItems = (root: HTMLDivElement): HTMLDivElement[] =>
-  [...root.querySelectorAll("#vn-decision-renderer .vn-decision-item")] as HTMLDivElement[]
 
 const arrow = (root: HTMLDivElement): HTMLDivElement => root.querySelector(".vn-arrow") as HTMLDivElement
 
@@ -217,18 +186,6 @@ const sampleRow = (canvas: HTMLCanvasElement, y: number, samples = 64): Pixel[] 
 
 const isWhite = (p: Pixel) => p[0] === 255 && p[1] === 255 && p[2] === 255 && p[3] === 255
 
-// The #vn-div markup the standalone player ships (src/player.html). DomRenderer wires the action
-// buttons up in its constructor, so they have to be in the root before it is built.
-const VN_ACTIONS_HTML = `
-<div id="vn-actions">
-  <div role="button" class="vn-action vn-action-back"><i class="gg-back-button"></i>Back</div>
-  <div role="button" class="vn-action vn-action-menu"><i class="gg-menu"></i>Menu</div>
-  <div role="button" class="vn-action vn-action-auto">Auto<i class="gg-play-button"></i></div>
-  <div role="button" class="vn-action vn-action-skip">
-    Skip<span style="width: 20px; transform: translateX(14px)"><i class="gg-play-forwards"></i></span>
-  </div>
-</div>`
-
 interface PlayCall {
   asset: string
   loop: boolean
@@ -243,10 +200,6 @@ interface Harness {
   // how many stops the harness has advanced past, i.e. the index into STOPS_UP_TO_DECISION
   stopIndex: number
 }
-
-// initialState.seenCommands is a single shared mutable instance, and demoState spreads it.
-// Every test needs its own or skip-mode availability leaks between them.
-const freshDemoState = (): VnPlayerState => ({ ...demoState, seenCommands: new ConsecutiveIntegerSet() })
 
 // Puts the demo's real assets straight into the renderer's asset loaders, under the same keys
 // DomRenderer.loadAssets() would derive. Their src paths are relative to the page in the real
@@ -292,20 +245,13 @@ const realPlay = HTMLMediaElement.prototype.play
 // Chromium's autoplay policy rejects play() without a user gesture, and AudioRenderer does not
 // catch that. Stubbing it also gives us a log of what the demo asked to play, and how.
 beforeEach(() => {
-  localStorage.clear()
   playCalls = []
   HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
     playCalls.push({ asset: this.dataset.testAsset ?? this.src, loop: this.loop })
     return Promise.resolve()
   }
 
-  document.body.innerHTML = ""
-  harnessRoot = document.createElement("div")
-  harnessRoot.id = "vn-div"
-  harnessRoot.style.width = `${SCENE_WIDTH}px`
-  harnessRoot.style.height = `${SCENE_HEIGHT}px`
-  harnessRoot.innerHTML = VN_ACTIONS_HTML
-  document.body.appendChild(harnessRoot)
+  harnessRoot = createVnRoot({ actions: true })
 })
 
 afterEach(() => {
@@ -314,12 +260,10 @@ afterEach(() => {
 
 // Boots the demo exactly like playerIndex.ts does and waits for the first stop.
 const startDemo = async (): Promise<Harness> => {
-  const [state] = YamlParser.updateState(demoYaml, freshDemoState())
-  const player = new VnPlayer(state)
-  const renderer = new DomRenderer(harnessRoot, player)
-  // The constructor already started rendering towards the first stop, so hook the callback up
-  // before anything is awaited. Assets are only needed from the first advance on.
-  const firstStop = nextStop(renderer, player)
+  const [state] = YamlParser.updateState(demoYaml, freshState(demoState))
+  const { player, renderer, firstStop } = mountVn(harnessRoot, state)
+  // Assets are only needed from the first advance on, so they can load while the renderer is
+  // already on its way to the first stop.
   const images = await loadDemoAssets(renderer, state)
   await firstStop
   return { root: harnessRoot, player, renderer, images, playCalls, stopIndex: 0 }
@@ -391,7 +335,7 @@ const expectedSpriteTransform = (
 
 describe("demo story - script", () => {
   it("parses with only the three warnings the demo deliberately contains", async () => {
-    const [state, errors] = YamlParser.updateState(demoYaml, freshDemoState())
+    const [state, errors] = YamlParser.updateState(demoYaml, freshState(demoState))
 
     expect(errors.map((e) => `L${e.location.startLine}: ${e.message}`)).toEqual([
       "L97: ugh is not a recognized command.",
@@ -932,7 +876,7 @@ describe("demo story - player actions", () => {
     const saved = loadFromLocalStorage("test")
     expect(saved.saves).toEqual([])
 
-    const [state] = YamlParser.updateState(demoYaml, freshDemoState())
+    const [state] = YamlParser.updateState(demoYaml, freshState(demoState))
     const reloaded = new VnPlayer(state, saved)
     expect(reloaded.state.seenCommands.contains(0)).toBe(true)
     expect(reloaded.state.seenCommands.contains(11)).toBe(true) // "Another song..."

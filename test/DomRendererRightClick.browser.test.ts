@@ -1,27 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { initialState, VnPlayer } from "../core/player"
-import { YamlParser } from "../yamlParser/YamlParser"
-import { DomRenderer } from "./DomRenderer"
-import { saveMenu } from "./menus/SaveLoadMenu"
+import { VnPlayer } from "../src/core/player"
+import { DomRenderer } from "../src/domRenderer/DomRenderer"
+import { saveMenu } from "../src/domRenderer/menus/SaveLoadMenu"
+import { nextStop, settle, startVn, textBoxText } from "./helpers/vnHarness"
 
 const script = `
 story:
   - First line
   - Second line
 `
-
-// Resolves the next time a render pass finishes with the player stopped (i.e. waiting for input).
-const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void> =>
-  new Promise((resolve) => {
-    const callback = () => {
-      if (!player.state.stopAfterRender) return
-      renderer.onFinishedCallbacks.splice(renderer.onFinishedCallbacks.indexOf(callback), 1)
-      resolve()
-    }
-    renderer.onFinishedCallbacks.push(callback)
-  })
-
-const textBoxText = (root: HTMLDivElement): string | null => root.querySelector(".vn-adv-textbox")?.textContent ?? null
 
 // Returns false when the handler called preventDefault, i.e. when the VN claimed the click and
 // the browser's own context menu stays away.
@@ -38,28 +25,13 @@ const longPress = (target: Element, pointerType: string): boolean => {
 
 const pauseMenuIsUp = (root: HTMLDivElement): boolean => root.querySelector(".vn-pause-menu-container") !== null
 
-// Long enough for a render that should not happen to have happened.
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
-
 describe("DomRenderer right click", () => {
   let root: HTMLDivElement
   let player: VnPlayer
   let renderer: DomRenderer
 
   beforeEach(async () => {
-    localStorage.clear()
-    document.body.innerHTML = ""
-    root = document.createElement("div")
-    root.id = "vn-div"
-    root.style.width = "1280px"
-    root.style.height = "720px"
-    document.body.appendChild(root)
-
-    const [state, errors] = YamlParser.updateState(script, initialState)
-    expect(errors).toEqual([])
-    player = new VnPlayer(state)
-    renderer = new DomRenderer(root, player)
-    await nextStop(renderer, player)
+    ;({ root, player, renderer } = await startVn(script))
   })
 
   it("opens the pause menu instead of the browser's context menu", async () => {

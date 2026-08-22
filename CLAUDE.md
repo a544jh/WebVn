@@ -16,8 +16,8 @@ Two entry points:
 - `npm run typecheck` — `tsc --noEmit`. Vitest transpiles via esbuild and does **not** typecheck, so this is the only fast type gate; `npm run build` also typechecks, via ts-loader.
 - `npm run lint` — ESLint over `**/*.ts`
 - `npm run prettier` — prettier check
-- `npm test` — the fast gate: vitest projects `unit` (node, `src/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `src/**/*.browser.test.ts`). ~6s.
-- `npm run test:demo` — the `demo` project (`src/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
+- `npm test` — the fast gate: vitest projects `unit` (node, `test/**/*.test.ts`) and `browser` (headless Chromium via Playwright, `test/**/*.browser.test.ts`). ~6s.
+- `npm run test:demo` — the `demo` project (`test/**/*.demo.test.ts`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
 - `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## CI
@@ -93,6 +93,8 @@ src/
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
   types/           global .d.ts augmentations of lib.dom
+test/              all tests, flat; the .browser/.demo suffix picks the vitest project
+  helpers/         vnHarness.ts (DOM boot + queries), commands.ts (building commands)
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
 test-assets/       runtime assets copied to dist/ by CopyPlugin
 ```
@@ -151,7 +153,7 @@ If you're tempted to import from any of these, don't.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: unit tests (node) go in `src/**/*.test.ts`; browser tests in `src/**/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs go in `src/**/*.demo.test.ts`, which only `npm run test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path — extend it (or follow its `nextStop` helper pattern) for renderer-level tests; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
+- **Add tests**: everything lives in `test/`, flat — the filename suffix, not the directory, is what picks the vitest project. Unit tests (node) are `test/*.test.ts`; browser tests are `test/*.browser.test.ts` (run in real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production); whole-story playthroughs are `test/*.demo.test.ts`, which only `npm run test:demo` runs. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop, `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `DomRenderer.browser.test.ts` is the smoke test for the DOM render path; `DemoStory.demo.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.

@@ -1,7 +1,7 @@
 let path = require("path");
 const CopyPlugin = require("copy-webpack-plugin");
 
-const isDevServer = process.env.WEBPACK_DEV_SERVER;
+const isDevServer = process.env.WEBPACK_SERVE;
 
 module.exports = {
   mode: "development",
@@ -78,8 +78,11 @@ module.exports = {
   },
 
   devServer: {
-    inline: true,
-    stats: { colors: true }
+    // Everything the dev server needs (html via file-loader, test-assets via CopyPlugin)
+    // is emitted into the compilation and served from memory by webpack-dev-middleware,
+    // so there is nothing to serve off disk. Without this, v4+ would watch a ./public
+    // directory that does not exist here.
+    static: false
   }
 };
 

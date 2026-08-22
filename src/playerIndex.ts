@@ -42,12 +42,10 @@ if (params.has("vn")) {
 
 async function loadYaml(yamlText: string) {
   const [state] = YamlParser.updateState(yamlText, player.state)
-  player.loadState(state)
-  await renderer.loadAssets()
-  // The editor page gets its first frame from VnEditor.loadScript. Nothing does that here, so the
-  // standalone player has to step into the first command itself or it just sits on a blank vn.
-  player.advance()
-  renderer.render(false)
+  await renderer.loadAssets(state)
+  // Animated, unlike the editor: everything the story runs before its first stop is played out,
+  // which is what makes an intro or a title screen possible.
+  renderer.loadStory(state, true)
 }
 
 async function loadEncodedScript(script: string) {

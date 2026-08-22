@@ -116,8 +116,20 @@ export class DomRenderer implements Renderer {
     this.arrow = document.createElement("div")
     this.arrow.classList.add("vn-arrow", "vn-anim-bounce")
     this.root.appendChild(this.arrow)
+  }
 
-    this.render(true)
+  // Play a story from the top: swap it into the player and render, which leaves the auto-advance
+  // in `render` to walk to the first stop, painting every frame on the way. That walk is the point
+  // - it is what plays an intro or a title screen - so pass `animate: true` unless the caller wants
+  // to land on the first stop without watching it happen, the way the editor does.
+  //
+  // The swap and the render must stay in one synchronous step. `render` bumps `renderGeneration`,
+  // which is what tells a pass still in flight that it no longer owns the loop; a `loadState` that
+  // is not immediately followed by a render leaves the old pass free to auto-advance the new story
+  // instead, and it will step commands nobody asked it to.
+  public loadStory(state: VnPlayerState, animate: boolean): void {
+    this.player.loadState(state)
+    this.render(animate)
   }
 
   public render(animate: boolean): void {
@@ -371,8 +383,9 @@ export class DomRenderer implements Renderer {
     }
   }
 
-  public loadAssets(): Promise<unknown> {
-    const state = this.player.state
+  // Defaults to the player's own state, but a caller booting a story can pass it before the swap:
+  // the assets to preload come from the story, not from whatever the player is holding.
+  public loadAssets(state: VnPlayerState = this.player.state): Promise<unknown> {
     for (const actor in state.actors) {
       const sprites = state.actors[actor].sprites
       if (sprites === undefined) continue

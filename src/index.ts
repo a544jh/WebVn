@@ -10,7 +10,6 @@ import { loadFromLocalStorage } from "./core/save"
 import { demoState, demoYaml } from "./demoStory"
 import { encodeScript, playerUrl } from "./scriptUrl"
 
-const [yamlState] = YamlParser.updateState(demoYaml, demoState)
 // TODO: id from VN title
 let save
 try {
@@ -18,7 +17,9 @@ try {
 } catch (e) {
   save = undefined
 }
-const player = new VnPlayer(yamlState, save)
+// The demo script is parsed by editor.loadScript below, which is what boots the vn. The player
+// only needs the actor and asset state the script is parsed against.
+const player = new VnPlayer(demoState, save)
 
 declare global {
   interface Window {

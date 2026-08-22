@@ -2,6 +2,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
+import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
 import "./editor.css"
@@ -32,7 +33,9 @@ export class VnEditor {
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
-      this.vnEditor.getDoc().setCursor({ line: getCurrentLocation(player).startLine - 1, ch: 0 })
+      const location = getCurrentLocation(player)
+      if (location === null) return
+      this.vnEditor.getDoc().setCursor({ line: location.startLine - 1, ch: 0 })
     })
 
     this.vnEditor = CodeMirror(root, {
@@ -47,7 +50,8 @@ export class VnEditor {
       this.goToLine(line)
     })
     this.vnEditor.on("blur", () => {
-      this.goToLine(getCurrentLocation(this.player).startLine)
+      const location = getCurrentLocation(this.player)
+      if (location !== null) this.goToLine(location.startLine)
     })
     this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
       // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
@@ -55,7 +59,10 @@ export class VnEditor {
     })
   }
 
-  private parseDocument() {
+  // Parses the document into the player and returns the new state, for callers that need it after
+  // the swap. goToLine only wants the side effect, and is safe to leave at that because it renders
+  // synchronously right after - see DomRenderer.loadStory for why that matters.
+  private parseDocument(): VnPlayerState {
     const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
     this.vnEditor.clearGutter("vn-error-gutter")
     for (const error of errors) {
@@ -65,16 +72,18 @@ export class VnEditor {
     this.player.loadState(state)
 
     this.vnEditor.getDoc().markClean()
+    return state
   }
 
   public async loadScript(script: string): Promise<void> {
     this.vnEditor.getDoc().setValue(script)
-    this.parseDocument()
+    const state = this.parseDocument()
 
-    await this.renderer.loadAssets()
+    await this.renderer.loadAssets(state)
 
-    this.player.advance()
-    this.renderer.render(false)
+    // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
+    // through the intro again. The standalone player boots the same story with animations.
+    this.renderer.loadStory(state, false)
   }
 
   public getScript(): string {
@@ -98,6 +107,7 @@ export class VnEditor {
   private setPositionMarker() {
     this.vnEditor.clearGutter("vn-position-gutter")
     const location = getCurrentLocation(this.player)
+    if (location === null) return
     for (let line = location.startLine; line <= location.endLine; line++) {
       this.vnEditor.setGutterMarker(line - 1, "vn-position-gutter", makeMarker("blue"))
     }
@@ -121,6 +131,8 @@ function makeMarker(color: string, title?: string): HTMLDivElement {
   return div
 }
 
-function getCurrentLocation(player: VnPlayer): SourceLocation {
+// The command the player last ran. Null on the first frame of a boot, where nothing has run yet.
+function getCurrentLocation(player: VnPlayer): SourceLocation | null {
+  if (player.state.commandIndex === 0) return null
   return player.state.commands[player.state.commandIndex - 1].getSourceLocation()
 }

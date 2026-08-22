@@ -37,6 +37,7 @@ export class DomRenderer implements Renderer {
   public skipMode = false
   public autoplayInterval: number | null = null
   private wheelDelta = 0
+  private lastPointerType = "mouse"
 
   private textBoxRenderer: TextBoxRenderer
   private freeformTextRenderer: FreeformTextRenderer
@@ -82,6 +83,8 @@ export class DomRenderer implements Renderer {
     })
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false })
     this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this))
+    // remembered for the contextmenu handler: not every browser gives that event a pointerType
+    this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), { capture: true })
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
@@ -347,6 +350,11 @@ export class DomRenderer implements Renderer {
   // backs out of whichever menu is open. The browser's own context menu is suppressed over the
   // game window either way - it has nothing to offer on top of the VN.
   private handleContextMenuEvent(e: MouseEvent) {
+    // a long press fires this too, and a player tapping to advance holds a moment longer often
+    // enough that the menu would come up unasked. Leave that gesture to the platform.
+    const pointerType = e instanceof PointerEvent ? e.pointerType : this.lastPointerType
+    if (pointerType === "touch") return
+
     e.preventDefault()
     if (this.isMenuOpen()) {
       this.closeMenu()

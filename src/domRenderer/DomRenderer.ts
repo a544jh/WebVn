@@ -81,6 +81,7 @@ export class DomRenderer implements Renderer {
       this.advance()
     })
     this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false })
+    this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this))
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
@@ -176,6 +177,8 @@ export class DomRenderer implements Renderer {
 
   public showMenu(menuCreator: MenuCreator): void {
     this.disableAutoplay()
+    // opening a menu is a deliberate input, like a click: it takes over from skip mode
+    this.skipMode = false
     this.menuDiv.innerHTML = ""
     menuCreator(this.menuDiv, this)
     this.root.appendChild(this.menuDiv)
@@ -212,6 +215,9 @@ export class DomRenderer implements Renderer {
   }
 
   private skipModeTick() {
+    // a tick is already in flight when skip mode is cancelled - cancelling has to mean that
+    // nothing more is skipped, or the story steps once more behind a menu that just opened
+    if (!this.skipMode) return
     if (!this.player.isNextCommandSeen()) {
       this.player.advanceUntilStop()
       this.render(true)
@@ -291,8 +297,11 @@ export class DomRenderer implements Renderer {
   // pixel deltas are accumulated until they add up to about a notch.
   private handleScrollWheelEvent(e: WheelEvent) {
     if (this.isMenuOpen()) {
-      // the menu owns the wheel while it is up - the save list scrolls
+      // the menu owns the wheel while it is up - the save list scrolls. What the menu has no
+      // use for is swallowed rather than passed on, so the page hosting the VN (the editor)
+      // never scrolls out from under an open menu either.
       this.wheelDelta = 0
+      if (!canScrollBy(e.target, this.menuDiv, e.deltaY)) e.preventDefault()
       return
     }
     e.preventDefault()
@@ -332,6 +341,18 @@ export class DomRenderer implements Renderer {
 
   public isMenuOpen(): boolean {
     return this.menuDiv.parentNode !== null
+  }
+
+  // Right click is the menu button, as in most visual novels: it opens the pause menu, and
+  // backs out of whichever menu is open. The browser's own context menu is suppressed over the
+  // game window either way - it has nothing to offer on top of the VN.
+  private handleContextMenuEvent(e: MouseEvent) {
+    e.preventDefault()
+    if (this.isMenuOpen()) {
+      this.closeMenu()
+    } else {
+      this.showMenu(pauseMenu)
+    }
   }
 
   private handleKeyDownEvent(e: KeyboardEvent) {
@@ -378,6 +399,26 @@ const WHEEL_STEP_THRESHOLD = 100
 const normalizeWheelDelta = (e: WheelEvent): number => {
   if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return e.deltaY
   return Math.sign(e.deltaY) * WHEEL_STEP_THRESHOLD
+}
+
+// Whether anything between the wheel's target and the menu root can still scroll the way the
+// wheel is pointing. Tells a gesture the menu will act on from one that would otherwise fall
+// through to the page behind the VN.
+const canScrollBy = (target: EventTarget | null, menuRoot: HTMLElement, deltaY: number): boolean => {
+  let elem = target instanceof Element ? target : null
+  while (elem !== null && menuRoot.contains(elem)) {
+    if (scrollsInDirection(elem, deltaY)) return true
+    elem = elem.parentElement
+  }
+  return false
+}
+
+const scrollsInDirection = (elem: Element, deltaY: number): boolean => {
+  const overflowY = getComputedStyle(elem).overflowY
+  if (overflowY !== "auto" && overflowY !== "scroll") return false
+  // scrollTop is fractional under fractional zoom, so leave a pixel of slack at either end
+  if (deltaY < 0) return elem.scrollTop > 1
+  return elem.scrollTop < elem.scrollHeight - elem.clientHeight - 1
 }
 
 export type ResolvePromiseFn = (value?: void | PromiseLike<void>) => void

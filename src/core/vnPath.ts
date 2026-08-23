@@ -29,6 +29,16 @@ export class VnPath {
     return new VnPath([...this.path, new MakeDecision(id)])
   }
 
+  // Only a direct jump is recorded. A replayed one moves the player to a real point in the story and
+  // takes the path that leads there, so there is nothing of the author's own to record.
+  public goToCommandDirect(id: number): VnPath {
+    return new VnPath([...this.path, new GoToCommandDirect(id)])
+  }
+
+  public containsDirectJump(): boolean {
+    return this.path.some((action) => action instanceof GoToCommandDirect)
+  }
+
   public undo(steps: number): VnPath {
     let stepsLeft = steps
     const arr = [...this.path]
@@ -61,6 +71,17 @@ export class VnPath {
     return this.path.filter((v) => v instanceof MakeDecision).map((d) => (d as MakeDecision).id)
   }
 
+  // The decisions a replay from the beginning can reuse: the ones made before the first direct jump.
+  // After that jump the author was somewhere a replay from the top will never go, so the choices
+  // they made there are answers to decisions it will never ask. Feeding one back in does not fail
+  // loudly either - an id that happens to be in range for whatever decision the replay does reach
+  // sends it down a branch nobody picked.
+  public getReplayableDecisions(): number[] {
+    const firstJump = this.path.findIndex((action) => action instanceof GoToCommandDirect)
+    const playthrough = firstJump === -1 ? this.path : this.path.slice(0, firstJump)
+    return playthrough.filter((v) => v instanceof MakeDecision).map((d) => (d as MakeDecision).id)
+  }
+
   public getRemainingAdvances(): number {
     const last = this.path[this.path.length - 1]
     if (last instanceof Advance) {
@@ -71,6 +92,12 @@ export class VnPath {
 
   // JSON serializable for saving..
   public toShorthandPath(): number[] {
+    if (this.containsDirectJump()) {
+      // A direct jump lands somewhere no sequence of advances and decisions reaches, so the
+      // shorthand cannot describe it. Callers are expected to check containsDirectJump first - the
+      // editor greys out the save button - so reaching this is a bug rather than a user's doing.
+      throw new Error("Can't get shorthand of path containing a direct jump")
+    }
     return [...this.getDecisions(), this.getRemainingAdvances()]
   }
 }
@@ -106,5 +133,17 @@ class MakeDecision extends VnAction {
     }
     // the run from the decision to the next stop is automatic, not a recorded advance
     return State.advanceUntilStop(decided)
+  }
+}
+
+class GoToCommandDirect extends VnAction {
+  constructor(public readonly id: number) {
+    super()
+  }
+
+  public perform(state: VnPlayerState): VnPlayerState {
+    // Deliberately applied to the state the replay has reached: a direct jump is defined relative to
+    // whatever was loaded when it was made, which is exactly what makes it unrepresentable as a save.
+    return State.goToCommandDirect(this.id, state)
   }
 }

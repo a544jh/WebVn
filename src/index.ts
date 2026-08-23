@@ -49,6 +49,10 @@ varHeader.innerText = "Variables"
 vnVarsDiv?.appendChild(varHeader)
 const varsContainer = document.createElement("div")
 vnVarsDiv?.appendChild(varsContainer)
+// The path line lives in its own element so it can carry a background when it is unsaveable, which
+// the rest of the panel cannot do - that is one blob of innerText.
+const pathContainer = document.createElement("div")
+vnVarsDiv?.appendChild(pathContainer)
 
 renderer.onRenderCallbacks.push(() => {
   varsContainer.innerHTML = ""
@@ -57,13 +61,21 @@ renderer.onRenderCallbacks.push(() => {
     text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
   }
   text += `Seen commands: ${JSON.stringify(player.state.seenCommands.toJSON())}\n`
-  text += `Path (shorthand): ${shorthandPath()}\n`
   varsContainer.innerText = text
+  showShorthandPath()
 })
 
-// [...decisions, remainingAdvances] - what a save slot stores.
-function shorthandPath(): string {
-  return JSON.stringify(player.path.toShorthandPath())
+// [...decisions, remainingAdvances] - what a save slot stores. A direct jump cannot be written that
+// way, so say so here rather than letting toShorthandPath throw: the author has not broken anything,
+// they are just in a state only the editor can reach.
+function showShorthandPath(): void {
+  if (player.path.containsDirectJump()) {
+    pathContainer.innerText = "Path (shorthand): not saveable - contains a direct jump (use replay mode)"
+    pathContainer.style.backgroundColor = "yellow"
+    return
+  }
+  pathContainer.innerText = `Path (shorthand): ${JSON.stringify(player.path.toShorthandPath())}`
+  pathContainer.style.backgroundColor = ""
 }
 
 document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {

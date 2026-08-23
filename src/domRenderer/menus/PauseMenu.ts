@@ -12,9 +12,13 @@ export function pauseMenu(root: HTMLDivElement, renderer: DomRenderer): void {
   )
 
   container.appendChild(
-    createItem("Save", () => {
-      renderer.showMenu(saveMenu)
-    })
+    createItem(
+      "Save",
+      () => {
+        renderer.showMenu(saveMenu)
+      },
+      !renderer.canSave()
+    )
   )
 
   container.appendChild(
@@ -26,11 +30,17 @@ export function pauseMenu(root: HTMLDivElement, renderer: DomRenderer): void {
   root.appendChild(container)
 }
 
-function createItem(text: string, action: () => void): HTMLDivElement {
+// A disabled item gets no click listener at all, so it is inert rather than merely greyed out.
+function createItem(text: string, action: () => void, disabled = false): HTMLDivElement {
   const elem = document.createElement("div")
   elem.setAttribute("role", "button")
   elem.classList.add("vn-pause-menu-item")
+  if (disabled) {
+    elem.classList.add("vn-pause-menu-item-disabled")
+    elem.setAttribute("aria-disabled", "true")
+  } else {
+    elem.addEventListener("click", action)
+  }
   elem.innerText = text
-  elem.addEventListener("click", action)
   return elem
 }

@@ -92,17 +92,18 @@ export class VnPlayer {
     this.state = newState
   }
 
-  // Leaves the path alone: a direct jump is not a story action, and there is nothing honest to
-  // record for a state no playthrough could reach. Undo afterwards pops one action off the path as
-  // usual and replays it, as though the jump had never happened.
+  // Recorded, unlike a replayed jump: this one is something done to the player from outside the
+  // story, so it is the last thing the author did and undo should pop it. That is also what makes
+  // the path unsaveable until it is popped.
   public goToCommandDirect(cmdIndex: number): void {
     this.state = State.goToCommandDirect(cmdIndex, this.state)
+    this.path = this.path.goToCommandDirect(cmdIndex)
   }
 
   // Replays there for real, using the decisions already recorded, and takes the path it walked -
   // so the player ends up somewhere the path genuinely describes.
   public goToCommandByReplay(cmdIndex: number): void {
-    const [state, path] = State.goToCommandByReplay(cmdIndex, this.startingState, this.path.getDecisions())
+    const [state, path] = State.goToCommandByReplay(cmdIndex, this.startingState, this.path.getReplayableDecisions())
     this.state = state
     this.path = path
   }

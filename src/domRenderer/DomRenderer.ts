@@ -288,6 +288,12 @@ export class DomRenderer implements Renderer {
     return this.player.saves
   }
 
+  // False once the author has made a direct jump in the editor, which lands somewhere no save path
+  // can describe. The pause menu greys out Save rather than letting toShorthandPath throw.
+  public canSave(): boolean {
+    return !this.player.path.containsDirectJump()
+  }
+
   public saveToSlot(slot: number): void {
     this.player.saveToSlot(slot)
     this.persistGlobalSave()

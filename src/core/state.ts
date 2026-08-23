@@ -216,11 +216,16 @@ function goToCommandByReplay(
   let steps = 0
   while (state.commandIndex < cmdIndex) {
     if (state.decision !== null) {
-      // out of recorded answers, or the story changed under one: this is as far as the save data
-      // can take us, so land here and let the position marker show where that was
+      // no recorded answer for this one, so this is as far as the decisions can take us. Landing
+      // here beats throwing the way MakeDecision.perform does: that replays a path which is broken
+      // if it diverges, while this is speculative reuse, and the position marker shows the author
+      // where it stopped.
       if (nextDecision >= decisions.length) break
       const id = decisions[nextDecision++]
       const decided = makeDecision(id, state)
+      // Should not happen: getReplayableDecisions hands over only the decisions made before the
+      // first direct jump, which a replay from the same starting state meets in the same order. If
+      // some future path shape gets one through anyway, stop rather than trust a mismatched answer.
       if (decided === state) break
       path = path.makeDecision(id)
       // the run from the decision to the next stop is automatic, not a recorded advance

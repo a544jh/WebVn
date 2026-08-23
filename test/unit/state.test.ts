@@ -225,6 +225,78 @@ describe("State.goToCommandByReplay", () => {
   })
 })
 
+describe("VnPath.replayAsFarAsPossible", () => {
+  it("keeps a path that still replays, and lands where it led", () => {
+    const start = makeState([say("a"), say("b"), say("c"), say("d")])
+    const player = new VnPlayer(start)
+    autorun(player)
+    press(player)
+    press(player) // showing "c"
+
+    const [state, path] = player.path.replayAsFarAsPossible(start)
+    expect(path.toShorthandPath()).toEqual([2])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("c")
+  })
+
+  it("cuts the path where the story now ends earlier than it expects", () => {
+    const before = makeState([say("a"), say("b"), say("c"), say("d")])
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player)
+    press(player) // three advances' worth of story consumed
+
+    // the author deleted the last two lines
+    const after = makeState([say("a"), say("b")])
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(path.toShorthandPath()).toEqual([1])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("b")
+  })
+
+  it("cuts the path at a decision whose recorded answer no longer fits", () => {
+    const before = makeState(branchingScript())
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player) // the decision comes up
+    player.makeDecision(1) // the second option
+    autorun(player)
+
+    // the author cut the decision down to a single option
+    const after = makeState(
+      branchingScript().map((cmd, i) => (i === 2 ? new Decision(loc, [{ title: "left", jumpLabel: "L1" }]) : cmd))
+    )
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(path.getDecisions()).toEqual([])
+    expect(state.decision).not.toBeNull()
+  })
+
+  it("cuts the path at a direct jump that now points past the end", () => {
+    const before = makeState([say("a"), say("b"), say("c"), say("d")])
+    const player = new VnPlayer(before)
+    autorun(player)
+    player.goToCommandDirect(4)
+
+    const after = makeState([say("a"), say("b")])
+    const [, path] = player.path.replayAsFarAsPossible(after)
+    expect(path.containsDirectJump()).toBe(false)
+  })
+
+  it("leaves a path that fromPath can still replay without throwing", () => {
+    const before = makeState(branchingScript())
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player)
+    player.makeDecision(1)
+    autorun(player)
+
+    const after = makeState(
+      branchingScript().map((cmd, i) => (i === 2 ? new Decision(loc, [{ title: "left", jumpLabel: "L1" }]) : cmd))
+    )
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(() => State.fromPath(after, path)).not.toThrow()
+    expect(State.fromPath(after, path)).toEqual(state)
+  })
+})
+
 describe("State.advanceUntilStop", () => {
   it("runs through non-stopping commands until a stop", () => {
     const state = State.advanceUntilStop(makeState([new Label(loc, "x"), say("a")]))

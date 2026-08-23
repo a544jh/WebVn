@@ -90,6 +90,26 @@ export class VnPath {
     return 0
   }
 
+  // Replays this path against a story that may have been edited under it, keeping the prefix that
+  // still applies - anything past the first action that no longer works was recorded against a
+  // script that no longer exists. Returns the state reached and the path that produced it, so the
+  // two always agree and the stored path is always replayable against the current story.
+  public replayAsFarAsPossible(startingState: VnPlayerState): [VnPlayerState, VnPath] {
+    // the automatic run to the first stop is not part of the path
+    let state = State.runToStop(startingState)
+    const kept: VnAction[] = []
+    for (const action of this.path) {
+      const applied = action.tryPerform(state)
+      if (applied === null) break
+      state = applied[0]
+      kept.push(applied[1])
+      // a partly applied action means the story ran out inside it, so nothing recorded after it can
+      // apply either
+      if (applied[1] !== action) break
+    }
+    return [state, new VnPath(kept)]
+  }
+
   // JSON serializable for saving..
   public toShorthandPath(): number[] {
     if (this.containsDirectJump()) {
@@ -103,7 +123,19 @@ export class VnPath {
 }
 
 abstract class VnAction {
-  public abstract perform(state: VnPlayerState): VnPlayerState
+  // The state reached and the part of this action that actually applied - which is the action itself
+  // unless a run of advances ran out of story part way through. Null when none of it applies any
+  // more. Editing a script out from under a path is the only way that happens, so a reload uses this
+  // to find where the path stops matching, while everything else goes through perform.
+  public abstract tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null
+
+  public perform(state: VnPlayerState): VnPlayerState {
+    const applied = this.tryPerform(state)
+    if (applied === null || applied[1] !== this) {
+      throw new Error("Could not replay action - path does not match the story")
+    }
+    return applied[0]
+  }
 }
 
 class Advance extends VnAction {
@@ -111,11 +143,20 @@ class Advance extends VnAction {
     super()
   }
 
-  public perform(state: VnPlayerState): VnPlayerState {
+  public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
+    let done = 0
     for (let i = 0; i < this.times; i++) {
-      state = State.advanceUntilStop(state)
+      const before = state.commandIndex
+      const next = State.advanceUntilStop(state)
+      // the story now ends earlier than the path expects
+      if (next.commandIndex === before) break
+      state = next
+      done++
     }
-    return state
+    if (done === 0) return null
+    // a shortened run is still worth keeping: a path is usually one long Advance, and dropping it
+    // whole would throw the author back to the first stop for the sake of one deleted line
+    return [state, done === this.times ? this : new Advance(done)]
   }
 }
 
@@ -124,15 +165,13 @@ class MakeDecision extends VnAction {
     super()
   }
 
-  public perform(state: VnPlayerState): VnPlayerState {
+  public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
+    // makeDecision no-ops when no decision is pending or the id is out of range - continuing would
+    // let the replay diverge from what the path describes
     const decided = State.makeDecision(this.id, state)
-    if (decided === state) {
-      // makeDecision no-ops when no decision is pending or the id is out of range -
-      // silently continuing would let the replay diverge from what the path describes
-      throw new Error("Could not replay decision - path does not match the story")
-    }
+    if (decided === state) return null
     // the run from the decision to the next stop is automatic, not a recorded advance
-    return State.advanceUntilStop(decided)
+    return [State.advanceUntilStop(decided), this]
   }
 }
 
@@ -141,9 +180,12 @@ class GoToCommandDirect extends VnAction {
     super()
   }
 
-  public perform(state: VnPlayerState): VnPlayerState {
+  public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
     // Deliberately applied to the state the replay has reached: a direct jump is defined relative to
     // whatever was loaded when it was made, which is exactly what makes it unrepresentable as a save.
-    return State.goToCommandDirect(this.id, state)
+    const jumped = State.goToCommandDirect(this.id, state)
+    // the target is past the end of a script that has since got shorter
+    if (jumped === state) return null
+    return [jumped, this]
   }
 }

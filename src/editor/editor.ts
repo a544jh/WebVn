@@ -71,17 +71,15 @@ export class VnEditor {
     })
   }
 
-  // Parses the document into the player and returns the new state, for callers that need it after
-  // the swap. goToLine only wants the side effect, and is safe to leave at that because it renders
-  // synchronously right after - see DomRenderer.loadStory for why that matters.
+  // Parses the document and marks up any errors. Getting the result into the player is the caller's
+  // to decide: goToLine reloads, keeping the path, while loadScript hands the state to loadStory,
+  // which loads it as a fresh story.
   private parseDocument(): VnPlayerState {
     const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.baseState)
     this.vnEditor.clearGutter("vn-error-gutter")
     for (const error of errors) {
       this.setErrorMarker(error)
     }
-
-    this.player.loadState(state)
 
     this.vnEditor.getDoc().markClean()
     return state
@@ -108,7 +106,11 @@ export class VnEditor {
 
   private goToLine(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
-      this.parseDocument()
+      // Reloading rather than loading keeps the choices made so far, so the replay jump below still
+      // has decisions to follow. They are truncated to what still replays, because this method does
+      // not always reach the jump - clicking a line that holds no command returns before it - and a
+      // path left describing the old script would be waiting to break the next undo.
+      this.player.reloadStory(this.parseDocument())
     }
     const commandIndex = this.player.state.commands.findIndex((cmd) => {
       const location = cmd.getSourceLocation()

@@ -133,6 +133,16 @@ export class VnPlayer {
     this.path = path
   }
 
+  // The script was edited: same session, new story. Unlike loadState the path is kept, but only as
+  // far as it still replays against the new script - and startingState becomes the new beginning,
+  // since that is what every later replay (undo, a replay jump, loading a save) starts from.
+  public reloadStory(state: VnPlayerState): void {
+    const [newState, keptPath] = this.path.replayAsFarAsPossible(state)
+    this.state = newState
+    this.startingState = state
+    this.path = keptPath
+  }
+
   public loadState(state: VnPlayerState): void {
     this.state = state
     this.startingState = state

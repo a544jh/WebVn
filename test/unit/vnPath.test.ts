@@ -97,6 +97,22 @@ describe("VnPath", () => {
     })
   })
 
+  describe("getSteps", () => {
+    it("describes each action in order, with consecutive advances already collapsed", () => {
+      const path = VnPath.emptyPath().advance().advance().makeDecision(1).goToCommandDirect(40).advance()
+      expect(path.getSteps()).toEqual([
+        { kind: "advance", value: 2 },
+        { kind: "decision", value: 1 },
+        { kind: "directJump", value: 40 },
+        { kind: "advance", value: 1 },
+      ])
+    })
+
+    it("is empty for the empty path", () => {
+      expect(VnPath.emptyPath().getSteps()).toEqual([])
+    })
+  })
+
   describe("getReplayableDecisions", () => {
     it("is every decision when no direct jump was made", () => {
       const path = VnPath.emptyPath().advance().makeDecision(1).advance().makeDecision(0)

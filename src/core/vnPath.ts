@@ -1,5 +1,12 @@
 import { State, VnPlayerState } from "./state"
 
+// One action, in a shape the editor can render without reaching into the action classes.
+export interface PathStep {
+  kind: "advance" | "decision" | "directJump"
+  // times for an advance, the chosen option for a decision, the target command for a direct jump
+  value: number
+}
+
 // Immutable representaion of actions taken through the VN
 export class VnPath {
   private readonly path: VnAction[]
@@ -61,6 +68,10 @@ export class VnPath {
       }
     }
     return new VnPath(arr)
+  }
+
+  public getSteps(): PathStep[] {
+    return this.path.map((action) => action.describe())
   }
 
   public getActions(): VnAction[] {
@@ -129,6 +140,8 @@ abstract class VnAction {
   // to find where the path stops matching, while everything else goes through perform.
   public abstract tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null
 
+  public abstract describe(): PathStep
+
   public perform(state: VnPlayerState): VnPlayerState {
     const applied = this.tryPerform(state)
     if (applied === null || applied[1] !== this) {
@@ -141,6 +154,10 @@ abstract class VnAction {
 class Advance extends VnAction {
   constructor(public readonly times: number) {
     super()
+  }
+
+  public describe(): PathStep {
+    return { kind: "advance", value: this.times }
   }
 
   public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
@@ -165,6 +182,10 @@ class MakeDecision extends VnAction {
     super()
   }
 
+  public describe(): PathStep {
+    return { kind: "decision", value: this.id }
+  }
+
   public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
     // makeDecision no-ops when no decision is pending or the id is out of range - continuing would
     // let the replay diverge from what the path describes
@@ -178,6 +199,10 @@ class MakeDecision extends VnAction {
 class GoToCommandDirect extends VnAction {
   constructor(public readonly id: number) {
     super()
+  }
+
+  public describe(): PathStep {
+    return { kind: "directJump", value: this.id }
   }
 
   public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {

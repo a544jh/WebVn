@@ -1,7 +1,9 @@
 import { VnPlayer } from "./core/player"
+import { PathStep } from "./core/vnPath"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { JumpMode, VnEditor } from "./editor/editor"
 import "./index.html"
+import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"
 
@@ -49,9 +51,10 @@ varHeader.innerText = "Variables"
 vnVarsDiv?.appendChild(varHeader)
 const varsContainer = document.createElement("div")
 vnVarsDiv?.appendChild(varsContainer)
-// The path line lives in its own element so it can carry a background when it is unsaveable, which
-// the rest of the panel cannot do - that is one blob of innerText.
+// The path is drawn as its own row of elements rather than joining the blob of innerText above, so
+// each action can be coloured by what it is.
 const pathContainer = document.createElement("div")
+pathContainer.classList.add("vn-path")
 vnVarsDiv?.appendChild(pathContainer)
 
 renderer.onRenderCallbacks.push(() => {
@@ -62,20 +65,57 @@ renderer.onRenderCallbacks.push(() => {
   }
   text += `Seen commands: ${JSON.stringify(player.state.seenCommands.toJSON())}\n`
   varsContainer.innerText = text
-  showShorthandPath()
+  showPath()
 })
 
-// [...decisions, remainingAdvances] - what a save slot stores. A direct jump cannot be written that
-// way, so say so here rather than letting toShorthandPath throw: the author has not broken anything,
-// they are just in a state only the editor can reach.
-function showShorthandPath(): void {
-  if (player.path.containsDirectJump()) {
-    pathContainer.innerText = "Path (shorthand): not saveable - contains a direct jump (use replay mode)"
-    pathContainer.style.backgroundColor = "yellow"
-    return
+const STEP_CLASS: Record<PathStep["kind"], string> = {
+  advance: "vn-path-advance",
+  decision: "vn-path-decision",
+  directJump: "vn-path-direct-jump",
+}
+
+function showPath(): void {
+  pathContainer.innerHTML = ""
+  pathContainer.appendChild(aside("Path:"))
+
+  const steps = player.path.getSteps()
+  if (steps.length === 0) {
+    pathContainer.appendChild(aside("(nothing yet)"))
   }
-  pathContainer.innerText = `Path (shorthand): ${JSON.stringify(player.path.toShorthandPath())}`
-  pathContainer.style.backgroundColor = ""
+  for (const step of steps) {
+    const elem = document.createElement("span")
+    elem.classList.add("vn-path-step", STEP_CLASS[step.kind])
+    elem.innerText = stepLabel(step)
+    pathContainer.appendChild(elem)
+  }
+
+  // A direct jump cannot be written as [...decisions, remainingAdvances], so say so rather than
+  // letting toShorthandPath throw: the author has not broken anything, they are just somewhere only
+  // the editor can reach. The yellow step above shows which jump did it.
+  pathContainer.appendChild(
+    aside(
+      player.path.containsDirectJump()
+        ? "not saveable - use replay mode"
+        : JSON.stringify(player.path.toShorthandPath())
+    )
+  )
+}
+
+function stepLabel(step: PathStep): string {
+  switch (step.kind) {
+    case "advance":
+      return `${step.value}>`
+    case "decision":
+      return `choice ${step.value}`
+    case "directJump":
+      return `jump ${step.value}`
+  }
+}
+
+function aside(text: string): HTMLSpanElement {
+  const elem = document.createElement("span")
+  elem.innerText = text
+  return elem
 }
 
 document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {

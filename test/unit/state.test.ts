@@ -12,6 +12,8 @@ import { loc, makeCommand } from "../helpers/commands"
 
 const say = (text: string) => new Say(loc, "narrator", text)
 
+const show = (actor: string) => makeCommand("show", { actor, sprite: "a.png" })
+
 const set = (args: unknown) => makeCommand("set", args)
 
 function makeState(commands: Command[]): VnPlayerState {
@@ -154,6 +156,14 @@ describe("State.goToCommandDirect", () => {
     expect(state.animatableState.text?.textNodes[0].text).toBe("b")
   })
 
+  it("applies only that command, leaving the rest of the scene as it found it", () => {
+    // the crude mode's whole character: nothing before the target is replayed
+    const state = State.goToCommandDirect(3, makeState([show("A1"), set(["$x", "=", 7]), say("a")]))
+    expect(state.animatableState.text?.textNodes[0].text).toBe("a")
+    expect(state.animatableState.sprites["A1"]).toBeUndefined()
+    expect(state.variables["x"]).toBeUndefined()
+  })
+
   it("clears a pending decision", () => {
     const base = makeState(branchingScript())
     const state = { ...base, commandIndex: 3, decision: [{ title: "left", jumpLabel: "L1" }] }
@@ -164,6 +174,54 @@ describe("State.goToCommandDirect", () => {
     const state = makeState([say("a"), say("b")])
     expect(State.goToCommandDirect(0, state)).toBe(state)
     expect(State.goToCommandDirect(3, state)).toBe(state)
+  })
+})
+
+describe("State.goToCommandByReplay", () => {
+  it("replays everything before the target, so the scene is built", () => {
+    const [state] = State.goToCommandByReplay(3, makeState([show("A1"), set(["$x", "=", 7]), say("a")]), [])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("a")
+    expect(state.animatableState.sprites["A1"]).toBeDefined()
+    expect(state.variables["x"]).toBe(7)
+  })
+
+  it("lands on the first stop at or after the target", () => {
+    // a show does not stop, so parking on it would be a state a player could never be in
+    const [state] = State.goToCommandByReplay(1, makeState([show("A1"), say("a")]), [])
+    expect(state.commandIndex).toBe(2)
+    expect(state.animatableState.text?.textNodes[0].text).toBe("a")
+  })
+
+  it("takes the branch the recorded decision chose", () => {
+    // index 8 is "right1", only reachable through the second option
+    const [state] = State.goToCommandByReplay(9, makeState(branchingScript()), [1])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("right1")
+  })
+
+  it("follows jumps rather than walking past them", () => {
+    // the left branch ends in `jump: end`, so replaying it arrives at "fin"
+    const [state] = State.goToCommandByReplay(11, makeState(branchingScript()), [0])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("fin")
+  })
+
+  it("stops at a decision it has no recorded answer for", () => {
+    const [state] = State.goToCommandByReplay(9, makeState(branchingScript()), [])
+    expect(state.decision).not.toBeNull()
+    expect(state.animatableState.text?.textNodes[0].text).toBe("two")
+  })
+
+  it("returns a path that describes where it landed", () => {
+    const start = makeState(branchingScript())
+    const [state, path] = State.goToCommandByReplay(9, start, [1])
+    expect(State.fromPath(start, path)).toEqual(state)
+    // and it is an ordinary path, so the session stays saveable
+    expect(path.toShorthandPath()).toEqual([1, 0])
+  })
+
+  it("is a no-op past the end of the story", () => {
+    const start = makeState([say("a"), say("b")])
+    const [state] = State.goToCommandByReplay(3, start, [])
+    expect(state).toEqual(State.runToStop(start))
   })
 })
 
@@ -351,15 +409,28 @@ describe("path replay matches live play", () => {
     expect(player.state.animatableState.text?.textNodes[0].text).toBe("b1")
   })
 
-  it("undo works across a goto", () => {
+  it("undo works across a replayed goto, which leaves an ordinary path behind it", () => {
     const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
     autorun(player)
-    player.goToCommandDirect(3)
+    player.goToCommandByReplay(3)
     autorun(player) // showing s3
+    expect(player.path.toShorthandPath()).toEqual([2])
     press(player) // showing s4
     player.undo()
     expect(player.state.commandIndex).toBe(3)
     expect(player.state.animatableState.text?.textNodes[0].text).toBe("s3")
+  })
+
+  it("leaves the path alone on a direct goto, so undo pops one action and replays as normal", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
+    autorun(player)
+    press(player) // showing s2, path is one advance
+    player.goToCommandDirect(4) // teleport to s4, which the path knows nothing about
+    expect(player.state.animatableState.text?.textNodes[0].text).toBe("s4")
+    expect(player.path.toShorthandPath()).toEqual([1])
+
+    player.undo()
+    expect(player.state.animatableState.text?.textNodes[0].text).toBe("s1")
   })
 
   it("throws instead of hanging when a saved path expects a decision that never comes", () => {

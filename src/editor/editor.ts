@@ -7,6 +7,11 @@ import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
 import "./editor.css"
 
+// How clicking a line in the editor gets the player there. "replay" plays the story from the top,
+// following jumps and answering decisions from the recorded ones, so the scene is built and the
+// path stays honest. "direct" teleports and applies that one command onto whatever is on screen.
+export type JumpMode = "replay" | "direct"
+
 // https://github.com/codemirror/CodeMirror/issues/988#issuecomment-14921785
 function betterTab(cm: CodeMirror.Editor) {
   if (cm.somethingSelected()) {
@@ -26,6 +31,7 @@ export class VnEditor {
   private parser: VnParser
   private renderer: Renderer
   private baseState: VnPlayerState
+  private jumpMode: JumpMode = "replay"
 
   // `baseState` is the story's starting point - the actors and asset lists the script is parsed
   // against, with the playhead at the top. Every reparse goes through it rather than through the
@@ -96,6 +102,10 @@ export class VnEditor {
     return this.vnEditor.getDoc().getValue()
   }
 
+  public setJumpMode(mode: JumpMode): void {
+    this.jumpMode = mode
+  }
+
   private goToLine(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
       this.parseDocument()
@@ -106,7 +116,11 @@ export class VnEditor {
     })
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
-    this.player.goToCommandDirect(commandIndex + 1)
+    if (this.jumpMode === "replay") {
+      this.player.goToCommandByReplay(commandIndex + 1)
+    } else {
+      this.player.goToCommandDirect(commandIndex + 1)
+    }
     this.renderer.render(false)
   }
 

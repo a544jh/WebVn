@@ -1,6 +1,6 @@
 import { VnPlayer } from "./core/player"
 import { DomRenderer } from "./domRenderer/DomRenderer"
-import { VnEditor } from "./editor/editor"
+import { JumpMode, VnEditor } from "./editor/editor"
 import "./index.html"
 
 import "codemirror/lib/codemirror.css"
@@ -61,16 +61,14 @@ renderer.onRenderCallbacks.push(() => {
   varsContainer.innerText = text
 })
 
-// [...decisions, remainingAdvances] - what a save slot stores. toShorthandPath throws once the
-// path contains a goto, which is what clicking a line in the editor records, so that is a normal
-// state to be in here rather than something worth blowing up the panel over.
+// [...decisions, remainingAdvances] - what a save slot stores.
 function shorthandPath(): string {
-  try {
-    return JSON.stringify(player.path.toShorthandPath())
-  } catch (e) {
-    return "n/a - path contains a goto"
-  }
+  return JSON.stringify(player.path.toShorthandPath())
 }
+
+document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {
+  editor.setJumpMode((e.target as HTMLInputElement).value as JumpMode)
+})
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
   document

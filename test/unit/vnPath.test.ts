@@ -90,10 +90,5 @@ describe("VnPath", () => {
       const path = VnPath.emptyPath().advance().makeDecision(2)
       expect(path.toShorthandPath()).toEqual([2, 0])
     })
-
-    it("throws if the path contains a goToCommand action", () => {
-      const path = VnPath.emptyPath().advance().goToCommand(5)
-      expect(() => path.toShorthandPath()).toThrow()
-    })
   })
 })

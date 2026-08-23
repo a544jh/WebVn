@@ -29,10 +29,6 @@ export class VnPath {
     return new VnPath([...this.path, new MakeDecision(id)])
   }
 
-  public goToCommand(id: number): VnPath {
-    return new VnPath([...this.path, new GoToCommand(id)])
-  }
-
   public undo(steps: number): VnPath {
     let stepsLeft = steps
     const arr = [...this.path]
@@ -75,9 +71,6 @@ export class VnPath {
 
   // JSON serializable for saving..
   public toShorthandPath(): number[] {
-    if (this.path.find((a) => a instanceof GoToCommand) !== undefined) {
-      throw new Error("Can't get shorthand of path containing goto action")
-    }
     return [...this.getDecisions(), this.getRemainingAdvances()]
   }
 }
@@ -113,16 +106,5 @@ class MakeDecision extends VnAction {
     }
     // the run from the decision to the next stop is automatic, not a recorded advance
     return State.advanceUntilStop(decided)
-  }
-}
-
-class GoToCommand extends VnAction {
-  constructor(public readonly id: number) {
-    super()
-  }
-
-  public perform(state: VnPlayerState): VnPlayerState {
-    // finish the automatic run the renderer would perform after the goto
-    return State.runToStop(State.goToCommandDirect(this.id, state))
   }
 }

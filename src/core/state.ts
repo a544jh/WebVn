@@ -179,12 +179,64 @@ function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
   return newState
 }
 
+// The crude jump: teleport the index and apply the target command onto whatever state is loaded.
+// Nothing before it is replayed, so the scene is whatever happened to be on screen - which is the
+// point of having it as the "direct" mode, and the reason it cannot be expressed as a path.
 function goToCommandDirect(cmdIndex: number, state: VnPlayerState): VnPlayerState {
   if (cmdIndex < 1 || cmdIndex > state.commands.length) {
     return state
   }
   state = { ...state, commandIndex: cmdIndex - 1, decision: null }
   return advance(state)
+}
+
+// The honest jump: replay the story from the beginning, following jumps and answering decisions
+// from `decisions` - the same list a save records - until the target command is reached. Everything
+// before it is applied on the way, so the scene is built.
+//
+// It lands on the first stop at or after the target rather than on the command itself. A command
+// that does not stop is not somewhere a player can ever be parked, and an advance in a path runs to
+// the next stop, so stopping short would be both an unreachable state and an unrepresentable one.
+//
+// Returns the path it walked, so the jump leaves the player somewhere the path describes for real:
+// undo pops one action and replays like any other, and the session stays saveable.
+function goToCommandByReplay(
+  cmdIndex: number,
+  startingState: VnPlayerState,
+  decisions: number[]
+): [VnPlayerState, VnPath] {
+  let path = VnPath.emptyPath()
+  // the automatic run to the first stop is not part of the path
+  let state = runToStop(startingState)
+  if (cmdIndex < 1 || cmdIndex > startingState.commands.length) {
+    return [state, path]
+  }
+
+  let nextDecision = 0
+  let steps = 0
+  while (state.commandIndex < cmdIndex) {
+    if (state.decision !== null) {
+      // out of recorded answers, or the story changed under one: this is as far as the save data
+      // can take us, so land here and let the position marker show where that was
+      if (nextDecision >= decisions.length) break
+      const id = decisions[nextDecision++]
+      const decided = makeDecision(id, state)
+      if (decided === state) break
+      path = path.makeDecision(id)
+      // the run from the decision to the next stop is automatic, not a recorded advance
+      state = advanceUntilStop(decided)
+      continue
+    }
+
+    const before = state.commandIndex
+    state = advanceUntilStop(state)
+    path = path.advance()
+    // the story has nowhere left to go, or it loops and the target is not on the way
+    if (state.commandIndex === before) break
+    if (++steps > 10000) break
+  }
+
+  return [state, path]
 }
 
 function advanceUntilStop(state: VnPlayerState): VnPlayerState {
@@ -260,6 +312,7 @@ export const State = {
   advance,
   makeDecision,
   goToCommandDirect,
+  goToCommandByReplay,
   advanceUntilStop,
   runToStop,
   fromShorthandPath,

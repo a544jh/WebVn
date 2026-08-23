@@ -181,7 +181,7 @@ body {
 }
 
 .vn-action:not(.vn-action-disabled):active,
-.vn-pause-menu-item:active {
+.vn-pause-menu-item:not(.vn-pause-menu-item-disabled):active {
   background-color: rgba(0, 0, 0, 0.2);
 }
 
@@ -190,6 +190,11 @@ body {
 }
 
 .vn-action-disabled {
+  color: hsl(0, 0%, 30%);
+  opacity: 0.3;
+}
+
+.vn-pause-menu-item-disabled {
   color: hsl(0, 0%, 30%);
   opacity: 0.3;
 }

@@ -91,9 +91,62 @@ describe("VnPath", () => {
       expect(path.toShorthandPath()).toEqual([2, 0])
     })
 
-    it("throws if the path contains a goToCommand action", () => {
-      const path = VnPath.emptyPath().advance().goToCommand(5)
-      expect(() => path.toShorthandPath()).toThrow()
+    it("throws on a path containing a direct jump, which the shorthand cannot describe", () => {
+      const path = VnPath.emptyPath().advance().goToCommandDirect(5)
+      expect(() => path.toShorthandPath()).toThrow("direct jump")
+    })
+  })
+
+  describe("getSteps", () => {
+    it("describes each action in order, with consecutive advances already collapsed", () => {
+      const path = VnPath.emptyPath().advance().advance().makeDecision(1).goToCommandDirect(40).advance()
+      expect(path.getSteps()).toEqual([
+        { kind: "advance", value: 2 },
+        { kind: "decision", value: 1 },
+        { kind: "directJump", value: 40 },
+        { kind: "advance", value: 1 },
+      ])
+    })
+
+    it("is empty for the empty path", () => {
+      expect(VnPath.emptyPath().getSteps()).toEqual([])
+    })
+  })
+
+  describe("getReplayableDecisions", () => {
+    it("is every decision when no direct jump was made", () => {
+      const path = VnPath.emptyPath().advance().makeDecision(1).advance().makeDecision(0)
+      expect(path.getReplayableDecisions()).toEqual([1, 0])
+    })
+
+    it("drops decisions made after a direct jump, which a replay from the top never reaches", () => {
+      const path = VnPath.emptyPath().advance().makeDecision(1).goToCommandDirect(4).advance().makeDecision(0)
+      expect(path.getDecisions()).toEqual([1, 0])
+      expect(path.getReplayableDecisions()).toEqual([1])
+    })
+
+    it("drops everything after the first jump, not just after the most recent one", () => {
+      const path = VnPath.emptyPath()
+        .makeDecision(1)
+        .goToCommandDirect(4)
+        .makeDecision(0)
+        .goToCommandDirect(9)
+        .makeDecision(1)
+      expect(path.getReplayableDecisions()).toEqual([1])
+    })
+  })
+
+  describe("containsDirectJump", () => {
+    it("is false for a path of advances and decisions", () => {
+      expect(VnPath.emptyPath().advance().makeDecision(1).advance().containsDirectJump()).toBe(false)
+    })
+
+    it("is true once a direct jump is recorded", () => {
+      expect(VnPath.emptyPath().advance().goToCommandDirect(3).containsDirectJump()).toBe(true)
+    })
+
+    it("is false again once the jump is undone, so saving becomes possible again", () => {
+      expect(VnPath.emptyPath().advance().goToCommandDirect(3).undo(1).containsDirectJump()).toBe(false)
     })
   })
 })

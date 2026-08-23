@@ -1,0 +1,28 @@
+/* No font of its own, so the label and the shorthand match the rest of the panel. */
+.vn-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.vn-path-step {
+  padding: 1px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  font-family: "Source Code Pro", monospace;
+  font-size: 12px;
+}
+
+.vn-path-advance {
+  background-color: #cfe0f7;
+}
+
+.vn-path-decision {
+  background-color: #cfe9d0;
+}
+
+.vn-path-direct-jump {
+  background-color: #f7e9b0;
+}

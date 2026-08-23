@@ -59,15 +59,18 @@ export const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void>
 export interface MountedVn {
   player: VnPlayer
   renderer: DomRenderer
-  // Constructing DomRenderer already starts rendering towards the first stop, so this is hooked up
-  // synchronously here - awaiting anything else first can miss it.
   firstStop: Promise<void>
 }
 
+// Boots a story the way the standalone player does: build the renderer, then hand it the story with
+// loadStory, which plays it to its first stop. The stop is hooked up before that call rather than
+// after, so nothing can be missed by a boot that finishes early.
 export const mountVn = (root: HTMLDivElement, state: VnPlayerState): MountedVn => {
   const player = new VnPlayer(state)
   const renderer = new DomRenderer(root, player)
-  return { player, renderer, firstStop: nextStop(renderer, player) }
+  const firstStop = nextStop(renderer, player)
+  renderer.loadStory(state, true)
+  return { player, renderer, firstStop }
 }
 
 // initialState.seenCommands is a single shared mutable instance. Every test needs its own, or

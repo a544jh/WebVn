@@ -6,8 +6,8 @@ import "./player.html"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
-import { Base64 } from "js-base64"
 import { demoState, demoYaml } from "./demoStory"
+import { decodeScript } from "./scriptUrl"
 
 // TODO: id from VN title
 let save
@@ -40,24 +40,16 @@ if (params.has("vn")) {
   loadYaml(demoYaml)
 }
 
-function loadYaml(yamlText: string) {
-  const [state, errors] = YamlParser.updateState(yamlText, player.state)
-  player.loadState(state)
-  renderer.loadAssets()
+async function loadYaml(yamlText: string) {
+  const [state] = YamlParser.updateState(yamlText, player.state)
+  await renderer.loadAssets(state)
+  // Animated, unlike the editor: everything the story runs before its first stop is played out,
+  // which is what makes an intro or a title screen possible.
+  renderer.loadStory(state, true)
 }
 
 async function loadEncodedScript(script: string) {
-  // js-base64 declares toUint8Array as a bare Uint8Array, which TypeScript 5.9 widens to
-  // Uint8Array<ArrayBufferLike>. BodyInit wants one backed by a plain ArrayBuffer, which is
-  // what js-base64 allocates; only the declaration is imprecise.
-  const bytes = Base64.toUint8Array(script) as Uint8Array<ArrayBuffer>
-  const bufferStream = new Response(bytes).body
-  if (bufferStream === null) {
-    throw new Error("Could not read the encoded script.")
-  }
-  const decompressedStream = bufferStream.pipeThrough(new DecompressionStream("gzip"))
-  const yamlString = await new Response(decompressedStream).text()
-  loadYaml(yamlString)
+  loadYaml(await decodeScript(script))
 }
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {

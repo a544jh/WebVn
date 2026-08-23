@@ -92,12 +92,21 @@ export class VnPlayer {
     this.state = newState
   }
 
+  // Recorded, unlike a replayed jump: this one is something done to the player from outside the
+  // story, so it is the last thing the author did and undo should pop it. That is also what makes
+  // the path unsaveable until it is popped.
   public goToCommandDirect(cmdIndex: number): void {
     this.state = State.goToCommandDirect(cmdIndex, this.state)
-    this.path = this.path.goToCommand(cmdIndex)
+    this.path = this.path.goToCommandDirect(cmdIndex)
   }
 
-  // TODO: goToCommandFromBeginning (i.e. breakpoints while editing) ?
+  // Replays there for real, using the decisions already recorded, and takes the path it walked -
+  // so the player ends up somewhere the path genuinely describes.
+  public goToCommandByReplay(cmdIndex: number): void {
+    const [state, path] = State.goToCommandByReplay(cmdIndex, this.startingState, this.path.getReplayableDecisions())
+    this.state = state
+    this.path = path
+  }
 
   public undo(): void {
     this.path = this.path.undo(1)
@@ -122,6 +131,16 @@ export class VnPlayer {
     const [state, path] = State.fromShorthandPath(this.startingState, save.path.slice(0, -1), save.path.slice(-1)[0])
     this.state = state
     this.path = path
+  }
+
+  // The script was edited: same session, new story. Unlike loadState the path is kept, but only as
+  // far as it still replays against the new script - and startingState becomes the new beginning,
+  // since that is what every later replay (undo, a replay jump, loading a save) starts from.
+  public reloadStory(state: VnPlayerState): void {
+    const [newState, keptPath] = this.path.replayAsFarAsPossible(state)
+    this.state = newState
+    this.startingState = state
+    this.path = keptPath
   }
 
   public loadState(state: VnPlayerState): void {

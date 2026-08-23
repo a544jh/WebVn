@@ -2,9 +2,15 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { VnPlayer } from "../core/player"
+import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
 import "./editor.css"
+
+// How clicking a line in the editor gets the player there. "replay" plays the story from the top,
+// following jumps and answering decisions from the recorded ones, so the scene is built and the
+// path stays honest. "direct" teleports and applies that one command onto whatever is on screen.
+export type JumpMode = "replay" | "direct"
 
 // https://github.com/codemirror/CodeMirror/issues/988#issuecomment-14921785
 function betterTab(cm: CodeMirror.Editor) {
@@ -24,15 +30,24 @@ export class VnEditor {
   private player: VnPlayer
   private parser: VnParser
   private renderer: Renderer
+  private baseState: VnPlayerState
+  private jumpMode: JumpMode = "replay"
 
-  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer) {
+  // `baseState` is the story's starting point - the actors and asset lists the script is parsed
+  // against, with the playhead at the top. Every reparse goes through it rather than through the
+  // live state, so editing a script cannot leave the player believing the story begins wherever it
+  // happened to be standing.
+  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer, baseState: VnPlayerState) {
     this.player = player
     this.parser = parser
     this.renderer = renderer
+    this.baseState = baseState
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
-      this.vnEditor.getDoc().setCursor({ line: getCurrentLocation(player).startLine - 1, ch: 0 })
+      const location = getCurrentLocation(player)
+      if (location === null) return
+      this.vnEditor.getDoc().setCursor({ line: location.startLine - 1, ch: 0 })
     })
 
     this.vnEditor = CodeMirror(root, {
@@ -47,7 +62,8 @@ export class VnEditor {
       this.goToLine(line)
     })
     this.vnEditor.on("blur", () => {
-      this.goToLine(getCurrentLocation(this.player).startLine)
+      const location = getCurrentLocation(this.player)
+      if (location !== null) this.goToLine(location.startLine)
     })
     this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
       // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
@@ -55,35 +71,46 @@ export class VnEditor {
     })
   }
 
-  private parseDocument() {
-    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
+  // Parses the document and marks up any errors. Getting the result into the player is the caller's
+  // to decide: goToLine reloads, keeping the path, while loadScript hands the state to loadStory,
+  // which loads it as a fresh story.
+  private parseDocument(): VnPlayerState {
+    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.baseState)
     this.vnEditor.clearGutter("vn-error-gutter")
     for (const error of errors) {
       this.setErrorMarker(error)
     }
 
-    this.player.loadState(state)
-
     this.vnEditor.getDoc().markClean()
+    return state
   }
 
   public async loadScript(script: string): Promise<void> {
     this.vnEditor.getDoc().setValue(script)
-    this.parseDocument()
+    const state = this.parseDocument()
 
-    await this.renderer.loadAssets()
+    await this.renderer.loadAssets(state)
 
-    this.player.advance()
-    this.renderer.render(false)
+    // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
+    // through the intro again. The standalone player boots the same story with animations.
+    this.renderer.loadStory(state, false)
   }
 
   public getScript(): string {
     return this.vnEditor.getDoc().getValue()
   }
 
+  public setJumpMode(mode: JumpMode): void {
+    this.jumpMode = mode
+  }
+
   private goToLine(line: number) {
     if (!this.vnEditor.getDoc().isClean()) {
-      this.parseDocument()
+      // Reloading rather than loading keeps the choices made so far, so the replay jump below still
+      // has decisions to follow. They are truncated to what still replays, because this method does
+      // not always reach the jump - clicking a line that holds no command returns before it - and a
+      // path left describing the old script would be waiting to break the next undo.
+      this.player.reloadStory(this.parseDocument())
     }
     const commandIndex = this.player.state.commands.findIndex((cmd) => {
       const location = cmd.getSourceLocation()
@@ -91,13 +118,18 @@ export class VnEditor {
     })
     if (commandIndex === -1) return // do nothing if we try to go to a non-command line
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
-    this.player.goToCommandDirect(commandIndex + 1)
+    if (this.jumpMode === "replay") {
+      this.player.goToCommandByReplay(commandIndex + 1)
+    } else {
+      this.player.goToCommandDirect(commandIndex + 1)
+    }
     this.renderer.render(false)
   }
 
   private setPositionMarker() {
     this.vnEditor.clearGutter("vn-position-gutter")
     const location = getCurrentLocation(this.player)
+    if (location === null) return
     for (let line = location.startLine; line <= location.endLine; line++) {
       this.vnEditor.setGutterMarker(line - 1, "vn-position-gutter", makeMarker("blue"))
     }
@@ -121,6 +153,8 @@ function makeMarker(color: string, title?: string): HTMLDivElement {
   return div
 }
 
-function getCurrentLocation(player: VnPlayer): SourceLocation {
+// The command the player last ran. Null on the first frame of a boot, where nothing has run yet.
+function getCurrentLocation(player: VnPlayer): SourceLocation | null {
+  if (player.state.commandIndex === 0) return null
   return player.state.commands[player.state.commandIndex - 1].getSourceLocation()
 }

@@ -34,6 +34,13 @@ export class ReactRenderer implements Renderer {
     )
   }
 
+  // Enough to satisfy the Renderer interface. This renderer is an unfinished experiment that no
+  // entry point mounts, and it has no auto-advance loop to walk a story to its first stop with.
+  public loadStory(state: VnPlayerState, animate: boolean): void {
+    this.player.loadState(state)
+    this.render(animate)
+  }
+
   public advance = (): void => {
     this.player.advance()
     this.render(true)

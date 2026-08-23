@@ -1,16 +1,17 @@
 import { VnPlayer } from "./core/player"
+import { PathStep } from "./core/vnPath"
 import { DomRenderer } from "./domRenderer/DomRenderer"
-import { VnEditor } from "./editor/editor"
+import { JumpMode, VnEditor } from "./editor/editor"
 import "./index.html"
+import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
-import { Base64 } from "js-base64"
 import { demoState, demoYaml } from "./demoStory"
+import { encodeScript, playerUrl } from "./scriptUrl"
 
-const [yamlState] = YamlParser.updateState(demoYaml, demoState)
 // TODO: id from VN title
 let save
 try {
@@ -18,7 +19,9 @@ try {
 } catch (e) {
   save = undefined
 }
-const player = new VnPlayer(yamlState, save)
+// The demo script is parsed by editor.loadScript below, which is what boots the vn. The player
+// only needs the actor and asset state the script is parsed against.
+const player = new VnPlayer(demoState, save)
 
 declare global {
   interface Window {
@@ -35,7 +38,7 @@ const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)
+const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer, demoState)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRenderCallbacks.push(() => {
@@ -48,6 +51,11 @@ varHeader.innerText = "Variables"
 vnVarsDiv?.appendChild(varHeader)
 const varsContainer = document.createElement("div")
 vnVarsDiv?.appendChild(varsContainer)
+// The path is drawn as its own row of elements rather than joining the blob of innerText above, so
+// each action can be coloured by what it is.
+const pathContainer = document.createElement("div")
+pathContainer.classList.add("vn-path")
+vnVarsDiv?.appendChild(pathContainer)
 
 renderer.onRenderCallbacks.push(() => {
   varsContainer.innerHTML = ""
@@ -56,20 +64,63 @@ renderer.onRenderCallbacks.push(() => {
     text += `${variable} = ${JSON.stringify(player.state.variables[variable])}\n`
   }
   text += `Seen commands: ${JSON.stringify(player.state.seenCommands.toJSON())}\n`
-  text += `Path (shorthand): ${shorthandPath()}\n`
   varsContainer.innerText = text
+  showPath()
 })
 
-// [...decisions, remainingAdvances] - what a save slot stores. toShorthandPath throws once the
-// path contains a goto, which is what clicking a line in the editor records, so that is a normal
-// state to be in here rather than something worth blowing up the panel over.
-function shorthandPath(): string {
-  try {
-    return JSON.stringify(player.path.toShorthandPath())
-  } catch (e) {
-    return "n/a - path contains a goto"
+const STEP_CLASS: Record<PathStep["kind"], string> = {
+  advance: "vn-path-advance",
+  decision: "vn-path-decision",
+  directJump: "vn-path-direct-jump",
+}
+
+function showPath(): void {
+  pathContainer.innerHTML = ""
+  pathContainer.appendChild(aside("Path:"))
+
+  const steps = player.path.getSteps()
+  if (steps.length === 0) {
+    pathContainer.appendChild(aside("(nothing yet)"))
+  }
+  for (const step of steps) {
+    const elem = document.createElement("span")
+    elem.classList.add("vn-path-step", STEP_CLASS[step.kind])
+    elem.innerText = stepLabel(step)
+    pathContainer.appendChild(elem)
+  }
+
+  // A direct jump cannot be written as [...decisions, remainingAdvances], so say so rather than
+  // letting toShorthandPath throw: the author has not broken anything, they are just somewhere only
+  // the editor can reach. The yellow step above shows which jump did it.
+  pathContainer.appendChild(
+    aside(
+      player.path.containsDirectJump()
+        ? "not saveable - use replay mode"
+        : JSON.stringify(player.path.toShorthandPath())
+    )
+  )
+}
+
+function stepLabel(step: PathStep): string {
+  switch (step.kind) {
+    case "advance":
+      return `${step.value}>`
+    case "decision":
+      return `choice ${step.value}`
+    case "directJump":
+      return `jump ${step.value}`
   }
 }
+
+function aside(text: string): HTMLSpanElement {
+  const elem = document.createElement("span")
+  elem.innerText = text
+  return elem
+}
+
+document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {
+  editor.setJumpMode((e.target as HTMLInputElement).value as JumpMode)
+})
 
 document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
   document
@@ -121,17 +172,19 @@ function restoreOnFullscreenExit() {
   vnDiv.style.transformOrigin = ""
 }
 
-document.getElementById("vn-btn-export-url")?.addEventListener("click", getCompressedScript)
+const exportUrlMessage = document.getElementById("vn-btn-export-url-message") as HTMLSpanElement
 
-async function getCompressedScript() {
-  const script = editor.getScript()
-  const stringStream = new Response(new TextEncoder().encode(script)).body
-  if (stringStream === null) {
-    throw new Error("Could not read the script.")
+document.getElementById("vn-btn-export-url")?.addEventListener("click", exportUrl)
+
+async function exportUrl() {
+  const url = playerUrl(await encodeScript(editor.getScript()), location.href)
+  try {
+    await navigator.clipboard.writeText(url)
+    exportUrlMessage.textContent = "Copied the story URL to the clipboard"
+  } catch (e) {
+    // writeText needs a secure context and can still be refused by permission policy. There is
+    // nothing to retry, so leave the url somewhere the user can still get at it.
+    console.log(url)
+    exportUrlMessage.textContent = "Could not write to the clipboard - the URL is in the console instead"
   }
-  const compressedStream = stringStream.pipeThrough(new CompressionStream("gzip"))
-  const ab = await new Response(compressedStream).arrayBuffer()
-  const base64 = Base64.fromUint8Array(new Uint8Array(ab), true)
-  console.log(base64)
-  return base64
 }

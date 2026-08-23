@@ -25,11 +25,17 @@ export class VnEditor {
   private player: VnPlayer
   private parser: VnParser
   private renderer: Renderer
+  private baseState: VnPlayerState
 
-  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer) {
+  // `baseState` is the story's starting point - the actors and asset lists the script is parsed
+  // against, with the playhead at the top. Every reparse goes through it rather than through the
+  // live state, so editing a script cannot leave the player believing the story begins wherever it
+  // happened to be standing.
+  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer, baseState: VnPlayerState) {
     this.player = player
     this.parser = parser
     this.renderer = renderer
+    this.baseState = baseState
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
@@ -63,7 +69,7 @@ export class VnEditor {
   // the swap. goToLine only wants the side effect, and is safe to leave at that because it renders
   // synchronously right after - see DomRenderer.loadStory for why that matters.
   private parseDocument(): VnPlayerState {
-    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.player.state)
+    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.baseState)
     this.vnEditor.clearGutter("vn-error-gutter")
     for (const error of errors) {
       this.setErrorMarker(error)

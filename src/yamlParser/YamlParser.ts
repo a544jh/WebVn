@@ -18,8 +18,13 @@ import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { updateLabels } from "../core/commands/controlFlow/Label"
 
-const updateState = (text: string, state: VnPlayerState): [VnPlayerState, ParserError[]] => {
-  let newState = { ...state }
+// `baseState` supplies everything the script text does not - actors, background and audio asset
+// lists, seenCommands - and is spread into the result, so it must be a state at the *beginning* of
+// the story. Pass a live one and its playhead (commandIndex, stopAfterRender, animatableState,
+// variables) is copied along with it, and whoever loads the result inherits a story that claims to
+// start in the middle.
+const updateState = (text: string, baseState: VnPlayerState): [VnPlayerState, ParserError[]] => {
+  let newState = { ...baseState }
   let errors: ParserError[] = []
 
   const lineCounter = new LineCounter()

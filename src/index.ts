@@ -36,7 +36,7 @@ const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer)
+const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer, demoState)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRenderCallbacks.push(() => {

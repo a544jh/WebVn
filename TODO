@@ -1,30 +1,139 @@
-(Keep YAML lib up to date (lots of API changes in current 2.0.0 version...))
+WebVn TODO
+Sequenced work is derived from the design docs in design-docs/ and is a snapshot
+as of 2026-08-25 - the dependency edges hold until the work itself changes them,
+the size guesses are worth less.
 
-Rollback & History
+Sizes: S = hours, M = a day or two, L = several days.
 
-Save/Load
 
-Better YAML parsing, actors etc..
+== READY NOW (nothing blocks these) ==
 
-Standalone Player entrypoint
+  A  Find-in-file in the editor, on CodeMirror 5             S
+       Three addon imports and a stylesheet. Disposable - the CM6 migration
+       deletes it - and there is no reason for it to wait behind anything.
+       design-docs/EDITOR.md
 
----
+  B  Keep the Zod schema in the command registry             S
+       registerCommandHandler (Parser.ts:37) keeps the handler and discards the
+       schema makeZodCmdHandler closed over. Keeping both is what lets
+       completions and docs be derived rather than hand-listed.
+       design-docs/EDITOR.md
 
-NVL Mode
+  C  updateLabels returns ParserError instead of throwing    S
+       Label.ts:33 throws a bare uncaught Error. Reachable today with a
+       duplicate label; becomes routine once includes exist.
+       design-docs/SCRIPT_INCLUDES.md
 
-Note (text message) system
+  D  Asset manifest out of demoStory.ts into manifest.yaml   M
+       actors/backgrounds/audioAssets are a hardcoded VnPlayerState reaching the
+       parser through baseState, so a project cannot declare its own assets.
+       Unblocks more than anything else on this list.
+       design-docs/PROJECT_STORAGE.md
 
----
+  E  AssetResolver indirection                               M
+       Seven call sites concatenate asset paths (DomRenderer 399/406/411,
+       BackgroundRenderer 77/128/160, SpriteRenderer 167, AudioRenderer 16/27).
+       One interface behind them makes the storage backend swappable.
+       design-docs/PROJECT_STORAGE.md
 
-Text node parsing (colors, text speed...)
+  F  Parser benchmark at 1k/10k/50k commands, written down   S
+       Spike. Settles whether YAML parse time is worth designing around, and
+       says which of parse / updateLabels / time-to-first-stop dominates.
 
-Sprites
-  Sprite flipping
-  Position presets
-  Custom sprite IDs (multiple instances of same actor)
+  H  Measure the tree-shaken zip.js reader bundle            S
+       Spike. Shipped bundles gzip to ~79-85KB but include mime tables,
+       encryption and wasm codecs. Decides zip.js against unzipit + client-zip.
+       design-docs/PROJECT_STORAGE.md
 
-Decision showIf
+  T  Behavioural editor tests                                M
+       Nothing mounts VnEditor today. Written as "this script produces these
+       errors and this player state" they survive the CM6 rewrite; written
+       against .CodeMirror-* classes they do not.
 
-Arbitrary trasformation matrix for bg
 
-Rewrite audio renderer with WebAudiContext (to solve chrome looping gap...)
+== STORAGE ==  design-docs/PROJECT_STORAGE.md
+
+  D + E -> OPFS project store                                L
+             uuid directories, tmp-then-move writes, enumeration as truth
+             |
+             +-> project library UI                          M
+             |     +-> persist() + estimate() + export nag    S
+             +-> navigator.locks for two-tab autosave         S
+             +-> linked-folder layer (optional)               M
+             |     +-> IndexedDB handle store
+             +-> zip import/export  (needs H)                 M
+                   +-> publish: static folder / single-file HTML
+                   +-> downscale on import (optional)
+             +-> content addressing (optional, cheaper now than later)
+
+  D -> project id embedded in the exported story
+         +-> player save keying (replaces the hardcoded "test")
+               +-> migrate existing vn-test saves
+  D -> URL payload becomes a two-document YAML stream
+  E -> object URL lifetime test (cloneNode against a revoked blob URL)
+
+
+== EDITOR ==  design-docs/EDITOR.md
+
+  T -> CM6 migration                                         L
+         +-> autocompletion  (needs B; D for asset and label sources)   M
+         |     +-> documentation popup                        S
+         +-> Enter / list continuation                        S
+         +-> inline diagnostics via @codemirror/lint (optional)
+         +-> editor multi-buffer  (shared with includes)
+
+  A stands alone and is deleted by the migration.
+
+
+== SCRIPT INCLUDES ==  design-docs/SCRIPT_INCLUDES.md
+
+  C + SourceLocation gains a file + OPFS project store
+         +-> SourceLoader, node-level flattening, cycle detection    M
+               +-> export flattening
+  CM6 migration + SourceLocation
+         +-> editor multi-buffer, file switcher, per-buffer markers  L
+
+
+== THE EDGES THAT DECIDE ORDERING ==
+
+  D feeds two chains - storage, and asset/label completions in the editor.
+  CM6 before editor multi-buffer, or multi-buffer gets built twice.
+  OPFS store before the includes resolver, or SourceLoader gets written twice.
+
+  D -> E -> OPFS store -> library UI + zip export is what turns this into a tool
+  someone other than its author can use. Everything in the editor chain is
+  quality of life on top of an authoring loop that does not exist yet.
+
+  F and H are pure measurement. Each retires an open question rather than
+  building anything.
+
+
+== UNSEQUENCED ==
+
+  Nothing below came out of the design docs; no dependencies claimed.
+
+  NVL mode
+
+  Note (text message) system
+    TextBoxType has only ADV, with a "todo maybe note at some point" comment.
+
+  Text node parsing (colors, text speed)
+    TextNode already carries color and characterDelay, but Say hardcodes
+    characterDelay: 20 and takes the colour from the actor. Nothing parses
+    per-node markup.
+
+  Sprites
+    Sprite flipping
+    Position presets   - ShowCommandSchema accepts `position` and apply()
+                         ignores it entirely
+    Custom sprite IDs  - ShowCommandSchema accepts `id` and apply() keys
+                         sprites by actor, so it is ignored too
+                         (multiple instances of the same actor)
+
+  Decision showIf
+
+  Arbitrary transformation matrix for backgrounds
+    Currently pan and scale via four-number viewboxes.
+
+  Rewrite the audio renderer against WebAudioContext
+    To close the Chrome gapless-looping problem.

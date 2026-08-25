@@ -153,6 +153,9 @@ the current code, so do not read it as describing what exists.
   find-in-file for the script editor, and the CodeMirror 6 migration under them (5.x was archived in April
   2026). Read it before touching `src/editor/`, the command registry, or the `codemirror` dependency.
 
+Sequencing across the three lives in [TODO](./TODO), which folds the dependency graph between them into the
+backlog rather than leaving an ordering nobody wrote down.
+
 ## Things that are NOT used — do not rely on them
 - `src/reactRenderer/` — partial, no decisions/sprites/bg/audio. Left in the repo per README but not reachable from either entry point.
 - `src/pegjsParser/` — superseded by `YamlParser`. Not imported anywhere that ships.

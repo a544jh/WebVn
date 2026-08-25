@@ -139,6 +139,14 @@ test-assets/       runtime assets copied to dist/ by CopyPlugin
 ## Known rough edges — read before changing
 See [ROUGH_EDGES.md](./ROUGH_EDGES.md) for the running list of typos, design smells, and dead code paths that propagate through imports. Skim it before changing the affected areas; consider fixing rather than working around.
 
+## Design docs — decisions not yet built
+`design-docs/` holds architecture that has been reasoned through but not implemented. It is not documentation of
+the current code, so do not read it as describing what exists.
+- [PROJECT_STORAGE.md](./design-docs/PROJECT_STORAGE.md) — how an author's project (script, assets, metadata) is
+  stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvnproj` zip as the
+  canonical artifact, a library of projects rather than one. Read it before touching the asset loaders, the
+  hardcoded asset lists in `src/demoStory.ts`, or the `vn-test` save key.
+
 ## Things that are NOT used — do not rely on them
 - `src/reactRenderer/` — partial, no decisions/sprites/bg/audio. Left in the repo per README but not reachable from either entry point.
 - `src/pegjsParser/` — superseded by `YamlParser`. Not imported anywhere that ships.

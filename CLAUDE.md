@@ -149,6 +149,9 @@ the current code, so do not read it as describing what exists.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
   `include` directive, resolved at parse time rather than as a command. Read it before changing
   `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's single-buffer assumptions.
+- [EDITOR.md](./design-docs/EDITOR.md) — autocompletion, command documentation, list continuation and
+  find-in-file for the script editor, and the CodeMirror 6 migration under them (5.x was archived in April
+  2026). Read it before touching `src/editor/`, the command registry, or the `codemirror` dependency.
 
 ## Things that are NOT used — do not rely on them
 - `src/reactRenderer/` — partial, no decisions/sprites/bg/audio. Left in the repo per README but not reachable from either entry point.

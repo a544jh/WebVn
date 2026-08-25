@@ -139,6 +139,23 @@ test-assets/       runtime assets copied to dist/ by CopyPlugin
 ## Known rough edges — read before changing
 See [ROUGH_EDGES.md](./ROUGH_EDGES.md) for the running list of typos, design smells, and dead code paths that propagate through imports. Skim it before changing the affected areas; consider fixing rather than working around.
 
+## Design docs — decisions not yet built
+`design-docs/` holds architecture that has been reasoned through but not implemented. It is not documentation of
+the current code, so do not read it as describing what exists.
+- [PROJECT_STORAGE.md](./design-docs/PROJECT_STORAGE.md) — how an author's project (script, assets, metadata) is
+  stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvnproj` zip as the
+  canonical artifact, a library of projects rather than one. Read it before touching the asset loaders, the
+  hardcoded asset lists in `src/demoStory.ts`, or the `vn-test` save key.
+- [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
+  `include` directive, resolved at parse time rather than as a command. Read it before changing
+  `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's single-buffer assumptions.
+- [EDITOR.md](./design-docs/EDITOR.md) — autocompletion, command documentation, list continuation and
+  find-in-file for the script editor, and the CodeMirror 6 migration under them (5.x was archived in April
+  2026). Read it before touching `src/editor/`, the command registry, or the `codemirror` dependency.
+
+Sequencing across the three lives in [TODO](./TODO), which folds the dependency graph between them into the
+backlog rather than leaving an ordering nobody wrote down.
+
 ## Things that are NOT used — do not rely on them
 - `src/reactRenderer/` — partial, no decisions/sprites/bg/audio. Left in the repo per README but not reachable from either entry point.
 - `src/pegjsParser/` — superseded by `YamlParser`. Not imported anywhere that ships.

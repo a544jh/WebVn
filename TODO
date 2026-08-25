@@ -131,6 +131,7 @@ Sizes: S = hours, M = a day or two, L = several days.
                          (multiple instances of the same actor)
 
   Decision showIf
+    Show/hide individual decision options based on variables.
 
   Arbitrary transformation matrix for backgrounds
     Currently pan and scale via four-number viewboxes.

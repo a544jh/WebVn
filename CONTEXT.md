@@ -7,6 +7,12 @@ a player reads it in a browser, one stop at a time, making decisions that branch
 
 ### Authoring
 
+**Manifest**:
+Everything a story needs that its script does not spell out: the cast, and the lists of background
+and audio assets. An input to the parser, which seeds a starting state from it - not a live field a
+running story can change.
+_Avoid_: config, settings, base state
+
 **Script**:
 The YAML text an author writes. What a Story is parsed *from*.
 _Avoid_: source, code

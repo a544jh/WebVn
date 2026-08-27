@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { initialState, VnPlayer } from "../../src/core/player"
+import { seedState } from "../../src/core/manifest"
+import { VnPlayer } from "../../src/core/player"
 import { State, VnPlayerState } from "../../src/core/state"
 import { VnPath } from "../../src/core/vnPath"
 import { Command } from "../../src/core/commands/Command"
@@ -7,7 +8,6 @@ import { Say } from "../../src/core/commands/text/Say"
 import { Decision } from "../../src/core/commands/controlFlow/Decision"
 import { Jump } from "../../src/core/commands/controlFlow/Jump"
 import { Label, updateLabels } from "../../src/core/commands/controlFlow/Label"
-import { ConsecutiveIntegerSet } from "../../src/lib/ConsecutiveIntegerSet"
 import { loc, makeCommand } from "../helpers/commands"
 
 const say = (text: string) => new Say(loc, "narrator", text)
@@ -17,7 +17,7 @@ const show = (actor: string) => makeCommand("show", { actor, sprite: "a.png" })
 const set = (args: unknown) => makeCommand("set", args)
 
 function makeState(commands: Command[]): VnPlayerState {
-  return updateLabels({ ...initialState, commands, seenCommands: new ConsecutiveIntegerSet() })
+  return updateLabels({ ...seedState(), commands })
 }
 
 // Mirrors DomRenderer's render loop: keep advancing until the state wants an interaction.

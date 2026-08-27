@@ -1,3 +1,4 @@
+import { seedState } from "./core/manifest"
 import { VnPlayer } from "./core/player"
 import { PathStep } from "./core/vnPath"
 import { DomRenderer } from "./domRenderer/DomRenderer"
@@ -9,7 +10,7 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
-import { demoState, demoYaml } from "./demoStory"
+import { demoManifest, demoYaml } from "./demoStory"
 import { encodeScript, playerUrl } from "./scriptUrl"
 
 // TODO: id from VN title
@@ -20,8 +21,8 @@ try {
   save = undefined
 }
 // The demo script is parsed by editor.loadScript below, which is what boots the vn. The player
-// only needs the actor and asset state the script is parsed against.
-const player = new VnPlayer(demoState, save)
+// only needs a state seeded from the manifest the script is parsed against.
+const player = new VnPlayer(seedState(demoManifest), save)
 
 declare global {
   interface Window {
@@ -38,7 +39,7 @@ const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
-const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer, demoState)
+const editor = new VnEditor(vnEditorDiv, player, YamlParser, renderer, demoManifest)
 
 const vnStateDiv = document.getElementById("vn-state") as HTMLDivElement
 renderer.onRenderCallbacks.push(() => {

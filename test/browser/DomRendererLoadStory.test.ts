@@ -5,7 +5,7 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { createVnRoot, freshState, nextStop, settle, textBoxText } from "../helpers/vnHarness"
 
 const parse = (script: string) => {
-  const [state, errors] = YamlParser.updateState(script, freshState())
+  const [state, errors] = YamlParser.parseStory(script, freshState())
   expect(errors).toEqual([])
   return state
 }

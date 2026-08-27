@@ -41,7 +41,7 @@ if (params.has("vn")) {
 }
 
 async function loadYaml(yamlText: string) {
-  const [state] = YamlParser.updateState(yamlText, player.state)
+  const [state] = YamlParser.parseStory(yamlText, demoState)
   await renderer.loadAssets(state)
   // Animated, unlike the editor: everything the story runs before its first stop is played out,
   // which is what makes an intro or a title screen possible.

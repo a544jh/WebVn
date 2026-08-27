@@ -87,7 +87,7 @@ export interface StartedVn extends MountedVn {
 // Parses a script and plays it up to its first stop - the whole boot the browser suites do.
 export const startVn = async (script: string, options: { actions?: boolean } = {}): Promise<StartedVn> => {
   const root = createVnRoot(options)
-  const [state, errors] = YamlParser.updateState(script, freshState())
+  const [state, errors] = YamlParser.parseStory(script, freshState())
   expect(errors).toEqual([])
   const mounted = mountVn(root, state)
   await mounted.firstStop

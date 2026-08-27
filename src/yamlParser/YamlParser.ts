@@ -14,17 +14,13 @@ import {
 } from "yaml"
 import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
+import { seedState, VnManifest } from "../core/manifest"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { updateLabels } from "../core/commands/controlFlow/Label"
 
-// `baseState` supplies everything the script text does not - actors, background and audio asset
-// lists, seenCommands - and is spread into the result, so it must be a state at the *beginning* of
-// the story. Pass a live one and its playhead (commandIndex, stopAfterRender, animatableState,
-// variables) is copied along with it, and whoever loads the result inherits a story that claims to
-// start in the middle.
-const updateState = (text: string, baseState: VnPlayerState): [VnPlayerState, ParserError[]] => {
-  let newState = { ...baseState }
+const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserError[]] => {
+  let newState = seedState(manifest)
   let errors: ParserError[] = []
 
   const lineCounter = new LineCounter()
@@ -60,7 +56,7 @@ const updateState = (text: string, baseState: VnPlayerState): [VnPlayerState, Pa
   } else if (isSeq(storyNode)) {
     const [commands, storyErrors] = storyToCommands(storyNode, docs[0], lineCounter)
     errors = errors.concat(storyErrors)
-    newState.commands = commands
+    newState = { ...newState, commands }
   }
 
   newState = updateLabels(newState)
@@ -162,5 +158,5 @@ const getLines = (item: Node, lc: LineCounter): SourceLocation => {
 }
 
 export const YamlParser: VnParser = {
-  updateState,
+  parseStory,
 }

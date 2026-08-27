@@ -9,7 +9,7 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 // the lib's internal node-type symbol still looks like a plain object to those guards,
 // which would silently downgrade every aliased command to "Unrecognized item".
 
-const parse = (yaml: string) => YamlParser.updateState(yaml, initialState)
+const parse = (yaml: string) => YamlParser.parseStory(yaml, initialState)
 
 describe("YamlParser anchors and aliases", () => {
   it("expands an alias into the command its anchor holds", () => {

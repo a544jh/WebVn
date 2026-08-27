@@ -1,4 +1,5 @@
 import { ZodTypeAny, ZodError } from "zod"
+import { VnManifest } from "../manifest"
 import { VnPlayerState } from "../state"
 import { Command } from "./Command"
 
@@ -51,7 +52,7 @@ export const getCommandHandler = (command: string): ObjectToCommand | undefined 
 }
 
 export interface VnParser {
-  updateState(text: string, state: VnPlayerState): [VnPlayerState, ParserError[]]
+  parseStory(text: string, manifest: VnManifest): [VnPlayerState, ParserError[]]
 }
 
 // https://fettblog.eu/typescript-hasownproperty/

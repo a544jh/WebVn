@@ -220,3 +220,23 @@ Two things worth recording that the ticket did not decide:
 
 Confirmed as expected: **saves are unaffected.** A save stores a `VnPath`, so nothing persisted
 holds a filename or an id, and the save tests needed no change.
+
+### 2026-08-28 - review pass
+
+A two-axis review of the commit found one thing both axes flagged, and it was real:
+
+- **`DomRenderer.loadAssets` was not going through `assetPaths.ts`** for backgrounds and audio - it
+  re-spelled `"backgrounds/"` and `"audio/"` inline, so the module was the single definition for
+  exactly one of the three asset kinds while a comment and `CLAUDE.md` both claimed otherwise. Fixed
+  by splitting each resolver in two: `xFilePath(file)` for preloading, which already has filenames,
+  and `xAssetPath(declarations, id)` for rendering, defined in terms of it.
+
+Two consolidations that followed from the same reading:
+
+- **`stop` and the leading `#` moved to `src/core/state.ts`** as `STOP_AUDIO_ID` and
+  `isBackgroundColor`. Both are engine-level facts that `Bgm.apply` and `BackgroundRenderer` act on
+  and the schema rejects, so each was being stated in two layers that cannot share.
+- **An actor entry is strict too.** Decision 3 scoped strictness to asset entries, and an actor is
+  not one - but `../sprites/` put `sprites` inside it, which is what made it an entry that declares
+  assets. A stripped `sprits:` leaves an actor silently declaring no sprites, which is the failure
+  decision 3 names. Applying the rule to a shape this change created, rather than widening it.

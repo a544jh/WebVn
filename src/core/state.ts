@@ -115,6 +115,12 @@ export interface SpriteInstance {
   anchorY: number
 }
 
+// `bg: {image: "#000000"}` paints a colour instead of naming a background asset, and the leading
+// `#` is the whole of that distinction. It lives here rather than in the renderer because both the
+// renderer and the manifest schema depend on it: one reads it, and the other is what keeps an asset
+// id from ever looking like one.
+export const isBackgroundColor = (image: string): boolean => image.charAt(0) === "#"
+
 export interface Background {
   image: string
   panFrom?: ViewBox
@@ -142,6 +148,11 @@ export interface AudioAsset {
   title?: string
   artist?: string
 }
+
+// `bgm: stop` stops the music, so this is a word no audio asset can be keyed under. Stated here for
+// the same reason as isBackgroundColor: `Bgm.apply` acts on it and the manifest schema rejects it,
+// and a rule spelled in both places is a rule that can drift.
+export const STOP_AUDIO_ID = "stop"
 
 export interface AudioState {
   bgm: string | null

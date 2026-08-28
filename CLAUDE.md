@@ -120,8 +120,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - A project declares itself in `manifest.yaml`: `formatVersion`, `id`, `title`, `actors`, `backgrounds`,
   `audioAssets`. The three asset declarations are **keyed maps, not lists**: the script names an id and
   the manifest says which file it is, so the manifest is a symbol table rather than a preload index.
-  `src/domRenderer/assetPaths.ts` is the one place an id becomes a path - both the sub-renderers and
-  `DomRenderer.loadAssets` go through it, so what is preloaded and what is asked for cannot drift.
+  `src/domRenderer/assetPaths.ts` is the one place an id becomes a path. Two functions per asset kind:
+  `xFilePath(file)` for preloading, which walks the declarations and so already has every filename,
+  and `xAssetPath(declarations, id)` for rendering, which has an id. The second is defined in terms
+  of the first, so the directory prefix is written once and what is preloaded cannot drift from what
+  is asked for. Do not re-spell `"audio/"`, `"backgrounds/"` or `sprites/<actor>/` anywhere else.
   `VnManifest` (src/core/manifest.ts) is that declaration as a type, and `seedState(manifest)` copies it
   into a starting `VnPlayerState`. It is an **input**, never a live field — nothing playback points into it.
 - **The two parsers deliberately disagree about failure.** `parseStory` always returns a playable state, with
@@ -138,10 +141,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   shape error per declaration and buries the single message that explains all of them. A version failure
   is therefore the only error reported. The field arrived with asset ids, which is the compatibility break
   it was always waiting for; the next break bumps it.
-- **Strict inside an asset entry, lenient at the top level.** An unknown key in an audio entry is a parse
-  error, because `artistt:` should not silently produce a track with no artist. An unknown key at the top
-  level is still stripped, because that is how a later format announces itself. The two rules differ
-  because the two situations do.
+- **Strict inside an entry, lenient at the top level.** An unknown key in an audio entry or an actor is a
+  parse error, because `artistt:` should not silently produce a track with no artist, nor `sprits:` an
+  actor declaring no sprites. An unknown key at the top level is still stripped, because that is how a
+  later format announces itself. The two rules differ because the two situations do.
+- **`stop` and a leading `#` are engine-level reserved values**, so they live in `src/core/state.ts`
+  (`STOP_AUDIO_ID`, `isBackgroundColor`) rather than in the schema or the renderer. `Bgm.apply` acts on
+  one and `BackgroundRenderer` on the other while the schema rejects both, and a rule spelled in two
+  layers is a rule that drifts.
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
@@ -202,7 +209,7 @@ If you're tempted to import from any of these, don't.
 
 - **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
-- **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
+- **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
 - **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 

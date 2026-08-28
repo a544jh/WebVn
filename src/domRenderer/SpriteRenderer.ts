@@ -35,10 +35,7 @@ export class SpriteRenderer {
           // skip to end state, even if the state didn't change: an animation from a
           // previous render may still be in flight, and its transitionend listeners
           // must not stay armed on the element
-          if (
-            prevSprite !== undefined &&
-            spriteAssetPath(actors, prevSprite) !== spriteAssetPath(actors, sprites[id])
-          ) {
+          if (prevSprite !== undefined && this.resolve(actors, prevSprite) !== this.resolve(actors, sprites[id])) {
             const newElem = this.createSpriteElem(id, sprites[id], actors)
             this.setPosition(newElem, sprites[id])
             spriteElem.replaceWith(newElem)
@@ -65,7 +62,7 @@ export class SpriteRenderer {
             this.addTransitionEndPromise(animPromises, spriteElem)
             this.setPosition(spriteElem, sprites[id])
           }
-          if (spriteAssetPath(actors, prevSprite) !== spriteAssetPath(actors, sprites[id])) {
+          if (this.resolve(actors, prevSprite) !== this.resolve(actors, sprites[id])) {
             // handle sprite image change
 
             const newElem = this.createSpriteElem(id, sprites[id], actors)
@@ -141,14 +138,27 @@ export class SpriteRenderer {
   }
 
   private createSpriteElem(id: string, sprite: SpriteInstance, actors: Record<string, Actor>): HTMLImageElement {
-    const path = spriteAssetPath(actors, sprite)
-    // A declared sprite name is checkable against the manifest, unlike the instance id, so this is
-    // the manifest and the script disagreeing rather than an author's typo going unnoticed.
-    if (path === undefined) throw new Error(`Actor ${sprite.actor} declares no sprite named ${sprite.sprite}`)
-    const elem = this.assetLoader.getAsset(path)
+    const elem = this.assetLoader.getAsset(this.resolve(actors, sprite))
     if (!elem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
     elem.dataset.vnSpriteId = id
     return elem
+  }
+
+  // Which file an instance shows. A declared sprite name is checkable against the manifest, unlike
+  // an instance id, so an unknown one is the manifest and the script disagreeing rather than an
+  // author's typo going unnoticed.
+  //
+  // It throws rather than yielding undefined because the comparisons above are also resolutions:
+  // two instances showing the same file need no cross-fade, and two *undeclared* names would both
+  // resolve to nothing, compare equal, and slip past the element-building call that is otherwise
+  // the only thing reporting them. Reaching that takes a second undeclared name after a first has
+  // already thrown, which no advance can do - a throw leaves the render unfinished and the next
+  // advance re-renders the same state - so this is one invariant held in one place rather than a
+  // bug fix.
+  private resolve(actors: Record<string, Actor>, sprite: SpriteInstance): string {
+    const path = spriteAssetPath(actors, sprite)
+    if (path === undefined) throw new Error(`Actor ${sprite.actor} declares no sprite named ${sprite.sprite}`)
+    return path
   }
 
   private getSpriteElem(id: string): HTMLImageElement {

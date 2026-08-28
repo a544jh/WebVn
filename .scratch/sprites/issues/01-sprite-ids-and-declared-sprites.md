@@ -211,3 +211,21 @@ Still open, and still homeless: **unknown sprite ids are runtime errors the edit
 Nothing in `design-docs/EDITOR.md` covers reporting a runtime fault from a running preview, and this
 ticket does not create that home. A `hide` naming an id nothing is showing is still a silent no-op -
 `test/unit/sprites.test.ts` pins that as the deliberate behaviour rather than a bug to fix here.
+
+### 2026-08-28 - review pass
+
+`SpriteRenderer` now resolves a declared sprite name through one throwing helper at every site,
+rather than only where the image element is built. The renderer's "did the image change" test is
+itself a resolution, so two undeclared names would both resolve to nothing and compare equal - and
+the render that should have reported the second would silently do nothing.
+
+Recorded because it is not the bug it first looks like: reaching that comparison needs a second
+undeclared name *after* a first has already thrown, and no advance can get there, since a throw
+leaves the render unfinished and the next advance re-renders the same state. So this is one
+invariant held in one place, not a fix. `test/browser/SpriteIds.test.ts` asserts only what a player
+can actually reach - an undeclared name in place of a showing sprite is reported.
+
+Worth knowing, and pre-existing: **a throwing render wedges the renderer.** `finished` stays false,
+so every later advance re-renders the same state. Audio and backgrounds have always behaved this
+way; declared sprite names now join them. That is the other half of why the editor needs to surface
+runtime faults, which still has no ticket.

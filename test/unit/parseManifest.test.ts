@@ -351,6 +351,16 @@ audioAssets:
       expect(manifest).toBeNull()
       expect(errors).toHaveLength(1)
     })
+
+    // `sprites` is what makes an actor an entry that declares assets, so the strict rule reaches it:
+    // a stripped `sprits:` would leave an actor silently declaring no sprites at all.
+    it("rejects an unknown key inside an actor, rather than stripping it", () => {
+      const [manifest, errors] = parse(withId("cast") + "actors:\n  A1:\n    sprits:\n      happy: a.png\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("sprits")
+    })
   })
 
   describe("the demo manifest", () => {

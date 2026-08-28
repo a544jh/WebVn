@@ -16,7 +16,7 @@ import { saveToLocalStorage, VnSaveSlotData } from "../core/save"
 import { MenuCreator } from "./menus/MenuCreator"
 import { pauseMenu } from "./menus/PauseMenu"
 import { FreeformTextRenderer } from "./FreeformTextRenderer"
-import { spriteFilePath } from "./assetPaths"
+import { audioFilePath, backgroundFilePath, spriteFilePath } from "./assetPaths"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -405,10 +405,10 @@ export class DomRenderer implements Renderer {
       }
     }
     for (const id in state.backgrounds) {
-      this.imageLoader.registerAsset("backgrounds/" + state.backgrounds[id])
+      this.imageLoader.registerAsset(backgroundFilePath(state.backgrounds[id]))
     }
     for (const id in state.audioAssets) {
-      this.audioLoader.registerAsset("audio/" + state.audioAssets[id].file)
+      this.audioLoader.registerAsset(audioFilePath(state.audioAssets[id].file))
     }
 
     return Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])

@@ -2,7 +2,7 @@ import { Document, isMap, isNode, isScalar, LineCounter, YAMLMap } from "yaml"
 import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
 import { VnManifest } from "../core/manifest"
-import { NARRATOR_ACTOR_ID } from "../core/state"
+import { isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
 import { composeDocuments, FIRST_LINE, getLines, yamlProblems } from "./yamlDocument"
 
 // manifest.yaml, the document a project declares itself in. It lives here rather than next to
@@ -44,20 +44,22 @@ const actorIdSchema = z
 // values the engine has already spoken for below.
 const assetIdSchema = z.string().min(1, "must not be empty")
 
-// `Bgm.apply` reads "stop" as "stop the music", so a track keyed `stop` could never be played. The
-// alternatives - `bgm: null`, `bgm: {stop: true}` - need no reserved word and break every script
-// that stops music, which is not a trade worth making for a word nobody will name a track.
-const RESERVED_AUDIO_ID = "stop"
-
+// The two values the engine has spoken for. Both are defined in core/state.ts, beside the types
+// they constrain: `Bgm.apply` acts on one and `BackgroundRenderer` on the other, so stating either
+// rule a second time here is how the schema and the engine would come to disagree.
+//
+// `bgm: stop` stops the music, so a track keyed `stop` could never be played. The alternatives -
+// `bgm: null`, `bgm: {stop: true}` - need no reserved word and break every script that stops music,
+// which is not a trade worth making for a word nobody will name a track.
 const audioIdSchema = assetIdSchema.refine(
-  (id) => id !== RESERVED_AUDIO_ID,
-  `"${RESERVED_AUDIO_ID}" is reserved - it is how a script stops the music. Give the track another id and a title.`
+  (id) => id !== STOP_AUDIO_ID,
+  `"${STOP_AUDIO_ID}" is reserved - it is how a script stops the music. Give the track another id and a title.`
 )
 
-// `bg: {image: "#000000"}` paints a colour instead of naming an asset, and the renderer tells the
-// two apart by the leading `#`. An id starting with one would name an asset nothing can reach.
+// A background id starting with `#` would name an asset nothing can reach, because that is how a
+// `bg` says it is painting a colour rather than naming one.
 const backgroundIdSchema = assetIdSchema.refine(
-  (id) => !id.startsWith("#"),
+  (id) => !isBackgroundColor(id),
   'may not start with "#" - a background beginning with one is read as a colour, not an asset'
 )
 
@@ -79,12 +81,18 @@ const audioAssetSchema = z.preprocess(
 
 // `sprites` is the images an actor can be shown in, as declared name to filename. The script names
 // the declared name, so renaming a file is a manifest edit rather than a rewrite of the story.
-const actorSchema = z.object({
-  name: z.string().optional(),
-  nameTagColor: z.string().optional(),
-  textColor: z.string().optional(),
-  sprites: z.record(assetIdSchema, z.string().min(1, "must name a file")).optional(),
-})
+//
+// Strict, like an asset entry and unlike the top level: `sprites` is what makes an actor an entry
+// that declares assets, and a stripped `sprits:` would leave an actor silently declaring none -
+// which is the same failure as a stripped `artistt:` leaving a track with no artist.
+const actorSchema = z
+  .object({
+    name: z.string().optional(),
+    nameTagColor: z.string().optional(),
+    textColor: z.string().optional(),
+    sprites: z.record(assetIdSchema, z.string().min(1, "must name a file")).optional(),
+  })
+  .strict()
 
 // An author who writes `audioAssets:` and stops means an empty declaration, but YAML hands that over
 // as null. Declaring nothing and declaring emptiness are the same statement, so both take the default.

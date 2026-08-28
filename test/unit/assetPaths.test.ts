@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
   audioAssetPath,
+  audioFilePath,
   backgroundAssetPath,
-  isBackgroundColor,
+  backgroundFilePath,
   spriteAssetPath,
   spriteFilePath,
 } from "../../src/domRenderer/assetPaths"
-import { Actor, AudioAsset, SpriteInstance } from "../../src/core/state"
+import { Actor, AudioAsset, isBackgroundColor, SpriteInstance } from "../../src/core/state"
 
 // The one place an asset id becomes a path. Both the renderers and DomRenderer.loadAssets go
 // through it, so what is preloaded and what is looked up can never drift apart.
@@ -37,6 +38,12 @@ describe("audioAssetPath", () => {
     expect(audioAssetPath(audioAssets, "daylight")).toBe("audio/bgm/dayl.ogg")
   })
 
+  // Preloading walks the declarations, so it has files rather than ids. Both halves must agree on
+  // the directory, which is why one is defined in terms of the other.
+  it("agrees with the path preloading registers for the same file", () => {
+    expect(audioAssetPath(audioAssets, "daylight")).toBe(audioFilePath("bgm/dayl.ogg"))
+  })
+
   it("yields nothing for an id nothing declares", () => {
     expect(audioAssetPath(audioAssets, "nocturne")).toBeUndefined()
   })
@@ -45,6 +52,10 @@ describe("audioAssetPath", () => {
 describe("backgroundAssetPath", () => {
   it("resolves an id to the file the manifest declared for it", () => {
     expect(backgroundAssetPath(backgrounds, "classroom")).toBe("backgrounds/a.png")
+  })
+
+  it("agrees with the path preloading registers for the same file", () => {
+    expect(backgroundAssetPath(backgrounds, "classroom")).toBe(backgroundFilePath("a.png"))
   })
 
   it("yields nothing for an id nothing declares", () => {
@@ -72,6 +83,10 @@ describe("spriteAssetPath", () => {
   // Two actors may declare the same filename; the actor's own directory is what keeps them apart.
   it("files a sprite under its own actor", () => {
     expect(spriteFilePath("A2", "idle.png")).toBe("sprites/A2/idle.png")
+  })
+
+  it("agrees with the path preloading registers for the same file", () => {
+    expect(spriteAssetPath(actors, instance("A1", "happy"))).toBe(spriteFilePath("A1", "a1_happy.png"))
   })
 })
 

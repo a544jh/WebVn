@@ -1,6 +1,6 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
-import { Background, ViewBox } from "../core/state"
-import { backgroundAssetPath, isBackgroundColor } from "./assetPaths"
+import { Background, isBackgroundColor, ViewBox } from "../core/state"
+import { backgroundAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
 import { transitionFactories } from "./bgTransitions/transitionFactories"
 import { Renderable } from "./bgTransitions/Renderable"

@@ -299,6 +299,11 @@ script, leave the assets remote behind a base-URL resolver - and it is instant a
 makes the author's project depend on someone else's server staying up, which is the premise this whole
 document rejects. The URL is a source, never a live link.
 
+This is about *importing*, and does not contradict the player resolving URLs directly ("The player and the
+editor get different resolvers" above) or a shared link pointing its assets at `&assets=<url>` below.
+Reading someone's hosted VN over the network is exactly right; a project sitting in your own library that
+silently stops working when their host goes down is not. The distinction is ownership, not mechanism.
+
 CORS decides the reach: every fetch is cross-origin, so a host that does not send `Access-Control-Allow-Origin`
 cannot be imported from at all. One header covers a whole project, since the requirement is the same for each
 file.
@@ -482,6 +487,12 @@ two-document YAML stream - manifest, `---`, script - which the `yaml` dependency
 shared link with custom assets also needs a base URL for them, e.g. `&assets=<url>`. That is worth having
 anyway: it makes reusable asset packs possible.
 
+**Note what this competes with.** Once a published VN can be opened by URL ("Importing from a URL" above), a
+link to the published folder carries manifest, script and assets as one coherent thing, and does it better
+than a payload plus an asset base. The URL payload keeps a narrower job: a small script over assets that
+already exist somewhere - a quick share, a bug repro, a variation on a published VN. It is not the general
+sharing mechanism, and should not grow into one.
+
 ## Load-bearing details
 
 Things that will break quietly if they are skipped.
@@ -554,6 +565,10 @@ Things that will break quietly if they are skipped.
   write a directory tree out of a browser - the folder export itself. It lands after zip export and import,
   which cover every browser rather than only Chromium. It would also make a folder on disk a live target
   rather than an inert copy, which is why the export README must not claim otherwise.
+- **Which hosts URL import can actually reach.** Every fetch is cross-origin, so a host that does not send
+  `Access-Control-Allow-Origin` cannot be imported from at all. GitHub Pages is believed fine; itch.io and
+  Neocities are unverified. This does not change the design but it decides how the feature is described, and
+  whether "import from URL" needs to say "from a host that allows it".
 - **Re-encoding on import.** A 12MP phone photo as a background is the common case and a non-developer will
   not think to resize it. Offer, force, or ignore?
 - **Content-addressed assets** (SHA-256 via SubtleCrypto, manifest maps logical name to hash). Gives dedupe

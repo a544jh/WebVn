@@ -1,6 +1,7 @@
 import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
@@ -30,18 +31,14 @@ export class VnEditor {
   private player: VnPlayer
   private parser: VnParser
   private renderer: Renderer
-  private baseState: VnPlayerState
+  private manifest: VnManifest
   private jumpMode: JumpMode = "replay"
 
-  // `baseState` is the story's starting point - the actors and asset lists the script is parsed
-  // against, with the playhead at the top. Every reparse goes through it rather than through the
-  // live state, so editing a script cannot leave the player believing the story begins wherever it
-  // happened to be standing.
-  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer, baseState: VnPlayerState) {
+  constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer, manifest: VnManifest) {
     this.player = player
     this.parser = parser
     this.renderer = renderer
-    this.baseState = baseState
+    this.manifest = manifest
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
@@ -75,7 +72,7 @@ export class VnEditor {
   // to decide: goToLine reloads, keeping the path, while loadScript hands the state to loadStory,
   // which loads it as a fresh story.
   private parseDocument(): VnPlayerState {
-    const [state, errors] = this.parser.updateState(this.vnEditor.getDoc().getValue(), this.baseState)
+    const [state, errors] = this.parser.parseStory(this.vnEditor.getDoc().getValue(), this.manifest)
     this.vnEditor.clearGutter("vn-error-gutter")
     for (const error of errors) {
       this.setErrorMarker(error)

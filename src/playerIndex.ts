@@ -1,3 +1,4 @@
+import { seedState } from "./core/manifest"
 import { VnPlayer } from "./core/player"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { VnEditor } from "./editor/editor"
@@ -6,7 +7,7 @@ import "./player.html"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
-import { demoState, demoYaml } from "./demoStory"
+import { demoManifest, demoYaml } from "./demoStory"
 import { decodeScript } from "./scriptUrl"
 
 // TODO: id from VN title
@@ -16,7 +17,7 @@ try {
 } catch (e) {
   save = undefined
 }
-const player = new VnPlayer(demoState, save)
+const player = new VnPlayer(seedState(demoManifest), save)
 
 declare global {
   interface Window {
@@ -41,7 +42,7 @@ if (params.has("vn")) {
 }
 
 async function loadYaml(yamlText: string) {
-  const [state] = YamlParser.updateState(yamlText, player.state)
+  const [state] = YamlParser.parseStory(yamlText, demoManifest)
   await renderer.loadAssets(state)
   // Animated, unlike the editor: everything the story runs before its first stop is played out,
   // which is what makes an intro or a title screen possible.

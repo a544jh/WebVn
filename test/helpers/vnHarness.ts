@@ -1,7 +1,7 @@
 import { expect } from "vitest"
-import { initialState, VnPlayer } from "../../src/core/player"
+import { EMPTY_MANIFEST } from "../../src/core/manifest"
+import { VnPlayer } from "../../src/core/player"
 import { VnPlayerState } from "../../src/core/state"
-import { ConsecutiveIntegerSet } from "../../src/lib/ConsecutiveIntegerSet"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 
@@ -73,13 +73,6 @@ export const mountVn = (root: HTMLDivElement, state: VnPlayerState): MountedVn =
   return { player, renderer, firstStop }
 }
 
-// initialState.seenCommands is a single shared mutable instance. Every test needs its own, or
-// skip-mode availability leaks from whichever test ran before it.
-export const freshState = (state: VnPlayerState = initialState): VnPlayerState => ({
-  ...state,
-  seenCommands: new ConsecutiveIntegerSet(),
-})
-
 export interface StartedVn extends MountedVn {
   root: HTMLDivElement
 }
@@ -87,7 +80,7 @@ export interface StartedVn extends MountedVn {
 // Parses a script and plays it up to its first stop - the whole boot the browser suites do.
 export const startVn = async (script: string, options: { actions?: boolean } = {}): Promise<StartedVn> => {
   const root = createVnRoot(options)
-  const [state, errors] = YamlParser.updateState(script, freshState())
+  const [state, errors] = YamlParser.parseStory(script, EMPTY_MANIFEST)
   expect(errors).toEqual([])
   const mounted = mountVn(root, state)
   await mounted.firstStop

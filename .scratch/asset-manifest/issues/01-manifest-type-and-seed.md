@@ -1,6 +1,6 @@
 # Manifest type and seed, and the parser signature
 
-Status: ready-for-agent
+Status: done
 
 Step 1 of `../spec.md`. Types only - no new file format, no Zod, no YAML. Four pieces, one commit
 each; they are not independently shippable, so they land together.
@@ -62,3 +62,19 @@ Needs no DOM or editor:
 
 `npm run typecheck`, `npm test` and `npm run test:demo` pass, `freshState` is gone, and nothing
 outside `manifest.ts` constructs a starting state.
+
+## Comments
+
+**2026-08-28** - Implemented in [#34](https://github.com/a544jh/WebVn/pull/34), four commits.
+`freshState` is gone, nothing outside `manifest.ts` constructs a starting state, and typecheck,
+lint, prettier, `npm test`, `npm run test:demo` and the build all pass.
+
+Two departures from the text above, both deliberate:
+
+- `VnManifest.actors` is `Record<string, Actor>`, not the `Actors` in `../spec.md`. `Actors` makes
+  `default` and `narrator` required, which contradicts a manifest not having to declare either.
+- `seedState` merges the default actor field by field, so a project can override just its text
+  colour; every other entry, the narrator included, replaces whatever the engine had.
+
+One thing the ticket did not anticipate: the parser mutated `newState.commands`, which compiled only
+because a spread drops `readonly`. A seed does not, so it builds a new object instead.

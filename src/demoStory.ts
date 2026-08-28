@@ -1,16 +1,11 @@
-import { initialState } from "./core/player"
-import { NARRATOR_ACTOR_ID, VnPlayerState } from "./core/state"
+import { VnManifest } from "./core/manifest"
+import { NARRATOR_ACTOR_ID } from "./core/state"
 
 // The demo VN shipped by the standalone player (src/playerIndex.ts). Kept in its own module
 // so test/demo/DemoStory.test.ts exercises the script that actually ships instead of a copy of it.
 
-export const demoState: VnPlayerState = {
-  ...initialState,
+export const demoManifest: VnManifest = {
   actors: {
-    default: {
-      textColor: "white",
-      nameTagColor: "white",
-    },
     [NARRATOR_ACTOR_ID]: {
       textColor: "#60baff",
     },

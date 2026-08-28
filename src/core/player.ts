@@ -1,4 +1,4 @@
-import { NARRATOR_ACTOR_ID, State, TextMode, VnPlayerState } from "./state"
+import { State, VnPlayerState } from "./state"
 import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"
 import "./commands/controlFlow/Label"
@@ -15,55 +15,14 @@ import "./commands/audio/Sfx"
 import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
 import { VnGlobalSaveData, VnSaveSlotData } from "./save"
 
-export const initialState: VnPlayerState = {
-  actors: {
-    default: {
-      textColor: "white",
-      nameTagColor: "white",
-    },
-    [NARRATOR_ACTOR_ID]: {},
-  },
-  backgrounds: [],
-  audioAssets: [],
-  commandIndex: 0, // the command to be applied next
-  commands: [],
-  labels: {},
-  stopAfterRender: false,
-  mode: TextMode.ADV,
-  animatableState: {
-    text: null,
-    freeformInsertionPoint: { x: 0, y: 0, width: 1 },
-    freeformText: [],
-    sprites: {},
-    background: {
-      image: "#FFFFFF",
-      panDuration: 0,
-      panFrom: { x: 0, y: 0, w: 0, h: 0 },
-      panTo: { x: 0, y: 0, w: 0, h: 0 },
-      waitForPan: false,
-      transition: "fade",
-      transitionDuration: 0,
-      shouldTransition: false,
-    },
-    audio: {
-      bgm: null,
-      loopBgm: true,
-      sfx: null,
-    },
-  },
-  decision: null,
-  variables: {},
-  seenCommands: new ConsecutiveIntegerSet(),
-}
-
 export class VnPlayer {
   public state: VnPlayerState
   public path: VnPath
   public startingState: VnPlayerState
   public saves: VnSaveSlotData[]
 
-  constructor(state?: VnPlayerState, saveData?: VnGlobalSaveData) {
-    this.state = state === undefined ? initialState : state
+  constructor(state: VnPlayerState, saveData?: VnGlobalSaveData) {
+    this.state = state
     this.path = VnPath.emptyPath()
     this.startingState = this.state
     this.saves = saveData?.saves ?? []
@@ -137,6 +96,9 @@ export class VnPlayer {
   // far as it still replays against the new script - and startingState becomes the new beginning,
   // since that is what every later replay (undo, a replay jump, loading a save) starts from.
   public reloadStory(state: VnPlayerState): void {
+    // Every seed mints its own set, so the marks have to be carried over by hand - a command the
+    // player has read stays read across an edit of the script.
+    state.seenCommands = this.state.seenCommands
     const [newState, keptPath] = this.path.replayAsFarAsPossible(state)
     this.state = newState
     this.startingState = state
@@ -144,6 +106,7 @@ export class VnPlayer {
   }
 
   public loadState(state: VnPlayerState): void {
+    state.seenCommands = this.state.seenCommands
     this.state = state
     this.startingState = state
     this.path = VnPath.emptyPath()

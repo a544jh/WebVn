@@ -4,13 +4,12 @@ import { VnPlayerState } from "../../src/core/state"
 import { ErrorLevel } from "../../src/core/commands/Parser"
 import { loadFromLocalStorage } from "../../src/core/save"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
-import { demoState, demoYaml } from "../../src/demoStory"
+import { demoManifest, demoYaml } from "../../src/demoStory"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import {
   boxText,
   createVnRoot,
   decisionItems,
-  freshState,
   liveSprites,
   mountVn,
   nameTag,
@@ -260,7 +259,7 @@ afterEach(() => {
 
 // Boots the demo exactly like playerIndex.ts does and waits for the first stop.
 const startDemo = async (): Promise<Harness> => {
-  const [state] = YamlParser.updateState(demoYaml, freshState(demoState))
+  const [state] = YamlParser.parseStory(demoYaml, demoManifest)
   const { player, renderer, firstStop } = mountVn(harnessRoot, state)
   // Assets are only needed from the first advance on, so they can load while the renderer is
   // already on its way to the first stop.
@@ -335,7 +334,7 @@ const expectedSpriteTransform = (
 
 describe("demo story - script", () => {
   it("parses with only the three warnings the demo deliberately contains", async () => {
-    const [state, errors] = YamlParser.updateState(demoYaml, freshState(demoState))
+    const [state, errors] = YamlParser.parseStory(demoYaml, demoManifest)
 
     expect(errors.map((e) => `L${e.location.startLine}: ${e.message}`)).toEqual([
       "L97: ugh is not a recognized command.",
@@ -876,7 +875,7 @@ describe("demo story - player actions", () => {
     const saved = loadFromLocalStorage("test")
     expect(saved.saves).toEqual([])
 
-    const [state] = YamlParser.updateState(demoYaml, freshState(demoState))
+    const [state] = YamlParser.parseStory(demoYaml, demoManifest)
     const reloaded = new VnPlayer(state, saved)
     expect(reloaded.state.seenCommands.contains(0)).toBe(true)
     expect(reloaded.state.seenCommands.contains(11)).toBe(true) // "Another song..."

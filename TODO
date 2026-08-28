@@ -34,6 +34,8 @@ Sizes: S = hours, M = a day or two, L = several days.
        Seven call sites concatenate asset paths (DomRenderer 399/406/411,
        BackgroundRenderer 77/128/160, SpriteRenderer 167, AudioRenderer 16/27).
        One interface behind them makes the storage backend swappable.
+       Two implementations, one per entry point and both permanent: OPFS for
+       the editor, URLs for the player. The player does not import to read.
        design-docs/PROJECT_STORAGE.md
 
   F  Parser benchmark at 1k/10k/50k commands, written down   S

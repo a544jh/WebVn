@@ -41,6 +41,31 @@ current relative-path scheme (deployed builds, the demo) and for a project store
 storage choice stops being architectural; it becomes one class. It also de-duplicates path building across
 four files.
 
+### The player and the editor get different resolvers
+
+Those two implementations are not a transition, they are the steady state, and they line up with the two
+entry points that already exist.
+
+**The editor resolves out of OPFS**, because it is editing files and the author's project has to survive.
+**The player resolves URLs and does not import**, because a reader following a link wants a first frame, not
+a download. Importing everything up front means waiting for every background, sprite pose and audio track
+before anything is drawn - minutes for a large novel - and paying that in full for a story most readers
+abandon early. It can also fail outright on `QuotaExceededError`, at which point the VN simply will not
+open; referencing has no such failure mode because it has no quota interaction. Bringing a hosted VN into
+the library stays an explicit action, never a precondition for reading one.
+
+Whether the player should also *cache* what it fetches is deliberately deferred. The browser's HTTP cache
+already covers the common case, and the durable alternative is not free: the Cache API is invisible to
+`img.src`, so adopting it means either fetching each asset by hand and handing the loaders an object URL, or
+introducing a service worker to intercept fetches. That is a real fork, not a switch, and nothing needs it
+yet. The rule of thumb when it comes back: OPFS for bytes you own and write back, the Cache API for someone
+else's bytes keyed by where they came from.
+
+**Storage is the wrong thing to worry about first for large novels.** The ceiling that actually binds is
+decoded bitmap memory - roughly 8MB for a 1080p background whatever the file weighs, held for the lifetime
+of the page because the loaders never evict (see "Load-bearing details"). That is identical under every
+option here and none of them address it; it needs eviction in the loader. Keep the two problems apart.
+
 ## Storage: OPFS
 
 The working copy lives in the Origin Private File System, reached through

@@ -1,12 +1,11 @@
 # Asset ids and metadata for audio and backgrounds
 
-Status: needs-triage
+Status: ready-for-agent
 
 The manifest becomes a symbol table for audio and backgrounds, the way `../sprites/` makes it one for
 an actor's images. The script names ids; the manifest maps them to files and carries metadata the
-renderer can show. Filed 2026-08-28 out of the conversation that refined `../sprites/`; the shape is
-agreed, three questions are not, which is why this is `needs-triage` where that ticket is
-`ready-for-agent`.
+renderer can show. Filed and refined 2026-08-28. The four questions it carried are answered
+below; the frontier is empty.
 
 Unblocked - the asset manifest (`../asset-manifest/`, TODO item D) landed in
 [#35](https://github.com/a544jh/WebVn/pull/35).
@@ -69,7 +68,7 @@ render time.
 
 `VnPlayerState.audioAssets` changes from `string[]` to `Record<string, AudioAsset>`, where
 `AudioAsset` is `{ file: string; title?: string; artist?: string }`. `backgrounds` becomes
-`Record<string, string>` if question 2 goes the obvious way.
+`Record<string, string>` alongside it.
 
 ## How this ties to `../sprites/`
 
@@ -91,35 +90,70 @@ kinds. Four things follow from that:
    write the manifest; changing its shape after those exist means migrating a format that has
    escaped. Recorded in `TODO`.
 
-The difference: `../sprites/` was worked to an empty frontier and is `ready-for-agent`. This one has
-three open questions below, and should be refined before an agent takes it.
+**`formatVersion` semantics are settled here, for both tickets.** `../sprites/` says it "adds the
+field and the version gate"; what the gate *does* is decided below, and applies whichever of the two
+lands first.
 
-## Open questions
+## Decisions
 
-**1. `bgm: stop` collides with the id namespace.** `Bgm.ts` does `if (audio === "stop") audio = null`,
-so a track keyed `stop` would be unreachable. Either reserve `stop` as an id in the schema (cheap, no
-format churn, one more rule to remember) or move stopping to `bgm: { stop: true }` (cleaner, breaks
-every script that stops music - including the demo, twice). Leaning reserve.
+**1. `stop` is a reserved audio id.** `Bgm.ts` does `if (audio === "stop") audio = null`, so a track
+keyed `stop` would be unreachable. The schema rejects `stop` as an audio asset id, and `bgm: stop`
+keeps meaning what it means today.
 
-**2. Do backgrounds get keyed at all, or only audio?** `bg`'s `image` is already overloaded between a
-filename and a colour literal, discriminated by `state.image.charAt(0) === "#"` in three places in
-`BackgroundRenderer`. Keying makes it id-or-colour, which is the same test plus a schema rule that an
-id may not start with `#`. Consistency argues yes; the alternative leaves the file with two
-conventions, audio keyed and backgrounds a bare path list. Leaning yes.
+Considered: `bgm: null` and `bgm: { stop: true }`. Both are cleaner - no reserved word, no collision
+possible - and both break every script that stops music, the demo twice. Not worth it for a word
+nobody will name a track. The cost is one arbitrary rule, and a genuinely-titled track called "stop"
+is unspellable; it can have any id and a `title:` of "stop".
 
-Optional cleanup if it goes ahead: the three copies of the `#` test want to be one predicate, since
-that is the definition of "this is a colour, not an asset" and it is currently stated three times.
+**2. Backgrounds are keyed too.** `backgrounds: { classroom: a.png }`, and `bg`'s `image` takes an id.
+The colour overload survives unchanged - `state.image.charAt(0) === "#"` still means "this is a
+colour, not an asset" - plus a schema rule that a background id may not start with `#`. Audio keyed
+and backgrounds left a bare path list would have put two conventions in one file.
 
-**3. Closed metadata set, or open bag?** Zod strips unknown keys, so an author writing `artistt:` gets
-silence and a missing artist. `.strict()` on the asset entry turns that into a parse error, but cuts
-against the forward-compatibility argument ticket 02 made for the top level ("a file carrying
-`formatVersion: 1` still parses clean"). Probably strict on entries and lenient at the top, since the
-reasons differ - a top-level key is how a later format announces itself, an unknown key inside an
-asset entry is just a typo. Needs deciding, not assuming.
+Cleanup that comes with it: the three copies of the `#` test in `BackgroundRenderer` (`:74`, `:125`,
+`:156`) become one predicate, since that test *is* the definition of the id-or-colour split and it is
+currently stated three times.
 
-Adjacent, cheaper: allow `bigthump: sfx/bigthump.ogg` - a bare string - as shorthand for
-`{ file: ... }`, since most sfx want no metadata. Costs a union in the schema and saves a line per
-asset.
+**3. Strict on asset entries, lenient at the top level.** An unknown key inside an asset entry is a
+parse error, because it is a typo - `artistt: a544jh` should not silently produce a track with no
+artist. An unknown key at the manifest's top level is still stripped, because that is how a later
+format announces itself, which is the argument
+`../asset-manifest/issues/02-manifest-yaml.md` made and it still holds *there*. The two rules differ
+because the two situations differ.
+
+**4. `formatVersion: 1` is required; a manifest without it is a parse error.** The manifest shipped in
+[#35](https://github.com/a544jh/WebVn/pull/35) has no version field, so those files are v0. A v1
+parser meeting one fails with a message naming the change rather than reading an array-shaped
+`sprites` as a map and failing later with a confusing shape error.
+
+This costs nothing today: the only v0 manifest in existence is the demo's, regenerated from source on
+every master push. Check the version **before** the rest of the schema, so a version error is not
+buried under twenty shape errors caused by it.
+
+**Adjacent, decided with it:** a bare string is shorthand for `{ file: ... }`, so
+`bigthump: sfx/bigthump.ogg` works and metadata is opt-in. This makes an audio entry with no metadata
+read exactly like a background entry, which is the consistency that made keying backgrounds worth
+doing in the first place.
+
+**Asset ids carry no charset rule** - any non-empty string, minus the two reserved values above.
+Unlike the project id, nothing derives a filename or a directory name from an asset id, so the
+filesystem-safety reasoning behind `^[a-z0-9][a-z0-9_-]{0,63}$` does not transfer. Inventing a
+restriction without a reason to enforce it would only cost authors.
+
+## Implementation notes
+
+- `VnPlayerState.audioAssets` becomes `Record<string, AudioAsset>` and `backgrounds` becomes
+  `Record<string, string>`. `DomRenderer.loadAssets` (`:405`, `:410`) iterates values rather than the
+  list.
+- `animatableState.audio.bgm` holds an **id** rather than a filename after this, which is what lets
+  the pause menu look up a title. `AudioRenderer` and `BackgroundRenderer` resolve id to file through
+  the state they already receive.
+- **Saves are unaffected.** A save stores a `VnPath` - the actions taken - not `animatableState`, so
+  nothing persisted contains a filename or an id. Worth confirming during implementation, but the
+  same reasoning that answered this for `../sprites/` applies.
+- The demo's `test-assets/manifest.yaml` and `script.yaml` both change. Keep the rewrite line-for-line
+  in `script.yaml`: `test/demo/DemoStory.test.ts` asserts errors at L97, L118 and L121, and adding or
+  removing a line breaks it. That test caught exactly this in #35.
 
 ## Not in scope
 
@@ -139,3 +173,16 @@ asset.
 - `src/core/commands/audio/Bgm.ts`, `src/core/commands/audio/Sfx.ts`,
   `src/core/commands/backgrounds/Background.ts`, `src/domRenderer/AudioRenderer.ts`,
   `src/domRenderer/BackgroundRenderer.ts`, `src/domRenderer/menus/PauseMenu.ts`
+
+## Comments
+
+### 2026-08-28 - refined; all four questions closed
+
+Worked to an empty frontier in the session that filed it. The three questions the ticket shipped with
+are answered above, and settling them surfaced a fourth that neither this ticket nor `../sprites/`
+had: both said `formatVersion` comes back, neither said what the gate *does* when it meets a manifest
+that predates it. Decided here for both, since they land together.
+
+Two smaller things were decided rather than left for the implementing agent, because both are the kind
+of gap that stalls one mid-task: whether a bare string works as an audio entry (it does), and whether
+asset ids inherit the project id's charset rule (they do not - nothing derives a filename from them).

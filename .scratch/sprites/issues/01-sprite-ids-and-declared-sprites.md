@@ -94,6 +94,11 @@ the trigger `../asset-manifest/issues/02-manifest-yaml.md` names for bringing `f
 this ticket adds the field and the version gate. The trigger's description there says the break will be
 a `sprites`-to-`poses` rename; the rename is gone, the break is not.
 
+What the gate *does* is decided in `../asset-ids/issues/01-asset-ids-and-metadata.md`: `formatVersion: 1`
+is required, a manifest without it is a parse error, and the version is checked before the rest of the
+schema so a version failure is not buried under the shape errors it causes. That holds for whichever of
+the two tickets lands first - they are meant to land under one bump.
+
 ### 4. `Sprite` becomes `SpriteInstance`
 
 The on-screen entry in `src/core/state.ts` is renamed, freeing "sprite" to mean the declared image in

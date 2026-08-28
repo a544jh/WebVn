@@ -45,7 +45,8 @@ Sizes: S = hours, M = a day or two, L = several days.
        audioAssets and backgrounds become keyed maps the script names ids from,
        with title/artist for the pause menu's now-playing line. The same format
        change as the sprite half in .scratch/sprites/ - land them under one
-       formatVersion bump. Ahead of the storage chain.
+       formatVersion bump. Ahead of the storage chain. Refined 2026-08-28;
+       both halves are ready-for-agent.
        .scratch/asset-ids/
 
   H  Measure the tree-shaken zip.js reader bundle            S

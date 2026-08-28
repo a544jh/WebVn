@@ -2,7 +2,7 @@ import { Document, isMap, isNode, isScalar, LineCounter, YAMLMap } from "yaml"
 import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
 import { VnManifest } from "../core/manifest"
-import { NARRATOR_ACTOR_ID } from "../core/state"
+import { isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
 import { composeDocuments, FIRST_LINE, getLines, yamlProblems } from "./yamlDocument"
 
 // manifest.yaml, the document a project declares itself in. It lives here rather than next to
@@ -39,34 +39,99 @@ const actorIdSchema = z
     `must be capitalized - only "default" and "${NARRATOR_ACTOR_ID}", the engine's own actors, are lowercase`
   )
 
-// `sprites` is the images an actor can be shown in, as filenames. Turning it into a map of declared
-// names is a breaking format change - the one that brings `formatVersion` back - and belongs to
-// .scratch/sprites/.
-const actorSchema = z.object({
-  name: z.string().optional(),
-  nameTagColor: z.string().optional(),
-  textColor: z.string().optional(),
-  sprites: z.array(z.string()).optional(),
-})
+// An asset id names a file the script asks for; nothing derives a filename or a directory name from
+// it, so the project id's filesystem charset does not transfer. Any non-empty string, minus the two
+// values the engine has already spoken for below.
+const assetIdSchema = z.string().min(1, "must not be empty")
 
-// An author who writes `audioAssets:` and stops means an empty list, but YAML hands that over as
-// null. Declaring nothing and declaring emptiness are the same statement, so both take the default.
+// The two values the engine has spoken for. Both are defined in core/state.ts, beside the types
+// they constrain: `Bgm.apply` acts on one and `BackgroundRenderer` on the other, so stating either
+// rule a second time here is how the schema and the engine would come to disagree.
+//
+// `bgm: stop` stops the music, so a track keyed `stop` could never be played. The alternatives -
+// `bgm: null`, `bgm: {stop: true}` - need no reserved word and break every script that stops music,
+// which is not a trade worth making for a word nobody will name a track.
+const audioIdSchema = assetIdSchema.refine(
+  (id) => id !== STOP_AUDIO_ID,
+  `"${STOP_AUDIO_ID}" is reserved - it is how a script stops the music. Give the track another id and a title.`
+)
+
+// A background id starting with `#` would name an asset nothing can reach, because that is how a
+// `bg` says it is painting a colour rather than naming one.
+const backgroundIdSchema = assetIdSchema.refine(
+  (id) => !isBackgroundColor(id),
+  'may not start with "#" - a background beginning with one is read as a colour, not an asset'
+)
+
+// A bare string is the whole declaration when there is no metadata, which is what makes an audio
+// entry read exactly like a background one.
+const audioAssetSchema = z.preprocess(
+  (value) => (typeof value === "string" ? { file: value } : value),
+  // Strict, unlike the top level: an unknown key inside an entry is a typo, and `artistt: a544jh`
+  // should not silently produce a track with no artist. A later format announces itself at the top
+  // level, never inside an asset.
+  z
+    .object({
+      file: z.string().min(1, "must name a file"),
+      title: z.string().optional(),
+      artist: z.string().optional(),
+    })
+    .strict()
+)
+
+// `sprites` is the images an actor can be shown in, as declared name to filename. The script names
+// the declared name, so renaming a file is a manifest edit rather than a rewrite of the story.
+//
+// Strict, like an asset entry and unlike the top level: `sprites` is what makes an actor an entry
+// that declares assets, and a stripped `sprits:` would leave an actor silently declaring none -
+// which is the same failure as a stripped `artistt:` leaving a track with no artist.
+const actorSchema = z
+  .object({
+    name: z.string().optional(),
+    nameTagColor: z.string().optional(),
+    textColor: z.string().optional(),
+    sprites: z.record(assetIdSchema, z.string().min(1, "must name a file")).optional(),
+  })
+  .strict()
+
+// An author who writes `audioAssets:` and stops means an empty declaration, but YAML hands that over
+// as null. Declaring nothing and declaring emptiness are the same statement, so both take the default.
 const declared = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((value) => value ?? undefined, schema)
 
-// The three declaration lists default to empty: a project with no audio should not have to write
-// `audioAssets: []`. Identity does not default - a manifest without it is not a project.
+// The three declarations default to empty: a project with no audio should not have to write
+// `audioAssets: {}`. Identity does not default - a manifest without it is not a project.
 const manifestSchema = z.object({
   id: idSchema,
   title: z.string().min(1, "is required"),
   actors: declared(z.record(actorIdSchema, actorSchema).default({})),
-  backgrounds: declared(z.array(z.string()).default([])),
-  audioAssets: declared(z.array(z.string()).default([])),
+  backgrounds: declared(z.record(backgroundIdSchema, z.string().min(1, "must name a file")).default({})),
+  audioAssets: declared(z.record(audioIdSchema, audioAssetSchema).default({})),
 })
 
-// Unknown keys are stripped rather than rejected, which is what lets a manifest written against a
-// later format still load here. There is no `formatVersion` yet: every manifest that exists is one
-// we generate, so there is no file in the wild for a version gate to protect. The trigger to add
-// one back is the first compatibility break - see .scratch/asset-manifest/issues/02-manifest-yaml.md.
+// Unknown keys at the top level are stripped rather than rejected, which is what lets a manifest
+// written against a later format still load here. Inside an asset entry the rule is the opposite -
+// see audioAssetSchema.
+
+// The version gate, which arrived with asset ids. Every manifest shipped before them declares its
+// assets as lists of filenames, so reading one under this schema produces a shape error per
+// declaration and buries the single message that explains all of them. Hence the check runs on its
+// own, ahead of the schema, and its failure is the only error reported.
+const FORMAT_VERSION = 1
+
+const versionProblem = (value: unknown): string | undefined => {
+  if (value === undefined) {
+    return (
+      `formatVersion: is required, and must be ${FORMAT_VERSION}. A manifest with no version predates asset ids, ` +
+      "where backgrounds, audioAssets and an actor's sprites were lists of filenames rather than maps of id to file."
+    )
+  }
+  if (value !== FORMAT_VERSION) {
+    return `formatVersion: ${JSON.stringify(
+      value
+    )} is not a format this version of WebVn reads. It reads ${FORMAT_VERSION}.`
+  }
+  return undefined
+}
 
 // A manifest that fails validation yields nothing at all, unlike parseStory, which always returns a
 // playable state. See docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md: a broken script
@@ -86,7 +151,18 @@ export const parseManifest = (text: string): [VnManifest | null, ParserError[]] 
   }
   if (errors.some((e) => e.level === ErrorLevel.ERROR)) return [null, errors]
 
-  const result = manifestSchema.safeParse(doc.toJS())
+  const js: unknown = doc.toJS()
+  // Only a mapping can carry a version. Anything else is not a manifest at all, and the schema
+  // below says so better than a missing-version message would.
+  if (isMap(doc.contents)) {
+    const problem = versionProblem((js as Record<string, unknown>).formatVersion)
+    if (problem !== undefined) {
+      errors.push(new ParserError(problem, keyLocation(doc, "formatVersion", lineCounter), ErrorLevel.ERROR))
+      return [null, errors]
+    }
+  }
+
+  const result = manifestSchema.safeParse(js)
   if (!result.success) {
     for (const issue of result.error.issues) {
       errors.push(new ParserError(issueMessage(issue), issueLocation(issue, doc, lineCounter), ErrorLevel.ERROR))
@@ -117,6 +193,13 @@ const issueLocation = (issue: ZodIssue, doc: Document, lc: LineCounter): SourceL
 
   const node = doc.getIn(issue.path, true)
   return isNode(node) ? getLines(node, lc) : FIRST_LINE
+}
+
+// Where a top-level key sits, for the one error raised before the schema runs. A manifest that
+// never wrote the key has no node to point at, so the whole document stands in for it.
+const keyLocation = (doc: Document, key: string, lc: LineCounter): SourceLocation => {
+  const lines = isMap(doc.contents) ? entryLines(doc.contents, key, lc) : undefined
+  return lines ?? documentLines(doc, lc)
 }
 
 const documentLines = (doc: Document, lc: LineCounter): SourceLocation =>

@@ -16,6 +16,7 @@ import { saveToLocalStorage, VnSaveSlotData } from "../core/save"
 import { MenuCreator } from "./menus/MenuCreator"
 import { pauseMenu } from "./menus/PauseMenu"
 import { FreeformTextRenderer } from "./FreeformTextRenderer"
+import { audioFilePath, backgroundFilePath, spriteFilePath } from "./assetPaths"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -160,9 +161,11 @@ export class DomRenderer implements Renderer {
       )
     )
     animationsFinished.push(this.decisionRenderer.render(state.decision, animate))
-    animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, animate))
-    animationsFinished.push(this.backgroundRenderer.render(state.animatableState.background, animate))
-    animationsFinished.push(this.audioRenderer.render(state.animatableState.audio))
+    animationsFinished.push(this.spriteRenderer.render(state.animatableState.sprites, state.actors, animate))
+    animationsFinished.push(
+      this.backgroundRenderer.render(state.animatableState.background, state.backgrounds, animate)
+    )
+    animationsFinished.push(this.audioRenderer.render(state.animatableState.audio, state.audioAssets))
 
     this.committedState = state
 
@@ -392,24 +395,20 @@ export class DomRenderer implements Renderer {
   // Defaults to the player's own state, but a caller booting a story can pass it before the swap:
   // the assets to preload come from the story, not from whatever the player is holding.
   public loadAssets(state: VnPlayerState = this.player.state): Promise<unknown> {
+    // Everything declared, whether or not the story reaches it - the manifest is the file index.
+    // The paths come from the same functions the renderers resolve through, so what is preloaded
+    // and what is asked for later cannot drift apart.
     for (const actor in state.actors) {
-      const sprites = state.actors[actor].sprites
-      if (sprites === undefined) continue
-      for (const sprite of sprites) {
-        const path = "sprites/" + actor + "/" + sprite
-
-        this.imageLoader.registerAsset(path)
+      const sprites = state.actors[actor].sprites ?? {}
+      for (const name in sprites) {
+        this.imageLoader.registerAsset(spriteFilePath(actor, sprites[name]))
       }
     }
-    // load backgrounds ....
-    for (const bg of state.backgrounds) {
-      const path = "backgrounds/" + bg
-      this.imageLoader.registerAsset(path)
+    for (const id in state.backgrounds) {
+      this.imageLoader.registerAsset(backgroundFilePath(state.backgrounds[id]))
     }
-
-    for (const asset of state.audioAssets) {
-      const path = "audio/" + asset
-      this.audioLoader.registerAsset(path)
+    for (const id in state.audioAssets) {
+      this.audioLoader.registerAsset(audioFilePath(state.audioAssets[id].file))
     }
 
     return Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])

@@ -1,5 +1,6 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
-import { Sprite } from "../core/state"
+import { Actor, SpriteInstance } from "../core/state"
+import { spriteAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer } from "./DomRenderer"
 
 export class SpriteRenderer {
@@ -16,7 +17,13 @@ export class SpriteRenderer {
     this.sceneHeight = this.root.clientHeight
   }
 
-  public async render(sprites: Record<string, Sprite>, animate: boolean): Promise<void[]> {
+  // `actors` is what a sprite's declared name resolves through: the instance says "A1, happy" and
+  // the actor's declaration says which file that is.
+  public async render(
+    sprites: Record<string, SpriteInstance>,
+    actors: Record<string, Actor>,
+    animate: boolean
+  ): Promise<void[]> {
     const animPromises: Promise<void>[] = []
 
     for (const id in sprites) {
@@ -28,8 +35,8 @@ export class SpriteRenderer {
           // skip to end state, even if the state didn't change: an animation from a
           // previous render may still be in flight, and its transitionend listeners
           // must not stay armed on the element
-          if (prevSprite !== undefined && getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
-            const newElem = this.createSpriteElem(id, sprites[id])
+          if (prevSprite !== undefined && this.resolve(actors, prevSprite) !== this.resolve(actors, sprites[id])) {
+            const newElem = this.createSpriteElem(id, sprites[id], actors)
             this.setPosition(newElem, sprites[id])
             spriteElem.replaceWith(newElem)
           } else {
@@ -55,10 +62,10 @@ export class SpriteRenderer {
             this.addTransitionEndPromise(animPromises, spriteElem)
             this.setPosition(spriteElem, sprites[id])
           }
-          if (getSpriteAssetPath(prevSprite) !== getSpriteAssetPath(sprites[id])) {
+          if (this.resolve(actors, prevSprite) !== this.resolve(actors, sprites[id])) {
             // handle sprite image change
 
-            const newElem = this.createSpriteElem(id, sprites[id])
+            const newElem = this.createSpriteElem(id, sprites[id], actors)
 
             // fade out current
             delete spriteElem.dataset.vnSpriteId // the removal loop below cleans the elem up if we skip animation
@@ -87,7 +94,7 @@ export class SpriteRenderer {
 
       // add new sprite
       const newSprite = sprites[id]
-      const newElem = this.createSpriteElem(id, newSprite)
+      const newElem = this.createSpriteElem(id, newSprite, actors)
       this.setPosition(newElem, newSprite)
 
       this.root.appendChild(newElem)
@@ -130,18 +137,35 @@ export class SpriteRenderer {
     return Promise.all(animPromises)
   }
 
-  private createSpriteElem(id: string, sprite: Sprite): HTMLImageElement {
-    const elem = this.assetLoader.getAsset(getSpriteAssetPath(sprite))
+  private createSpriteElem(id: string, sprite: SpriteInstance, actors: Record<string, Actor>): HTMLImageElement {
+    const elem = this.assetLoader.getAsset(this.resolve(actors, sprite))
     if (!elem) throw new Error("Can't render unloaded sprite") // maybe we want to have a type that guarantees that the asset is available..
     elem.dataset.vnSpriteId = id
     return elem
+  }
+
+  // Which file an instance shows. A declared sprite name is checkable against the manifest, unlike
+  // an instance id, so an unknown one is the manifest and the script disagreeing rather than an
+  // author's typo going unnoticed.
+  //
+  // It throws rather than yielding undefined because the comparisons above are also resolutions:
+  // two instances showing the same file need no cross-fade, and two *undeclared* names would both
+  // resolve to nothing, compare equal, and slip past the element-building call that is otherwise
+  // the only thing reporting them. Reaching that takes a second undeclared name after a first has
+  // already thrown, which no advance can do - a throw leaves the render unfinished and the next
+  // advance re-renders the same state - so this is one invariant held in one place rather than a
+  // bug fix.
+  private resolve(actors: Record<string, Actor>, sprite: SpriteInstance): string {
+    const path = spriteAssetPath(actors, sprite)
+    if (path === undefined) throw new Error(`Actor ${sprite.actor} declares no sprite named ${sprite.sprite}`)
+    return path
   }
 
   private getSpriteElem(id: string): HTMLImageElement {
     return this.root.querySelector(`[data-vn-sprite-id=${id}]`) as HTMLImageElement
   }
 
-  private setPosition(elem: HTMLImageElement, sprite: Sprite): void {
+  private setPosition(elem: HTMLImageElement, sprite: SpriteInstance): void {
     const xPos = this.sceneWidth * sprite.x - elem.width * sprite.anchorX
     const yPos = this.sceneHeight * sprite.y - elem.height * sprite.anchorY
 
@@ -161,8 +185,4 @@ export class SpriteRenderer {
     }
     elem.addEventListener("transitionend", handler)
   }
-}
-
-export function getSpriteAssetPath(sprite: Sprite): string {
-  return `sprites/${sprite.actor}/${sprite.sprite}`
 }

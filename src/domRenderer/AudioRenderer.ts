@@ -1,5 +1,6 @@
 import { AssetLoader } from "../assetLoaders/AssetLoader"
-import { AudioState } from "../core/state"
+import { AudioAsset, AudioState } from "../core/state"
+import { audioAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
 
 export class AudioRenderer {
@@ -9,11 +10,13 @@ export class AudioRenderer {
     this.bgmElem = null
   }
 
-  public async render(state: AudioState): Promise<void> {
+  // `state.bgm` and `state.sfx` are asset ids after the manifest became a symbol table, so the
+  // declarations have to come with them: they are what says which file an id is.
+  public async render(state: AudioState, assets: Record<string, AudioAsset>): Promise<void> {
     const prev = this.renderer.getCommittedState()?.animatableState.audio
 
     if (state.sfx !== null) {
-      const newAudio = this.assetLoader.getAsset("audio/" + state.sfx)
+      const newAudio = this.assetLoader.getAsset(pathOf(assets, state.sfx))
       if (!newAudio) throw new Error("Could not play audio " + state.sfx)
       newAudio.play()
     }
@@ -24,7 +27,7 @@ export class AudioRenderer {
       this.bgmElem = null
     } else if (state.bgm !== null && (state.bgm !== prev?.bgm || this.bgmElem === null)) {
       // play audio
-      const newAudio = this.assetLoader.getAsset("audio/" + state.bgm)
+      const newAudio = this.assetLoader.getAsset(pathOf(assets, state.bgm))
       if (!newAudio) throw new Error("Could not play audio " + state.bgm)
 
       let fadingOutOld = false
@@ -93,4 +96,12 @@ export class AudioRenderer {
     }
     setTimeout(fadeVol, step)
   }
+}
+
+// Reading an id the manifest never declared is the manifest and the script disagreeing, which is a
+// different failure from a declared asset that would not load - hence a different message.
+function pathOf(assets: Record<string, AudioAsset>, id: string): string {
+  const path = audioAssetPath(assets, id)
+  if (path === undefined) throw new Error(`No audio asset is declared as ${id}`)
+  return path
 }

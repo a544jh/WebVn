@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { VnPlayerState } from "../../state"
+import { STOP_AUDIO_ID, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
 
@@ -19,7 +19,7 @@ class Bgm extends Command {
       loop = this.cmd.loop
     }
 
-    if (audio === "stop") audio = null
+    if (audio === STOP_AUDIO_ID) audio = null
 
     return {
       ...state,

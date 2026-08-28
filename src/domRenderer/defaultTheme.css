@@ -305,3 +305,29 @@ body {
   left: 0;
   top: 0;
 }
+
+/* The pause menu's now-playing line. Placed away from the menu items rather than among them: it is
+   something to read, not something to click. */
+.vn-now-playing {
+  position: absolute;
+  bottom: 12%;
+  left: 5%;
+  max-width: 40%;
+  font-family: "Source Code Pro";
+  color: white;
+  text-shadow: 2px 2px 0 black;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.vn-now-playing-title {
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.vn-now-playing-artist {
+  font-size: 16px;
+  line-height: 20px;
+  opacity: 0.8;
+}

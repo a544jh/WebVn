@@ -1,4 +1,4 @@
-# The demo story. Its cast and assets are declared in manifest.yaml, beside this file.
+# The demo story. Every asset it names is an id declared in manifest.yaml, beside this file.
 anchor: &anchor
   A1: "This is a YAML anchor"
 
@@ -6,7 +6,7 @@ story:
   - set: [$a, =, 0]
   - textbox: close
   - bg:
-      image: a.png
+      image: a
       transition: blinds
       duration: 2000
       pan:
@@ -16,10 +16,10 @@ story:
   - Hello, This is WebVn - A fast visual novel engine for the modern web.
   - The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
   - bgm:
-      audio: "bgm/map01.ogg"
+      audio: map01
       loop: false
   - bg:
-      image: b.png
+      image: b
       transition: fade
       duration: 2000
       pan:
@@ -27,29 +27,29 @@ story:
         to: [0,0,1000,1000]
         duration: 10000
   - "Wait for audio to stop"
-  - bgm: "bgm/map01.ogg"
+  - bgm: map01
   - Looping audio
-  - bgm: "bgm/dayl_preview.ogg"
+  - bgm: daylight
   - Another song...
   - bgm: stop
   - And now... Actors!
   - label: loop
   - show:
       actor: A1
-      sprite: idle.png
+      sprite: idle
   - A1: Here I am
   - show:
       actor: A1
-      sprite: 2.png
+      sprite: shocked
       x: .2
   - A1: Just talking...
-  - bgm: "bgm/dayl_preview.ogg"
+  - bgm: daylight
   - bgPan:
       to: [20,20,500,500]
       duration: 2000
   - show:
       actor: A2
-      sprite: idle.png
+      sprite: idle
       x: 0
       y: 0
       anchorX: 0
@@ -58,7 +58,7 @@ story:
   - set: [$a, +=, 1]
   - show:
       actor: A2
-      sprite: idle.png
+      sprite: idle
       x: 1
       y: 1
       anchorX: 1
@@ -103,7 +103,7 @@ story:
       transition: blinds
       duration: 1000
   - bg:
-      image: "b.png"
+      image: b
       transition: blinds
       duration: 1000
   - mode: adv
@@ -129,13 +129,13 @@ story:
   - textbox: close
   - jump: loop
   - label: bad
-  - sfx: "sfx/bigthump.ogg"
+  - sfx: bigthump
   - bg:
       image: "#ffffff"
       transition: fade
       duration: 200
   - bg:
-      image: "b.png"
+      image: b
       transition: fade
       duration: 200
   - That was a bad choice.

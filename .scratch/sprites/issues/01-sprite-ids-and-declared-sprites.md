@@ -1,6 +1,6 @@
 # Sprite ids, and sprites declared in the manifest
 
-Status: ready-for-agent
+Status: done
 
 Refined 2026-08-28 against Ren'Py's image model. This replaces the "split sprite into sprite / pose /
 actor" ticket that used to live here - **the pose rename is rejected**, and the directory renamed from
@@ -188,3 +188,44 @@ sprites.
 
 Two new ones surfaced and are recorded above: sprite ids can never be validated (runtime errors, and
 the editor needs to say so), and default and custom ids share a namespace (not worrying about it).
+
+### 2026-08-28 - done, landed with `../asset-ids/` under formatVersion 1
+
+Both halves of the format change landed together, as both tickets asked.
+
+What landed here:
+
+- `Show.apply` keys by `this.cmd.id ?? this.cmd.actor`, so an actor can be on screen more than once
+  and every script written before ids keys exactly what it always did.
+- `HideCommandSchema` and `Hide.apply` are untouched, as predicted - only what the string means
+  changed.
+- `Actor.sprites` is `Record<string, string>`, name to filename, and `sprite:` names the declared
+  name. `sprites: [idle.png]` is now a parse error.
+- `Sprite` is `SpriteInstance` in `state.ts`, `Show.ts` and `SpriteRenderer.ts`; `CONTEXT.md` carries
+  both entries.
+- `formatVersion` came back with the gate `../asset-ids/` specified.
+
+Confirmed as expected: **saved paths do not care.** A path records actions, not sprites.
+
+Still open, and still homeless: **unknown sprite ids are runtime errors the editor has to surface.**
+Nothing in `design-docs/EDITOR.md` covers reporting a runtime fault from a running preview, and this
+ticket does not create that home. A `hide` naming an id nothing is showing is still a silent no-op -
+`test/unit/sprites.test.ts` pins that as the deliberate behaviour rather than a bug to fix here.
+
+### 2026-08-28 - review pass
+
+`SpriteRenderer` now resolves a declared sprite name through one throwing helper at every site,
+rather than only where the image element is built. The renderer's "did the image change" test is
+itself a resolution, so two undeclared names would both resolve to nothing and compare equal - and
+the render that should have reported the second would silently do nothing.
+
+Recorded because it is not the bug it first looks like: reaching that comparison needs a second
+undeclared name *after* a first has already thrown, and no advance can get there, since a throw
+leaves the render unfinished and the next advance re-renders the same state. So this is one
+invariant held in one place, not a fix. `test/browser/SpriteIds.test.ts` asserts only what a player
+can actually reach - an undeclared name in place of a showing sprite is reported.
+
+Worth knowing, and pre-existing: **a throwing render wedges the renderer.** `finished` stays false,
+so every later advance re-renders the same state. Audio and backgrounds have always behaved this
+way; declared sprite names now join them. That is the other half of why the editor needs to surface
+runtime faults, which still has no ticket.

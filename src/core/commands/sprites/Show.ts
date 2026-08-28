@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { Sprite, VnPlayerState } from "../../state"
+import { SpriteInstance, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
 
@@ -22,7 +22,7 @@ class Show extends Command {
   }
 
   public apply(state: VnPlayerState): VnPlayerState {
-    const newSprite: Sprite = {
+    const newSprite: SpriteInstance = {
       actor: this.cmd.actor,
       sprite: this.cmd.sprite,
       x: this.cmd.x === undefined ? 0.5 : this.cmd.x,
@@ -31,7 +31,10 @@ class Show extends Command {
       anchorY: this.cmd.anchorY === undefined ? 0.5 : this.cmd.anchorY,
     } // TODO: better default position handling .. if any coord set default should be zero ...
 
-    const newSprites = { ...state.animatableState.sprites, [this.cmd.actor]: newSprite }
+    // The id is the identity of a thing on screen, and it defaults to the actor - which is the key
+    // every script written before ids already wrote to. Naming one puts the same actor on screen
+    // more than once; `hide` takes the same id back, since the two share one namespace.
+    const newSprites = { ...state.animatableState.sprites, [this.cmd.id ?? this.cmd.actor]: newSprite }
     const newState = { ...state, stopAfterRender: false }
     newState.animatableState = { ...state.animatableState, sprites: newSprites }
 

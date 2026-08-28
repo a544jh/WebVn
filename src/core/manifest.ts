@@ -1,9 +1,14 @@
 import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
-import { Actor, Actors, DefaultActor, NARRATOR_ACTOR_ID, TextMode, VnPlayerState } from "./state"
+import { Actor, Actors, AudioAsset, DefaultActor, NARRATOR_ACTOR_ID, TextMode, VnPlayerState } from "./state"
 
 // What a project declares about itself: its identity, who can speak, and which background and audio
 // assets exist. An input to the parser, not a live field - `seedState` copies the asset declarations
 // into a starting state, which carries `actors`/`backgrounds`/`audioAssets` from there on.
+//
+// The three declarations are keyed maps rather than lists because the script names an id and the
+// manifest says which file it is: the manifest is a symbol table, not just a preload index. That is
+// what lets a file be renamed without touching the story, and what gives an audio asset somewhere
+// to carry a title.
 //
 // `id` and `title` are identity rather than content, and nothing downstream of `seedState` reads
 // them: `id` is what saves are keyed under and what names the project's directory, `title` is
@@ -13,8 +18,8 @@ export interface VnManifest {
   readonly id: string
   readonly title: string
   readonly actors: Record<string, Actor>
-  readonly backgrounds: string[]
-  readonly audioAssets: string[]
+  readonly backgrounds: Record<string, string>
+  readonly audioAssets: Record<string, AudioAsset>
 }
 
 // The engine's own actors, which every project gets without declaring them: the default actor all
@@ -44,8 +49,8 @@ function seedActors(manifest: VnManifest): Actors {
 export function seedState(manifest: VnManifest): VnPlayerState {
   return {
     actors: seedActors(manifest),
-    backgrounds: [...manifest.backgrounds],
-    audioAssets: [...manifest.audioAssets],
+    backgrounds: { ...manifest.backgrounds },
+    audioAssets: { ...manifest.audioAssets },
     commandIndex: 0, // the command to be applied next
     commands: [],
     labels: {},

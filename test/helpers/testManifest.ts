@@ -8,6 +8,6 @@ export const TEST_MANIFEST: VnManifest = {
   id: "test-story",
   title: "Test Story",
   actors: {},
-  backgrounds: [],
-  audioAssets: [],
+  backgrounds: {},
+  audioAssets: {},
 }

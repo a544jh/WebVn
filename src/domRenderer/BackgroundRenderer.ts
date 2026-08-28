@@ -1,5 +1,6 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
-import { Background, ViewBox } from "../core/state"
+import { Background, isBackgroundColor, ViewBox } from "../core/state"
+import { backgroundAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
 import { transitionFactories } from "./bgTransitions/transitionFactories"
 import { Renderable } from "./bgTransitions/Renderable"
@@ -32,7 +33,9 @@ export class BackgroundRenderer {
     vnRoot.appendChild(this.root)
   }
 
-  public async render(state: Background, animate: boolean): Promise<void> {
+  // `state.image` is a background id after the manifest became a symbol table - or a colour, which
+  // is the one thing it can be that no manifest declares - so the declarations come with it.
+  public async render(state: Background, backgrounds: Record<string, string>, animate: boolean): Promise<void> {
     const prev = this.renderer.getCommittedState()?.animatableState.background
     if (state.shouldTransition || state.panTo !== prev?.panTo) {
       this.lastTick = await new Promise((resolve) => {
@@ -43,7 +46,7 @@ export class BackgroundRenderer {
       })
 
       if (!animate) {
-        const newBg = this.getLastFrame(state)
+        const newBg = this.makeRenderable(state, backgrounds, 0)
         newBg.onFinish(() => (this.needMoreFrames = false))
         this.currentRenderable = newBg
         return Promise.resolve()
@@ -52,7 +55,7 @@ export class BackgroundRenderer {
       if (state.shouldTransition) {
         const [promise, resolve] = createResolvablePromise()
 
-        const [newTransition, newPan] = this.getTransition(state)
+        const [newTransition, newPan] = this.getTransition(state, backgrounds)
 
         newTransition.onFinish(() => {
           this.currentRenderable = newPan
@@ -69,29 +72,7 @@ export class BackgroundRenderer {
       } else {
         // bgPan
 
-        let newPan: Renderable
-
-        if (state.image.charAt(0) === "#") {
-          newPan = new StaticColor(state.image, state.panDuration, this.lastTick)
-        } else {
-          const image = this.assetLoader.getAsset("backgrounds/" + state.image)
-          if (!image) throw new Error(`Could not load ${state.image}`)
-
-          const defaultView: ViewBox = {
-            x: 0,
-            y: 0,
-            w: this.sceneWidth,
-            h: this.sceneHeight,
-          }
-
-          newPan = new BgPan(
-            image,
-            state.panFrom ?? defaultView,
-            state.panTo ?? defaultView,
-            state.panDuration,
-            this.lastTick
-          )
-        }
+        const newPan = this.makeRenderable(state, backgrounds, state.panDuration)
 
         this.currentRenderable = newPan
 
@@ -120,26 +101,8 @@ export class BackgroundRenderer {
     if (this.needMoreFrames) window.requestAnimationFrame(this.renderFrame.bind(this))
   }
 
-  private getTransition(state: Background): [Renderable, Renderable] {
-    let newRenderable: Renderable
-    if (state.image.charAt(0) === "#") {
-      newRenderable = new StaticColor(state.image, state.panDuration, this.lastTick)
-    } else {
-      const image = this.assetLoader.getAsset("backgrounds/" + state.image)
-      if (!image) throw new Error(`Could not load ${state.image}`)
-
-      const defaultView: ViewBox = {
-        x: 0,
-        y: 0,
-        w: this.sceneWidth,
-        h: this.sceneHeight,
-      }
-
-      const from = state.panFrom ?? defaultView
-      const to = state.panTo ?? defaultView
-
-      newRenderable = new BgPan(image, from, to, state.panDuration, this.lastTick)
-    }
+  private getTransition(state: Background, backgrounds: Record<string, string>): [Renderable, Renderable] {
+    const newRenderable = this.makeRenderable(state, backgrounds, state.panDuration)
 
     const factory = transitionFactories[state.transition]
     const transition = factory(
@@ -152,12 +115,19 @@ export class BackgroundRenderer {
     return [transition, newRenderable]
   }
 
-  private getLastFrame(state: Background): Renderable {
-    if (state.image.charAt(0) === "#") {
-      return new StaticColor(state.image, 0, this.lastTick)
+  // What the background is, as something that can paint itself: a flat colour, or the declared
+  // image panning between its two viewboxes. The three callers differ only in how long it takes -
+  // a transition and a pan run for the authored duration, an unanimated render lands on the last
+  // frame immediately - so this is also the single statement of the id-or-colour split that used
+  // to be made three times.
+  private makeRenderable(state: Background, backgrounds: Record<string, string>, duration: number): Renderable {
+    if (isBackgroundColor(state.image)) {
+      return new StaticColor(state.image, duration, this.lastTick)
     }
 
-    const image = this.assetLoader.getAsset("backgrounds/" + state.image)
+    const path = backgroundAssetPath(backgrounds, state.image)
+    if (path === undefined) throw new Error(`No background is declared as ${state.image}`)
+    const image = this.assetLoader.getAsset(path)
     if (!image) throw new Error(`Could not load ${state.image}`)
 
     const defaultView: ViewBox = {
@@ -167,11 +137,7 @@ export class BackgroundRenderer {
       h: this.sceneHeight,
     }
 
-    const from = state.panFrom ?? defaultView
-    const to = state.panTo ?? defaultView
-
-    const newPan = new BgPan(image, from, to, 0, this.lastTick)
-    return newPan
+    return new BgPan(image, state.panFrom ?? defaultView, state.panTo ?? defaultView, duration, this.lastTick)
   }
 }
 

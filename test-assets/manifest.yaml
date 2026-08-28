@@ -1,6 +1,10 @@
 # The demo project's manifest. Together with script.yaml and the asset directories beside it, this
 # directory is the first published WebVn project - CopyPlugin copies it to the dist root, where
-# backgrounds/, sprites/ and audio/ already sit at the paths DomRenderer builds.
+# backgrounds/, sprites/ and audio/ already sit at the paths the renderer builds.
+#
+# Every asset is declared under an id the script names; the manifest is what says which file that
+# id is. Renaming a file is an edit here, not a rewrite of the story.
+formatVersion: 1
 id: webvn-demo
 title: WebVn Demo
 
@@ -10,11 +14,26 @@ actors:
   A1:
     name: Actor
     nameTagColor: purple
-    sprites: [idle.png, "2.png"]
+    sprites:
+      idle: idle.png
+      shocked: "2.png"
   A2:
     name: Actor2
     nameTagColor: orange
-    sprites: [idle.png, "2.png"]
+    sprites:
+      idle: idle.png
+      shocked: "2.png"
 
-backgrounds: [a.png, b.png]
-audioAssets: [bgm/map01.ogg, bgm/dayl_preview.ogg, sfx/bigthump.ogg]
+backgrounds:
+  a: a.png
+  b: b.png
+
+# A bare string is the whole declaration when there is nothing to credit; the pause menu shows the
+# title and artist of whichever track is playing.
+audioAssets:
+  map01: bgm/map01.ogg
+  daylight:
+    file: bgm/dayl_preview.ogg
+    title: Daylight - 8bit remix
+    artist: a544jh
+  bigthump: sfx/bigthump.ogg

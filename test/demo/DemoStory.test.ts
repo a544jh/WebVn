@@ -6,6 +6,7 @@ import { loadFromLocalStorage } from "../../src/core/save"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { demoManifest, demoYaml } from "../../src/demoStory"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { spriteFilePath } from "../../src/domRenderer/assetPaths"
 import {
   boxText,
   createVnRoot,
@@ -212,9 +213,10 @@ const loadDemoAssets = async (
 
   const imagePaths: string[] = []
   for (const actor in state.actors) {
-    for (const sprite of state.actors[actor].sprites ?? []) imagePaths.push(`sprites/${actor}/${sprite}`)
+    const sprites = state.actors[actor].sprites ?? {}
+    for (const name in sprites) imagePaths.push(spriteFilePath(actor, sprites[name]))
   }
-  for (const bg of state.backgrounds) imagePaths.push(`backgrounds/${bg}`)
+  for (const id in state.backgrounds) imagePaths.push(`backgrounds/${state.backgrounds[id]}`)
 
   await Promise.all(
     imagePaths.map(async (path) => {
@@ -227,11 +229,13 @@ const loadDemoAssets = async (
     })
   )
 
-  // Playback is stubbed out below, so these never need to load.
-  for (const asset of state.audioAssets) {
+  // Playback is stubbed out below, so these never need to load. Keyed and labelled by file rather
+  // than by id, so the playCalls assertions say which track was played, not what it was called.
+  for (const id in state.audioAssets) {
+    const file = state.audioAssets[id].file
     const elem = new Audio()
-    elem.dataset.testAsset = asset
-    audio["audio/" + asset] = elem
+    elem.dataset.testAsset = file
+    audio["audio/" + file] = elem
   }
 
   return images
@@ -736,10 +740,11 @@ describe("demo story - audio", () => {
   it("starts the non-looping bgm, restarts it looping once it ends, then swaps and stops it", async () => {
     const h = await startDemo()
 
-    // `bgm: {audio: bgm/map01.ogg, loop: false}`
+    // `bgm: {audio: map01, loop: false}`
     await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("Wait for audio to stop"))
     expect(playCalls).toEqual([{ asset: "bgm/map01.ogg", loop: false }])
-    expect(h.player.state.animatableState.audio).toEqual({ bgm: "bgm/map01.ogg", loopBgm: false, sfx: null })
+    // The state holds the asset id; the file it resolves to is what actually played, above.
+    expect(h.player.state.animatableState.audio).toEqual({ bgm: "map01", loopBgm: false, sfx: null })
 
     // the line asks the player to wait for the track to finish - simulate that
     const playing = h.renderer["audioRenderer"]["bgmElem"] as HTMLAudioElement
@@ -747,7 +752,7 @@ describe("demo story - audio", () => {
     playing.dispatchEvent(new Event("ended"))
     expect(h.renderer["audioRenderer"]["bgmElem"]).toBeNull()
 
-    // `bgm: "bgm/map01.ogg"` - same track, but looping this time, and nothing is playing
+    // `bgm: map01` - same track, but looping this time, and nothing is playing
     await advanceFast(h)
     expect(screenText(h.root)).toBe("Looping audio")
     expect(playCalls).toEqual([
@@ -755,10 +760,10 @@ describe("demo story - audio", () => {
       { asset: "bgm/map01.ogg", loop: true },
     ])
 
-    // `bgm: "bgm/dayl_preview.ogg"` - the old track fades out first (1500ms), then the new one starts
+    // `bgm: daylight` - the old track fades out first (1500ms), then the new one starts
     await advanceFast(h)
     expect(screenText(h.root)).toBe("Another song...")
-    expect(h.player.state.animatableState.audio.bgm).toBe("bgm/dayl_preview.ogg")
+    expect(h.player.state.animatableState.audio.bgm).toBe("daylight")
     expect(playCalls).toHaveLength(2) // not yet - still crossfading
     await sleep(2000)
     expect(playCalls[2]).toEqual({ asset: "bgm/dayl_preview.ogg", loop: true })
@@ -781,7 +786,7 @@ describe("demo story - audio", () => {
 
     expect(playCalls.slice(before)).toEqual([{ asset: "sfx/bigthump.ogg", loop: false }])
 
-    // sfx is a one-shot: State.advance clears it again, and `sfx: "sfx/bigthump.ogg"` is followed
+    // sfx is a one-shot: State.advance clears it again, and `sfx: bigthump` is followed
     // by two bg commands and a line before the story stops, so it is long gone by now
     expect(h.player.state.animatableState.audio.sfx).toBeNull()
 

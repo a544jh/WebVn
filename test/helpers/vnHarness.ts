@@ -4,6 +4,7 @@ import { VnPlayerState } from "../../src/core/state"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
+import { VnManifest } from "../../src/core/manifest"
 
 // Shared setup for the browser-backed suites: mounting a VN into a fresh DOM root, waiting for
 // the render loop to come to rest, and reading what ended up on screen.
@@ -77,10 +78,14 @@ export interface StartedVn extends MountedVn {
   root: HTMLDivElement
 }
 
-// Parses a script and plays it up to its first stop - the whole boot the browser suites do.
-export const startVn = async (script: string, options: { actions?: boolean } = {}): Promise<StartedVn> => {
+// Parses a script and plays it up to its first stop - the whole boot the browser suites do. Pass a
+// `manifest` when the script names assets or actors; TEST_MANIFEST declares none.
+export const startVn = async (
+  script: string,
+  options: { actions?: boolean; manifest?: VnManifest } = {}
+): Promise<StartedVn> => {
   const root = createVnRoot(options)
-  const [state, errors] = YamlParser.parseStory(script, TEST_MANIFEST)
+  const [state, errors] = YamlParser.parseStory(script, options.manifest ?? TEST_MANIFEST)
   expect(errors).toEqual([])
   const mounted = mountVn(root, state)
   await mounted.firstStop

@@ -38,7 +38,7 @@ receives the manifest.
   import/export path promotes to an `ERROR`?
 - **Which commands.** `bg` images, `bgm`/`sfx` audio, and `show` poses are the three. `show` is the awkward
   one: it is keyed per actor, so the check is "is this pose in *this actor's* list", and that list is
-  `Actor.sprites`, which `.scratch/sprite-pose-split/` may reshape.
+  `Actor.sprites`, which `.scratch/sprites/` reshapes into a map of declared names.
 - **What the player does with it.** `playerIndex.ts` ignores `parseStory`'s error list entirely, so a
   `ParserError` here is invisible to a player either way. Does that stay true, or does an undeclared asset
   become one of the things that stops a story loading?

@@ -53,10 +53,6 @@ _Avoid_: character, speaker
 **Narrator**:
 The unnamed actor, whose lines are narration and carry no name tag.
 
-**Pose**:
-One of the images an actor can be shown in. Named per actor, so two actors can each have an `idle`.
-_Avoid_: expression, sprite (a sprite is the thing on screen, not the image it uses)
-
 ### Playing
 
 **Playhead**:
@@ -79,8 +75,10 @@ makes by hand.
 _Avoid_: choice, branch, menu, option (an *option* is one item within a decision)
 
 **Sprite**:
-An actor's presence on screen: which actor, in which pose, where. Distinct from the pose, which is
-only the image.
+An actor's presence on screen: which actor, showing which image, where. The image is a filename the
+script names directly, and has no term of its own.
+_Avoid_: pose (considered and rejected; `.scratch/sprites/` renames this entry to *sprite instance*
+and gives the declared image the name *sprite*, once that lands)
 
 **Text box**:
 The panel a line of dialogue is shown in. *ADV* mode shows one line at a time in a fixed box;

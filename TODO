@@ -161,9 +161,9 @@ Sizes: S = hours, M = a day or two, L = several days.
     Sprite flipping
     Position presets   - ShowCommandSchema accepts `position` and apply()
                          ignores it entirely
-    Custom sprite IDs  - ShowCommandSchema accepts `id` and apply() keys
-                         sprites by actor, so it is ignored too
-                         (multiple instances of the same actor)
+    Custom sprite IDs  - specified in .scratch/sprites/, along with sprites
+                         declared in the manifest by name. Carries formatVersion
+                         back in, and unblocks E. Ahead of the storage chain.
 
   Decision showIf
     Show/hide individual decision options based on variables.

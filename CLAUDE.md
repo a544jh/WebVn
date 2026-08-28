@@ -130,8 +130,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   `Name: "text"` line is a Say by testing the key's casing, so a lowercase actor is one no script can speak
   as; `default` and `narrator` are the engine's own two exceptions.
 - **There is no `formatVersion`**, deliberately — every manifest that exists is one we generate. The trigger
-  to add one back is the first compatibility break (the likeliest being the `sprites`→`poses` rename in
-  `.scratch/sprite-pose-split/`), and whichever change makes that break adds the field with it.
+  to add one back is the first compatibility break (the likeliest being `Actor.sprites` going from a
+  list of filenames to a map of declared names, in `.scratch/sprites/`), and whichever change makes
+  that break adds the field with it.
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.

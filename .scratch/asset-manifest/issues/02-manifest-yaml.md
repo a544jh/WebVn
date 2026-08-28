@@ -272,3 +272,13 @@ unchanged, which the demo suite's exact error assertions verify.
 The review also flagged `title: ""` being rejected and this file's own bookkeeping edits to `TODO`
 as beyond what the ticket asked for. Both stand: an empty title says the same thing as an absent
 one, and D is genuinely landed.
+
+### 2026-08-28 - the formatVersion trigger changed shape, and moved
+
+`.scratch/sprite-pose-split/` is now `.scratch/sprites/`, and the `sprites`-to-`poses` rename this
+ticket named as the likeliest first compatibility break is rejected - "sprite" keeps its name in the
+file format and the on-screen type becomes `SpriteInstance` instead.
+
+The trigger itself still holds, in a different shape: `Actor.sprites` goes from a list of filenames to
+a map of declared names, which is a breaking format change with nothing able to detect it. That ticket
+adds `formatVersion` and the version gate, exactly as this one specified.

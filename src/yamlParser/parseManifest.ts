@@ -39,8 +39,9 @@ const actorIdSchema = z
     `must be capitalized - only "default" and "${NARRATOR_ACTOR_ID}", the engine's own actors, are lowercase`
   )
 
-// `sprites` is the poses an actor can be shown in, and is misnamed on arrival - see CONTEXT.md.
-// Renaming it is a breaking change to the file format and belongs to .scratch/sprite-pose-split/.
+// `sprites` is the images an actor can be shown in, as filenames. Turning it into a map of declared
+// names is a breaking format change - the one that brings `formatVersion` back - and belongs to
+// .scratch/sprites/.
 const actorSchema = z.object({
   name: z.string().optional(),
   nameTagColor: z.string().optional(),

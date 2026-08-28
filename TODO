@@ -67,7 +67,11 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     "load the demo" button below lives here.
              |     +-> persist() + estimate() + export nag    S
              +-> navigator.locks for two-tab autosave         S
-             +-> linked-folder layer (optional)               M
+             +-> linked-folder layer  (after zip import/export)     M
+             |     |     showDirectoryPicker() is the only way to write a
+             |     |     directory tree out of a browser, so this is the
+             |     |     folder export, not a convenience - but Chromium
+             |     |     only, which is why the archive ships first.
              |     +-> IndexedDB handle store
              +-> import: shared back half + size/entry caps    M
              |     |     SourceLoader in front, so a new ingestion path

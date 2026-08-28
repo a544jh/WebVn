@@ -55,8 +55,10 @@ a safety net rather than a nicety.
 What OPFS wins on:
 
 - **The same interface as a real folder.** `showDirectoryPicker()` and `navigator.storage.getDirectory()` both
-  return a `FileSystemDirectoryHandle`. If the optional "link this project to a folder on disk" layer is ever
-  built, it is a handle swap, not a second implementation. This is the strongest argument.
+  return a `FileSystemDirectoryHandle`, so the "link this project to a folder on disk" layer is a handle swap
+  rather than a second implementation. This is the strongest argument, and stronger than it first looks:
+  that picker is the *only* way to write a directory tree out of a browser at all (see "Leaving the browser"),
+  so the linked-folder layer is not a convenience feature, it is the folder export.
 - **The path model is already ours.** `sprites/A1/idle.png` is what `DomRenderer` builds today, what the
   export zip contains, and what a linked folder would hold. With a key-value store we would reimplement
   directory semantics on top of a flat map.
@@ -307,6 +309,13 @@ rename-on-import.
 URL import lands before zip import. It needs no build machinery, the demo is already hosted, and same-origin
 keeps CORS out of the first attempt.
 
+**Zip export and import land before the linked-folder layer.** The archive works in every browser and the
+folder export works only on Chromium, so the archive is what makes the durability claim true for everyone;
+shipping the Chromium-only path first would leave most users with no way out of the browser at all. This
+sequences the layer later without weakening the case for it - being the folder export rather than a
+convenience makes it *more* likely to ship, which is worth noting because the OPFS-over-IndexedDB argument
+rests on it.
+
 **But zip import must not lag behind export.** This document calls the archive the canonical artifact and
 the answer to eviction - browser storage being a good working copy and a bad only copy. An export that
 nothing can read back is not a safety net, it is a file that looks like one. Defer zip import freely; do not
@@ -428,6 +437,19 @@ Publish targets, none of which need a server we run: a static folder, a single-f
 inlined as data URIs (pleasant below ~20MB, silly above ~100MB), or a zip dropped on itch.io, GitHub Pages or
 Neocities - which is the free "cloud" without us hosting anything.
 
+**"A static folder" is not a uniform feature.** There is no portable way to write a directory tree out of a
+browser. `showDirectoryPicker()` does it properly - point it at a git working copy or a folder synced to
+Netlify or itch, and the export is the same directory walk with a different root handle - but it is Chromium
+only. The alternatives are not merely worse, they cannot work: bulk downloads are throttled and prompted,
+and the `download` attribute sanitizes path separators so a page cannot write outside Downloads, which
+flattens any structure into loose files. Drag-out via `DataTransfer`'s `DownloadURL` is Chromium-only and
+one file at a time.
+
+So on Chromium, publishing to a folder writes the tree where the author points it; everywhere else it
+degrades to "download the archive and extract it yourself". **This is the real reason the archive is the
+canonical artifact** - not a preference for a single file, but the only mechanism the platform offers in
+every browser.
+
 **Consequence of splitting the manifest out:** `?vn=<gzipped script>` no longer describes a complete story,
 since the asset and actor declarations are in `manifest.yaml`. The intended fix is to make the URL payload a
 two-document YAML stream - manifest, `---`, script - which the `yaml` dependency already parses via
@@ -486,7 +508,8 @@ Things that will break quietly if they are skipped.
 - **IndexedDB for everything.** Would work, and buys real transactions and much better DevTools. Loses the
   shared interface with `showDirectoryPicker()`, which is the main reason to prefer OPFS, and turns a
   directory API we would use anyway into a flat map we have to reimplement directories on top of. The case
-  for revisiting it is if the linked-folder layer is abandoned outright.
+  for revisiting it is if the linked-folder layer is abandoned outright - which got less likely once that
+  layer turned out to be the only way to write a folder out of a browser, rather than a nicety.
 - **Electron or Tauri.** The objection is not bundle size: it forks distribution into two targets, forfeits
   URL sharing, and to avoid looking like malware to a non-developer needs code signing and macOS
   notarization, which costs money annually. That is the actual conflict with "no strings attached".
@@ -501,8 +524,10 @@ Things that will break quietly if they are skipped.
 - **zip.js's tree-shaken reader size.** Unmeasured, and it decides zip.js against unzipit plus client-zip.
 - **`createWritable()` support in current Safari.** Reports conflict. Determines whether the worker plus
   `createSyncAccessHandle()` path is a fallback or the primary implementation.
-- **Whether the linked-folder layer ships at all.** It is the main justification for OPFS over IndexedDB, and
-  the only thing that pulls IndexedDB into the design. It would also make a folder on disk a live target
+- **When the linked-folder layer ships, not whether.** It is the main justification for OPFS over IndexedDB,
+  the only thing that pulls IndexedDB into the design, and - since `showDirectoryPicker()` is the only way to
+  write a directory tree out of a browser - the folder export itself. It lands after zip export and import,
+  which cover every browser rather than only Chromium. It would also make a folder on disk a live target
   rather than an inert copy, which is why the export README must not claim otherwise.
 - **Re-encoding on import.** A 12MP phone photo as a background is the common case and a non-developer will
   not think to resize it. Offer, force, or ignore?

@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { EMPTY_MANIFEST, seedState } from "../../src/core/manifest"
+import { seedState } from "../../src/core/manifest"
 import { ErrorLevel } from "../../src/core/commands/Parser"
 import { ADVTextBox } from "../../src/core/state"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
+import { TEST_MANIFEST } from "../helpers/testManifest"
 
 // storyToCommands dereferences aliases by hand, so these cover the seam between the yaml
 // lib's Alias.resolve and the isX guards the node evaluators rely on. A clone that loses
 // the lib's internal node-type symbol still looks like a plain object to those guards,
 // which would silently downgrade every aliased command to "Unrecognized item".
 
-const parse = (yaml: string) => YamlParser.parseStory(yaml, EMPTY_MANIFEST)
+const parse = (yaml: string) => YamlParser.parseStory(yaml, TEST_MANIFEST)
 
 describe("YamlParser anchors and aliases", () => {
   it("expands an alias into the command its anchor holds", () => {
@@ -23,7 +24,7 @@ story:
     expect(errors).toEqual([])
     expect(state.commands).toHaveLength(1)
 
-    const textBox = state.commands[0].apply(seedState()).animatableState.text as ADVTextBox
+    const textBox = state.commands[0].apply(seedState(TEST_MANIFEST)).animatableState.text as ADVTextBox
     expect(textBox.textNodes[0].text).toBe("Hello from the anchor")
     expect(textBox.nameTag?.name).toBe("A1")
   })

@@ -1,60 +1,31 @@
-import {
-  Composer,
-  Document,
-  isAlias,
-  isMap,
-  isNode,
-  isPair,
-  isScalar,
-  isSeq,
-  LineCounter,
-  Node,
-  Parser,
-  YAMLSeq,
-} from "yaml"
-import { ErrorLevel, getCommandHandler, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { Document, isAlias, isMap, isNode, isPair, isScalar, isSeq, LineCounter, YAMLSeq } from "yaml"
+import { ErrorLevel, getCommandHandler, ParserError, VnParser } from "../core/commands/Parser"
 import { NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { seedState, VnManifest } from "../core/manifest"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { updateLabels } from "../core/commands/controlFlow/Label"
+import { composeDocuments, FIRST_LINE, getLines, yamlProblems } from "./yamlDocument"
+import { parseManifest } from "./parseManifest"
 
 const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserError[]] => {
   let newState = seedState(manifest)
   let errors: ParserError[] = []
 
-  const lineCounter = new LineCounter()
-  const parser = new Parser(lineCounter.addNewLine)
-  const composer = new Composer()
-  const docs = Array.from(composer.compose(parser.parse(text), true, text.length))
+  const [docs, lineCounter] = composeDocuments(text)
+  const doc = docs[0]
 
-  console.dir(docs[0])
+  console.dir(doc)
 
-  for (const docWarning of docs[0].warnings) {
-    const line = lineCounter.linePos(docWarning.pos[0]).line
-    errors.push(
-      new ParserError(
-        "YAML parse warning: " + docWarning.message,
-        { startLine: line, endLine: line },
-        ErrorLevel.WARNING
-      )
-    )
-  }
+  errors = errors.concat(yamlProblems(doc, lineCounter))
 
-  for (const docError of docs[0].errors) {
-    const line = lineCounter.linePos(docError.pos[0]).line
-    errors.push(
-      new ParserError("YAML parse error: " + docError.message, { startLine: line, endLine: line }, ErrorLevel.ERROR)
-    )
-  }
-
-  const storyNode = docs[0].get("story", true)
+  const storyNode = doc.get("story", true)
   if (storyNode === undefined) {
-    errors.push(new ParserError("story missing.", { startLine: 1, endLine: 1 }, ErrorLevel.ERROR))
+    errors.push(new ParserError("story missing.", FIRST_LINE, ErrorLevel.ERROR))
   } else if (!isSeq(storyNode) && isNode(storyNode)) {
     errors.push(new ParserError("story must be a sequence", getLines(storyNode, lineCounter), ErrorLevel.ERROR))
   } else if (isSeq(storyNode)) {
-    const [commands, storyErrors] = storyToCommands(storyNode, docs[0], lineCounter)
+    const [commands, storyErrors] = storyToCommands(storyNode, doc, lineCounter)
     errors = errors.concat(storyErrors)
     newState = { ...newState, commands }
   }
@@ -151,12 +122,7 @@ const mapWithOneCapitalizedStringValue: NodeToCommand = (item, lc) => {
   }
 }
 
-const getLines = (item: Node, lc: LineCounter): SourceLocation => {
-  const endPos = lc.linePos(item.range?.[1] || 0)
-  const endLine = endPos.col === 1 ? endPos.line - 1 : endPos.line
-  return { startLine: lc.linePos(item.range?.[0] || 0).line, endLine }
-}
-
 export const YamlParser: VnParser = {
   parseStory,
+  parseManifest,
 }

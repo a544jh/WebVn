@@ -146,15 +146,18 @@ clobbers Jenny's default sprite). Not worth a rule now.
 - **`position` presets.** The other field `ShowCommandSchema` accepts and `apply()` ignores. Its own
   `TODO` line; doing it here widens the schema migration for no shared benefit.
 - **Keyed audio and background assets, with metadata.** The same "manifest as symbol table" move
-  applied to `audioAssets` and `backgrounds`, plus track title and artist for the pause menu. One
-  format change with this one, but not filed yet - discussed 2026-08-28 and still only in that
-  conversation.
+  applied to `audioAssets` and `backgrounds`, plus track title and artist for the pause menu. Filed
+  as `../asset-ids/issues/01-asset-ids-and-metadata.md`. It is the same format change as this one, so
+  the two should land under a single `formatVersion` bump rather than making authors migrate twice -
+  see that ticket's tie-in section.
 - **Hiding every sprite of an actor.** Above.
 
 ## See also
 
 - `CONTEXT.md` - sprite, which this splits into *sprite* and *sprite instance*
-- `TODO` - Sprites, under UNSEQUENCED; item E (AssetResolver) is what this unblocks
+- `TODO` - Sprites, under UNSEQUENCED; item G is the other half; item E (AssetResolver) is what the
+  two of them unblock
+- `../asset-ids/issues/01-asset-ids-and-metadata.md` - audio and backgrounds, the same move
 - `src/core/commands/sprites/Show.ts`, `src/core/commands/sprites/Hide.ts`, `src/core/state.ts`,
   `src/domRenderer/SpriteRenderer.ts`
 - [renpy/sphinx/source/displaying_images.rst](https://github.com/renpy/renpy/blob/master/sphinx/source/displaying_images.rst)

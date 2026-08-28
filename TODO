@@ -41,6 +41,13 @@ Sizes: S = hours, M = a day or two, L = several days.
        Spike. Settles whether YAML parse time is worth designing around, and
        says which of parse / updateLabels / time-to-first-stop dominates.
 
+  G  Asset ids and metadata for audio and backgrounds       M
+       audioAssets and backgrounds become keyed maps the script names ids from,
+       with title/artist for the pause menu's now-playing line. The same format
+       change as the sprite half in .scratch/sprites/ - land them under one
+       formatVersion bump. Ahead of the storage chain.
+       .scratch/asset-ids/
+
   H  Measure the tree-shaken zip.js reader bundle            S
        Spike. Shipped bundles gzip to ~79-85KB but include mime tables,
        encryption and wasm codecs. Decides zip.js against unzipit + client-zip.
@@ -130,6 +137,13 @@ Sizes: S = hours, M = a day or two, L = several days.
 
   CM6 before editor multi-buffer, or multi-buffer gets built twice.
   OPFS store before the includes resolver, or SourceLoader gets written twice.
+  G and the sprite half of .scratch/sprites/ are one format change wearing two
+  tickets. Both turn a declaration list into a keyed map, so both break the
+  format; landing them apart means formatVersion is added by the first and
+  bumped by the second, and an author migrates twice for one idea. Both also
+  precede the storage chain - once URL import and the OPFS store exist, the
+  manifest shape has escaped and changing it means migrating published projects.
+
   Two-document URL payload before player save keying. ?vn= carries a script alone
   and is parsed against the demo's manifest, so once saves are keyed by id the
   only id in scope is webvn-demo and every shared story saves on top of every
@@ -162,8 +176,9 @@ Sizes: S = hours, M = a day or two, L = several days.
     Position presets   - ShowCommandSchema accepts `position` and apply()
                          ignores it entirely
     Custom sprite IDs  - specified in .scratch/sprites/, along with sprites
-                         declared in the manifest by name. Carries formatVersion
-                         back in, and unblocks E. Ahead of the storage chain.
+                         declared in the manifest by name. Pairs with G as one
+                         format change; together they carry formatVersion back
+                         in and unblock E. Ahead of the storage chain.
 
   Decision showIf
     Show/hide individual decision options based on variables.

@@ -1,6 +1,6 @@
 # manifest.yaml as a real document
 
-Status: ready-for-agent
+Status: done
 
 Step 2 of `../spec.md`. Unblocked - `01-manifest-type-and-seed.md` is done, and gives this a type to parse
 into. Refined 2026-08-28 in a grilling session; the decisions below replace the open questions this ticket
@@ -218,3 +218,57 @@ parses it at module load as explicitly transitional scaffolding.
 Two hazards surfaced that were not visible before and are now written down rather than discovered later: the
 `?vn=` path borrowing the demo's identity once saves are keyed by id, and the `sprites` to `poses` rename
 being an undetectable format break in a format with no version field.
+
+### 2026-08-28 - implemented
+
+Landed as specified. `VnManifest` carries `id` and `title`; `parseManifest` lives in
+`src/yamlParser/parseManifest.ts` and joins `VnParser`; `EMPTY_MANIFEST` is gone and
+`TEST_MANIFEST` lives in `test/helpers/testManifest.ts`; the demo ships
+`test-assets/manifest.yaml` and `test-assets/script.yaml`, imported with `?raw`.
+
+Three things worth recording that the refinement did not anticipate:
+
+- **`getLines` was extracted** to `src/yamlParser/sourceLocation.ts`. Both parsers need it and
+  duplicating it would let the two drift, which is exactly what would break the shared gutter
+  markers the ticket relies on.
+- **The three declaration lists default to empty** rather than being required. Identity does not
+  default, which is the rule the ticket states; making a project with no audio write
+  `audioAssets: []` buys nothing. `title` is rejected when empty, since an empty title says the
+  same thing as an absent one.
+- **YAML resolves an unquoted all-digit id to a number** before the schema sees it, so `id: 2024`
+  fails with "expected string" and has to be quoted. The charset permits an all-digit id, so this
+  is a real authoring edge; it is covered by a test that names it rather than smoothed over, since
+  coercing would also have to accept `true` and `[]`.
+
+`test/demo/DemoStory.test.ts` did not change, as the ticket said it should not - but only just.
+The old `demoYaml` template literal opened with a newline, so lifting it into a file verbatim
+shifted every line number up by one and broke the three the demo test asserts. `script.yaml` opens
+with a one-line comment, which restores the numbering and gives the file a header.
+
+### 2026-08-28 - review fixes
+
+A two-axis review found six things worth acting on. Four were in code the ticket did not describe,
+which is where the mistakes were:
+
+- **An empty actor id crashed the parser.** `key[0] !== key[0].toLowerCase()` is partial, and zod
+  runs a refinement even when the checks before it failed, so `actors: { "": {} }` threw a
+  `TypeError` out of a function whose whole contract is returning errors instead. The predicate is
+  total now, and a test holds it there.
+- **A declaration key with nothing after it was fatal.** `.default([])` fires on an absent key, but
+  an author who writes `audioAssets:` and stops hands YAML a null, which failed as "expected array".
+  Declaring nothing and declaring emptiness are the same statement, so both take the default now.
+- **Actor-id errors pointed one line too low.** The location came from the value node, and the
+  actor-id rule is the one rule here about a *key* - which sits on the line above its mapping. An
+  issue now spans the whole `key: value` pair.
+- **A second YAML document was silently dropped.** `---` in a manifest took the first document and
+  ignored the rest. That is exactly the shape the deferred URL payload will take, so it is an error
+  rather than a trap left for that ticket to fall into.
+
+Two more were duplication rather than defects: the compose boilerplate and the YAML-problem
+conversion were copied from `parseStory`, so `sourceLocation.ts` became `yamlDocument.ts` and both
+parsers share `composeDocuments`, `yamlProblems` and `getLines`. `parseStory`'s behaviour is
+unchanged, which the demo suite's exact error assertions verify.
+
+The review also flagged `title: ""` being rejected and this file's own bookkeeping edits to `TODO`
+as beyond what the ticket asked for. Both stand: an empty title says the same thing as an absent
+one, and D is genuinely landed.

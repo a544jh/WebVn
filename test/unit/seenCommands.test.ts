@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { seedState, VnManifest } from "../../src/core/manifest"
+import { seedState } from "../../src/core/manifest"
+import { TEST_MANIFEST } from "../helpers/testManifest"
 import { VnPlayer } from "../../src/core/player"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 
@@ -9,11 +10,7 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 // VnPlayer carries them by hand. Nothing else covers reloadStory: no test mounts a VnEditor, and the
 // demo suite's seen-command assertions go through the constructor's save data instead.
 
-const manifest: VnManifest = {
-  actors: { A1: { name: "Actor" } },
-  backgrounds: [],
-  audioAssets: [],
-}
+const manifest = { ...TEST_MANIFEST, actors: { A1: { name: "Actor" } } }
 
 const script = `
 story:

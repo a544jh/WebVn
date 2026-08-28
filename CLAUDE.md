@@ -85,7 +85,7 @@ hand-written. Anything committed there by hand is gone on the next master push.
 ```
 src/
   core/            state, player, VnPath, save, commands/*  (no DOM imports)
-  yamlParser/      YamlParser.ts — the parser actually used
+  yamlParser/      YamlParser.ts (script) + parseManifest.ts (manifest.yaml) — the parser actually used
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
@@ -97,9 +97,10 @@ test/              one directory per vitest project — the directory is what pi
   unit/            node, no DOM
   browser/         real Chromium, fast gate
   demo/            real Chromium, full demo playthroughs, not in the fast gate
-  helpers/         vnHarness.ts (DOM boot + queries), commands.ts (building commands)
+  helpers/         vnHarness.ts (DOM boot + queries), commands.ts (building commands),
+                   testManifest.ts (TEST_MANIFEST, the manifest a test does not care about)
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
-test-assets/       runtime assets copied to dist/ by CopyPlugin
+test-assets/       the demo project — manifest.yaml, script.yaml and the asset dirs, copied to dist/ by CopyPlugin
 ```
 
 ## Architecture — the parts worth understanding
@@ -114,6 +115,23 @@ test-assets/       runtime assets copied to dist/ by CopyPlugin
 - `core/player.ts` imports each command module purely for side effects. **If you add a new command, add its import to `player.ts`** — otherwise the YAML parser won't see it. This also means tree-shakers that drop "unused" side-effect imports would silently strip commands. Don't change webpack config in a way that enables aggressive side-effect elimination.
 - Handler signature: `(obj: unknown, location: SourceLocation) => Command | ParserError`. Prefer `makeZodCmdHandler(schema, Ctor)` for new commands.
 - Command keys must start with a lowercase letter. Capitalized keys are reserved for actor names in the `Name: "text"` (Say) shorthand.
+
+### Manifest and the parser contract
+- A project declares itself in `manifest.yaml`: `id`, `title`, `actors`, `backgrounds`, `audioAssets`.
+  `VnManifest` (src/core/manifest.ts) is that declaration as a type, and `seedState(manifest)` copies it
+  into a starting `VnPlayerState`. It is an **input**, never a live field — nothing playback points into it.
+- **The two parsers deliberately disagree about failure.** `parseStory` always returns a playable state, with
+  errors alongside; `parseManifest` returns `[VnManifest | null, ParserError[]]` and yields nothing at all
+  when validation fails, because a manifest that does not validate has no identity to load the project under.
+  See `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` before "fixing" the asymmetry.
+- `seedState` takes a required manifest. A no-arg call would mint an identity-less state, which is the thing
+  `id` exists to prevent; tests use `TEST_MANIFEST` from `test/helpers/testManifest.ts`.
+- The manifest schema is the one place the **actor-key casing rule** is stated as data. `YamlParser` decides a
+  `Name: "text"` line is a Say by testing the key's casing, so a lowercase actor is one no script can speak
+  as; `default` and `narrator` are the engine's own two exceptions.
+- **There is no `formatVersion`**, deliberately — every manifest that exists is one we generate. The trigger
+  to add one back is the first compatibility break (the likeliest being the `sprites`→`poses` rename in
+  `.scratch/sprite-pose-split/`), and whichever change makes that break adds the field with it.
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
@@ -184,6 +202,11 @@ If you're tempted to import from any of these, don't.
   - `devServer.static: false`. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`, defaulting to `./public` — a directory this repo does not have. Nothing is served off disk: the html goes through `file-loader` via the `import "./index.html"` side effects and `test-assets` through CopyPlugin, so both land in the compilation and are served from memory by webpack-dev-middleware.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
+- The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
+  work in the build. It matches vite's native `?raw` suffix on purpose, so `src/demoStory.ts` has one
+  spelling that works in webpack and in all three vitest projects; the ambient module declaration for it is
+  `src/types/yamlRaw.d.ts`. Nothing but the demo's two YAML files uses it yet, and nothing in CI would catch
+  its removal except the build.
 - Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
 - `@types/react` is in `dependencies` but should be `devDependencies`.
 - `src/types/screenOrientation.d.ts` declares `ScreenOrientation.lock` back into `lib.dom`, which dropped it in TS 5.9. It is a global augmentation (no imports/exports), picked up because `tsconfig.json` has no `include`. Both fullscreen call sites `.catch()` the rejection non-mobile browsers give.

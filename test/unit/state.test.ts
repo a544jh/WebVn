@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { seedState } from "../../src/core/manifest"
+import { TEST_MANIFEST } from "../helpers/testManifest"
 import { VnPlayer } from "../../src/core/player"
 import { State, VnPlayerState } from "../../src/core/state"
 import { VnPath } from "../../src/core/vnPath"
@@ -17,7 +18,7 @@ const show = (actor: string) => makeCommand("show", { actor, sprite: "a.png" })
 const set = (args: unknown) => makeCommand("set", args)
 
 function makeState(commands: Command[]): VnPlayerState {
-  return updateLabels({ ...seedState(), commands })
+  return updateLabels({ ...seedState(TEST_MANIFEST), commands })
 }
 
 // Mirrors DomRenderer's render loop: keep advancing until the state wants an interaction.

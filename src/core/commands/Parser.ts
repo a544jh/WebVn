@@ -53,6 +53,9 @@ export const getCommandHandler = (command: string): ObjectToCommand | undefined 
 
 export interface VnParser {
   parseStory(text: string, manifest: VnManifest): [VnPlayerState, ParserError[]]
+  // Returns no manifest at all when validation fails, unlike parseStory, which always returns a
+  // playable state. docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md says why.
+  parseManifest(text: string): [VnManifest | null, ParserError[]]
 }
 
 // https://fettblog.eu/typescript-hasownproperty/

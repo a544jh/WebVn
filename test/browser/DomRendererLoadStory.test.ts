@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { EMPTY_MANIFEST, seedState } from "../../src/core/manifest"
+import { seedState } from "../../src/core/manifest"
 import { VnPlayer } from "../../src/core/player"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { createVnRoot, nextStop, settle, textBoxText } from "../helpers/vnHarness"
+import { TEST_MANIFEST } from "../helpers/testManifest"
 
 const parse = (script: string) => {
-  const [state, errors] = YamlParser.parseStory(script, EMPTY_MANIFEST)
+  const [state, errors] = YamlParser.parseStory(script, TEST_MANIFEST)
   expect(errors).toEqual([])
   return state
 }
@@ -40,7 +41,7 @@ describe("DomRenderer.loadStory", () => {
 
   it("plays a story handed over after the renderer was built", async () => {
     const root = createVnRoot()
-    const player = new VnPlayer(seedState())
+    const player = new VnPlayer(seedState(TEST_MANIFEST))
     const renderer = new DomRenderer(root, player)
 
     // The standalone player gunzips the script out of the URL first, so its story lands a few
@@ -55,7 +56,7 @@ describe("DomRenderer.loadStory", () => {
 
   it("lets a second story supersede a boot that is still running", async () => {
     const root = createVnRoot()
-    const player = new VnPlayer(seedState())
+    const player = new VnPlayer(seedState(TEST_MANIFEST))
     const renderer = new DomRenderer(root, player)
 
     renderer.loadStory(parse(first), true)
@@ -81,7 +82,7 @@ story:
 
   it("plays the boot out when animating", async () => {
     const root = createVnRoot()
-    const player = new VnPlayer(seedState())
+    const player = new VnPlayer(seedState(TEST_MANIFEST))
     const renderer = new DomRenderer(root, player)
 
     const stop = nextStop(renderer, player)
@@ -96,7 +97,7 @@ story:
 
   it("lands on the first stop immediately when not animating", async () => {
     const root = createVnRoot()
-    const player = new VnPlayer(seedState())
+    const player = new VnPlayer(seedState(TEST_MANIFEST))
     const renderer = new DomRenderer(root, player)
 
     renderer.loadStory(parse(intro), false)

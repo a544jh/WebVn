@@ -1,19 +1,20 @@
 import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
 import { Actor, Actors, DefaultActor, NARRATOR_ACTOR_ID, TextMode, VnPlayerState } from "./state"
 
-// Everything a story needs that its script does not spell out: who can speak, and which background
-// and audio assets exist. An input to the parser, not a live field - `seedState` copies it into a
-// starting state, which carries `actors`/`backgrounds`/`audioAssets` from there on.
+// What a project declares about itself: its identity, who can speak, and which background and audio
+// assets exist. An input to the parser, not a live field - `seedState` copies the asset declarations
+// into a starting state, which carries `actors`/`backgrounds`/`audioAssets` from there on.
+//
+// `id` and `title` are identity rather than content, and nothing downstream of `seedState` reads
+// them: `id` is what saves are keyed under and what names the project's directory, `title` is
+// display-only. Keeping them here rather than in a wrapping type is
+// `docs/adr/0001-manifest-seeds-the-initial-state.md`'s 2026-08-28 amendment.
 export interface VnManifest {
+  readonly id: string
+  readonly title: string
   readonly actors: Record<string, Actor>
   readonly backgrounds: string[]
   readonly audioAssets: string[]
-}
-
-export const EMPTY_MANIFEST: VnManifest = {
-  actors: {},
-  backgrounds: [],
-  audioAssets: [],
 }
 
 // The engine's own actors, which every project gets without declaring them: the default actor all
@@ -36,7 +37,11 @@ function seedActors(manifest: VnManifest): Actors {
 
 // The state a story begins in: the manifest's declarations plus a playhead at the top. Every call
 // mints its own `seenCommands`, so two players seeded from one manifest never share a set.
-export function seedState(manifest: VnManifest = EMPTY_MANIFEST): VnPlayerState {
+//
+// The manifest is required rather than defaulted: a no-argument call would mint a state with no
+// identity, which is the thing `id` exists to prevent. Tests that do not care use `TEST_MANIFEST`
+// from `test/helpers/testManifest.ts`.
+export function seedState(manifest: VnManifest): VnPlayerState {
   return {
     actors: seedActors(manifest),
     backgrounds: [...manifest.backgrounds],

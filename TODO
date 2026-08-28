@@ -3,6 +3,11 @@ Sequenced work is derived from the design docs in design-docs/ and is a snapshot
 as of 2026-08-25 - the dependency edges hold until the work itself changes them,
 the size guesses are worth less.
 
+Landed since: D (asset manifest), 2026-08-28. Both steps of .scratch/asset-manifest/:
+a project declares its own assets in manifest.yaml, and the demo ships the first one.
+Its two chains - storage, and asset/label completions in the editor - are now rooted
+on what it left behind rather than on it.
+
 Sizes: S = hours, M = a day or two, L = several days.
 
 
@@ -23,12 +28,6 @@ Sizes: S = hours, M = a day or two, L = several days.
        Label.ts:33 throws a bare uncaught Error. Reachable today with a
        duplicate label; becomes routine once includes exist.
        design-docs/SCRIPT_INCLUDES.md
-
-  D  Asset manifest out of demoStory.ts into manifest.yaml   M
-       actors/backgrounds/audioAssets are a hardcoded VnPlayerState reaching the
-       parser through baseState, so a project cannot declare its own assets.
-       Unblocks more than anything else on this list.
-       design-docs/PROJECT_STORAGE.md
 
   E  AssetResolver indirection                               M
        Seven call sites concatenate asset paths (DomRenderer 399/406/411,
@@ -55,7 +54,7 @@ Sizes: S = hours, M = a day or two, L = several days.
 
 == STORAGE ==  design-docs/PROJECT_STORAGE.md
 
-  D + E -> OPFS project store                                L
+  E -> OPFS project store                                L
              author-chosen id directories, tmp-then-move writes,
              enumeration as truth
              |
@@ -96,7 +95,8 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
 
-  D -> URL payload becomes a two-document YAML stream
+  URL payload becomes a two-document YAML stream            M
+         Ready - D landed, so a manifest is a document rather than a constant.
          manifest, ---, script, so the project id travels with the story.
          +-> player save keying (replaces the hardcoded "test")
                vn-save-<id>; free to reshape now, not later.
@@ -108,7 +108,7 @@ Sizes: S = hours, M = a day or two, L = several days.
 == EDITOR ==  design-docs/EDITOR.md
 
   T -> CM6 migration                                         L
-         +-> autocompletion  (needs B; D for asset and label sources)   M
+         +-> autocompletion  (needs B)                              M
          |     +-> documentation popup                        S
          +-> Enter / list continuation                        S
          +-> inline diagnostics via @codemirror/lint (optional)
@@ -128,7 +128,6 @@ Sizes: S = hours, M = a day or two, L = several days.
 
 == THE EDGES THAT DECIDE ORDERING ==
 
-  D feeds two chains - storage, and asset/label completions in the editor.
   CM6 before editor multi-buffer, or multi-buffer gets built twice.
   OPFS store before the includes resolver, or SourceLoader gets written twice.
   Two-document URL payload before player save keying. ?vn= carries a script alone

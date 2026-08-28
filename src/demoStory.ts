@@ -1,170 +1,28 @@
+import demoManifestYaml from "../test-assets/manifest.yaml?raw"
 import { VnManifest } from "./core/manifest"
-import { NARRATOR_ACTOR_ID } from "./core/state"
+import { parseManifest } from "./yamlParser/parseManifest"
 
-// The demo VN shipped by the standalone player (src/playerIndex.ts). Kept in its own module
-// so test/demo/DemoStory.test.ts exercises the script that actually ships instead of a copy of it.
+// The demo VN shipped by the standalone player (src/playerIndex.ts). Kept in its own module so
+// test/demo/DemoStory.test.ts exercises the script that actually ships instead of a copy of it.
+//
+// The files live in test-assets/, which CopyPlugin copies to the dist root beside backgrounds/,
+// sprites/ and audio/ - so the demo is a published project directory, which is what URL import
+// will later read back.
+//
+// Parsing the manifest here, at module load, is scaffolding rather than architecture: once the
+// player parses manifest.yaml at boot - URL import first, then OPFS - the demo becomes an ordinary
+// project loaded through the normal path and this module has no reason to exist.
 
-export const demoManifest: VnManifest = {
-  actors: {
-    [NARRATOR_ACTOR_ID]: {
-      textColor: "#60baff",
-    },
-    A1: {
-      name: "Actor",
-      nameTagColor: "purple",
-      sprites: ["idle.png", "2.png"],
-    },
-    A2: {
-      name: "Actor2",
-      nameTagColor: "orange",
-      sprites: ["idle.png", "2.png"],
-    },
-  },
-  backgrounds: ["a.png", "b.png"],
-  audioAssets: ["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"],
+export { default as demoYaml } from "../test-assets/script.yaml?raw"
+
+const [manifest, manifestErrors] = parseManifest(demoManifestYaml)
+
+// Type narrowing, not the validation mechanism: the guarantee is a unit test asserting the demo's
+// manifest parses with zero errors, which runs in the fast gate.
+if (manifest === null) {
+  throw new Error(
+    "test-assets/manifest.yaml does not parse: " + manifestErrors.map((e) => `L${e.location.startLine}: ${e.message}`)
+  )
 }
 
-export const demoYaml = `
-anchor: &anchor
-  A1: "This is a YAML anchor"
-
-story:
-  - set: [$a, =, 0]
-  - textbox: close
-  - bg:
-      image: a.png
-      transition: blinds
-      duration: 2000
-      pan:
-        from: [0,0,100,100]
-        to: [0,0,2000,2000]
-        duration: 10000
-  - Hello, This is WebVn - A fast visual novel engine for the modern web.
-  - The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.
-  - bgm:
-      audio: "bgm/map01.ogg"
-      loop: false
-  - bg:
-      image: b.png
-      transition: fade
-      duration: 2000
-      pan:
-        from: [0,0,100,100]
-        to: [0,0,1000,1000]
-        duration: 10000
-  - "Wait for audio to stop"
-  - bgm: "bgm/map01.ogg"
-  - Looping audio
-  - bgm: "bgm/dayl_preview.ogg"
-  - Another song...
-  - bgm: stop
-  - And now... Actors!
-  - label: loop
-  - show:
-      actor: A1
-      sprite: idle.png
-  - A1: Here I am
-  - show:
-      actor: A1
-      sprite: 2.png
-      x: .2
-  - A1: Just talking...
-  - bgm: "bgm/dayl_preview.ogg"
-  - bgPan:
-      to: [20,20,500,500]
-      duration: 2000
-  - show:
-      actor: A2
-      sprite: idle.png
-      x: 0
-      y: 0
-      anchorX: 0
-      anchorY: 0
-  - A2: And here I come
-  - set: [$a, +=, 1]
-  - show:
-      actor: A2
-      sprite: idle.png
-      x: 1
-      y: 1
-      anchorX: 1
-      anchorY: 1
-  - A2: Whee!
-  - A2: Bye
-  - hide: A2
-  - Bye bye, actors
-  - hide: A1
-  - Let's enter freeform mode!
-  - mode: freeform
-  - Wheee!
-  - Eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee (should be appended!)
-  - freeformPos:
-      x: .5
-      y: .5
-      width: .2
-  - I'm a new box
-  - That also has text appended to it!
-  - freeformPos:
-      x: .2
-      y: .2
-      width: .2
-  - Yet another one!
-  - A1: Actors can talk too!
-  - Not let's clear everything
-  - textbox: clear
-  - And a new box should appear now
-  - And back to ADV mode!
-  - mode: adv
-  - Hello again!
-  - Let's try some jumps
-  - jump:
-      to: loop
-      if: [$a, ==, 1]
-  - ugh: this is an unregonized command
-  - textbox: close
-  - *anchor
-  - bgm: stop
-  - bg:
-      image: "#000000"
-      transition: blinds
-      duration: 1000
-  - bg:
-      image: "b.png"
-      transition: blinds
-      duration: 1000
-  - mode: adv
-  - What decision are you going to make?
-  - decision:
-    - "asd: asd (quoted string)":
-        jump: asd
-    - A bad one.:
-        jump: bad
-  - label: asd
-  - More YAML quoting tests...
-  - 2
-  - "2"
-  - no
-  - false
-  - "Quoted"
-  - |
-    This is a
-    Multiline
-    Node
-  - Rando: I'm just some random dude
-  - A1: But I'm a defined actor
-  - textbox: close
-  - jump: loop
-  - label: bad
-  - sfx: "sfx/bigthump.ogg"
-  - bg:
-      image: "#ffffff"
-      transition: fade
-      duration: 200
-  - bg:
-      image: "b.png"
-      transition: fade
-      duration: 200
-  - That was a bad choice.
-  - And here we go again...
-  - jump: loop
-`
+export const demoManifest: VnManifest = manifest

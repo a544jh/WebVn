@@ -1,0 +1,20 @@
+# The demo project's manifest. Together with script.yaml and the asset directories beside it, this
+# directory is the first published WebVn project - CopyPlugin copies it to the dist root, where
+# backgrounds/, sprites/ and audio/ already sit at the paths DomRenderer builds.
+id: webvn-demo
+title: WebVn Demo
+
+actors:
+  narrator:
+    textColor: "#60baff"
+  A1:
+    name: Actor
+    nameTagColor: purple
+    sprites: [idle.png, "2.png"]
+  A2:
+    name: Actor2
+    nameTagColor: orange
+    sprites: [idle.png, "2.png"]
+
+backgrounds: [a.png, b.png]
+audioAssets: [bgm/map01.ogg, bgm/dayl_preview.ogg, sfx/bigthump.ogg]

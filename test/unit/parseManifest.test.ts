@@ -9,30 +9,48 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 
 const parse = (yaml: string) => YamlParser.parseManifest(yaml)
 
-const withId = (id: string) => `id: ${id}\ntitle: Some Title\n`
+// Every manifest below is a v1 one unless it is testing the version gate itself.
+const V1 = "formatVersion: 1\n"
+
+const withId = (id: string) => V1 + `id: ${id}\ntitle: Some Title\n`
 
 const messages = (yaml: string) => parse(yaml)[1].map((e) => e.message)
 
 describe("parseManifest", () => {
   it("parses a manifest declaring everything", () => {
     const [manifest, errors] = parse(`
+formatVersion: 1
 id: my-story
 title: My Story
 actors:
   A1:
     name: Actor
     nameTagColor: purple
-    sprites: [idle.png, "2.png"]
-backgrounds: [a.png, b.png]
-audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
+    sprites:
+      idle: idle.png
+      shocked: "2.png"
+backgrounds:
+  classroom: a.png
+  hallway: b.png
+audioAssets:
+  daylight:
+    file: bgm/map01.ogg
+    title: Daylight
+    artist: a544jh
+  bigthump: sfx/bigthump.ogg
 `)
     expect(errors).toEqual([])
     expect(manifest).toEqual({
       id: "my-story",
       title: "My Story",
-      actors: { A1: { name: "Actor", nameTagColor: "purple", sprites: ["idle.png", "2.png"] } },
-      backgrounds: ["a.png", "b.png"],
-      audioAssets: ["bgm/map01.ogg", "sfx/bigthump.ogg"],
+      actors: {
+        A1: { name: "Actor", nameTagColor: "purple", sprites: { idle: "idle.png", shocked: "2.png" } },
+      },
+      backgrounds: { classroom: "a.png", hallway: "b.png" },
+      audioAssets: {
+        daylight: { file: "bgm/map01.ogg", title: "Daylight", artist: "a544jh" },
+        bigthump: { file: "sfx/bigthump.ogg" },
+      },
     })
   })
 
@@ -40,27 +58,27 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
     const [manifest, errors] = parse(withId("bare"))
 
     expect(errors).toEqual([])
-    expect(manifest).toEqual({ id: "bare", title: "Some Title", actors: {}, backgrounds: [], audioAssets: [] })
+    expect(manifest).toEqual({ id: "bare", title: "Some Title", actors: {}, backgrounds: {}, audioAssets: {} })
   })
 
   it("reads a declaration key with nothing after it as declaring nothing", () => {
     const [manifest, errors] = parse(withId("empty") + "actors:\nbackgrounds:\naudioAssets:\n")
 
     expect(errors).toEqual([])
-    expect(manifest).toEqual({ id: "empty", title: "Some Title", actors: {}, backgrounds: [], audioAssets: [] })
+    expect(manifest).toEqual({ id: "empty", title: "Some Title", actors: {}, backgrounds: {}, audioAssets: {} })
   })
 
   it("ignores keys it does not know, so a manifest from a later format still loads", () => {
-    const [manifest, errors] = parse(withId("forward") + "formatVersion: 1\n")
+    const [manifest, errors] = parse(withId("forward") + "credits: someone\n")
 
     expect(errors).toEqual([])
     expect(manifest).not.toBeNull()
-    expect(manifest).not.toHaveProperty("formatVersion")
+    expect(manifest).not.toHaveProperty("credits")
   })
 
   describe("id", () => {
     it("is required", () => {
-      const [manifest, errors] = parse("title: No Id\n")
+      const [manifest, errors] = parse(V1 + "title: No Id\n")
 
       expect(manifest).toBeNull()
       expect(errors).toHaveLength(1)
@@ -122,14 +140,14 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
 
   describe("title", () => {
     it("is required", () => {
-      const [manifest, errors] = parse("id: untitled\n")
+      const [manifest, errors] = parse(V1 + "id: untitled\n")
 
       expect(manifest).toBeNull()
       expect(errors[0].message).toContain("title")
     })
 
     it("is rejected when empty, which is the same as absent to a reader", () => {
-      expect(parse('id: untitled\ntitle: ""\n')[0]).toBeNull()
+      expect(parse(V1 + 'id: untitled\ntitle: ""\n')[0]).toBeNull()
     })
   })
 
@@ -173,7 +191,7 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
     })
 
     it("returns no manifest and an error when the YAML itself does not parse", () => {
-      const [manifest, errors] = parse("id: broken\ntitle: [unclosed\n")
+      const [manifest, errors] = parse(V1 + "id: broken\ntitle: [unclosed\n")
 
       expect(manifest).toBeNull()
       expect(errors.length).toBeGreaterThan(0)
@@ -188,7 +206,7 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
     })
 
     it("points an error at the line the offending value is on", () => {
-      const [, errors] = parse("\n\nid: fine\ntitle: 1\n")
+      const [, errors] = parse(V1 + "\nid: fine\ntitle: 1\n")
 
       expect(errors).toHaveLength(1)
       expect(errors[0].location.startLine).toBe(4)
@@ -200,11 +218,138 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
       const [, errors] = parse(withId("cast") + "actors:\n  b2:\n    name: Bee\n")
 
       expect(errors).toHaveLength(1)
-      expect(errors[0].location.startLine).toBe(4)
+      expect(errors[0].location.startLine).toBe(5)
     })
 
     it("reports every problem in one pass rather than stopping at the first", () => {
-      expect(messages("id: Bad Id\ntitle: 3\n")).toHaveLength(2)
+      expect(messages(V1 + "id: Bad Id\ntitle: 3\n")).toHaveLength(2)
+    })
+  })
+
+  // The version gate, added with asset ids. A manifest that predates it declares its assets as
+  // lists of filenames; reading one under the v1 schema produces a shape error per declaration,
+  // so the version is checked first and on its own.
+  describe("formatVersion", () => {
+    it("is required, and says what changed rather than what is missing", () => {
+      const [manifest, errors] = parse("id: v0\ntitle: Old Manifest\nbackgrounds: [a.png]\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("formatVersion")
+      expect(errors[0].message).toContain("lists")
+      expect(errors[0].level).toBe(ErrorLevel.ERROR)
+    })
+
+    it("rejects a version this engine does not read", () => {
+      const [manifest, errors] = parse("formatVersion: 2\nid: future\ntitle: Later\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("formatVersion")
+    })
+
+    // A v0 manifest fails every declaration it has. Reporting those alongside the version would
+    // bury the one message that explains them.
+    it("is reported alone, ahead of the errors an old manifest would otherwise pile up", () => {
+      const [, errors] = parse("id: Bad Id\ntitle: 3\naudioAssets: [a.ogg]\n")
+
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("formatVersion")
+    })
+
+    it("points at the version's own line when there is one", () => {
+      const [, errors] = parse("id: future\ntitle: Later\nformatVersion: 2\n")
+
+      expect(errors[0].location.startLine).toBe(3)
+    })
+  })
+
+  describe("audio assets", () => {
+    it("reads a bare string as the file, so an unattributed sound effect declares one line", () => {
+      const [manifest, errors] = parse(withId("sfx") + "audioAssets:\n  bigthump: sfx/bigthump.ogg\n")
+
+      expect(errors).toEqual([])
+      expect(manifest?.audioAssets).toEqual({ bigthump: { file: "sfx/bigthump.ogg" } })
+    })
+
+    it("carries the metadata the pause menu shows", () => {
+      const [manifest] = parse(
+        withId("bgm") + "audioAssets:\n  daylight:\n    file: bgm/d.ogg\n    title: Daylight\n    artist: a544jh\n"
+      )
+
+      expect(manifest?.audioAssets.daylight).toEqual({ file: "bgm/d.ogg", title: "Daylight", artist: "a544jh" })
+    })
+
+    it("requires a file", () => {
+      const [manifest, errors] = parse(withId("bgm") + "audioAssets:\n  daylight:\n    title: Daylight\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("audioAssets.daylight.file")
+    })
+
+    // Strict inside an entry, because an unknown key there is a typo and a silently dropped
+    // `artistt` produces a track with no artist and no complaint.
+    it("rejects an unknown key inside an entry", () => {
+      const [manifest, errors] = parse(
+        withId("bgm") + "audioAssets:\n  daylight:\n    file: bgm/d.ogg\n    artistt: a544jh\n"
+      )
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("artistt")
+    })
+
+    // `Bgm.apply` reads "stop" as "stop the music", so a track keyed `stop` is unplayable.
+    it("rejects the reserved id stop, which is how a script stops the music", () => {
+      const [manifest, errors] = parse(withId("bgm") + "audioAssets:\n  stop: bgm/d.ogg\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("stop")
+    })
+
+    // Nothing derives a filename from an asset id, so the project id's filesystem charset does not
+    // transfer: a restriction with no reason to enforce it only costs authors.
+    it.each(["Daylight", "day light", "day.light", "曲", "a-b_c"])("accepts the id %s", (id) => {
+      expect(parse(withId("bgm") + `audioAssets:\n  "${id}": bgm/d.ogg\n`)[1]).toEqual([])
+    })
+  })
+
+  describe("backgrounds", () => {
+    it("keys a file under an id, the way audio assets are keyed", () => {
+      const [manifest, errors] = parse(withId("bgs") + "backgrounds:\n  classroom: a.png\n  hallway: b.png\n")
+
+      expect(errors).toEqual([])
+      expect(manifest?.backgrounds).toEqual({ classroom: "a.png", hallway: "b.png" })
+    })
+
+    // `bg: {image: "#000000"}` paints a colour rather than naming an asset, and BackgroundRenderer
+    // tells the two apart by the leading `#`. An id starting with one would be unreachable.
+    it("rejects an id starting with #, which the renderer reads as a colour", () => {
+      const [manifest, errors] = parse(withId("bgs") + 'backgrounds:\n  "#000000": a.png\n')
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
+      expect(errors[0].message).toContain("#")
+    })
+  })
+
+  describe("an actor's sprites", () => {
+    it("declares a name for each image, so the script never names a file", () => {
+      const [manifest, errors] = parse(
+        withId("cast") + "actors:\n  A1:\n    sprites:\n      happy: a1_happy.png\n      sad: a1_sad.png\n"
+      )
+
+      expect(errors).toEqual([])
+      expect(manifest?.actors.A1.sprites).toEqual({ happy: "a1_happy.png", sad: "a1_sad.png" })
+    })
+
+    it("rejects the v0 list of filenames", () => {
+      const [manifest, errors] = parse(withId("cast") + "actors:\n  A1:\n    sprites: [idle.png]\n")
+
+      expect(manifest).toBeNull()
+      expect(errors).toHaveLength(1)
     })
   })
 
@@ -224,8 +369,13 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
       expect(manifest?.id).toBe("webvn-demo")
       expect(manifest?.title).toBe("WebVn Demo")
       expect(Object.keys(manifest?.actors ?? {}).sort()).toEqual(["A1", "A2", "narrator"])
-      expect(manifest?.backgrounds).toEqual(["a.png", "b.png"])
-      expect(manifest?.audioAssets).toEqual(["bgm/map01.ogg", "bgm/dayl_preview.ogg", "sfx/bigthump.ogg"])
+      expect(manifest?.backgrounds).toEqual({ classroom: "a.png", hallway: "b.png" })
+      expect(manifest?.audioAssets).toEqual({
+        map01: { file: "bgm/map01.ogg" },
+        daylight: { file: "bgm/dayl_preview.ogg", title: "Daylight - 8bit remix", artist: "a544jh" },
+        bigthump: { file: "sfx/bigthump.ogg" },
+      })
+      expect(manifest?.actors.A1.sprites).toEqual({ idle: "idle.png", shocked: "2.png" })
     })
   })
 })

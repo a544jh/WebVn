@@ -18,10 +18,18 @@ directory name or an archive filename is a label derived from it, and is allowed
 _Avoid_: slug, uuid, key
 
 **Manifest**:
-What a project declares about itself: its identity, its cast, and the lists of background and audio
-assets. An input to the parser, which seeds a starting state from it - not a live field a running
-story can change.
+What a project declares about itself: its identity, its cast, and which background, audio and sprite
+assets exist, each under an id. An input to the parser, which seeds a starting state from it - not a
+live field a running story can change. It is a symbol table, not just a preload index: the script
+names ids and the manifest is what says which file each one is.
 _Avoid_: config, settings, base state
+
+**Asset id**:
+The name a script calls an asset by, and the key it is declared under in the manifest. Renaming the
+file behind one is a manifest edit, not a rewrite of the story. Any non-empty string, minus the two
+the engine has spoken for: `stop`, which is how `bgm` stops the music, and a leading `#`, which is
+how a background says it is a colour.
+_Avoid_: asset name, handle, path (a path is what an id resolves *to*)
 
 **Script**:
 The YAML text an author writes. What a Story is parsed *from*.
@@ -75,10 +83,16 @@ makes by hand.
 _Avoid_: choice, branch, menu, option (an *option* is one item within a decision)
 
 **Sprite**:
-An actor's presence on screen: which actor, showing which image, where. The image is a filename the
-script names directly, and has no term of its own.
-_Avoid_: pose (considered and rejected; `.scratch/sprites/` renames this entry to *sprite instance*
-and gives the declared image the name *sprite*, once that lands)
+One of the images an actor can be shown in, declared under a name in the manifest. The script names
+that name; only the manifest names the file.
+_Avoid_: pose (considered and rejected - Ren'Py's model has no such term, and
+`sprite: happy` / `sprites: {happy: ...}` is already a clean singular-plural pair)
+
+**Sprite instance**:
+An actor's presence on screen: which actor, showing which of their sprites, where. Its *id* is its
+identity - one instance per id, defaulting to the actor's own name, so an actor is on screen once
+unless the script names further instances of them. `hide` takes that id back.
+_Avoid_: sprite (that is the declared image)
 
 **Text box**:
 The panel a line of dialogue is shown in. *ADV* mode shows one line at a time in a fixed box;

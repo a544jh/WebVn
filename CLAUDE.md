@@ -117,7 +117,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - Command keys must start with a lowercase letter. Capitalized keys are reserved for actor names in the `Name: "text"` (Say) shorthand.
 
 ### Manifest and the parser contract
-- A project declares itself in `manifest.yaml`: `id`, `title`, `actors`, `backgrounds`, `audioAssets`.
+- A project declares itself in `manifest.yaml`: `formatVersion`, `id`, `title`, `actors`, `backgrounds`,
+  `audioAssets`. The three asset declarations are **keyed maps, not lists**: the script names an id and
+  the manifest says which file it is, so the manifest is a symbol table rather than a preload index.
+  `src/domRenderer/assetPaths.ts` is the one place an id becomes a path - both the sub-renderers and
+  `DomRenderer.loadAssets` go through it, so what is preloaded and what is asked for cannot drift.
   `VnManifest` (src/core/manifest.ts) is that declaration as a type, and `seedState(manifest)` copies it
   into a starting `VnPlayerState`. It is an **input**, never a live field — nothing playback points into it.
 - **The two parsers deliberately disagree about failure.** `parseStory` always returns a playable state, with
@@ -129,10 +133,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - The manifest schema is the one place the **actor-key casing rule** is stated as data. `YamlParser` decides a
   `Name: "text"` line is a Say by testing the key's casing, so a lowercase actor is one no script can speak
   as; `default` and `narrator` are the engine's own two exceptions.
-- **There is no `formatVersion`**, deliberately — every manifest that exists is one we generate. The trigger
-  to add one back is the first compatibility break (the likeliest being `Actor.sprites` going from a
-  list of filenames to a map of declared names, in `.scratch/sprites/`), and whichever change makes
-  that break adds the field with it.
+- **`formatVersion: 1` is required**, and is checked *before* the rest of the schema. That ordering is
+  load-bearing: a v0 manifest declares its assets as lists, so reading one under the v1 schema produces a
+  shape error per declaration and buries the single message that explains all of them. A version failure
+  is therefore the only error reported. The field arrived with asset ids, which is the compatibility break
+  it was always waiting for; the next break bumps it.
+- **Strict inside an asset entry, lenient at the top level.** An unknown key in an audio entry is a parse
+  error, because `artistt:` should not silently produce a track with no artist. An unknown key at the top
+  level is still stripped, because that is how a later format announces itself. The two rules differ
+  because the two situations do.
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
@@ -195,7 +204,7 @@ If you're tempted to import from any of these, don't.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(state, animate)` returns a Promise that resolves when animations complete. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop, `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
+- **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.

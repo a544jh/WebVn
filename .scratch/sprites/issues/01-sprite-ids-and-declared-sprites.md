@@ -1,6 +1,6 @@
 # Sprite ids, and sprites declared in the manifest
 
-Status: ready-for-agent
+Status: done
 
 Refined 2026-08-28 against Ren'Py's image model. This replaces the "split sprite into sprite / pose /
 actor" ticket that used to live here - **the pose rename is rejected**, and the directory renamed from
@@ -188,3 +188,26 @@ sprites.
 
 Two new ones surfaced and are recorded above: sprite ids can never be validated (runtime errors, and
 the editor needs to say so), and default and custom ids share a namespace (not worrying about it).
+
+### 2026-08-28 - done, landed with `../asset-ids/` under formatVersion 1
+
+Both halves of the format change landed together, as both tickets asked.
+
+What landed here:
+
+- `Show.apply` keys by `this.cmd.id ?? this.cmd.actor`, so an actor can be on screen more than once
+  and every script written before ids keys exactly what it always did.
+- `HideCommandSchema` and `Hide.apply` are untouched, as predicted - only what the string means
+  changed.
+- `Actor.sprites` is `Record<string, string>`, name to filename, and `sprite:` names the declared
+  name. `sprites: [idle.png]` is now a parse error.
+- `Sprite` is `SpriteInstance` in `state.ts`, `Show.ts` and `SpriteRenderer.ts`; `CONTEXT.md` carries
+  both entries.
+- `formatVersion` came back with the gate `../asset-ids/` specified.
+
+Confirmed as expected: **saved paths do not care.** A path records actions, not sprites.
+
+Still open, and still homeless: **unknown sprite ids are runtime errors the editor has to surface.**
+Nothing in `design-docs/EDITOR.md` covers reporting a runtime fault from a running preview, and this
+ticket does not create that home. A `hide` naming an id nothing is showing is still a silent no-op -
+`test/unit/sprites.test.ts` pins that as the deliberate behaviour rather than a bug to fix here.

@@ -3,10 +3,17 @@ Sequenced work is derived from the design docs in design-docs/ and is a snapshot
 as of 2026-08-25 - the dependency edges hold until the work itself changes them,
 the size guesses are worth less.
 
-Landed since: D (asset manifest), 2026-08-28. Both steps of .scratch/asset-manifest/:
+Landed: D (asset manifest), 2026-08-28. Both steps of .scratch/asset-manifest/:
 a project declares its own assets in manifest.yaml, and the demo ships the first one.
 Its two chains - storage, and asset/label completions in the editor - are now rooted
 on what it left behind rather than on it.
+
+Landed: G and the sprite half of .scratch/sprites/, 2026-08-28, as one format
+change under formatVersion: 1. All three declarations are keyed maps the script names
+ids from; audio carries title/artist and the pause menu shows a now-playing line;
+`show` takes an id, so an actor can be on screen more than once. E (AssetResolver) is
+unblocked - src/domRenderer/assetPaths.ts is the seam it slots into - and the manifest
+shape is settled ahead of the storage chain, which was the point of doing it first.
 
 Sizes: S = hours, M = a day or two, L = several days.
 
@@ -30,9 +37,9 @@ Sizes: S = hours, M = a day or two, L = several days.
        design-docs/SCRIPT_INCLUDES.md
 
   E  AssetResolver indirection                               M
-       Seven call sites concatenate asset paths (DomRenderer 399/406/411,
-       BackgroundRenderer 77/128/160, SpriteRenderer 167, AudioRenderer 16/27).
-       One interface behind them makes the storage backend swappable.
+       The seven call sites that concatenated asset paths are now four calls
+       into src/domRenderer/assetPaths.ts, which resolves an id to a path.
+       One interface behind that makes the storage backend swappable.
        Two implementations, one per entry point and both permanent: OPFS for
        the editor, URLs for the player. The player does not import to read.
        design-docs/PROJECT_STORAGE.md
@@ -40,14 +47,6 @@ Sizes: S = hours, M = a day or two, L = several days.
   F  Parser benchmark at 1k/10k/50k commands, written down   S
        Spike. Settles whether YAML parse time is worth designing around, and
        says which of parse / updateLabels / time-to-first-stop dominates.
-
-  G  Asset ids and metadata for audio and backgrounds       M
-       audioAssets and backgrounds become keyed maps the script names ids from,
-       with title/artist for the pause menu's now-playing line. The same format
-       change as the sprite half in .scratch/sprites/ - land them under one
-       formatVersion bump. Ahead of the storage chain. Refined 2026-08-28;
-       both halves are ready-for-agent.
-       .scratch/asset-ids/
 
   H  Measure the tree-shaken zip.js reader bundle            S
        Spike. Shipped bundles gzip to ~79-85KB but include mime tables,
@@ -138,13 +137,6 @@ Sizes: S = hours, M = a day or two, L = several days.
 
   CM6 before editor multi-buffer, or multi-buffer gets built twice.
   OPFS store before the includes resolver, or SourceLoader gets written twice.
-  G and the sprite half of .scratch/sprites/ are one format change wearing two
-  tickets. Both turn a declaration list into a keyed map, so both break the
-  format; landing them apart means formatVersion is added by the first and
-  bumped by the second, and an author migrates twice for one idea. Both also
-  precede the storage chain - once URL import and the OPFS store exist, the
-  manifest shape has escaped and changing it means migrating published projects.
-
   Two-document URL payload before player save keying. ?vn= carries a script alone
   and is parsed against the demo's manifest, so once saves are keyed by id the
   only id in scope is webvn-demo and every shared story saves on top of every
@@ -176,10 +168,6 @@ Sizes: S = hours, M = a day or two, L = several days.
     Sprite flipping
     Position presets   - ShowCommandSchema accepts `position` and apply()
                          ignores it entirely
-    Custom sprite IDs  - specified in .scratch/sprites/, along with sprites
-                         declared in the manifest by name. Pairs with G as one
-                         format change; together they carry formatVersion back
-                         in and unblock E. Ahead of the storage chain.
 
   Decision showIf
     Show/hide individual decision options based on variables.

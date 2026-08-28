@@ -1,6 +1,6 @@
 # Asset ids and metadata for audio and backgrounds
 
-Status: ready-for-agent
+Status: done
 
 The manifest becomes a symbol table for audio and backgrounds, the way `../sprites/` makes it one for
 an actor's images. The script names ids; the manifest maps them to files and carries metadata the
@@ -186,3 +186,37 @@ that predates it. Decided here for both, since they land together.
 Two smaller things were decided rather than left for the implementing agent, because both are the kind
 of gap that stalls one mid-task: whether a bare string works as an audio entry (it does), and whether
 asset ids inherit the project id's charset rule (they do not - nothing derives a filename from them).
+
+### 2026-08-28 - done, landed with `../sprites/` under formatVersion 1
+
+Implemented together with `../sprites/issues/01-sprite-ids-and-declared-sprites.md`, as the tie-in
+section above asked for: one format change, one version bump, one migration for an author.
+
+What landed, against what was decided here:
+
+- `VnPlayerState.audioAssets` is `Record<string, AudioAsset>` and `backgrounds` is
+  `Record<string, string>`; `seedState` copies both. A bare string is shorthand for `{ file }`.
+- `formatVersion: 1` is required and checked **before** the rest of the schema, on its own - a v0
+  manifest fails one error naming the change rather than a shape error per declaration.
+- `stop` is rejected as an audio id; a background id may not start with `#`.
+- Strict inside an asset entry, lenient at the top level.
+- The pause menu shows a now-playing title and artist, read out of the committed state - no manifest
+  reference held at render time. A track with no title shows nothing rather than its id: an id is a
+  name for the author.
+- The three copies of the `#` test in `BackgroundRenderer` are one predicate, `isBackgroundColor`,
+  and the three renderable-construction sites are one `makeRenderable` differing only in duration.
+
+Two things worth recording that the ticket did not decide:
+
+- **`src/domRenderer/assetPaths.ts` is where an id becomes a path.** Both the sub-renderers and
+  `DomRenderer.loadAssets` go through it, so what is preloaded and what is asked for cannot drift.
+  That is the seam TODO item E slots into; it is not item E, which is still the interface behind it.
+- **The sub-renderers take the declarations as an argument.** `AudioRenderer.render(audio, assets)`,
+  `BackgroundRenderer.render(bg, backgrounds, animate)`, `SpriteRenderer.render(sprites, actors,
+  animate)`. This ticket said they would "resolve id to file through the state they already
+  receive"; they receive a slice of `animatableState`, which carries no declarations, so the
+  declarations are passed beside it rather than the whole state - a narrower dependency than
+  handing each sub-renderer a `VnPlayerState`.
+
+Confirmed as expected: **saves are unaffected.** A save stores a `VnPath`, so nothing persisted
+holds a filename or an id, and the save tests needed no change.

@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { nextStop, sleep, spriteElems, startVn, textBoxText } from "../helpers/vnHarness"
+import { VnManifest } from "../../src/core/manifest"
+
+// The script names declared sprites, so the cast has to declare them.
+const MANIFEST: VnManifest = {
+  id: "rapid-click",
+  title: "Rapid Click",
+  actors: {
+    A1: { sprites: { a: "a.png", b: "b.png" } },
+    A2: { sprites: { a: "a.png" } },
+  },
+  backgrounds: {},
+  audioAssets: {},
+}
 
 // Long enough that its typing animation (characterDelay 20ms) is still running when the test clicks again.
 const LINE_3 = "Line 3 is deliberately long so that its typing animation is still running when the next click arrives"
@@ -45,21 +58,21 @@ story:
   - Line 1
   - show:
       actor: A1
-      sprite: a.png
+      sprite: a
   - Line 2
   - show:
       actor: A1
-      sprite: b.png
+      sprite: b
   - ${LINE_3}
   - hide: A1
   - Line 4
 `
-    const { root, player, renderer } = await startVn(script)
+    const { root, player, renderer } = await startVn(script, { manifest: MANIFEST })
     // The first stop is already up; sprites are only needed from the first advance on.
     await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png"])
     expect(textBoxText(root)).toBe("Line 1")
 
-    // Click: show A1 a.png starts its 500ms fade-in.
+    // Click: show A1's `a` sprite starts its 500ms fade-in.
     const stopAtLine2 = nextStop(renderer, player)
     renderer.advance()
     await sleep(50)
@@ -68,7 +81,7 @@ story:
     await stopAtLine2
     expect(textBoxText(root)).toBe("Line 2")
 
-    // Click: show A1 b.png crossfades, then the loop auto-advances to Line 3.
+    // Click: show A1's `b` sprite crossfades, then the loop auto-advances to Line 3.
     renderer.advance()
     // Crossfade (500ms) has finished, Line 3's typing (~2s) is still running.
     await sleep(700)
@@ -82,7 +95,7 @@ story:
 
     expect(textBoxText(root)).toBe(LINE_3)
     expect(player.state.animatableState.sprites["A1"]).toBeDefined()
-    expect(player.state.animatableState.sprites["A1"].sprite).toBe("b.png")
+    expect(player.state.animatableState.sprites["A1"].sprite).toBe("b")
     const elems = spriteElems(root)
     expect(elems.map((elem) => elem.dataset.vnSpriteId)).toEqual(["A1"])
     expect(elems[0].dataset.testAsset).toBe("sprites/A1/b.png")
@@ -94,35 +107,35 @@ story:
   - Line 1
   - show:
       actor: A1
-      sprite: a.png
+      sprite: a
       x: 0.3
   - Line 2
   - show:
       actor: A1
-      sprite: b.png
+      sprite: b
       x: 0.3
   - Line 3
   - show:
       actor: A2
-      sprite: a.png
+      sprite: a
       x: 0.7
   - Line 4
   - show:
       actor: A2
-      sprite: a.png
+      sprite: a
       x: 0.9
   - Line 5
   - hide: A1
   - Line 6
   - show:
       actor: A1
-      sprite: a.png
+      sprite: a
   - Line 7
   - hide: A1
   - hide: A2
   - The end
 `
-    const { root, player, renderer } = await startVn(script)
+    const { root, player, renderer } = await startVn(script, { manifest: MANIFEST })
     await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png", "sprites/A2/a.png"])
 
     // After every finished render pass at a stop, the id-bearing sprite elements

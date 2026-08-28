@@ -3,8 +3,8 @@ import { Command } from "./commands/Command"
 import { VnPath } from "./vnPath"
 export interface VnPlayerState {
   readonly actors: Actors
-  readonly backgrounds: string[]
-  readonly audioAssets: string[]
+  readonly backgrounds: Record<string, string>
+  readonly audioAssets: Record<string, AudioAsset>
   readonly commandIndex: number
   readonly commands: Command[]
   readonly labels: Record<string, number>
@@ -21,7 +21,7 @@ export interface AnimatableState {
   readonly text: TextBox | null
   readonly freeformInsertionPoint: FreeformInsertionPoint
   readonly freeformText: FreeformTextBox[]
-  readonly sprites: Record<string, Sprite>
+  readonly sprites: Record<string, SpriteInstance>
   readonly background: Background
   readonly audio: AudioState
 }
@@ -81,7 +81,10 @@ export interface Actor {
   name?: string
   nameTagColor?: string
   textColor?: string
-  sprites?: string[]
+  // The images this actor can be shown in, as declared name to filename. The script names the
+  // declared name, never the file, which is what makes a rename of the file a manifest edit
+  // rather than a rewrite of the story.
+  sprites?: Record<string, string>
 }
 
 export const NARRATOR_ACTOR_ID = "narrator"
@@ -100,7 +103,10 @@ export interface DecisionItem {
 
 export type VnVariableValue = string | number | boolean
 
-export interface Sprite {
+// One sprite on screen: which actor, shown in which of their declared sprites, and where. Keyed in
+// `animatableState.sprites` by the id `show` gave it, which defaults to the actor's own name - so an
+// actor is on screen once unless the script names further instances of them.
+export interface SpriteInstance {
   actor: string
   sprite: string
   x: number
@@ -126,6 +132,15 @@ export interface ViewBox {
   y: number
   h: number
   w: number
+}
+
+// A declared audio asset: the file it plays, and what the pause menu can say about it while it is
+// playing. `title` and `artist` are optional, so `bigthump: sfx/bigthump.ogg` stays the whole
+// declaration for a sound effect nobody credits.
+export interface AudioAsset {
+  file: string
+  title?: string
+  artist?: string
 }
 
 export interface AudioState {

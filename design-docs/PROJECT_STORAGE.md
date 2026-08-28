@@ -83,21 +83,29 @@ with the data it describes instead of drifting out of sync with it.
 
 ```
 projects/
-  <uuid>/
+  <project-id>/
     manifest.yaml
     script.yaml
     assets/
       sprites/<actor>/<file>
       backgrounds/<file>
       audio/<file>
+editor.yaml
 ```
+
+`editor.yaml` sits beside `projects/`, not inside a project. It holds the editor's own bookkeeping - last
+opened, last exported, a rename in flight - none of which is project data and none of which should travel in
+an export. Keeping it outside the project directories is what lets a `.webvnproj` stay *the whole
+`projects/<project-id>/` tree*: export is a straight walk, import a straight copy, with nothing to strip.
+It belongs in OPFS rather than localStorage for the same reason the manifest does - it is evicted atomically
+with the data it describes instead of drifting out of sync with it.
 
 `manifest.yaml` is a separate file from `script.yaml`, and YAML rather than JSON so it uses the parser and the
 dependency already in the tree, and so a human can read it in the export. It holds project identity plus the
 asset declarations that currently live in `demoStory.ts`:
 
 ```yaml
-id: 4f8c...          # uuid, stable forever, never derived from the title
+id: my-story        # author-chosen, restricted charset, also the directory name
 title: My Story
 formatVersion: 1
 actors:
@@ -111,9 +119,93 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
 
 Validate it with Zod, matching how commands are already parsed (`makeZodCmdHandler`).
 
-**Directories are named by UUID, not by title.** Renaming a project must not move a directory - and `move()`
-on *directories* is unsupported in Chrome even inside OPFS. The display name lives in the manifest, where
-renaming is a field write.
+**The id is author-chosen, not a UUID, and it is the directory name.** An earlier draft used a UUID
+precisely so that renaming would never have to move a directory. That was traded away deliberately: a
+readable id collapses the directory name, the player-save key, the exported filename and the published folder
+into one string the author can say out loud, and it makes the "the project id must be embedded in the
+exported story, not derived from its OPFS location" rule below a tautology rather than a convention someone
+has to remember. The `title` stays a separate free-text field; the id is never derived from it.
+
+The cost is that a rename is now a directory move, and there is no directory move - see "Renaming" below.
+
+**Charset: `^[a-z0-9][a-z0-9_-]{0,63}$`, plus a reserved-name blocklist.** The id has to survive being a path
+segment, a URL segment and a localStorage key suffix, but the binding constraints come from the *export*,
+which is a zip extracted onto a real filesystem:
+
+- **Lowercase only.** OPFS is case-sensitive; Windows and default macOS are not. Without case folding,
+  `MyStory` and `mystory` are two valid projects in the library that collide on extraction.
+- **Windows reserved names** are rejected outright: `CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`,
+  along with `.`, `..`, and any leading or trailing dot or space.
+
+The id is mandatory at creation - it is the directory name, so it must exist before the first write. There is
+no unnamed-project state.
+
+**Uniqueness is per-library, not global.** Two authors may both pick `demo`, and if both publish under the
+same origin their players share a save key. The UUID scheme avoided this by accident. It is an accepted
+non-guarantee, not an oversight.
+
+### Renaming
+
+**The rename is triggered from the manifest, on editor blur.** That is already when the script is reparsed,
+so the id change is noticed on the same event rather than needing a new one: blur, see that `id` differs from
+the directory name, show the dialog. Declining reverts the `id` field alone and keeps every other edit in the
+buffer. Blur is a rough trigger - it fires on incidental focus changes and never fires on a tab close - which
+is survivable only because the startup reconcile below catches whatever it misses. Refining it is a UI
+question, not a storage one.
+
+**No engine supports moving a *directory*.** `FileSystemHandle.move()` is not in the WHATWG FS spec at all -
+[whatwg/fs#10](https://github.com/whatwg/fs/pull/10) is still open, and MDN's compat data marks the method
+`standard_track: false`. Chrome's implementation is explicitly partial: the method is exposed on
+`FileSystemFileHandle` only, never on `FileSystemDirectoryHandle` ([crbug 40198034](https://crbug.com/40198034)).
+Firefox and Safari are unverified for directories - Firefox's OPFS `move()`
+([bug 1789116](https://bugzilla.mozilla.org/show_bug.cgi?id=1789116)) landed and was backed out once over WPT
+failures. Chrome alone settles it: **rename is a recursive copy followed by a recursive delete, with no
+feature-detected fast path.** A second code path for engines that might have directory move is not worth
+maintaining for an operation this rare.
+
+That is cheaper than it sounds. The copy is a recursive directory walk - the same walk export does into a zip
+and import does out of one. One shared helper, three callers.
+
+Two things do need care:
+
+- **Quota, not time.** Streaming each file (`blob.stream().pipeTo(writable)`) keeps memory bounded and OPFS
+  copies are local disk I/O, so a progress indicator covers the wall clock. But the old tree survives until
+  the new one is complete, so a rename needs 2x the project size free and dies halfway with
+  `QuotaExceededError` if it is not. Check `navigator.storage.estimate()` up front and refuse with a clear
+  message rather than failing partway. `persist()` does not help here - that is eviction, not quota.
+- **Interruption.** A killed tab mid-copy leaves a partial tree. The ordering below makes every crash state
+  recoverable:
+
+  1. Record `pendingRename: { from, to }` in `editor.yaml`.
+  2. Copy `script.yaml` and `assets/` into `projects/<new-id>/`, **manifest last**.
+  3. Write `projects/<new-id>/manifest.yaml` with the new id. This single atomic file write is the commit
+     point.
+  4. Recursively delete `projects/<old-id>/`, then clear `pendingRename`.
+
+  Recovery runs at startup, and re-verifies against the tree before acting - the marker can never by itself
+  cause a delete. Crash before step 3 and the destination has no manifest, so it is swept and the source is
+  untouched; crash between 3 and 4 and the destination is valid, so the delete is finished.
+
+  `pendingRename` is a single slot, not a per-project field: one project is open at a time, under the
+  `navigator.locks` lock below, so two renames cannot overlap and "is a rename in flight" is one check at
+  startup rather than a scan.
+
+**A `pendingRename` marker is a hint, not a source of truth.** Lose `editor.yaml` and recovery degrades to
+what enumeration alone can prove - *no manifest* means garbage, *manifest without `script.yaml`* means
+incomplete - which covers everything except a fully-copied-but-partial asset tree, and leaves at worst a
+duplicate project for the author to delete. Never a wrong delete. That is the "Enumeration is the truth"
+rule below, holding even for the one field that cannot be rebuilt from the tree.
+
+**Overwrite is confirmed, then done first.** If the destination id already exists the author gets an explicit
+"this will be overwritten" dialog - the same confirmation an import that collides with an existing id gets,
+since it is the same destructive operation. On confirmation the destination is recursively deleted *before* step 1, so
+the "no manifest means garbage" invariant holds throughout; the destructive step happens up front rather than
+interleaved with the copy. The residual risk - destination deleted, then the copy fails on quota - is why the
+estimate check comes first.
+
+There is no "keep the old id as a copy" option. Duplicating a project is a real feature and belongs as its
+own action in the library, not as a checkbox on a rename dialog: it would double the storage cost of a rename
+under quota pressure and silently leave behind a project the author did not ask to create.
 
 **Enumeration is the truth; any index is a rebuildable cache.** A crash between creating a project directory
 and updating a `projects.yaml` leaves the two disagreeing, and a directory listing cannot lie. Rebuild the
@@ -135,7 +227,7 @@ project list in browser storage. Twine is the near-exact precedent - hypertext a
 writers, no account - and it is also the cautionary tale: its most common support thread for a decade has been
 someone losing their whole library to cleared browser data. Hence the export nagging below.
 
-**Sequencing: build the layout for many, ship the UI for one.** `projects/<uuid>/...` from the first commit
+**Sequencing: build the layout for many, ship the UI for one.** `projects/<project-id>/...` from the first commit
 costs nothing and removes the migration entirely; the picker can arrive whenever it is convenient.
 
 **The runtime stays strictly single.** `VnPlayer`, `DomRenderer` and the resolver never learn that other
@@ -152,7 +244,7 @@ paranoid, and gives the linked-folder layer a natural place to live.
 
 The format is a zip, not gzip. Media is already compressed, so gzipping the bundle buys close to nothing while
 making it opaque; a zip is inspectable, and store-mode entries for media keep import a straight copy. It is
-the whole `projects/<uuid>/` tree, manifest included.
+the whole `projects/<project-id>/` tree, manifest included.
 
 `@zip.js/zip.js` is the intended library: zero dependencies, BSD-3, actively maintained, and it reads the
 central directory through a `BlobReader` so entries are extracted by random access rather than by streaming
@@ -194,7 +286,11 @@ anyway: it makes reusable asset packs possible.
 Things that will break quietly if they are skipped.
 
 - **Every OPFS write goes `x.tmp` then `move()`.** Autosave writes constantly; a crash or tab kill mid-write
-  to `script.yaml` truncates the author's work. `move()` inside OPFS is supported everywhere.
+  to `script.yaml` truncates the author's work. This is `FileSystemFileHandle.move()` - files, inside OPFS,
+  which is the one case every engine implements. It is still worth a feature detect: the method is not in the
+  WHATWG FS spec (see "Renaming"), and Firefox shipped then backed out its OPFS implementation once. There is
+  no atomic alternative, so the degraded path is a direct write plus an acknowledgement that a crash mid-write
+  can truncate.
 - **Object URLs must survive until story teardown.** `ImageAssetLoaderSrc.getAsset` and
   `AudioAssetLoaderSrc.getAsset` return `cloneNode()`, and a clone re-triggers a load of the copied `src`.
   Against a revoked blob URL there is nothing to fall back to. Revoke on teardown, never on load. Worth a
@@ -209,8 +305,22 @@ Things that will break quietly if they are skipped.
   have data.
 - **The project id must be embedded in the exported story, not derived from its OPFS location.** The
   standalone player receives a story from a URL and has no project directory, so a save made from a shared
-  link can only be matched if the id travelled with the story. This is also the fix for the hardcoded
-  `loadFromLocalStorage("test")` and the stale-save bug in `ROUGH_EDGES.md`.
+  link can only be matched if the id travelled with the story. Since the id *is* the directory name this is
+  now true by construction, but the export path still has to carry it deliberately. A URL payload arriving
+  with no id is invalid and the player bails - there is no fallback key. This is also the fix for the
+  hardcoded `loadFromLocalStorage("test")` and the stale-save bug in `ROUGH_EDGES.md`.
+
+- **The player-save key becomes `vn-save-<id>`.** Keep a prefix: localStorage is origin-wide and shared with
+  the editor's own keys, so once ids are author-chosen an unprefixed key lets a project named `settings` or
+  `theme` collide with whatever the app stores under that name. The prefix is the only thing separating the
+  author-controlled keyspace from the app-controlled one, and the two-level shape leaves `vn-editor-*` free.
+  The current `vn-<id>` dates to the first localStorage commit in 2021 and had no design behind it; reshaping
+  it is free now, when the only key in existence is the demo's `vn-test`, and will not be later.
+
+- **Renaming a project does not touch player saves.** The save key follows the id, so a rename orphans
+  `vn-save-<old-id>` - deliberately. Migrating it would be a half-measure: nothing local can reach the saves
+  of people playing an already-published build, so the orphaning is unavoidable there regardless. Better to
+  make renaming an exported project visibly consequential in the dialog than to paper over the local half.
 - **Call `navigator.storage.persist()` on first save**, which exempts the origin from pressure-based
   eviction. Show per-project size from `navigator.storage.estimate()` and a "last exported" date in the
   library, since the project is the unit people actually lose.
@@ -244,4 +354,8 @@ Things that will break quietly if they are skipped.
 - **Content-addressed assets** (SHA-256 via SubtleCrypto, manifest maps logical name to hash). Gives dedupe
   and change detection cheaply, and is much easier to adopt before there are projects in the wild than after.
   Currently deferred.
-- **Migrating existing `vn-test` player saves** once ids are real.
+- **Whether the rename dialog should warn harder once a project has been exported**, given that published
+  saves are orphaned and nothing local can migrate them.
+- **Whether editor blur is a good enough rename trigger.** It rides the existing reparse, but it fires on
+  incidental focus changes and not at all on a tab close. The startup reconcile makes it safe rather than
+  correct.

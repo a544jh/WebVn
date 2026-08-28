@@ -54,8 +54,13 @@ Sizes: S = hours, M = a day or two, L = several days.
 == STORAGE ==  design-docs/PROJECT_STORAGE.md
 
   D + E -> OPFS project store                                L
-             uuid directories, tmp-then-move writes, enumeration as truth
+             author-chosen id directories, tmp-then-move writes,
+             enumeration as truth
              |
+             +-> project rename: copy + delete, editor.yaml     M
+             |     pendingRename marker, quota precheck, overwrite dialog.
+             |     No engine implements directory move; the recursive walk
+             |     is shared with zip import/export.
              +-> project library UI                          M
              |     +-> persist() + estimate() + export nag    S
              +-> navigator.locks for two-tab autosave         S
@@ -68,7 +73,8 @@ Sizes: S = hours, M = a day or two, L = several days.
 
   D -> project id embedded in the exported story
          +-> player save keying (replaces the hardcoded "test")
-               +-> migrate existing vn-test saves
+               vn-save-<id>; free to reshape now, not later.
+               A URL payload with no id is invalid and the player bails.
   D -> URL payload becomes a two-document YAML stream
   E -> object URL lifetime test (cloneNode against a revoked blob URL)
 

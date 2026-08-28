@@ -185,7 +185,7 @@ gracefully than raw indices would. A note, not a blocker.
 
 ## Sequencing
 
-After project storage. Includes resolve paths against a namespace, and `projects/<uuid>/` is that namespace;
+After project storage. Includes resolve paths against a namespace, and `projects/<project-id>/` is that namespace;
 building includes first means inventing a file abstraction that the storage work then replaces, and writing
 `SourceLoader` twice.
 

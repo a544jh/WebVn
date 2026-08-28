@@ -58,3 +58,20 @@ answer for where `variables` belongs, which usually means the boundary is not re
   removal is the evidence the fix landed.
 - A function named `parseStory` returns a `VnPlayerState`. That is the same conflation relocated,
   and it is accepted: it is the smallest awkwardness available while story and playback are one type.
+
+## Amendment, 2026-08-28: the manifest also carries identity
+
+`.scratch/asset-manifest/issues/02-manifest-yaml.md` turns `manifest.yaml` into a real file, and with it
+`VnManifest` gains `id` and `title`. `parseStory(text, manifest)` and `seedState(manifest)` therefore now
+receive two fields neither will ever read, which widens the boundary this ADR drew.
+
+The alternative was a `ProjectManifest` holding identity and wrapping an assets-only `VnManifest`, so the
+parser's parameter stayed exactly what a story needs - the same move this ADR makes, one level further up.
+It was rejected in favour of keeping everything in one place: one type, one schema, one thing to look at
+when asking what a project declares.
+
+Nothing above is retracted. The manifest is still an input rather than a live field, still unchanged while a
+story runs, still nothing playback points into, and `parseStory` still cannot be handed a mid-story state -
+which is the mistake this decision existed to make unrepresentable. What changed is the definition of the
+contents: "everything a story needs that its script does not spell out" became "what a project declares
+about itself", which is a superset. `CONTEXT.md` carries the wider wording.

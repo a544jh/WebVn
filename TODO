@@ -96,11 +96,12 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
 
-  D -> project id embedded in the exported story
+  D -> URL payload becomes a two-document YAML stream
+         manifest, ---, script, so the project id travels with the story.
          +-> player save keying (replaces the hardcoded "test")
                vn-save-<id>; free to reshape now, not later.
                A URL payload with no id is invalid and the player bails.
-  D -> URL payload becomes a two-document YAML stream
+               Not before the payload above - see the edges below.
   E -> object URL lifetime test (cloneNode against a revoked blob URL)
 
 
@@ -130,6 +131,10 @@ Sizes: S = hours, M = a day or two, L = several days.
   D feeds two chains - storage, and asset/label completions in the editor.
   CM6 before editor multi-buffer, or multi-buffer gets built twice.
   OPFS store before the includes resolver, or SourceLoader gets written twice.
+  Two-document URL payload before player save keying. ?vn= carries a script alone
+  and is parsed against the demo's manifest, so once saves are keyed by id the
+  only id in scope is webvn-demo and every shared story saves on top of every
+  other one. Harmless only while the key is the hardcoded "test" everyone shares.
 
   D -> E -> OPFS store -> library UI + zip export is what turns this into a tool
   someone other than its author can use. Everything in the editor chain is

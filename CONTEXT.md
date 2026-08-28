@@ -7,10 +7,20 @@ a player reads it in a browser, one stop at a time, making decisions that branch
 
 ### Authoring
 
+**Project**:
+An author's whole visual novel: its manifest, its script and its assets. The unit that is stored,
+exported and imported.
+_Avoid_: game, novel, story (a story is the command sequence inside one)
+
+**Project id**:
+The author-chosen name a project is filed under, and the source of truth for its identity. A
+directory name or an archive filename is a label derived from it, and is allowed to go stale.
+_Avoid_: slug, uuid, key
+
 **Manifest**:
-Everything a story needs that its script does not spell out: the cast, and the lists of background
-and audio assets. An input to the parser, which seeds a starting state from it - not a live field a
-running story can change.
+What a project declares about itself: its identity, its cast, and the lists of background and audio
+assets. An input to the parser, which seeds a starting state from it - not a live field a running
+story can change.
 _Avoid_: config, settings, base state
 
 **Script**:
@@ -35,7 +45,9 @@ The authored command that sends the playhead to a label, optionally under a cond
 the command: the editor's two jumps are always qualified as a *direct jump* or a *replay jump*.
 
 **Actor**:
-A named character who can speak and be shown. Every actor inherits from the default actor.
+A named character who can speak and be shown. Every actor inherits from the default actor. An
+actor's id is capitalized, which is what tells a line of theirs apart from a command; the two
+lowercase ids, `default` and `narrator`, are the engine's own.
 _Avoid_: character, speaker
 
 **Narrator**:

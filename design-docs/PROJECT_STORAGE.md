@@ -236,6 +236,88 @@ a live swap. `DomRenderer.render` already carries a generation guard for overlap
 contract in `CLAUDE.md`); a project swap mid-render would be a new class of the same bug, and there is no
 reason to invite it.
 
+## Getting a project in
+
+Four ways a project reaches the library: the file picker, drag and drop, "load the demo", and importing a
+published VN from a URL. They share their whole back half - validate the manifest, write the tree into OPFS,
+raise the collision dialog if the id is taken - and differ only in where the bytes come from.
+
+**That difference is a `SourceLoader`, which the design already has.**
+[SCRIPT_INCLUDES.md](./SCRIPT_INCLUDES.md) defines `load(path): Promise<string>` with implementations for
+the editor's OPFS, for zip entries, and for an in-memory map in tests. An HTTP base URL is a fourth. Import
+is written against that interface and against nothing else, so a new ingestion path costs a loader rather
+than a subsystem. Resist the version that takes a `File`: two of the four sources never produce one.
+
+### Importing from a URL
+
+A published VN is a static folder - `manifest.yaml`, `script.yaml`, `assets/...` served over HTTP. Importing
+one is the publish format read backwards, which is the real argument for it: anything anyone published is
+importable and editable by anyone else, with no archive needing to exist and no author needing to have kept
+one.
+
+**The manifest is the index.** HTTP offers no directory listing, so nothing else can say what a hosted
+project contains - but `actors[].sprites`, `backgrounds` and `audioAssets` already enumerate every asset.
+Fetch `<base>/manifest.yaml`, parse it, then fetch `script.yaml` and exactly the assets it declares. This
+promotes the manifest from "what assets exist" to "what files constitute this project", and the corollary is
+binding: **a file the manifest does not declare cannot be imported.** That already matches the engine, which
+will not load an undeclared asset either, but it is now load-bearing in a second place.
+
+**A partial import is a failure, not a project.** Unlike an archive, which either parses or does not, a
+folder import can half-succeed - thirty-seven assets fetched and three returning 404. Fail the whole import
+and name the missing files. Landing a project with silent holes in it is the same state the rename recovery
+exists to prevent, and it would be perverse to let import create it deliberately.
+
+**Copy into OPFS; do not reference.** `AssetResolver` makes the alternative cheap - keep the manifest and
+script, leave the assets remote behind a base-URL resolver - and it is instant and free of copying. It also
+makes the author's project depend on someone else's server staying up, which is the premise this whole
+document rejects. The URL is a source, never a live link.
+
+CORS decides the reach: every fetch is cross-origin, so a host that does not send `Access-Control-Allow-Origin`
+cannot be imported from at all. One header covers a whole project, since the requirement is the same for each
+file.
+
+### The demo is the first published VN
+
+The library needs a first-run story - an empty picker is the worst possible introduction to an authoring
+tool - and "load the demo" is it.
+
+Build it as a URL import of a demo laid out in `dist/` as a published project, not as a special case that
+writes files directly. Almost all of it is already there: `CopyPlugin` copies `test-assets/` into `dist/`
+verbatim, so the sprites, backgrounds and audio are already deployed at the paths `DomRenderer` builds. What
+is missing is `manifest.yaml` and `script.yaml` as real files rather than the TypeScript constants in
+`src/demoStory.ts`. Import them back into `demoStory.ts` as strings with `?raw` - vite supports it natively
+and webpack 5 matches it with a `resourceQuery: /raw/` rule of `type: "asset/source"` - and the YAML files
+become the single source, with `test/demo/DemoStory.test.ts` untouched.
+
+Three things fall out of doing it this way rather than special-casing:
+
+- The demo dogfoods the publish format from the first commit instead of the doc describing it hypothetically.
+- The button exercises the real import path every time anyone presses it, which is continuous coverage of
+  the most fragile machinery here from the feature most likely to be used.
+- Being same-origin, it isolates the variables: whether the loader works gets settled before whether an
+  arbitrary host cooperates.
+
+Pressing it twice is just the id collision dialog, so "reset the demo to pristine" arrives for free. That
+does sharpen the collision policy though: "I tinkered with the demo and want a clean one *too*" is the
+natural case, and overwrite-or-cancel forces losing one of them. It is the strongest argument for offering
+rename-on-import.
+
+### Sequencing, and the one hard constraint
+
+URL import lands before zip import. It needs no build machinery, the demo is already hosted, and same-origin
+keeps CORS out of the first attempt.
+
+**But zip import must not lag behind export.** This document calls the archive the canonical artifact and
+the answer to eviction - browser storage being a good working copy and a bad only copy. An export that
+nothing can read back is not a safety net, it is a file that looks like one. Defer zip import freely; do not
+ship the export button ahead of it. If anything that argues for building export and zip import as a single
+unit, rather than letting export be the tempting easy half.
+
+**Every import needs a size and entry-count cap**, from the first one. An archive or a hosted folder is
+content the author did not make. The script is data rather than code, so there is nothing to execute, but a
+zip bomb or an archive of a hundred thousand entries can exhaust the origin's quota or hang the import. The
+cap belongs in the shared back half, where it covers all four paths at once, and is awkward to retrofit.
+
 ## Leaving the browser
 
 **The canonical artifact is a `<project-id>.webvn.zip` file on the author's disk. The OPFS library holds

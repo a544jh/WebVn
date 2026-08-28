@@ -62,17 +62,32 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     No engine implements directory move; the recursive walk
              |     is shared with zip import/export.
              +-> project library UI                          M
+             |     |     Hosts the first-run story: an empty picker is the
+             |     |     worst introduction to an authoring tool, so the
+             |     |     "load the demo" button below lives here.
              |     +-> persist() + estimate() + export nag    S
              +-> navigator.locks for two-tab autosave         S
              +-> linked-folder layer (optional)               M
              |     +-> IndexedDB handle store
-             +-> zip import/export  (needs H)                 M
-             |     <project-id>.webvn.zip, manifest at the archive root.
-             |     Import sniffs PK\x03\x04 not the extension, strips a
-             |     single wrapping dir if present, and takes identity from
-             |     the manifest id rather than any filename.
-                   +-> publish: static folder / single-file HTML
-                   +-> downscale on import (optional)
+             +-> import: shared back half + size/entry caps    M
+             |     |     SourceLoader in front, so a new ingestion path
+             |     |     is a loader and not a subsystem. Validate the
+             |     |     manifest, write the tree, raise the collision
+             |     |     dialog. All four paths share this.
+             |     +-> publish: static folder                       M
+             |     |     The demo is the first one, laid out in dist/
+             |     |     in the OPFS shape. URL import reads it back.
+             |     +-> URL import + "load the demo" button          M
+             |     |     Same-origin first, so CORS is not a variable
+             |     |     in the first attempt. The manifest is the file
+             |     |     index; a partial fetch fails the whole import.
+             |     +-> zip import/export  (needs H)                 M
+             |     |     <project-id>.webvn.zip, manifest at the archive
+             |     |     root. Sniffs PK\x03\x04 not the extension, strips
+             |     |     a single wrapping dir, identity from the manifest
+             |     |     id. Export must NOT ship ahead of this.
+             |     +-> single-file HTML export
+             |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
 
   D -> project id embedded in the exported story

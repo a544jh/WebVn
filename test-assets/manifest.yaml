@@ -25,8 +25,8 @@ actors:
       shocked: "2.png"
 
 backgrounds:
-  classroom: a.png
-  hallway: b.png
+  a: a.png
+  b: b.png
 
 # A bare string is the whole declaration when there is nothing to credit; the pause menu shows the
 # title and artist of whichever track is playing.

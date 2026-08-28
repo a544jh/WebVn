@@ -6,7 +6,7 @@ story:
   - set: [$a, =, 0]
   - textbox: close
   - bg:
-      image: classroom
+      image: a
       transition: blinds
       duration: 2000
       pan:
@@ -19,7 +19,7 @@ story:
       audio: map01
       loop: false
   - bg:
-      image: hallway
+      image: b
       transition: fade
       duration: 2000
       pan:
@@ -103,7 +103,7 @@ story:
       transition: blinds
       duration: 1000
   - bg:
-      image: hallway
+      image: b
       transition: blinds
       duration: 1000
   - mode: adv
@@ -135,7 +135,7 @@ story:
       transition: fade
       duration: 200
   - bg:
-      image: hallway
+      image: b
       transition: fade
       duration: 200
   - That was a bad choice.

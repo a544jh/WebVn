@@ -143,7 +143,7 @@ See [ROUGH_EDGES.md](./ROUGH_EDGES.md) for the running list of typos, design sme
 `design-docs/` holds architecture that has been reasoned through but not implemented. It is not documentation of
 the current code, so do not read it as describing what exists.
 - [PROJECT_STORAGE.md](./design-docs/PROJECT_STORAGE.md) — how an author's project (script, assets, metadata) is
-  stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvnproj` zip as the
+  stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvn.zip` archive as the
   canonical artifact, a library of projects rather than one. Read it before touching the asset loaders, the
   hardcoded asset lists in `src/demoStory.ts`, or the `vn-test` save key.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an

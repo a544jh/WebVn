@@ -95,8 +95,8 @@ editor.yaml
 
 `editor.yaml` sits beside `projects/`, not inside a project. It holds the editor's own bookkeeping - last
 opened, last exported, a rename in flight - none of which is project data and none of which should travel in
-an export. Keeping it outside the project directories is what lets a `.webvnproj` stay *the whole
-`projects/<project-id>/` tree*: export is a straight walk, import a straight copy, with nothing to strip.
+an export. Keeping it outside the project directories is what lets a `.webvn.zip` stay *exactly the contents
+of one project directory*: export is a straight walk, import a straight copy, with nothing to filter out.
 It belongs in OPFS rather than localStorage for the same reason the manifest does - it is evicted atomically
 with the data it describes instead of drifting out of sync with it.
 
@@ -105,7 +105,7 @@ dependency already in the tree, and so a human can read it in the export. It hol
 asset declarations that currently live in `demoStory.ts`:
 
 ```yaml
-id: my-story        # author-chosen, restricted charset, also the directory name
+id: my-story        # author-chosen, restricted charset, names the directory
 title: My Story
 formatVersion: 1
 actors:
@@ -119,7 +119,7 @@ audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
 
 Validate it with Zod, matching how commands are already parsed (`makeZodCmdHandler`).
 
-**The id is author-chosen, not a UUID, and it is the directory name.** An earlier draft used a UUID
+**The id is author-chosen, not a UUID, and it names the directory.** An earlier draft used a UUID
 precisely so that renaming would never have to move a directory. That was traded away deliberately: a
 readable id collapses the directory name, the player-save key, the exported filename and the published folder
 into one string the author can say out loud, and it makes the "the project id must be embedded in the
@@ -216,7 +216,7 @@ stops being a possible bug.
 
 The editor holds a library of projects, not a single loaded one.
 
-The deciding argument is that single-project makes import destructive: "open a `.webvnproj`" would mean
+The deciding argument is that single-project makes import destructive: "open a `.webvn.zip`" would mean
 "destroy whatever you were working on", guarded by a confirm dialog whose real question is "did you remember
 to export?". With a library, import is additive and boring.
 
@@ -238,13 +238,85 @@ reason to invite it.
 
 ## Leaving the browser
 
-**The canonical artifact is a `.webvnproj` file on the author's disk. The OPFS library holds working copies.**
-That framing is what makes eviction survivable, makes a "last exported N days ago" nag principled rather than
-paranoid, and gives the linked-folder layer a natural place to live.
+**The canonical artifact is a `<project-id>.webvn.zip` file on the author's disk. The OPFS library holds
+working copies.** That framing is what makes eviction survivable, makes a "last exported N days ago" nag
+principled rather than paranoid, and gives the linked-folder layer a natural place to live.
 
 The format is a zip, not gzip. Media is already compressed, so gzipping the bundle buys close to nothing while
 making it opaque; a zip is inspectable, and store-mode entries for media keep import a straight copy. It is
-the whole `projects/<project-id>/` tree, manifest included.
+the contents of `projects/<project-id>/`, manifest included, unwrapped at the archive root.
+
+**The extension really is `.zip`, not a custom `.webvnproj`.** Every precedent points the other way - `.sb3`,
+`.love`, `.epub`, `.docx`, `.kra` are all zips wearing a custom extension - but every one of those belongs to
+an application that *installs* and registers a file-type handler. This project has ruled that out (see
+"Rejected" below), so nothing on the author's machine would ever claim `.webvnproj`, and the extension's only
+achievement would be a double-click that says "no app associated with this file". Ending in `.zip` means any
+OS opens it with the built-in archive tool, and the author can look inside without owning any tooling at all -
+which for a format whose selling point is being inspectable is most of the point.
+
+A pleasant accident: Windows hides known extensions by default, so the file *displays* as `my-story.webvn`
+while still double-clicking as a zip - the identity of a custom extension without the dead end.
+
+What it costs is the PWA route. An installed PWA can register `file_handlers` in its manifest and receive
+double-clicked files through `launchQueue`, and that can name a custom extension but obviously cannot claim
+`.zip`. So a future "double-click a project, it opens in the editor" is foreclosed for anyone who installs
+WebVN as a PWA - Chromium desktop only, and only once installed. That is a narrow enough slice to trade for
+every non-developer being able to open the file today.
+
+**Import sniffs the magic bytes (`PK\x03\x04`), never the extension.** Renaming a project file must not make
+it unopenable, drag-and-drop carries no reliable extension anyway, and sniffing means both spellings are
+accepted regardless of which one export writes. The decision above is therefore reversible: it only picks the
+default filename export suggests.
+
+**`manifest.yaml` sits at the archive root; there is no wrapping `<project-id>/` directory.** Best practice
+says wrap, to stop a hand-extraction scattering files into the author's Downloads folder. That risk is
+smaller than it looks: Windows Explorer's "Extract All" always wraps in a folder named after the archive, and
+what actually scatters is `unzip` at a terminal - the one audience equipped to pass `-d`. Set against it,
+wrapping would put the project id in three places at once (the filename, the root directory name, and the
+manifest) with no guarantee they agree, and would demand a precedence rule for when they do not. Not wrapping
+deletes that question.
+
+The accepted costs are that `unzip` scatters, and that a GUI extraction yields a folder named after the
+archive, inheriting the double extension - `my-story.webvn/` rather than a clean `my-story/`.
+
+**Import normalizes the shape rather than requiring one.** If every entry shares a single top-level directory
+prefix and there is no `manifest.yaml` at the archive root, strip that prefix. The rule is unambiguous
+because a manifest at the root is mandatory, so the two layouts can never be confused for one another. This
+matters more than the layout does: the natural way to re-zip an edited project - macOS right-click Compress,
+Windows "Send to compressed folder" - operates on the *folder* and so produces a wrapped archive. A format
+meant to be opened by hand has to accept whatever a hand puts back, including archives assembled by
+third-party tools that wrap differently. The choice above is then only about what export writes.
+
+**The manifest `id` is the source of truth for identity, everywhere, without exception.** Not the archive
+filename, not the wrapping directory a normalized import just stripped, not the OPFS directory name. Those
+are labels *derived* from the id and are allowed to be stale; the manifest is the project saying what it is.
+So importing `whatever-they-renamed-it.zip` yields the project its manifest names, and when an OPFS directory
+disagrees with the manifest inside it the fix is **always to rename the directory to match the manifest,
+never to rewrite the manifest to match the directory** - which is exactly the rename in "Renaming" above,
+reached from the other direction. That direction is worth stating because the cheap implementation is the
+wrong one: rewriting the field is a one-line write and copying a directory is not, so an optimization later
+could silently rename the author's project instead of moving it.
+
+This does not contradict "Enumeration is the truth" above; the two answer different questions. Enumeration is
+authoritative about *which projects exist* - a directory listing cannot lie about that. The manifest is
+authoritative about *what a project is*. A directory with no manifest is therefore not a project with a
+missing name, it is not a project.
+
+**Extracting the archive does not hand you something the editor is watching.** Making the format inspectable
+invites someone to edit the files they extracted and expect it to take effect. Today nothing watches any
+folder: OPFS is the master, and an extracted tree gets back in only by being imported. That is a property of
+the current design rather than of the format - if the linked-folder layer ships it stops holding for a
+*linked* folder, and the open question below owns revisiting it.
+
+A short `README.txt` at the archive root is cheap, and lands beside `manifest.yaml` where it is the first
+thing visible when the zip is opened in an OS viewer. It is generated on export and skipped on import, the
+one place where the archive is not exactly the project tree.
+
+**Its wording has to outlive the design.** The README ships inside every archive an author has already
+exported, so unlike this document it cannot be corrected later - which rules out describing architecture in
+it. Keep it to what the file is, what wrote it, and the URL to open it at, phrased as an instruction ("to
+work on this, open <url> and import this folder") rather than a prohibition ("editing these files does
+nothing"). The instruction stays true if linking arrives; the prohibition would not.
 
 `@zip.js/zip.js` is the intended library: zero dependencies, BSD-3, actively maintained, and it reads the
 central directory through a `BlobReader` so entries are extracted by random access rather than by streaming
@@ -348,7 +420,8 @@ Things that will break quietly if they are skipped.
 - **`createWritable()` support in current Safari.** Reports conflict. Determines whether the worker plus
   `createSyncAccessHandle()` path is a fallback or the primary implementation.
 - **Whether the linked-folder layer ships at all.** It is the main justification for OPFS over IndexedDB, and
-  the only thing that pulls IndexedDB into the design.
+  the only thing that pulls IndexedDB into the design. It would also make a folder on disk a live target
+  rather than an inert copy, which is why the export README must not claim otherwise.
 - **Re-encoding on import.** A 12MP phone photo as a background is the common case and a non-developer will
   not think to resize it. Offer, force, or ignore?
 - **Content-addressed assets** (SHA-256 via SubtleCrypto, manifest maps logical name to hash). Gives dedupe

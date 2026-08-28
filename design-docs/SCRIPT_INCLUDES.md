@@ -90,7 +90,7 @@ interface SourceLoader {
 ```
 
 `updateState` then takes the bundle plus an entry path and stays synchronous. Implementations: OPFS for the
-editor, zip entries during a `.webvnproj` import, and an in-memory map for tests. This is deliberately the
+editor, zip entries during a `.webvn.zip` import, and an in-memory map for tests. This is deliberately the
 same shape as the `AssetResolver` in [PROJECT_STORAGE.md](./PROJECT_STORAGE.md), for the same reason - the
 thing that varies is where bytes come from, and nothing else should have to know.
 

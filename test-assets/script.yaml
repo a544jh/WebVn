@@ -40,7 +40,7 @@ story:
   - A1: Here I am
   - show:
       actor: A1
-      sprite: shocked
+      sprite: "2"
       x: .2
   - A1: Just talking...
   - bgm: daylight
@@ -66,6 +66,40 @@ story:
   - A2: Whee!
   - A2: Bye
   - hide: A2
+  - A1: One sprite can be on screen many times at once - each show names its own id.
+  - show:
+      id: crowd-1
+      actor: A2
+      sprite: idle
+      x: .2
+      y: .9
+      anchorY: 1
+  - show:
+      id: crowd-2
+      actor: A2
+      sprite: idle
+      x: .4
+      y: .9
+      anchorY: 1
+  - show:
+      id: crowd-3
+      actor: A2
+      sprite: idle
+      x: .6
+      y: .9
+      anchorY: 1
+  - show:
+      id: crowd-4
+      actor: A2
+      sprite: idle
+      x: .8
+      y: .9
+      anchorY: 1
+  - A1: And each is hidden by the id it was shown under.
+  - hide: crowd-1
+  - hide: crowd-2
+  - hide: crowd-3
+  - hide: crowd-4
   - Bye bye, actors
   - hide: A1
   - Let's enter freeform mode!

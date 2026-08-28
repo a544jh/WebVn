@@ -16,13 +16,13 @@ actors:
     nameTagColor: purple
     sprites:
       idle: idle.png
-      shocked: "2.png"
+      "2": "2.png"
   A2:
     name: Actor2
     nameTagColor: orange
     sprites:
       idle: idle.png
-      shocked: "2.png"
+      "2": "2.png"
 
 backgrounds:
   a: a.png

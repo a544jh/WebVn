@@ -102,6 +102,8 @@ const actorScene = (freeformStops: string[]) => [
   "And here I come",
   "Whee!",
   "Bye",
+  "One sprite can be on screen many times at once - each show names its own id.",
+  "And each is hidden by the id it was shown under.",
   "Bye bye, actors",
   "Let's enter freeform mode!",
   ...freeformStops,
@@ -341,15 +343,15 @@ describe("demo story - script", () => {
     const [state, errors] = YamlParser.parseStory(demoYaml, demoManifest)
 
     expect(errors.map((e) => `L${e.location.startLine}: ${e.message}`)).toEqual([
-      "L97: ugh is not a recognized command.",
-      "L118: Unrecognized item. A command should be a string or a single-keyed map.",
-      "L121: Unrecognized item. A command should be a string or a single-keyed map.",
+      "L131: ugh is not a recognized command.",
+      "L152: Unrecognized item. A command should be a string or a single-keyed map.",
+      "L155: Unrecognized item. A command should be a string or a single-keyed map.",
     ])
     expect(errors.every((e) => e.level === ErrorLevel.WARNING)).toBe(true)
 
     // The three warned-about items produce no command at all, so the story just skips them.
-    expect(state.labels).toEqual({ loop: 14, asd: 56, bad: 66 })
-    expect(state.commands).toHaveLength(73)
+    expect(state.labels).toEqual({ loop: 14, asd: 66, bad: 76 })
+    expect(state.commands).toHaveLength(83)
   })
 })
 
@@ -469,7 +471,10 @@ describe("demo story - textbox", () => {
     expect(nameTag(h.root)?.textContent).toBe("Actor2")
     expect(getComputedStyle(nameTag(h.root) as HTMLDivElement).color).toBe("rgb(255, 165, 0)") // orange
 
-    await advanceCollect(h, 3) // "Whee!", "Bye", "Bye bye, actors" (narrator)
+    await advanceCollect(h, 4) // "Whee!", "Bye", then A1's two lines over the crowd
+    expect(nameTag(h.root)?.textContent).toBe("Actor")
+
+    await advanceFast(h) // "Bye bye, actors" (narrator)
     expect(screenText(h.root)).toBe("Bye bye, actors")
     expect(nameTag(h.root)).toBeNull()
   }, 30000)
@@ -603,14 +608,14 @@ describe("demo story - sprites", () => {
     const a1Two = h.images["sprites/A1/2.png"]
     const a2Idle = h.images["sprites/A2/idle.png"]
 
-    // `show: {actor: A1, sprite: idle.png}` - centered, since x/y/anchors all default to 0.5
+    // `show: {actor: A1, sprite: idle}` - centered, since x/y/anchors all default to 0.5
     await advanceToStop(h, FIRST_ACTOR_LINE)
     let sprites = liveSprites(h.root)
     expect(Object.keys(sprites)).toEqual(["A1"])
     expect(sprites["A1"].dataset.testAsset).toBe("sprites/A1/idle.png")
     expect(sprites["A1"].style.transform).toBe(expectedSpriteTransform(a1Idle, 0.5, 0.5, 0.5, 0.5))
 
-    // `show: {actor: A1, sprite: 2.png, x: .2}` - crossfade to another sprite, further left
+    // `show: {actor: A1, sprite: "2", x: .2}` - crossfade to another sprite, further left
     await advanceFast(h)
     sprites = liveSprites(h.root)
     expect(Object.keys(sprites)).toEqual(["A1"])
@@ -630,8 +635,25 @@ describe("demo story - sprites", () => {
     sprites = liveSprites(h.root)
     expect(sprites["A2"].style.transform).toBe(expectedSpriteTransform(a2Idle, 1, 1, 1, 1))
 
+    // `hide: A2`, then four `show`s of A2's one sprite under ids of their own. The map is keyed by
+    // id, so the same actor showing the same image is on screen four times over, alongside A1.
     await advanceFast(h) // "Bye"
-    await advanceFast(h) // `hide: A2` then "Bye bye, actors"
+    await advanceFast(h) // `hide: A2` then A1's line announcing the crowd - not shown yet
+    expect(Object.keys(liveSprites(h.root))).toEqual(["A1"])
+
+    await advanceFast(h) // the four `show`s, then A1's second line
+    const crowd = liveSprites(h.root)
+    expect(Object.keys(crowd).sort()).toEqual(["A1", "crowd-1", "crowd-2", "crowd-3", "crowd-4"])
+    for (const id of ["crowd-1", "crowd-2", "crowd-3", "crowd-4"]) {
+      expect(crowd[id].dataset.testAsset).toBe("sprites/A2/idle.png")
+    }
+    // Four instances of one declared sprite, each at its own x - so they are four elements, not one
+    // element moved four times.
+    expect(new Set([...Object.values(crowd)].map((e) => e.style.transform)).size).toBe(5)
+    expect(crowd["crowd-1"].style.transform).toBe(expectedSpriteTransform(a2Idle, 0.2, 0.9, 0.5, 1))
+
+    // each `hide` takes back the id its `show` named, leaving A1 alone on stage
+    await advanceFast(h) // `hide: crowd-1..4` then "Bye bye, actors"
     expect(screenText(h.root)).toBe("Bye bye, actors")
     expect(Object.keys(liveSprites(h.root))).toEqual(["A1"])
     expect(spriteElems(h.root)).toHaveLength(1)

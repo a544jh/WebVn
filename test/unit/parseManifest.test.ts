@@ -385,7 +385,7 @@ audioAssets:
         daylight: { file: "bgm/dayl_preview.ogg", title: "Daylight - 8bit remix", artist: "a544jh" },
         bigthump: { file: "sfx/bigthump.ogg" },
       })
-      expect(manifest?.actors.A1.sprites).toEqual({ idle: "idle.png", shocked: "2.png" })
+      expect(manifest?.actors.A1.sprites).toEqual({ idle: "idle.png", "2": "2.png" })
     })
   })
 })

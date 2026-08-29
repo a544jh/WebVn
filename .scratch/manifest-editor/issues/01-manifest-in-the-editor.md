@@ -114,14 +114,27 @@ nothing migrates. That is a project rename by the crudest definition, and it is 
 `PROJECT_STORAGE.md`'s library exists - at which point renaming is a library operation and this
 becomes a special case of it.
 
-Two consequences to write down rather than discover:
+**The key becomes `vn-save-<id>` in the same change.** `save.ts` writes `vn-<id>`;
+`PROJECT_STORAGE.md` specifies `vn-save-<id>` and says why: localStorage is origin-wide and shared
+with the editor's own keys, so once ids are author-chosen a project named `settings` or `theme`
+collides with whatever the app stores under that name. The prefix is the only thing separating the
+author-controlled keyspace from the app-controlled one, and the two-level shape leaves `vn-editor-*`
+free. That doc also dates the deadline: *"reshaping it is free now, when the only key in existence is
+the demo's `vn-test`, and will not be later."* This ticket is what makes it later - the moment ids
+are author-chosen, real project keys start existing - so the rename happens here or it happens
+expensively.
 
-- **`vn-test` saves are orphaned.** The key is `vn-${id}`, so the demo moves to `vn-webvn-demo` and
-  anything saved before this lands is unreachable. Acceptable: the only saves that exist are the
-  demo's, on the machines of people who can clear a localStorage key.
-- **The prefix does not match the design doc.** `save.ts` writes `vn-<id>`; `PROJECT_STORAGE.md`
-  says `vn-save-<id>`. Leave the prefix alone here. Renaming the key is that doc's to do, and doing
-  it in the same change would orphan the saves twice.
+Doing both at once also costs less than doing them apart: **one break, not two.** The demo's saves
+move from `vn-test` straight to `vn-save-webvn-demo`, and anything saved before this lands is
+unreachable. Acceptable: the only saves that exist are the demo's, on the machines of people who can
+clear a localStorage key.
+
+**It does not close the stale-save rough edge.** `ROUGH_EDGES.md` blames the hardcoded `"test"` for
+saves surviving a script edit. The rekey fixes one half of that - two different stories no longer
+share one key, which is the collision `PROJECT_STORAGE.md` has the standalone player hitting on
+shared links - but not the other: the id names the project, not the version of its script, so a save
+made before an edit still loads afterwards and `loadFromSlot` can still throw uncaught into
+`SaveLoadMenu`. That entry stays open.
 
 ### 3. A declared file that is not there must not hang the apply
 
@@ -246,8 +259,10 @@ disposable editor feature in a row.
 - **Where the manifest text is stored.** Today it is a `?raw` import of a file in the repo; the OPFS
   project store is what makes it editable-and-saved. `design-docs/PROJECT_STORAGE.md`.
 - **A project rename flow, and migrating saves across an id change.** The id becomes the save key
-  here; moving existing saves to a new key, or listing projects, is `PROJECT_STORAGE.md`'s library.
-- **Renaming the save key to `vn-save-<id>`.** Same doc, and doing it here orphans saves twice.
+  here; moving existing saves to a new key, or listing projects, is `PROJECT_STORAGE.md`'s library -
+  which decides that a rename orphans the old key deliberately, so there is nothing to migrate anyway.
+- **Catching an incompatible save on load.** The `SaveLoadMenu` half of the `ROUGH_EDGES.md` entry
+  above, which this ticket narrows but does not close.
 - **Adding or uploading asset files.** This edits declarations, not the assets they point at. A
   declared file that does not exist stays a load failure - this ticket only makes it a survivable and
   reported one.
@@ -262,7 +277,9 @@ disposable editor feature in a row.
 - `docs/adr/0001-manifest-seeds-the-initial-state.md` - why `id` is not in `VnPlayerState`, which is
   what makes the save rekey a threading problem rather than a lookup
 - `design-docs/EDITOR.md` - the CM6 migration and multi-buffer this duplicates and is deleted by
-- `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the save key
+- `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the `vn-save-<id>`
+  key this adopts
+- `ROUGH_EDGES.md` - the stale-save entry this narrows to its remaining half
 - `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` - the other half of
   "declared before it exists is the normal authoring order"
 - `TODO` - item `A` for the disposable-feature precedent, item `T` for the missing editor tests

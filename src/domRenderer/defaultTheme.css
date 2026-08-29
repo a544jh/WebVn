@@ -321,13 +321,7 @@ body {
 }
 
 .vn-now-playing-title {
-  font-size: 22px;
-  line-height: 26px;
-  font-weight: 600;
-}
-
-.vn-now-playing-artist {
   font-size: 16px;
   line-height: 20px;
-  opacity: 0.8;
+  font-weight: 600;
 }

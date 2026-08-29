@@ -198,6 +198,14 @@ export const typeScript = (started: StartedEditor, text: string): void => {
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
 
+// Clicking a line's gutter, which is how an author moves the playhead. Fired through CodeMirror's
+// own event bus rather than as a DOM click: the handler is registered with `cm.on`, and reaching it
+// with a real click would mean placing one over a gutter column measured at runtime.
+export const clickGutter = (started: StartedEditor, line: number): void => {
+  const cm = codeMirrorOf(started.editorRoot)
+  CodeMirror.signal(cm, "gutterClick", cm, line - 1) // codemirror lines are zero based
+}
+
 // Leaving the editor, which is what adopts a manifest.
 export const blurEditor = async (started: StartedEditor): Promise<void> => {
   const cm = codeMirrorOf(started.editorRoot)

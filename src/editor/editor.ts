@@ -319,18 +319,26 @@ export class VnEditor {
   }
 
   private goToLine(line: number) {
-    if (!this.scriptDoc.isClean()) {
-      // Reloading rather than loading keeps the choices made so far, so the replay jump below still
-      // has decisions to follow. They are truncated to what still replays, because this method does
-      // not always reach the jump - clicking a line that holds no command returns before it - and a
-      // path left describing the old script would be waiting to break the next undo.
+    // Reloading rather than loading keeps the choices made so far, so the replay jump below still
+    // has decisions to follow. They are truncated to what still replays, because this method does
+    // not always reach the jump - clicking a line that holds no command returns before it - and a
+    // path left describing the old script would be waiting to break the next undo.
+    const reloaded = !this.scriptDoc.isClean()
+    if (reloaded) {
       this.player.reloadStory(this.parseDocument())
     }
     const commandIndex = this.player.state.commands.findIndex((cmd) => {
       const location = cmd.getSourceLocation()
       return line >= location.startLine && line <= location.endLine
     })
-    if (commandIndex === -1) return // do nothing if we try to go to a non-command line
+    if (commandIndex === -1) {
+      // Nowhere to jump to, but a reload has already moved the player: the path was cut back to
+      // what still replays and `startingState` is the new story. The frame on screen belongs to the
+      // story that is gone, so repaint where the reload landed rather than leaving the preview
+      // quoting a line the script no longer has. Nothing to repaint when nothing was reloaded.
+      if (reloaded) this.renderer.render(false)
+      return
+    }
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
     if (this.jumpMode === "replay") {
       this.player.goToCommandByReplay(commandIndex + 1)

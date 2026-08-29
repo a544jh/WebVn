@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest"
 import {
   blurEditor,
+  clickGutter,
   editorTab,
   errorMarkers,
   markedLines,
   nameTag,
+  nextStop,
   settle,
   startEditor,
   StartedEditor,
+  textBoxText,
   typeManifest,
+  typeScript,
 } from "../helpers/vnHarness"
 
 // The first tests VnEditor has ever had. They assert on player and renderer state rather than on
@@ -230,5 +234,73 @@ backgrounds:
 
     expect(localStorage.getItem("vn-save-renamed-id")).not.toBe(null)
     expect(localStorage.getItem("vn-save-first-id")).toBe(null)
+  })
+})
+
+// Leaving the script buffer reparses it, and the reparse moves the player: the path is cut back to
+// what still replays against the new story and `startingState` becomes it. What the editor then
+// does with the line it was asked for is a separate question, and the answer can be "nothing" -
+// clicking a blank line, or a line whose command an edit has just deleted. The reload has already
+// happened by then, so returning without a render leaves the preview quoting a story that is gone.
+describe("reparsing on blur", () => {
+  const manifest = `
+formatVersion: 1
+id: reparse-test
+title: A Test Story
+`
+
+  const script = `
+story:
+  - "First line"
+  - "Second line"
+  - "Third line"
+`
+
+  // The line the player is parked on is gone from the new script, so goToLine finds no command for
+  // it. Breaking the YAML is the bluntest way there and the one an author actually hits.
+  const broken = `
+story:
+  - "First line"
+  -- Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - "Third line"
+`
+
+  const readToTheEnd = async (vn: StartedEditor): Promise<void> => {
+    for (let i = 0; i < 2; i++) {
+      const stop = nextStop(vn.renderer, vn.player)
+      vn.renderer.advance()
+      await stop
+    }
+  }
+
+  it("repaints where the reload landed, even with no command on the line", async () => {
+    const vn = await startEditor(manifest, script)
+    await readToTheEnd(vn)
+    expect(textBoxText(vn.root)).toBe("Third line")
+
+    typeScript(vn, broken)
+    await blurEditor(vn)
+
+    // One command left, and the player is on it. The preview used to be left on "Third line",
+    // which is not in this story and not where the player is.
+    expect(vn.player.state.commands).toHaveLength(1)
+    expect(vn.player.state.commandIndex).toBe(1)
+    expect(textBoxText(vn.root)).toBe("First line")
+  })
+
+  it("leaves a clicked blank line alone when there was nothing to reparse", async () => {
+    const vn = await startEditor(manifest, script)
+    await readToTheEnd(vn)
+    let renders = 0
+    vn.renderer.onRenderCallbacks.push(() => renders++)
+
+    // The other side of the repaint: nothing was reparsed, so nothing moved, so a line that holds
+    // no command is still the no-op it always was.
+    clickGutter(vn, 1)
+    await settle()
+
+    expect(renders).toBe(0)
+    expect(vn.player.state.commandIndex).toBe(3)
+    expect(textBoxText(vn.root)).toBe("Third line")
   })
 })

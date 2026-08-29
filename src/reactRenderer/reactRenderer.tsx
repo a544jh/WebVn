@@ -68,10 +68,6 @@ export class ReactRenderer implements Renderer {
   public loadAssets(): Promise<string[]> {
     return Promise.resolve([])
   }
-
-  public setSaveId(): void {
-    // Nothing here saves yet. The incomplete experiment, per CLAUDE.md - not a code path.
-  }
 }
 
 let id = 0

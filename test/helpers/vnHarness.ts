@@ -68,9 +68,9 @@ export interface MountedVn {
 // Boots a story the way the standalone player does: build the renderer, then hand it the story with
 // loadStory, which plays it to its first stop. The stop is hooked up before that call rather than
 // after, so nothing can be missed by a boot that finishes early.
-export const mountVn = (root: HTMLDivElement, state: VnPlayerState, saveId = TEST_MANIFEST.id): MountedVn => {
+export const mountVn = (root: HTMLDivElement, state: VnPlayerState): MountedVn => {
   const player = new VnPlayer(state)
-  const renderer = new DomRenderer(root, player, saveId)
+  const renderer = new DomRenderer(root, player)
   const firstStop = nextStop(renderer, player)
   renderer.loadStory(state, true)
   return { player, renderer, firstStop }
@@ -89,7 +89,7 @@ export const startVn = async (
   const root = createVnRoot(options)
   const [state, errors] = YamlParser.parseStory(script, options.manifest ?? TEST_MANIFEST)
   expect(errors).toEqual([])
-  const mounted = mountVn(root, state, (options.manifest ?? TEST_MANIFEST).id)
+  const mounted = mountVn(root, state)
   await mounted.firstStop
   return { root, ...mounted }
 }
@@ -143,7 +143,7 @@ export const startEditor = async (manifestText: string, script: string): Promise
   if (manifest === null) throw new Error("the test's own manifest does not parse")
 
   const player = new VnPlayer(seedState(manifest))
-  const renderer = new DomRenderer(root, player, manifest.id)
+  const renderer = new DomRenderer(root, player)
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
 
   const firstStop = nextStop(renderer, player)

@@ -34,7 +34,7 @@ window.vnPlayer = player
 
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, player, demoManifest.id)
+const renderer = new DomRenderer(vnDiv, player)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement

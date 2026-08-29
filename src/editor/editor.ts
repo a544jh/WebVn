@@ -204,10 +204,9 @@ export class VnEditor {
 
     this.setAssetsLoaded(failed)
 
-    // Later saves go to the new key. Nothing migrates - see DomRenderer.setSaveId.
-    this.renderer.setSaveId(manifest.id)
     // Reloading rather than loading: the path is replayed against the new starting state and cut
-    // back to the part that still applies, the same answer a script edit gets.
+    // back to the part that still applies, the same answer a script edit gets. An edited `id` is
+    // carried in on that state, so later saves go to the new key without a second call to make.
     this.player.reloadStory(state)
     this.renderer.render(false)
   }

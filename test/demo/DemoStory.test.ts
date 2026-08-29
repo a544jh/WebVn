@@ -266,9 +266,7 @@ afterEach(() => {
 // Boots the demo exactly like playerIndex.ts does and waits for the first stop.
 const startDemo = async (): Promise<Harness> => {
   const [state] = YamlParser.parseStory(demoYaml, demoManifest)
-  // The demo's own save id, so what lands in localStorage is keyed the way the standalone player
-  // keys it.
-  const { player, renderer, firstStop } = mountVn(harnessRoot, state, demoManifest.id)
+  const { player, renderer, firstStop } = mountVn(harnessRoot, state)
   // Assets are only needed from the first advance on, so they can load while the renderer is
   // already on its way to the first stop.
   const images = await loadDemoAssets(renderer, state)

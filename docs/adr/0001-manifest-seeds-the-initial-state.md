@@ -75,3 +75,43 @@ story runs, still nothing playback points into, and `parseStory` still cannot be
 which is the mistake this decision existed to make unrepresentable. What changed is the definition of the
 contents: "everything a story needs that its script does not spell out" became "what a project declares
 about itself", which is a superset. `CONTEXT.md` carries the wider wording.
+
+## Amendment, 2026-08-29: identity seeds the state too
+
+`seedState` copied the asset declarations and dropped `id` and `title`, and
+`.scratch/manifest-editor/issues/01-manifest-in-the-editor.md` read that omission as a decision this
+ADR had taken - *"`VnPlayerState` deliberately does not carry `id` ... Do not put `id` into the state
+to solve this"*. It never was one. Nothing above rules identity out of the state; the amendment above
+decides only that `id` and `title` live on `VnManifest` rather than on a wrapping `ProjectManifest`.
+The omission was a consequence of the seed being written before the manifest had identity at all.
+
+**`seedState` now copies `id` and `title` into the state.**
+
+The argument is this ADR's own. Saves are keyed by `id`, and the writer is `DomRenderer`, which holds
+a player rather than a manifest. With identity outside the state, that key has to be threaded in
+separately and kept in step by hand: adopting a manifest meant calling `setSaveId` *and*
+`reloadStory`, two calls with nothing tying them together. A caller that does the second without the
+first - `design-docs/PROJECT_STORAGE.md`'s library, switching projects, is the one coming - writes one
+project's progress under another project's key, silently, and the damage is found much later. Putting
+the id in the state makes that unrepresentable, which is the same move this ADR makes when it says
+`parseStory(text, manifest)` makes a mid-story base state unrepresentable.
+
+It also deletes more than it adds: `Renderer.setSaveId`, `DomRenderer.setSaveId` and its field and
+constructor parameter, the argument at nine construction sites, and the editor's rekey call, against
+two fields and two lines in `seedState`.
+
+`title` comes along with `id` rather than being left behind. Splitting the two would put half of a
+project's identity in the state and half outside it, and re-open on a smaller scale exactly the
+question the 2026-08-28 amendment closed by keeping identity in one place. Nothing reads it yet.
+
+### What this does not retract
+
+The manifest is still an input rather than a live field. `id` and `title` are **inert**: no command
+reads either, `State.advance` writes neither, and every command that rebuilds a state spreads the old
+one, so they are carried rather than computed. This is not the manifest becoming a live field on the
+state - that is still rejected, above.
+
+It does widen the accepted awkwardness in the consequences above, where a function named `parseStory`
+returns a `VnPlayerState`: that state now carries project identity as well as story and playback. The
+trade is taken deliberately. The alternative was the threading, and the threading has a silent
+wrong-key failure mode where this has none.

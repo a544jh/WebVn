@@ -48,7 +48,7 @@ async function boot(): Promise<void> {
   const player = new VnPlayer(seedState(manifest), save)
   window.vnPlayer = player
 
-  const renderer = new DomRenderer(vnDiv, player, manifest.id)
+  const renderer = new DomRenderer(vnDiv, player)
   window.vnDomRenderer = renderer
 
   const [state] = YamlParser.parseStory(script, manifest)

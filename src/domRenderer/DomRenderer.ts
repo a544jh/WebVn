@@ -52,16 +52,9 @@ export class DomRenderer implements Renderer {
 
   private arrow: HTMLDivElement
 
-  // What saves are keyed under: the manifest's `id`, threaded in rather than read off the player,
-  // because `VnPlayerState` deliberately does not carry identity - see
-  // docs/adr/0001-manifest-seeds-the-initial-state.md. The editor calls `setSaveId` when the author
-  // adopts a manifest with a different one.
-  private saveId: string
-
-  constructor(elem: HTMLDivElement, player: VnPlayer, saveId: string) {
+  constructor(elem: HTMLDivElement, player: VnPlayer) {
     this.finished = true
 
-    this.saveId = saveId
     this.root = elem
 
     this.menuDiv = document.createElement("div")
@@ -289,16 +282,13 @@ export class DomRenderer implements Renderer {
     }
   }
 
-  // A project renamed mid-session writes to the new key from here on. Nothing re-reads the old one
-  // and nothing migrates: the slots already in memory land under the new key on the next save. That
-  // is the crudest form of a project rename, and it is what design-docs/PROJECT_STORAGE.md's library
-  // makes a real operation.
-  public setSaveId(id: string): void {
-    this.saveId = id
-  }
-
+  // Keyed by the project the state names, so a reload carries the key with it and no caller can
+  // swap the story without swapping the key. A project renamed mid-session therefore writes to the
+  // new key from the adoption on: nothing re-reads the old one and nothing migrates, so the slots
+  // already in memory land under the new key on the next save. That is the crudest form of a
+  // project rename, and design-docs/PROJECT_STORAGE.md's library is what makes it a real operation.
   private persistGlobalSave(): void {
-    saveToLocalStorage(this.saveId, this.player.getGlobalSaveData())
+    saveToLocalStorage(this.player.state.id, this.player.getGlobalSaveData())
   }
 
   public getSaves(): VnSaveSlotData[] {

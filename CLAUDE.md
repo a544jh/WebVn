@@ -107,6 +107,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 
 ### Immutable state + path replay
 - `VnPlayerState` (src/core/state.ts) is almost entirely `readonly`. `State.advance(state)` returns a new snapshot.
+- It also carries the project's `id` and `title`, seeded from the manifest and inert: no command reads either
+  and `advance` writes neither. `id` is the save key, and holding it here is what stops a reload from writing
+  one project's progress under another's — see ADR 0001's 2026-08-29 amendment before moving it back out.
 - `VnPath` (src/core/vnPath.ts) records *user actions* (`Advance`, `MakeDecision`, `GoToCommand`) — not state snapshots. Saving stores this path in shorthand (decisions + trailing advances). Loading replays from `startingState` by reapplying actions.
 - Consequence: commands must be **pure** with respect to state. Any nondeterminism (random, time, network) breaks replay. If you add one, seed it from state.
 
@@ -193,7 +196,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   layers is a rule that drifts.
 
 ### Renderer contract
-- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`, `setSaveId(id)`.
+- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
 - **`loadAssets` reports rather than refuses.** It resolves with the declared asset paths that could
   not be loaded, scoped to the state it was given - the loaders keep every path they have ever been
   handed, and an old typo is not this story's. Declaring an asset before the art exists is the normal
@@ -213,8 +216,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - Persisted via `saveToLocalStorage(id, data)` under key `vn-save-<id>`, where `id` is the manifest's.
   The two-level prefix is `design-docs/PROJECT_STORAGE.md`'s: localStorage is origin-wide, so an
   author-chosen id needs a keyspace separate from the app's own, and it leaves `vn-editor-*` free.
-  `VnPlayerState` deliberately carries no identity (ADR 0001), so `DomRenderer` holds the save id as
-  its own field, set at construction and updated by `setSaveId` when the editor adopts a new manifest.
+  The key comes off the state - `seedState` copies the manifest's `id` and `title` in, so a reload
+  carries the key with it and no caller can swap the story without swapping the key (ADR 0001's
+  2026-08-29 amendment; the threaded `setSaveId` it replaced had a silent wrong-key failure mode).
   An in-session id change is a project rename by the crudest definition: later writes go to the new
   key, nothing migrates, nothing re-reads the old one.
 - `loadFromLocalStorage` does **not** validate shape beyond `JSON.parse`. Only `ConsecutiveIntegerSet.fromJSON` uses Zod. Be defensive if you add fields.
@@ -328,4 +332,5 @@ The ADRs, newest first:
 - `0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` — why `parseStory` always returns a state and
   `parseManifest` may return none.
 - `0001-manifest-seeds-the-initial-state.md` — why the manifest seeds `VnPlayerState` rather than living beside
-  it, and (2026-08-28 amendment) why `id` and `title` stay on the manifest and out of the state.
+  it, why `id` and `title` live on the manifest rather than a wrapping type (2026-08-28 amendment), and why
+  `seedState` copies them into the state anyway (2026-08-29 amendment).

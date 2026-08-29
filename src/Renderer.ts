@@ -9,6 +9,4 @@ export interface Renderer {
   onFinishedCallbacks: Array<() => void>
   // Resolves with the declared asset paths that could not be loaded - see DomRenderer.loadAssets.
   loadAssets(state?: VnPlayerState): Promise<string[]>
-  // Which project later saves are written under. Changes when the author edits the manifest's `id`.
-  setSaveId(id: string): void
 }

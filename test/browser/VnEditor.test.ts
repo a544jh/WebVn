@@ -115,6 +115,8 @@ backgrounds:
 
   it("writes later saves under the adopted id", async () => {
     const vn = await started()
+    // Nothing rekeys the renderer: the id rides in on the state `reloadStory` swaps in, so a caller
+    // cannot reload the story and forget the key. ADR 0001's 2026-08-29 amendment.
     await adopt(vn, manifestWith("renamed-id", "Original"))
 
     vn.root.click()

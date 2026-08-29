@@ -7,14 +7,17 @@ The editor can author a script but not a project. `manifest.yaml` became a real 
 [#36](https://github.com/a544jh/WebVn/pull/36) - it now decides the cast, every asset id, and the
 project's identity - and there is still no way to change it without editing a file in the repo and
 rebuilding. Filed 2026-08-28 from a shape sketched by the author; refined 2026-08-29, which settled
-the frontier and grew the ticket by one thing nobody had noticed - the asset loaders cannot report a
-file that is not there, and apply-on-blur is the first caller that has to survive one.
+the frontier, changed the mechanism under the sketched UI from two editor instances to one instance
+with a `Doc` per buffer, and grew the ticket by one thing nobody had noticed - the asset loaders
+cannot report a file that is not there, and apply-on-blur is the first caller that has to survive
+one.
 
 ## The shape, as sketched
 
-- A **second CodeMirror instance** for the manifest, beside the existing one for the script.
-- **Tabs above the editor** switch between them. Crude CSS, no styling work: showing and hiding the
-  two instances is all the tabs do.
+- **One CodeMirror instance holding a `Doc` per buffer**, swapped with `swapDoc`. The sketch said a
+  second instance beside the first; refinement changed the mechanism and kept the UI. See below.
+- **Tabs above the editor** switch between them. Crude CSS, no styling work: a tab click swaps the
+  doc and moves an active class, and that is all the tabs do.
 - The manifest **applies on editor blur**, not on every keystroke.
 - **Error handling as already documented** - `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md`.
 
@@ -197,7 +200,49 @@ What is worth asserting, in rough order of value:
 Assert on player and renderer state, not on CodeMirror internals. The tab bar itself stays
 hand-verified; it is the part being thrown away.
 
-## Two things that break, found while reading
+## One instance, two `Doc`s - not two instances
+
+The sketch's second instance was the first shape that came to mind, not a rejection of the
+alternative. CodeMirror 5 already has multi-buffer: `cm.swapDoc(doc)`, one `CodeMirror.Doc` per file.
+`design-docs/EDITOR.md`'s own migration table has the row - `swapDoc` maps to CM6's *"hold an
+`EditorState` per file, `view.setState()`"* - so this is the 5.x spelling of the model the migration
+adopts, and porting it is a call-site change rather than a deletion.
+
+The UI is unchanged: a tab bar over one instance is the same markup and the same click handler. Only
+what happens underneath the click changes.
+
+**What it deletes.** Nothing is ever constructed inside `display: none`, which removes the sharpest
+edge in the two-instance plan: CodeMirror 5 has no line height to measure in a hidden container and
+does not re-measure when a class reveals it, so that plan needed a `.refresh()` on every tab switch
+and would have kept needing one per buffer as includes add buffers.
+
+**What it costs.** Two small branches - `blur` and `gutterClick` both have to ask which buffer is
+active - and one type augmentation, below.
+
+**Verified against the CodeMirror 5 source, because the typings say otherwise.** `@types/codemirror`
+declares `setGutterMarker` and `clearGutter` only on `Editor`, at the pinned `0.0.109` and at the
+current `5.60.18` alike. In `codemirror.js` both are defined inside `Doc.prototype`, wrapped in
+`docMethodOp`, which opens:
+
+```js
+var cm = this.cm; if (!cm || cm.curOp) { return f.apply(this, arguments) }
+```
+
+That `!cm` branch is the detached-doc path. Marker data is stored on the line handle
+(`line.gutterMarkers`) and lines belong to the `Doc`, so **a detached buffer can be marked and keeps
+its markers across the swap**. They appear on `Editor` in the typings only because CM5 delegates every
+`Doc.prototype` method onto the editor except `iter insert remove copy getEditor constructor`.
+
+This is load-bearing for the apply flow rather than incidental: applying the manifest reparses the
+*script* while the *manifest* buffer is the visible one, so the script's error gutter is remarked
+while its doc is detached. It works; TypeScript will not believe it. Add
+`src/types/codemirror.d.ts` declaring the two methods on `CodeMirror.Doc` - a global augmentation in
+the pattern `src/types/screenOrientation.d.ts` already establishes and `CLAUDE.md` documents.
+
+`Doc` also owns `getValue`, `setCursor`, `isClean`/`markClean` and the undo history, so per-buffer
+undo, cursor and dirty-tracking come free - the same properties `EDITOR.md` credits CM6's model with.
+
+## One thing that breaks, found while reading
 
 **`makeMarker` queries the document, not its own editor.**
 
@@ -205,15 +250,12 @@ hand-verified; it is the part being thrown away.
 const height = document.querySelector(".CodeMirror-linenumber")?.clientHeight + "px"
 ```
 
-Already flagged as a hack by its own comment. With one instance it happens to be right. With two it
-returns whichever comes first in the DOM, and if that one is the hidden tab, `clientHeight` is `0` and
-every gutter marker in the visible editor gets `height: 0px`. Scope the query to the instance's own
-root before adding the second editor, or the tabs ship with invisible error markers.
-
-**CodeMirror 5 mis-measures in a hidden container.** An instance constructed inside `display: none`
-has no line height to measure, and one revealed by a class change does not re-measure on its own -
-`.refresh()` on tab switch is the documented remedy. This is exactly the "crude CSS" plan's one sharp
-edge, and it is why the tabs need a switch handler rather than pure CSS.
+Already flagged as a hack by its own comment, and with one instance it stays accidentally correct -
+which is why one instance is the shape being built. It was a blocker under the two-instance plan
+(the query would find the hidden tab's line number, measure `clientHeight` as `0`, and give every
+marker in the visible editor `height: 0px`) and is merely a hack under this one. Scope it to the
+instance's own root anyway while the file is open; `EDITOR.md` notes the CM6 gutter extension deletes
+it outright.
 
 ## Implementation notes
 
@@ -222,49 +264,76 @@ edge, and it is why the tabs need a switch handler rather than pure CSS.
   `demoManifest` and the raw `demoYaml`. The manifest buffer needs the raw text, so export it
   alongside - a one-line change, and the symmetry `demoYaml` already has.
 - **`VnEditor`'s constructor takes the manifest.** Making it a mutable field with a setter is the
-  smallest change; whether the second CodeMirror belongs inside `VnEditor` or beside it is an
-  interface question, not a mechanism one.
-- **The render callback is bound to the script instance.** `onRenderCallbacks` sets the position
-  marker and moves the cursor on `this.vnEditor`; with two instances those have to keep pointing at
-  the script one rather than at whichever is visible.
+  smallest change; whether the tab bar belongs inside `VnEditor` or beside it is an interface
+  question, not a mechanism one.
+- **Everything that means "the script" has to say so.** `parseDocument`, `goToLine`, the position
+  marker and the render callback all reach through `this.vnEditor.getDoc()` today, which silently
+  means "whatever is on screen" once a swap exists. They want the script `Doc` by name - the render
+  callback especially, since a render while the manifest tab is up would otherwise move the
+  manifest's cursor. Two instances would force the same audit; neither shape avoids it.
+- **Marker helpers take a target.** `setErrorMarker`, `setPositionMarker` and the `clearGutter` calls
+  hardcode `this.vnEditor`. They become functions of a `Doc`, which is also what lets the script's
+  gutter be remarked while the manifest tab is visible.
 - **`index.ts` seeds the player from `demoManifest`** before constructing the editor, and calls
   `editor.loadScript(demoYaml)` to boot. A manifest buffer means that boot loads two documents.
 - The script buffer already has a `blur` handler (it re-syncs the position marker), so blur is an
   established event here, not a new concept.
 
-## Mostly disposable, like find-in-file - but less of it than it looks
+## Not disposable, unlike find-in-file
 
 `design-docs/EDITOR.md` migrates to CodeMirror 6, and its model is one `EditorState` per file swapped
 with `view.setState()` - which is *also* what script includes need, and which `TODO` carries as
 "editor multi-buffer, file switcher, per-buffer markers" under the CM6 migration.
 
-Read that `TODO` line carefully before calling this throwaway: **CM6 supplies the buffer model, not a
-UI for choosing between buffers.** It is a library of editor extensions and ships no tab bar or file
-switcher, which is why the switcher is listed there as work rather than as something the migration
-brings. So the migration deletes less of this than a first look suggests:
+The first pass of this ticket filed the work under `TODO` item `A`'s precedent - *"Disposable - the
+CM6 migration deletes it - and there is no reason for it to wait behind anything."* That was wrong
+twice over, and both corrections point the same way:
 
-- **Deleted:** the second `CodeMirror()` instance and the `display: none` show/hide, and the
-  `.refresh()` on switch with it - one view swapping states never constructs a hidden instance to
-  mis-measure.
-- **Survives, and grows:** the tab bar's markup and its switch handler. A two-tab toggle is the
-  ancestor of the file switcher that multi-buffer needs anyway, with the manifest as one buffer among
-  N rather than one of two.
-- **Untouched:** apply-on-blur, the keep-the-last-valid-manifest rule, the save rekey and the loader
-  fix. None of those are about CodeMirror.
+- **CM6 supplies the buffer model, not a UI for choosing between buffers.** It is a library of editor
+  extensions and ships no tab bar or file switcher, which is why `TODO` lists the switcher as work
+  rather than as something the migration brings. The tab bar survives the migration and grows into
+  that switcher, with the manifest as one buffer among N rather than one of two.
+- **`swapDoc` is the 5.x spelling of `view.setState()`**, per `EDITOR.md`'s own table. So the
+  mechanism is ported at migration time, not deleted - the call site changes and the shape does not.
 
-That is still an argument for keeping it crude, and now also an argument that crude is cheap:
+What is thrown away is a `swapDoc` call and two `Doc` constructions. Everything else - the tab bar,
+apply-on-blur, keep-the-last-valid-manifest, the save rekey, the loader fix - either survives or was
+never about CodeMirror. Item `A` genuinely is deleted by the migration, since CM6 ships search as an
+extension; this is not that, and should stop borrowing its argument.
 
-- The manifest is unauthorable **today**, and the CM6 migration is an `L` behind item `T`.
-- `TODO` already makes the same call for item `A` (find-in-file): *"Disposable - the CM6 migration
-  deletes it - and there is no reason for it to wait behind anything."* This ticket is the weaker
-  version of that claim, not the same one.
-- The genuinely thrown-away part is two instances and a show/hide. That is small enough not to argue
-  about, and the switcher it hangs off is a down payment on multi-buffer rather than a write-off.
+It is still worth keeping crude. Two hardcoded tabs is the right size for a two-buffer editor, and
+building the file switcher here would be building multi-buffer's UI before multi-buffer. Keep the
+markup dumb enough that turning two tabs into a list of files is not a fight, and leave it there.
 
-So: build it now, expect the second instance to die at the migration and the tab bar to be rewritten
-into the file switcher rather than deleted. Keep the markup dumb enough that turning two tabs into a
-list of files is not a fight, but do not build the file switcher here - two hardcoded tabs is the
-right size for a two-buffer editor.
+## Alternatives considered
+
+Recorded so the mechanism is not relitigated. All were weighed at the 2026-08-29 refinement.
+
+- **Two CodeMirror instances with show/hide** - the original sketch. Roughly the same amount of code
+  as one instance and two `Doc`s, but it buys the hidden-container measurement problem and its
+  `.refresh()` dance, makes the `makeMarker` scoping fix mandatory rather than optional, does not
+  scale to includes (N buffers becomes N hidden instances), and is deleted rather than ported at the
+  migration. The trade is a class of layout bugs in exchange for an eight-line type augmentation.
+- **Both buffers visible, no tabs** - two panes, stacked or side by side. Genuinely the least code of
+  any option: no tab bar, no switch handler, no `.refresh()`, no blur branching, and it would delete
+  decision 4 outright, since a manifest that is on screen needs no tab error state. It also reads
+  well for the actual workflow, where a typo'd asset id is an error in one buffer and a fix in the
+  other. Rejected for screen space on an already-busy page, and because it is still two instances and
+  so pays nothing toward includes.
+- **A plain `<textarea>` for the manifest.** An hour's work and honestly disposable, but it spends
+  exactly what ADR 0002 identified as the payoff: `ParserError` and `SourceLocation` are shared
+  currency, so the gutter machinery works on manifest errors unchanged. A textarea has no gutter, and
+  no YAML highlighting on a document that is nothing but nested YAML.
+- **A form generated from the Zod schema.** Tempting, because a form cannot produce a syntactically
+  invalid manifest and would delete apply-on-blur and the keep-the-last-valid rule with it. Rejected:
+  it round-trips YAML through a UI and loses comments - the demo's manifest opens with a six-line
+  comment block - and `PROJECT_STORAGE.md` wants `manifest.yaml` as a real file in the archive. Worth
+  naming, because if a form is ever the destination then the buffer is the throwaway and none of the
+  above matters.
+- **One document, with `manifest:` and `story:` as top-level keys.** Zero UI work. Rejected: it
+  contradicts the two-file project layout, puts two schemas in one document against
+  `formatVersion`-checked-first, and turns the two parsers' deliberate disagreement about failure
+  into a single-document contradiction.
 
 ## Not in scope
 
@@ -291,13 +360,16 @@ right size for a two-buffer editor.
   consequence that named this ticket
 - `docs/adr/0001-manifest-seeds-the-initial-state.md` - why `id` is not in `VnPlayerState`, which is
   what makes the save rekey a threading problem rather than a lookup
-- `design-docs/EDITOR.md` - the CM6 migration and multi-buffer this duplicates and is deleted by
+- `design-docs/EDITOR.md` - the CM6 migration, and the `swapDoc` row in its 5.x-to-6 table that this
+  ticket's mechanism is chosen from
 - `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the `vn-save-<id>`
   key this adopts
 - `ROUGH_EDGES.md` - the stale-save entry this narrows to its remaining half
 - `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` - the other half of
   "declared before it exists is the normal authoring order"
-- `TODO` - item `A` for the disposable-feature precedent, item `T` for the missing editor tests
+- `TODO` - item `A` for the disposable-feature precedent this ticket turned out not to share, the
+  multi-buffer line under the CM6 migration, and item `T` for the missing editor tests
+- `src/types/screenOrientation.d.ts` - the global-augmentation pattern the `Doc` gutter methods need
 - `src/editor/editor.ts`, `src/index.ts`, `src/playerIndex.ts`, `src/demoStory.ts`,
   `src/core/player.ts` (`reloadStory`), `src/core/save.ts`, `src/assetLoaders/`,
   `src/yamlParser/parseManifest.ts`

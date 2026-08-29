@@ -35,7 +35,7 @@ export async function decodeText(encoded: string): Promise<string> {
 }
 
 // The manifest text verbatim, not a re-serialisation of the parsed manifest: round-tripping through
-// the parser eats comments, and the demo's manifest opens with six lines of them.
+// the parser eats the comments an author wrote, and a manifest is a document they maintain.
 export function joinPayload(manifestText: string, script: string): string {
   const separator = manifestText.endsWith("\n") ? "" : "\n"
   return `${manifestText}${separator}---\n${script}`

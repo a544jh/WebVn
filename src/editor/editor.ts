@@ -23,10 +23,15 @@ export type JumpMode = "replay" | "direct"
 // turning them into a file switcher is not a fight.
 type BufferName = "script" | "manifest"
 
+// Left to right, which is also the order a project is read in: what it declares, then what it says.
 const BUFFER_LABELS: Record<BufferName, string> = {
-  script: "script.yaml",
   manifest: "manifest.yaml",
+  script: "script.yaml",
 }
+
+// The buffer the editor opens on. Not the leftmost tab: writing the story is the work, and the
+// manifest is what you go to when the story needs something it does not have yet.
+const INITIAL_BUFFER: BufferName = "script"
 
 // https://github.com/codemirror/CodeMirror/issues/988#issuecomment-14921785
 function betterTab(cm: CodeMirror.Editor) {
@@ -55,7 +60,7 @@ export class VnEditor {
 
   private scriptDoc: CodeMirror.Doc
   private manifestDoc: CodeMirror.Doc
-  private activeBuffer: BufferName = "script"
+  private activeBuffer: BufferName = INITIAL_BUFFER
   private tabs: Record<BufferName, HTMLButtonElement>
 
   // Whether the manifest buffer last parsed, and whether every file it declares loaded. The first
@@ -106,7 +111,7 @@ export class VnEditor {
     // is one instance and two docs rather than two instances.
     this.scriptDoc = codeMirror.Doc("", "yaml")
     this.manifestDoc = codeMirror.Doc("", "yaml")
-    this.vnEditor.swapDoc(this.scriptDoc)
+    this.vnEditor.swapDoc(this.docFor(INITIAL_BUFFER))
 
     this.vnEditor.on("gutterClick", (instance, line) => {
       // The manifest's gutter holds error markers and nothing to jump to.
@@ -231,10 +236,14 @@ export class VnEditor {
     this.jumpMode = mode
   }
 
+  private docFor(buffer: BufferName): CodeMirror.Doc {
+    return buffer === "script" ? this.scriptDoc : this.manifestDoc
+  }
+
   private showBuffer(buffer: BufferName): void {
     if (this.activeBuffer === buffer) return
     this.activeBuffer = buffer
-    this.vnEditor.swapDoc(buffer === "script" ? this.scriptDoc : this.manifestDoc)
+    this.vnEditor.swapDoc(this.docFor(buffer))
     for (const name of Object.keys(this.tabs) as BufferName[]) {
       this.tabs[name].classList.toggle("vn-editor-tab-active", name === buffer)
     }
@@ -261,7 +270,7 @@ export class VnEditor {
       failed.map((asset) => asset.manifestKey)
     )
     failed.forEach((asset, i) => {
-      const message = `Could not load ${asset.path} - the manifest declares it, but the file is not there.`
+      const message = `Could not load ${asset.path}`
       this.setErrorMarker(this.manifestDoc, new ParserError(message, locations[i], ErrorLevel.WARNING))
       console.warn(message)
     })
@@ -342,7 +351,7 @@ function makeTabBar(onSelect: (buffer: BufferName) => void): [HTMLDivElement, Re
     const tab = document.createElement("button")
     tab.type = "button"
     tab.classList.add("vn-editor-tab")
-    if (name === "script") tab.classList.add("vn-editor-tab-active")
+    if (name === INITIAL_BUFFER) tab.classList.add("vn-editor-tab-active")
     tab.textContent = BUFFER_LABELS[name]
     tab.dataset.vnBuffer = name
     tab.addEventListener("click", () => onSelect(name))

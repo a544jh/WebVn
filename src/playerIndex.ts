@@ -69,7 +69,7 @@ async function boot(): Promise<void> {
 function showLoadError(details: unknown): void {
   console.error(details)
   const message = document.createElement("p")
-  message.textContent = "This story could not be loaded."
+  message.textContent = "The VN could not be loaded."
   vnDiv.appendChild(message)
 }
 

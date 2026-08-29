@@ -1,9 +1,3 @@
-# The demo project's manifest. Together with script.yaml and the asset directories beside it, this
-# directory is the first published WebVn project - CopyPlugin copies it to the dist root, where
-# backgrounds/, sprites/ and audio/ already sit at the paths the renderer builds.
-#
-# Every asset is declared under an id the script names; the manifest is what says which file that
-# id is. Renaming a file is an edit here, not a rewrite of the story.
 formatVersion: 1
 id: webvn-demo
 title: WebVn Demo

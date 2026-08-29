@@ -17,7 +17,7 @@ export { default as demoYaml } from "../test-assets/script.yaml?raw"
 
 // The raw manifest, alongside the raw script: the editor's manifest buffer and the URL payload both
 // carry text rather than a parsed manifest, because round-tripping through the parser eats the
-// comment block this file opens with.
+// comments an author wrote.
 export { demoManifestYaml }
 
 const [manifest, manifestErrors] = parseManifest(demoManifestYaml)

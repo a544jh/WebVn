@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { audioFilePath } from "../../src/domRenderer/assetPaths"
 import { pauseMenu } from "../../src/domRenderer/menus/PauseMenu"
 import { VnManifest } from "../../src/core/manifest"
 import { advanceVn, startVn, StartedVn } from "../helpers/vnHarness"
@@ -40,7 +41,7 @@ story:
 const registerTestAudio = (renderer: DomRenderer): void => {
   const assets = renderer["audioLoader"]["assets"] as Record<string, HTMLAudioElement>
   for (const id in MANIFEST.audioAssets) {
-    assets["audio/" + MANIFEST.audioAssets[id].file] = new Audio()
+    assets[audioFilePath(MANIFEST.audioAssets[id].file)] = new Audio()
   }
 }
 

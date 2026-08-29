@@ -6,7 +6,7 @@ import { loadFromLocalStorage } from "../../src/core/save"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { demoManifest, demoYaml } from "../../src/demoStory"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
-import { spriteFilePath } from "../../src/domRenderer/assetPaths"
+import { audioFilePath, backgroundFilePath, spriteFilePath } from "../../src/domRenderer/assetPaths"
 import {
   boxText,
   createVnRoot,
@@ -218,7 +218,7 @@ const loadDemoAssets = async (
     const sprites = state.actors[actor].sprites ?? {}
     for (const name in sprites) imagePaths.push(spriteFilePath(actor, sprites[name]))
   }
-  for (const id in state.backgrounds) imagePaths.push(`backgrounds/${state.backgrounds[id]}`)
+  for (const id in state.backgrounds) imagePaths.push(backgroundFilePath(state.backgrounds[id]))
 
   await Promise.all(
     imagePaths.map(async (path) => {
@@ -237,7 +237,7 @@ const loadDemoAssets = async (
     const file = state.audioAssets[id].file
     const elem = new Audio()
     elem.dataset.testAsset = file
-    audio["audio/" + file] = elem
+    audio[audioFilePath(file)] = elem
   }
 
   return images
@@ -604,22 +604,22 @@ describe("demo story - freeform mode", () => {
 describe("demo story - sprites", () => {
   it("shows, moves, swaps and hides the demo's actors", async () => {
     const h = await startDemo()
-    const a1Idle = h.images["sprites/A1/idle.png"]
-    const a1Two = h.images["sprites/A1/2.png"]
-    const a2Idle = h.images["sprites/A2/idle.png"]
+    const a1Idle = h.images[spriteFilePath("A1", "idle.png")]
+    const a1Two = h.images[spriteFilePath("A1", "2.png")]
+    const a2Idle = h.images[spriteFilePath("A2", "idle.png")]
 
     // `show: {actor: A1, sprite: idle}` - centered, since x/y/anchors all default to 0.5
     await advanceToStop(h, FIRST_ACTOR_LINE)
     let sprites = liveSprites(h.root)
     expect(Object.keys(sprites)).toEqual(["A1"])
-    expect(sprites["A1"].dataset.testAsset).toBe("sprites/A1/idle.png")
+    expect(sprites["A1"].dataset.testAsset).toBe(spriteFilePath("A1", "idle.png"))
     expect(sprites["A1"].style.transform).toBe(expectedSpriteTransform(a1Idle, 0.5, 0.5, 0.5, 0.5))
 
     // `show: {actor: A1, sprite: "2", x: .2}` - crossfade to another sprite, further left
     await advanceFast(h)
     sprites = liveSprites(h.root)
     expect(Object.keys(sprites)).toEqual(["A1"])
-    expect(sprites["A1"].dataset.testAsset).toBe("sprites/A1/2.png")
+    expect(sprites["A1"].dataset.testAsset).toBe(spriteFilePath("A1", "2.png"))
     expect(sprites["A1"].style.transform).toBe(expectedSpriteTransform(a1Two, 0.2, 0.5, 0.5, 0.5))
     expect(spriteElems(h.root)).toHaveLength(1) // the old element is gone, not just orphaned
 
@@ -627,7 +627,7 @@ describe("demo story - sprites", () => {
     await advanceFast(h)
     sprites = liveSprites(h.root)
     expect(Object.keys(sprites).sort()).toEqual(["A1", "A2"])
-    expect(sprites["A2"].dataset.testAsset).toBe("sprites/A2/idle.png")
+    expect(sprites["A2"].dataset.testAsset).toBe(spriteFilePath("A2", "idle.png"))
     expect(sprites["A2"].style.transform).toBe("translate(0px, 0px)")
 
     // `show: {actor: A2, ... x: 1, y: 1, anchorX: 1, anchorY: 1}` - bottom right corner
@@ -645,7 +645,7 @@ describe("demo story - sprites", () => {
     const crowd = liveSprites(h.root)
     expect(Object.keys(crowd).sort()).toEqual(["A1", "crowd-1", "crowd-2", "crowd-3", "crowd-4"])
     for (const id of ["crowd-1", "crowd-2", "crowd-3", "crowd-4"]) {
-      expect(crowd[id].dataset.testAsset).toBe("sprites/A2/idle.png")
+      expect(crowd[id].dataset.testAsset).toBe(spriteFilePath("A2", "idle.png"))
     }
     // Four instances of one declared sprite, each at its own x - so they are four elements, not one
     // element moved four times.
@@ -667,7 +667,7 @@ describe("demo story - sprites", () => {
     await advanceToStop(h, LOOPED_ACTOR_LINE)
     const looped = liveSprites(h.root)
     expect(Object.keys(looped)).toEqual(["A1"])
-    expect(looped["A1"].dataset.testAsset).toBe("sprites/A1/idle.png")
+    expect(looped["A1"].dataset.testAsset).toBe(spriteFilePath("A1", "idle.png"))
     expect(looped["A1"].style.transform).toBe(expectedSpriteTransform(a1Idle, 0.5, 0.5, 0.5, 0.5))
   }, 30000)
 

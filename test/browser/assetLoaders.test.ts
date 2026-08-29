@@ -8,9 +8,9 @@ import { ImageAssetLoaderSrc } from "../../src/assetLoaders/ImageAssetLoaderSrc"
 // load with it, since registration is cumulative and loadAll re-walks every path it has ever seen.
 // Nothing told the author anything: the manifest parsed clean, so there was no error marker either.
 
-const MISSING_IMAGE = "/test-assets/backgrounds/no-such-file.png"
-const REAL_IMAGE = "/test-assets/backgrounds/a.png"
-const MISSING_AUDIO = "/test-assets/audio/no-such-file.ogg"
+const MISSING_IMAGE = "/test-assets/assets/backgrounds/no-such-file.png"
+const REAL_IMAGE = "/test-assets/assets/backgrounds/a.png"
+const MISSING_AUDIO = "/test-assets/assets/audio/no-such-file.ogg"
 
 describe("ImageAssetLoaderSrc", () => {
   it("reports a file that is not there instead of rejecting", async () => {

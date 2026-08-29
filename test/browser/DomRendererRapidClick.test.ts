@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { spriteFilePath } from "../../src/domRenderer/assetPaths"
 import { nextStop, sleep, spriteElems, startVn, textBoxText } from "../helpers/vnHarness"
 import { VnManifest } from "../../src/core/manifest"
 
@@ -69,7 +70,7 @@ story:
 `
     const { root, player, renderer } = await startVn(script, { manifest: MANIFEST })
     // The first stop is already up; sprites are only needed from the first advance on.
-    await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png"])
+    await registerTestSprites(renderer, [spriteFilePath("A1", "a.png"), spriteFilePath("A1", "b.png")])
     expect(textBoxText(root)).toBe("Line 1")
 
     // Click: show A1's `a` sprite starts its 500ms fade-in.
@@ -98,7 +99,7 @@ story:
     expect(player.state.animatableState.sprites["A1"].sprite).toBe("b")
     const elems = spriteElems(root)
     expect(elems.map((elem) => elem.dataset.vnSpriteId)).toEqual(["A1"])
-    expect(elems[0].dataset.testAsset).toBe("sprites/A1/b.png")
+    expect(elems[0].dataset.testAsset).toBe(spriteFilePath("A1", "b.png"))
   }, 10000)
 
   it("keeps DOM sprites in sync with state when hammering through the whole story", async () => {
@@ -136,7 +137,11 @@ story:
   - The end
 `
     const { root, player, renderer } = await startVn(script, { manifest: MANIFEST })
-    await registerTestSprites(renderer, ["sprites/A1/a.png", "sprites/A1/b.png", "sprites/A2/a.png"])
+    await registerTestSprites(renderer, [
+      spriteFilePath("A1", "a.png"),
+      spriteFilePath("A1", "b.png"),
+      spriteFilePath("A2", "a.png"),
+    ])
 
     // After every finished render pass at a stop, the id-bearing sprite elements
     // must match the sprites in state exactly (elements mid fade-out have no id).

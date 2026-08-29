@@ -11,17 +11,23 @@ import { Actor, AudioAsset, SpriteInstance, VnPlayerState } from "../core/state"
 // terms of the first, so the directory prefix is written once.
 //
 // A lookup yields `undefined` rather than throwing when nothing declares the id, so the caller can
-// say which id failed and in what role. Once TODO item E lands, an `AssetResolver` takes over the
-// path-building half of these; the ids they exist to resolve are what it resolves.
+// say which id failed and in what role.
+//
+// Every path is under `assets/`, which is design-docs/PROJECT_STORAGE.md's layout: a project
+// directory keeps its own files - manifest.yaml, script.yaml, and the N script files
+// design-docs/SCRIPT_INCLUDES.md adds - above that level, so nothing there can ever be mistaken for
+// media. The prefix belongs here and not in an `AssetResolver`: it is part of the project's layout,
+// not part of where the bytes come from, and a resolver that added one would make two
+// implementations disagree about what a path means.
 
-export const audioFilePath = (file: string): string => "audio/" + file
+export const audioFilePath = (file: string): string => "assets/audio/" + file
 
 export const audioAssetPath = (assets: Record<string, AudioAsset>, id: string): string | undefined => {
   const asset = assets[id]
   return asset === undefined ? undefined : audioFilePath(asset.file)
 }
 
-export const backgroundFilePath = (file: string): string => "backgrounds/" + file
+export const backgroundFilePath = (file: string): string => "assets/backgrounds/" + file
 
 export const backgroundAssetPath = (backgrounds: Record<string, string>, id: string): string | undefined => {
   const file = backgrounds[id]
@@ -29,7 +35,7 @@ export const backgroundAssetPath = (backgrounds: Record<string, string>, id: str
 }
 
 // An actor's sprites live in a directory of their own, so two actors may declare the same filename.
-export const spriteFilePath = (actor: string, file: string): string => `sprites/${actor}/${file}`
+export const spriteFilePath = (actor: string, file: string): string => `assets/sprites/${actor}/${file}`
 
 export const spriteAssetPath = (actors: Record<string, Actor>, instance: SpriteInstance): string | undefined => {
   const file = actors[instance.actor]?.sprites?.[instance.sprite]

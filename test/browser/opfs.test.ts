@@ -71,8 +71,12 @@ describe("opfs", () => {
     expect(await exists(dir, "nowhere/at/all.txt")).toBe(false)
   })
 
-  it("leaves no tmp file behind after a successful write", async () => {
-    // The one that catches a write - the move-less fallback especially - that forgot to clean up.
+  it("leaves nothing beside the file it wrote", async () => {
+    // The engine's own swap file must not leak into enumeration. createWritable is implemented by
+    // writing elsewhere and replacing on close - Chromium calls that `<name>.crswap` - and a project
+    // directory is walked, listed and exported, so anything of the engine's showing up there would
+    // read as the author's. It also catches a reintroduced tmp-then-move scheme that forgets to
+    // clean up, which is what this test was originally for.
     await writeFile(dir, "script.yaml", "story:\n")
 
     expect(await paths(dir)).toEqual(["script.yaml"])
@@ -121,11 +125,13 @@ describe("opfs", () => {
     await expect(removeRecursive(dir, "projects/my-story")).resolves.toBeUndefined()
   })
 
-  it("leaves one of two concurrent writes intact, and no tmp file behind", async () => {
-    // Debounced storing can start a second write while the first is between its write and its move,
-    // and unserialized they would share one tmp name. Serializing per path also makes the last write
-    // win, which is what a debounced store wants.
-    await Promise.all([writeFile(dir, "script.yaml", "first"), writeFile(dir, "script.yaml", "second")])
+  it("lets the last of two concurrent writes win, however long the earlier one takes", async () => {
+    // Ordering rather than atomicity: each write is already atomic on its own (see writeNow), so
+    // what serialization buys is that the *last queued* write is the one that lands. The sizes are
+    // lopsided on purpose - a big first write and a small second one is the case where "last to
+    // finish" and "last queued" disagree, and asserting on two equal writes cannot tell them apart.
+    const big = "x".repeat(8 * 1024 * 1024)
+    await Promise.all([writeFile(dir, "script.yaml", big), writeFile(dir, "script.yaml", "second")])
 
     expect(await readText(dir, "script.yaml")).toBe("second")
     expect(await paths(dir)).toEqual(["script.yaml"])

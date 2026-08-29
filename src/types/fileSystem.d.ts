@@ -1,7 +1,10 @@
-// Two pieces of the File System Access API that Chromium implements and lib.dom.d.ts does not
-// declare, for two different reasons. A global augmentation with no imports or exports, picked up
-// because tsconfig.json has no `include` - the same shape and the same reason as
-// src/types/screenOrientation.d.ts.
+// The one piece of the File System Access API that src/storage/opfs.ts uses and lib.dom.d.ts does
+// not declare. A global augmentation with no imports or exports, picked up because tsconfig.json has
+// no `include` - the same shape and the same reason as src/types/screenOrientation.d.ts.
+//
+// `FileSystemFileHandle.move()` was declared here too until 2026-08-30, when the tmp-then-move write
+// that needed it was dropped - see writeNow in src/storage/opfs.ts. It is a Chromium addition rather
+// than a spec method, so a caller wanting it will need this back along with a feature detect.
 //
 // Everything else src/storage/opfs.ts uses is already declared: navigator.storage.getDirectory(),
 // estimate(), persist(), persisted(), createWritable(), getFileHandle, getDirectoryHandle and
@@ -16,13 +19,4 @@ interface FileSystemDirectoryHandle {
   entries(): AsyncIterableIterator<[string, FileSystemHandle]>
   keys(): AsyncIterableIterator<string>
   values(): AsyncIterableIterator<FileSystemHandle>
-}
-
-// move() is absent because it is not in the WHATWG File System spec at all - it is a Chromium
-// addition, which is also why src/storage/opfs.ts feature-detects it on the handle before using it
-// rather than trusting this declaration. It is what makes a write atomic: write beside the target,
-// then move into place.
-interface FileSystemFileHandle {
-  move(name: string): Promise<void>
-  move(parent: FileSystemDirectoryHandle, name?: string): Promise<void>
 }

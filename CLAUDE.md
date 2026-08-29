@@ -283,11 +283,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 `src/storage/`, all of it browser-only and none of it imported by `core/`. Tranche 1 of
 `design-docs/PROJECT_STORAGE.md`, landed 2026-08-30.
 - **`opfs.ts` is the filesystem layer and knows nothing about projects.** Every function takes the
-  directory handle it works under, so nothing holds global state. **`writeFile` is not a plain write**:
-  it writes `<name>.tmp` and `move()`s it into place, feature-detecting `move()` (not in the WHATWG
-  spec; a Chromium addition) and falling back to a direct write with a comment saying a crash there can
-  truncate. Writes are **serialized per path**, which is what stops two debounced writes sharing one
-  tmp name *and* what makes the last write win. `isSupported()` gates the whole editor.
+  directory handle it works under, so nothing holds global state. **`writeFile` is a plain write, on
+  purpose**: the File System Standard is normative that nothing reaches the file until the stream is
+  closed, so a write is already atomic and a tmp-then-`move()` scheme on top is redundant - it shipped
+  briefly and was dropped 2026-08-30, because the tmp file was itself written with `createWritable`
+  (hedging a primitive with itself) and a crash between `close()` and `move()` left a stray `.tmp`
+  that the walk, the listing and an export all picked up. Read `writeNow`'s comment before adding one
+  back. Writes are still **serialized per path**, which is a separate concern: it makes the *last
+  queued* write win, which is what a debounced store wants. `isSupported()` gates the whole editor.
 - **`projectStore.ts` is `projects/<id>/{manifest.yaml,script.yaml,assets/}` plus `editor.yaml`.** Two
   truths that are easy to conflate: **enumeration** is the truth about what exists (`listProjects` walks
   the directory; there is no index file, ever), and **the manifest** is the truth about what a project

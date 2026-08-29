@@ -84,18 +84,10 @@ export const exists = async (dir: FileSystemDirectoryHandle, path: string): Prom
   }
 }
 
-// Whether a written file can be moved into place. Not in the WHATWG spec at all - it is a Chromium
-// addition - and Firefox shipped then backed out its OPFS implementation once, so this is detected
-// rather than assumed. Chromium, which is what the browser test project runs, has it: the atomic
-// path below is the tested one and the fallback is for other engines.
-const canMove = (): boolean =>
-  typeof FileSystemFileHandle !== "undefined" && typeof FileSystemFileHandle.prototype.move === "function"
-
-// Serialized per path, so two writes to one file cannot interleave. This is load-bearing twice
-// over: without it a debounced store can start a second write while the first is between its write
-// and its move, and both would be using `<name>.tmp`; and chaining is also what makes the last
-// write win, which is what a debounced store wants, where a unique tmp name per write would leave
-// two concurrent writes racing to be last.
+// Serialized per path, so two writes to one file cannot interleave. That is *not* about atomicity -
+// see writeNow, which needs no help there - it is about ordering: chaining makes the last write win,
+// which is what a debounced store wants, where letting two race leaves whichever finishes last in
+// place regardless of which was newer.
 //
 // Keyed on the path alone rather than on the handle. A handle is a fresh object on every
 // `getDirectoryHandle`, so keying on one would silently stop serializing; the cost is that two
@@ -104,9 +96,6 @@ const canMove = (): boolean =>
 // its paths are already distinct.
 const inFlight = new Map<string, Promise<void>>()
 
-// Writes `<name>.tmp` beside the target and moves it into place. Atomicity is not a nicety here:
-// storing writes constantly and there is no other copy of the author's work anywhere, so a tab
-// killed mid-write to script.yaml would truncate it.
 export const writeFile = (dir: FileSystemDirectoryHandle, path: string, data: Blob | string): Promise<void> => {
   const previous = inFlight.get(path) ?? Promise.resolve()
   // The previous write's failure is its caller's to see, not this one's reason not to run.
@@ -120,31 +109,33 @@ export const writeFile = (dir: FileSystemDirectoryHandle, path: string, data: Bl
   return write
 }
 
+// A plain write, because the File System Standard already makes one atomic, and the scheme this
+// layer used to put on top made things worse rather than better.
+//
+// The spec is normative that "any changes made through stream won't be reflected in the file entry
+// locatable by fileHandle's locator until the stream has been closed", and says user agents "try to
+// ensure that no partial writes happen, i.e. the file will either contain its old contents or it
+// will contain whatever data was written through stream up until the stream has been closed". The
+// swap file is how that is typically implemented and is explicitly non-normative: Chromium writes
+// `<name>.crswap` beside the target and replaces it on close, which nothing here ever sees - the
+// "leaves nothing beside the file" test is what pins that.
+//
+// This used to write `<name>.tmp` and `move()` it into place, on the belief that createWritable
+// truncates the target so a crash mid-write would leave script.yaml short. That belief was wrong:
+// by the visibility rule above the old contents stand until close, so there was no short window to
+// protect. Worse, the tmp file was *itself* written with createWritable, so it hedged that primitive
+// with itself and hedged nothing - while adding a failure mode of its own, since a crash between
+// close and move leaves a stray `<name>.tmp` that the walk, the listing and an export would each
+// pick up as if it were the author's. Dropped 2026-08-30 with the `move()` feature detect it needed
+// (move() is a Chromium addition and is not in the spec at all).
+//
+// What is *not* covered is an engine that ignores the visibility rule and writes in place: "try to
+// ensure" is not "must", and Firefox shipped then backed out its OPFS implementation once. If one
+// turns up, the answer is a tmp file written through whatever primitive that engine does get right,
+// which is a ticket with a reproduction attached rather than the guess this was.
 const writeNow = async (dir: FileSystemDirectoryHandle, path: string, data: Blob | string): Promise<void> => {
   const { parent, name } = await locate(dir, path, true)
-
-  if (!canMove()) {
-    // The known degradation, stated plainly: without move() there is no atomic alternative, so a
-    // crash between the truncation createWritable does and the close below leaves the file short.
-    // This is not a bug to fix later - it is what an engine without move() can offer.
-    await writeInto(await parent.getFileHandle(name, { create: true }), data)
-    return
-  }
-
-  const tmpName = name + ".tmp"
-  const tmp = await parent.getFileHandle(tmpName, { create: true })
-  try {
-    await writeInto(tmp, data)
-    await tmp.move(name)
-  } catch (e) {
-    // A tmp file left in a project directory would be walked, listed and exported as if it were the
-    // author's, so a failed write cleans up after itself.
-    await parent.removeEntry(tmpName).catch(() => undefined)
-    throw e
-  }
-}
-
-const writeInto = async (handle: FileSystemFileHandle, data: Blob | string): Promise<void> => {
+  const handle = await parent.getFileHandle(name, { create: true })
   const writable = await handle.createWritable()
   await writable.write(data)
   await writable.close()

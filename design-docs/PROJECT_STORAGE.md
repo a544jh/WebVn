@@ -83,15 +83,17 @@ option here and none of them address it; it needs eviction in the loader. Keep t
 
 ## Storage: OPFS
 
-**Landed 2026-08-30** as `src/storage/opfs.ts`: atomic writes, a recursive walk yielding sizes, recursive
-delete, directory listing, and `isSupported()`. Two deviations from what is written below, both deliberate.
+**Landed 2026-08-30** as `src/storage/opfs.ts`: writes, a recursive walk yielding sizes, recursive delete,
+directory listing, and `isSupported()`. Three deviations from what is written below, all deliberate.
 The dedicated-worker plus `createSyncAccessHandle()` path is **not** built - it is a second implementation of
 the write half justified by reports rather than a measurement, it would land untested against the browser it
 exists for, and it cannot even be feature-detected from the main thread, where `createSyncAccessHandle` is
-undefined. And a browser that fails `isSupported()` gets **no editor at all** rather than a degraded one; see
-`.scratch/project-storage/issues/03-opfs-primitives.md`. Chromium, which the browser test project runs, has
-both `createWritable` and `move`, so the atomic path is the tested one and the fallback is for other engines.
-No Safari was available to measure, so the open question about it below stays open.
+undefined. A browser that fails `isSupported()` gets **no editor at all** rather than a degraded one; see
+`.scratch/project-storage/issues/03-opfs-primitives.md`. And the tmp-then-`move()` write this document
+prescribed was dropped the same day it shipped, because `createWritable` is already atomic - the correction
+is in "Load-bearing details", and it is the one place where reading the spec reversed a decision this
+document had called not optional. No Safari was available to measure, so the open question about it below
+stays open.
 
 The working copy lives in the Origin Private File System, reached through
 `navigator.storage.getDirectory()`.
@@ -116,9 +118,12 @@ What OPFS wins on:
 
 What it costs:
 
-- **No cross-file atomicity.** IndexedDB has transactions; OPFS has per-file writes. Mitigated by writing
-  `x.tmp` then `FileSystemFileHandle.move()`, which has shipped for OPFS-internal files in all three engines.
-  Not optional - see "Load-bearing details".
+- **No cross-file atomicity.** IndexedDB has transactions; OPFS has per-file writes. **Corrected
+  2026-08-30**: this section used to prescribe writing `x.tmp` then `FileSystemFileHandle.move()` and
+  called it not optional. Per-*file* writes turn out to be atomic already - see "Load-bearing details" -
+  so what is actually missing is only the *cross-file* half, which nothing in the store needs yet:
+  `manifest.yaml` and `script.yaml` are written independently and a torn pair is not a state either
+  reader can detect. If a change ever has to span both, this is the cost to design around.
 - **`createWritable()` support has been uneven**, Safari in particular. Feature-detect at runtime and keep a
   dedicated-worker plus `createSyncAccessHandle()` path, which is the surface every OPFS implementation has.
   Worth re-checking against real browsers before relying on either.
@@ -593,16 +598,26 @@ sharing mechanism, and should not grow into one.
 
 Things that will break quietly if they are skipped.
 
-- **Every OPFS write goes `x.tmp` then `move()`. Landed 2026-08-30**, in `writeFile`, with the feature detect
-  and the acknowledged degradation this paragraph asks for - plus per-path serialization, which this did not
-  anticipate: two writes in flight would otherwise share one tmp name, and chaining them is also what makes
-  the last write win, which is what a debounced store wants. (Note the term: the editor **stores**, per
-  `CONTEXT.md`.) Storing writes constantly; a crash or tab kill mid-write
-  to `script.yaml` truncates the author's work. This is `FileSystemFileHandle.move()` - files, inside OPFS,
-  which is the one case every engine implements. It is still worth a feature detect: the method is not in the
-  WHATWG FS spec (see "Renaming"), and Firefox shipped then backed out its OPFS implementation once. There is
-  no atomic alternative, so the degraded path is a direct write plus an acknowledgement that a crash mid-write
-  can truncate.
+- **An OPFS write is already atomic; do not add a scheme on top. Corrected 2026-08-30**, after the
+  spec was actually read. This bullet used to say every write must go `x.tmp` then `move()`, on the
+  grounds that a crash mid-write to `script.yaml` truncates the author's work. That is not what
+  happens. The File System Standard is normative that "any changes made through stream won't be
+  reflected in the file entry locatable by fileHandle's locator until the stream has been closed", so
+  the old contents stand until `close()` and there is no short window. The swap file is how that is
+  typically implemented and is explicitly non-normative - Chromium writes `<name>.crswap` beside the
+  target, which enumeration never sees.
+  The tmp-then-move that shipped in `src/storage/opfs.ts` was therefore dropped the same day. Two
+  reasons beyond redundancy: the tmp file was *itself* written with `createWritable`, so it hedged
+  that primitive with itself and hedged nothing; and it added a failure mode, since a crash between
+  `close()` and `move()` leaves a stray `<name>.tmp` that the walk, the listing and an export would
+  each treat as the author's.
+  What is genuinely uncovered is an engine that ignores the visibility rule and writes in place -
+  "try to ensure that no partial writes happen" is the spec's phrasing, and "try" is not "must". That
+  is a ticket with a reproduction attached, not a guess, and its answer would be a tmp file written
+  through whatever primitive that engine does get right. `move()` is a Chromium addition and is not
+  in the spec at all, which is the other half of why it is gone.
+  **Per-path write serialization stays**, and is a different thing: it is what makes the *last queued*
+  write win, which is what a debounced store wants.
 - **Object URLs must survive until story teardown.** `ImageAssetLoaderSrc.getAsset` and
   `AudioAssetLoaderSrc.getAsset` return `cloneNode()`, and a clone re-triggers a load of the copied `src`.
   Against a revoked blob URL there is nothing to fall back to. Revoke on teardown, never on load. Worth a

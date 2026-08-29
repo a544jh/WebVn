@@ -266,13 +266,11 @@ export class VnEditor {
       this.manifestDoc.getValue(),
       failed.map((asset) => asset.manifestKey)
     )
-    this.markErrors(
-      "manifest",
-      failed.map((asset, i) => {
-        console.warn(`Could not load ${asset.path}`)
-        return new ParserError(`Could not load ${asset.path}`, locations[i], ErrorLevel.WARNING)
-      })
+    const errors = failed.map(
+      (asset, i) => new ParserError(`Could not load ${asset.path}`, locations[i], ErrorLevel.WARNING)
     )
+    errors.forEach((error) => console.warn(error.message))
+    this.markErrors("manifest", errors)
   }
 
   // A buffer's markers and its tab go together, so they are cleared together.

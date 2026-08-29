@@ -116,6 +116,46 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - Handler signature: `(obj: unknown, location: SourceLocation) => Command | ParserError`. Prefer `makeZodCmdHandler(schema, Ctor)` for new commands.
 - Command keys must start with a lowercase letter. Capitalized keys are reserved for actor names in the `Name: "text"` (Say) shorthand.
 
+### The editor's two buffers
+- `VnEditor` is **one CodeMirror instance holding a `Doc` per buffer**, swapped with `swapDoc`, with a
+  crude tab bar over it. That is CM5's own multi-buffer model and the 5.x spelling of the
+  `EditorState`-per-file shape `design-docs/EDITOR.md` migrates to, so it is *ported* at the CM6
+  migration rather than deleted; `design-docs/SCRIPT_INCLUDES.md` wants the same mechanism for N
+  script files, and the tab bar is what grows into that file switcher.
+- **Everything that means "the script" says so by name.** `parseDocument`, `goToLine`, the position
+  marker and the render callback take `scriptDoc`, never "whatever is on screen" - a render while the
+  manifest tab is up would otherwise move the manifest's cursor. Marker helpers take a `Doc`.
+- **A detached `Doc` can still be marked.** `@types/codemirror` puts `setGutterMarker`/`clearGutter`
+  on `Editor` only; CM5 defines both on `Doc.prototype`, and marker data lives on the line handle, so
+  markers survive a swap. `src/types/codemirror.d.ts` declares them back. Load-bearing: adopting a
+  manifest remarks the *script's* gutter while the *manifest* buffer is visible.
+- **The manifest is adopted on blur, and only when its own buffer is dirty.** Blur is a much broader
+  event than "I finished editing" - clicking the preview fires it - so an unguarded adoption would
+  reload the story out from under the author. Note the two dirty flags point opposite ways: the
+  manifest's dirtiness gates its adoption, and the script's cleanliness must never gate the reparse,
+  because the script is untouched and its meaning changed anyway.
+- Adopting means: parse; on failure mark the gutter and the tab and keep the last valid manifest (ADR
+  0002); on success reparse the script against it, reload assets, then `reloadStory` + `render(false)`.
+  A generation counter guards the `await` in the middle, the same hazard `renderGeneration` covers.
+- The manifest tab carries one error class meaning **"this buffer is not fully in effect"** - a parse
+  failure and a failed asset load both set it; the gutter and console tell them apart. Export is
+  greyed out while the manifest does not parse, because the player refuses such a payload.
+- `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
+  itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
+
+### The URL payload
+- `?vn=` carries a **two-document YAML stream, manifest first**, gzipped and base64'd. A
+  single-document payload is refused rather than read as a script against a default manifest -
+  `docs/adr/0003-the-url-payload-carries-the-manifest.md` says why, and says it because the next
+  reader will want to accept one for backwards compatibility.
+- The two-document form is **transport only**: `decodeProject` splits the stream with
+  `splitDocuments` and hands each half to its own parser, so per-buffer gutters stay trivially
+  correct. Both parsers refuse a multi-document input rather than taking `docs[0]` in silence.
+- The payload carries the **raw manifest buffer text**, not a re-serialisation - round-tripping
+  through the parser eats comments.
+- **The demo boots through the same path.** With no `?vn=`, `playerIndex.ts` falls back to the demo as
+  a source of `(manifestText, scriptText)`, so every demo load exercises the payload path.
+
 ### Manifest and the parser contract
 - A project declares itself in `manifest.yaml`: `formatVersion`, `id`, `title`, `actors`, `backgrounds`,
   `audioAssets`. The three asset declarations are **keyed maps, not lists**: the script names an id and
@@ -152,6 +192,12 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
+- **`loadAssets` reports rather than refuses.** It resolves with the declared asset paths that could
+  not be loaded, scoped to the state it was given - the loaders keep every path they have ever been
+  handed, and an old typo is not this story's. Declaring an asset before the art exists is the normal
+  authoring order, so a missing file is not a reason to refuse a story; it is also invisible until
+  the story reaches it and a sub-renderer throws on the null, hence the report. Making the renderers
+  *survive* one is a separate change with its own blast radius.
 - **Starting a story is `loadStory(state, animate)`, and nothing boots itself.** It swaps the story into the player and renders in one synchronous step; the auto-advance in `render` then walks to the first stop, painting every frame. Those two steps must not be separated by an `await` — `render` bumps `renderGeneration`, and that bump is the only thing that stops a pass still in flight from auto-advancing the story that replaced it. A bare `player.loadState` followed by an awaited asset load is exactly the bug this replaced. `animate` is the caller's choice: the player passes `true` so an intro or title screen plays out, the editor passes `false` so reloading a script lands on the first stop without replaying the opening.
 - `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~340 lines and growing — candidates for extraction if you touch it.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).
@@ -162,7 +208,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
 - Save slots are `{ timestamp, path: number[] }` where `path` is `[...decisions, remainingAdvances]`.
-- Persisted via `saveToLocalStorage(id, data)` under key `vn-<id>`. Currently `id` is hardcoded `"test"` — TODOed to be derived from VN title.
+- Persisted via `saveToLocalStorage(id, data)` under key `vn-save-<id>`, where `id` is the manifest's.
+  The two-level prefix is `design-docs/PROJECT_STORAGE.md`'s: localStorage is origin-wide, so an
+  author-chosen id needs a keyspace separate from the app's own, and it leaves `vn-editor-*` free.
+  `VnPlayerState` deliberately carries no identity (ADR 0001), so `DomRenderer` holds the save id as
+  its own field, set at construction and updated by `setSaveId` when the editor adopts a new manifest.
+  An in-session id change is a project rename by the crudest definition: later writes go to the new
+  key, nothing migrates, nothing re-reads the old one.
 - `loadFromLocalStorage` does **not** validate shape beyond `JSON.parse`. Only `ConsecutiveIntegerSet.fromJSON` uses Zod. Be defensive if you add fields.
 
 ## Conventions
@@ -229,7 +281,7 @@ If you're tempted to import from any of these, don't.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
-- **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
+- **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startEditor(manifestText, script)` mounts player, renderer and editor over one root (with `typeManifest`/`blurEditor` to drive an adoption), `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.

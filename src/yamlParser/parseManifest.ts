@@ -3,7 +3,7 @@ import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
 import { VnManifest } from "../core/manifest"
 import { isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
-import { composeDocuments, FIRST_LINE, getLines, yamlProblems } from "./yamlDocument"
+import { composeDocuments, documentLines, FIRST_LINE, getLines, multiDocumentError, yamlProblems } from "./yamlDocument"
 
 // manifest.yaml, the document a project declares itself in. It lives here rather than next to
 // `VnManifest` in core/ because core/ imports zod but not yaml, and keeping it free of both yaml
@@ -141,14 +141,11 @@ export const parseManifest = (text: string): [VnManifest | null, ParserError[]] 
   const doc = docs[0]
 
   const errors = yamlProblems(doc, lineCounter)
-  // A manifest is one document. The `---` separated stream is the shape the URL payload will take
-  // once a project travels as manifest-plus-script, and taking the first document quietly here
+  // A manifest is one document. The `---` separated stream is the shape the URL payload takes now
+  // that a project travels as manifest-plus-script, and taking the first document quietly here
   // would turn that into a story silently loading under half a project.
-  if (docs.length > 1) {
-    errors.push(
-      new ParserError("A manifest is a single YAML document.", documentLines(docs[1], lineCounter), ErrorLevel.ERROR)
-    )
-  }
+  const multiDocument = multiDocumentError(docs, lineCounter, "A manifest")
+  if (multiDocument !== undefined) errors.push(multiDocument)
   if (errors.some((e) => e.level === ErrorLevel.ERROR)) return [null, errors]
 
   const js: unknown = doc.toJS()
@@ -201,9 +198,6 @@ const keyLocation = (doc: Document, key: string, lc: LineCounter): SourceLocatio
   const lines = isMap(doc.contents) ? entryLines(doc.contents, key, lc) : undefined
   return lines ?? documentLines(doc, lc)
 }
-
-const documentLines = (doc: Document, lc: LineCounter): SourceLocation =>
-  isNode(doc.contents) ? getLines(doc.contents, lc) : FIRST_LINE
 
 // From the start of a mapping's key to the end of its value.
 const entryLines = (map: YAMLMap, key: string | number, lc: LineCounter): SourceLocation | undefined => {

@@ -10,17 +10,16 @@ import "codemirror/lib/codemirror.css"
 
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
-import { demoManifest, demoYaml } from "./demoStory"
-import { encodeScript, playerUrl } from "./scriptUrl"
+import { demoManifest, demoManifestYaml, demoYaml } from "./demoStory"
+import { encodeProject, playerUrl } from "./scriptUrl"
 
-// TODO: id from VN title
 let save
 try {
-  save = loadFromLocalStorage("test")
+  save = loadFromLocalStorage(demoManifest.id)
 } catch (e) {
   save = undefined
 }
-// The demo script is parsed by editor.loadScript below, which is what boots the vn. The player
+// The demo project is loaded by editor.loadProject below, which is what boots the vn. The player
 // only needs a state seeded from the manifest the script is parsed against.
 const player = new VnPlayer(seedState(demoManifest), save)
 
@@ -35,7 +34,7 @@ window.vnPlayer = player
 
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, player)
+const renderer = new DomRenderer(vnDiv, player, demoManifest.id)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
@@ -141,8 +140,6 @@ document.addEventListener("fullscreenchange", () => {
   }
 })
 
-editor.loadScript(demoYaml)
-
 // TODO move to DomRenderer
 function setScale() {
   const containerWidth = vnDivContainer.clientWidth // width of screen in css pixels
@@ -174,11 +171,21 @@ function restoreOnFullscreenExit() {
 }
 
 const exportUrlMessage = document.getElementById("vn-btn-export-url-message") as HTMLSpanElement
+const exportUrlButton = document.getElementById("vn-btn-export-url") as HTMLButtonElement
 
-document.getElementById("vn-btn-export-url")?.addEventListener("click", exportUrl)
+exportUrlButton.addEventListener("click", exportUrl)
+
+// A payload whose manifest does not parse is one the player refuses, so the link would be dead
+// rather than degraded - and whoever finds out is the person it was sent to. Following canSave's
+// precedent, which greys out Save when the path cannot be written as one.
+editor.onManifestStateChangeCallbacks.push(() => {
+  const valid = editor.isManifestValid()
+  exportUrlButton.disabled = !valid
+  exportUrlButton.title = valid ? "" : "manifest.yaml does not parse - a link exported now would not load"
+})
 
 async function exportUrl() {
-  const url = playerUrl(await encodeScript(editor.getScript()), location.href)
+  const url = playerUrl(await encodeProject(editor.getManifestText(), editor.getScript()), location.href)
   try {
     await navigator.clipboard.writeText(url)
     exportUrlMessage.textContent = "Copied the story URL to the clipboard"
@@ -189,3 +196,6 @@ async function exportUrl() {
     exportUrlMessage.textContent = "Could not write to the clipboard - the URL is in the console instead"
   }
 }
+
+// Last, so the export gate above is listening before the boot reports how the manifest fared.
+editor.loadProject(demoManifestYaml, demoYaml)

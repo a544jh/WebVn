@@ -52,9 +52,16 @@ export class DomRenderer implements Renderer {
 
   private arrow: HTMLDivElement
 
-  constructor(elem: HTMLDivElement, player: VnPlayer) {
+  // What saves are keyed under: the manifest's `id`, threaded in rather than read off the player,
+  // because `VnPlayerState` deliberately does not carry identity - see
+  // docs/adr/0001-manifest-seeds-the-initial-state.md. The editor calls `setSaveId` when the author
+  // adopts a manifest with a different one.
+  private saveId: string
+
+  constructor(elem: HTMLDivElement, player: VnPlayer, saveId: string) {
     this.finished = true
 
+    this.saveId = saveId
     this.root = elem
 
     this.menuDiv = document.createElement("div")
@@ -282,9 +289,16 @@ export class DomRenderer implements Renderer {
     }
   }
 
+  // A project renamed mid-session writes to the new key from here on. Nothing re-reads the old one
+  // and nothing migrates: the slots already in memory land under the new key on the next save. That
+  // is the crudest form of a project rename, and it is what design-docs/PROJECT_STORAGE.md's library
+  // makes a real operation.
+  public setSaveId(id: string): void {
+    this.saveId = id
+  }
+
   private persistGlobalSave(): void {
-    // TODO get id from vn "title" ?
-    saveToLocalStorage("test", this.player.getGlobalSaveData())
+    saveToLocalStorage(this.saveId, this.player.getGlobalSaveData())
   }
 
   public getSaves(): VnSaveSlotData[] {
@@ -394,24 +408,36 @@ export class DomRenderer implements Renderer {
 
   // Defaults to the player's own state, but a caller booting a story can pass it before the swap:
   // the assets to preload come from the story, not from whatever the player is holding.
-  public loadAssets(state: VnPlayerState = this.player.state): Promise<unknown> {
+  //
+  // Resolves with the paths this state declares that could not be loaded. A file that is not there
+  // yet is not a reason to refuse a story - declaring an asset before drawing it is the normal
+  // authoring order - but it is invisible until the story reaches it and a sub-renderer throws on
+  // the null, so the caller is told at load time instead. Scoped to what this state declares, since
+  // the loaders keep every path they have ever been handed and an old typo is not this story's.
+  public async loadAssets(state: VnPlayerState = this.player.state): Promise<string[]> {
     // Everything declared, whether or not the story reaches it - the manifest is the file index.
     // The paths come from the same functions the renderers resolve through, so what is preloaded
     // and what is asked for later cannot drift apart.
+    const declared: string[] = []
     for (const actor in state.actors) {
       const sprites = state.actors[actor].sprites ?? {}
       for (const name in sprites) {
+        declared.push(spriteFilePath(actor, sprites[name]))
         this.imageLoader.registerAsset(spriteFilePath(actor, sprites[name]))
       }
     }
     for (const id in state.backgrounds) {
+      declared.push(backgroundFilePath(state.backgrounds[id]))
       this.imageLoader.registerAsset(backgroundFilePath(state.backgrounds[id]))
     }
     for (const id in state.audioAssets) {
+      declared.push(audioFilePath(state.audioAssets[id].file))
       this.audioLoader.registerAsset(audioFilePath(state.audioAssets[id].file))
     }
 
-    return Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
+    const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
+    const failed = new Set([...imagesFailed, ...audioFailed])
+    return declared.filter((path) => failed.has(path))
   }
 }
 

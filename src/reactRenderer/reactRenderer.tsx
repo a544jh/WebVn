@@ -65,8 +65,12 @@ export class ReactRenderer implements Renderer {
     this.onFinishedCallbacks.forEach((cb) => cb())
   }
 
-  public loadAssets(): Promise<void[]> {
-    return Promise.all([Promise.resolve()])
+  public loadAssets(): Promise<string[]> {
+    return Promise.resolve([])
+  }
+
+  public setSaveId(): void {
+    // Nothing here saves yet. The incomplete experiment, per CLAUDE.md - not a code path.
   }
 }
 

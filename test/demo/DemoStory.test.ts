@@ -266,7 +266,9 @@ afterEach(() => {
 // Boots the demo exactly like playerIndex.ts does and waits for the first stop.
 const startDemo = async (): Promise<Harness> => {
   const [state] = YamlParser.parseStory(demoYaml, demoManifest)
-  const { player, renderer, firstStop } = mountVn(harnessRoot, state)
+  // The demo's own save id, so what lands in localStorage is keyed the way the standalone player
+  // keys it.
+  const { player, renderer, firstStop } = mountVn(harnessRoot, state, demoManifest.id)
   // Assets are only needed from the first advance on, so they can load while the renderer is
   // already on its way to the first stop.
   const images = await loadDemoAssets(renderer, state)
@@ -894,12 +896,12 @@ describe("demo story - player actions", () => {
 
   it("persists seen commands under the demo's save id, so a reload remembers them", async () => {
     const h = await startDemo()
-    expect(localStorage.getItem("vn-test")).toBeNull()
+    expect(localStorage.getItem(`vn-save-${demoManifest.id}`)).toBeNull()
 
     await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("And now... Actors!"))
 
-    // exactly what playerIndex.ts does on boot
-    const saved = loadFromLocalStorage("test")
+    // exactly what playerIndex.ts does on boot: the key is the manifest's id, not a hardcoded name
+    const saved = loadFromLocalStorage(demoManifest.id)
     expect(saved.saves).toEqual([])
 
     const [state] = YamlParser.parseStory(demoYaml, demoManifest)

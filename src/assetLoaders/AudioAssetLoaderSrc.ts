@@ -1,10 +1,13 @@
 import { AssetLoader } from "./AssetLoader"
+import { loadAllOf } from "./loadAll"
 
 export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
   private assets: Record<string, HTMLAudioElement | null> = {}
+  private failed: Set<string> = new Set()
 
+  // Idempotent, for the same reason as the image loader's.
   public registerAsset(path: string): void {
-    this.assets[path] = null
+    if (this.assets[path] === undefined) this.assets[path] = null
   }
 
   public getAsset(path: string): HTMLAudioElement | null | undefined {
@@ -20,19 +23,18 @@ export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
       return Promise.resolve()
     }
     const audio = new Audio(path)
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       audio.addEventListener("canplaythrough", () => {
         this.assets[path] = audio
         resolve()
       })
+      // Without this a missing file leaves the promise pending forever - `canplaythrough` never
+      // fires and nothing else settles it - so one bad declaration hangs every load after it.
+      audio.addEventListener("error", () => reject(new Error("Could not load " + path)))
     })
   }
 
-  public loadAll(): Promise<void[]> {
-    const loadPromises = []
-    for (const path in this.assets) {
-      loadPromises.push(this.loadAsset(path))
-    }
-    return Promise.all(loadPromises)
+  public loadAll(): Promise<string[]> {
+    return loadAllOf(Object.keys(this.assets), this.failed, this.loadAsset.bind(this))
   }
 }

@@ -53,3 +53,28 @@ story:
     expect(errors[0].message).toContain("missing")
   })
 })
+
+// A stray `---` used to discard everything after it in silence. That gets much easier to hit now
+// the URL payload is a `---` separated stream authors can see, so the script refuses one the way
+// the manifest already did.
+describe("YamlParser multi-document input", () => {
+  it("refuses a stream of more than one document rather than taking the first", () => {
+    const [, errors] = parse(`
+story:
+  - First line
+---
+story:
+  - Second line
+`)
+    expect(errors.map((e) => e.message)).toContain("A script is a single YAML document.")
+  })
+
+  it("does not mistake a --- inside a line for a document separator", () => {
+    const [state, errors] = parse(`
+story:
+  - "a line with --- in it"
+`)
+    expect(errors).toEqual([])
+    expect(state.commands).toHaveLength(1)
+  })
+})

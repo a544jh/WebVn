@@ -1,6 +1,6 @@
 # Editing manifest.yaml in the editor
 
-Status: ready-for-agent
+Status: done
 
 The editor can author a script but not a project. `manifest.yaml` became a real document in
 [#35](https://github.com/a544jh/WebVn/pull/35) and a symbol table in

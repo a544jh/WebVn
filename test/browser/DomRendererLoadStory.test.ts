@@ -32,7 +32,7 @@ describe("DomRenderer.loadStory", () => {
     // asynchronously puts the story in afterwards, and a boot already in flight then walks a story
     // it was never given, stepping commands nobody asked for.
     const player = new VnPlayer(parse(first))
-    new DomRenderer(root, player)
+    new DomRenderer(root, player, TEST_MANIFEST.id)
     await settle()
 
     expect(player.state.commandIndex).toBe(0)
@@ -42,7 +42,7 @@ describe("DomRenderer.loadStory", () => {
   it("plays a story handed over after the renderer was built", async () => {
     const root = createVnRoot()
     const player = new VnPlayer(seedState(TEST_MANIFEST))
-    const renderer = new DomRenderer(root, player)
+    const renderer = new DomRenderer(root, player, TEST_MANIFEST.id)
 
     // The standalone player gunzips the script out of the URL first, so its story lands a few
     // microtasks after the renderer exists rather than before it.
@@ -57,7 +57,7 @@ describe("DomRenderer.loadStory", () => {
   it("lets a second story supersede a boot that is still running", async () => {
     const root = createVnRoot()
     const player = new VnPlayer(seedState(TEST_MANIFEST))
-    const renderer = new DomRenderer(root, player)
+    const renderer = new DomRenderer(root, player, TEST_MANIFEST.id)
 
     renderer.loadStory(parse(first), true)
     const stop = nextStop(renderer, player)
@@ -83,7 +83,7 @@ story:
   it("plays the boot out when animating", async () => {
     const root = createVnRoot()
     const player = new VnPlayer(seedState(TEST_MANIFEST))
-    const renderer = new DomRenderer(root, player)
+    const renderer = new DomRenderer(root, player, TEST_MANIFEST.id)
 
     const stop = nextStop(renderer, player)
     renderer.loadStory(parse(intro), true)
@@ -98,7 +98,7 @@ story:
   it("lands on the first stop immediately when not animating", async () => {
     const root = createVnRoot()
     const player = new VnPlayer(seedState(TEST_MANIFEST))
-    const renderer = new DomRenderer(root, player)
+    const renderer = new DomRenderer(root, player, TEST_MANIFEST.id)
 
     renderer.loadStory(parse(intro), false)
 

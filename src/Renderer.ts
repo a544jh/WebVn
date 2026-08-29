@@ -7,5 +7,8 @@ export interface Renderer {
   loadStory: (state: VnPlayerState, animate: boolean) => void
   onRenderCallbacks: Array<() => void>
   onFinishedCallbacks: Array<() => void>
-  loadAssets(state?: VnPlayerState): Promise<unknown>
+  // Resolves with the declared asset paths that could not be loaded - see DomRenderer.loadAssets.
+  loadAssets(state?: VnPlayerState): Promise<string[]>
+  // Which project later saves are written under. Changes when the author edits the manifest's `id`.
+  setSaveId(id: string): void
 }

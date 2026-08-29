@@ -5,7 +5,7 @@ import { seedState, VnManifest } from "../core/manifest"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { updateLabels } from "../core/commands/controlFlow/Label"
-import { composeDocuments, FIRST_LINE, getLines, yamlProblems } from "./yamlDocument"
+import { composeDocuments, FIRST_LINE, getLines, multiDocumentError, yamlProblems } from "./yamlDocument"
 import { parseManifest } from "./parseManifest"
 
 const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserError[]] => {
@@ -18,6 +18,10 @@ const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserE
   console.dir(doc)
 
   errors = errors.concat(yamlProblems(doc, lineCounter))
+  // A script is one document too. Everything after a stray `---` used to be dropped in silence, and
+  // that gets much easier to hit now that the URL payload is a `---` separated stream authors see.
+  const multiDocument = multiDocumentError(docs, lineCounter, "A script")
+  if (multiDocument !== undefined) errors.push(multiDocument)
 
   const storyNode = doc.get("story", true)
   if (storyNode === undefined) {

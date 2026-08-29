@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { Reference } from "../../manifest"
 import { STOP_AUDIO_ID, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
@@ -8,16 +9,15 @@ class Bgm extends Command {
     super(location)
   }
 
+  // A bare string is the track, looping; the map form says so with a field. Written once, so the
+  // id `apply` plays and the id `references` checks cannot come apart.
+  private audioId(): string {
+    return typeof this.cmd === "string" ? this.cmd : this.cmd.audio
+  }
+
   apply(state: VnPlayerState): VnPlayerState {
-    let audio: string | null
-    let loop: boolean
-    if (typeof this.cmd === "string") {
-      audio = this.cmd
-      loop = true
-    } else {
-      audio = this.cmd.audio
-      loop = this.cmd.loop
-    }
+    let audio: string | null = this.audioId()
+    const loop = typeof this.cmd === "string" ? true : this.cmd.loop
 
     if (audio === STOP_AUDIO_ID) audio = null
 
@@ -28,6 +28,13 @@ class Bgm extends Command {
         audio: { ...state.animatableState.audio, bgm: audio, loopBgm: loop },
       },
     }
+  }
+
+  // `stop` is how a script stops the music, not a track anything could declare - the manifest
+  // schema refuses it as an id for that reason.
+  public references(): Reference[] {
+    if (this.audioId() === STOP_AUDIO_ID) return []
+    return [{ kind: "audio", id: this.audioId() }]
   }
 }
 

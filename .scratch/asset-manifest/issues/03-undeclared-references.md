@@ -1,6 +1,6 @@
 # An undeclared reference warns and neutralizes its command
 
-Status: ready-for-agent
+Status: done
 
 Split out of `02-manifest-yaml.md` during its 2026-08-28 refinement, when the rule was agreed but the
 severity and the author experience were not. Both are settled now - see `## Comments` for the session
@@ -170,6 +170,36 @@ machine after an import.
 - `design-docs/PROJECT_STORAGE.md` - "The manifest is the index"
 
 ## Comments
+
+### 2026-08-29 - done, landed on `claude/undeclared-references`
+
+Built as written; the six sections map one-to-one onto the diff. What is worth knowing beyond the
+ticket:
+
+- **The neutralization exception is a method, not an `instanceof` in the pass.**
+  `Command.survivesUndeclaredReference()` returns false on the base class and true on `Say`, which
+  keeps the pass free of per-command branches for the same reason the ticket keeps `#` and `stop`
+  inside the commands that give them meaning. The ADR argues it as a general property - "a command
+  does as much as it can without the id it could not resolve" - rather than as a special case for
+  one class, so it is spelled as one.
+- **`Bgm` grew a private `audioId()`.** `apply` and `references` both need the string-or-`.audio`
+  unwrap, and writing it twice is how the id that plays and the id that is checked would come apart.
+- **The undeclared-actor rule is in the pass, not in `show`.** A sprite reference is dropped when the
+  same command's actor reference is itself undeclared, so a future command naming a sprite without
+  its actor still reports.
+- **Two existing tests named ids their manifests did not declare**, which is the invariant this
+  ticket enforces finding its first two cases in the repo's own suite. `test/unit/YamlParser.test.ts`
+  says a line as `A1` against `TEST_MANIFEST` while testing anchors, and now parses against a
+  manifest declaring it. `test/browser/SpriteIds.test.ts` asserted the *old* behaviour outright - it
+  waited for the renderer to throw `Actor Jenny declares no sprite named furious` - and is now the
+  sprite half of the new one: reported at parse time, the showing sprite left alone, the story
+  playing on.
+- **`startVn` refuses a script with warnings**, so the harness gained `startVnWithErrors` for the two
+  suites whose warnings are the point. The guard is worth keeping: it is what caught the two tests
+  above.
+
+Not done, and still not in scope: the renderers surviving a *missing* asset, and `sfx: stop` learning
+to stop a sound.
 
 **2026-08-29, grilling session.** Twenty-one decisions; the ticket was rewritten around them and
 renamed from `03-undeclared-assets-are-parse-errors.md`, since both halves of the old name had become

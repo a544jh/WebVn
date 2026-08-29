@@ -182,6 +182,19 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   errors alongside; `parseManifest` returns `[VnManifest | null, ParserError[]]` and yields nothing at all
   when validation fails, because a manifest that does not validate has no identity to load the project under.
   See `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` before "fixing" the asymmetry.
+- **A reference the manifest does not answer warns and neutralizes its command.** After
+  `storyToCommands`, `parseStory` runs `checkReferences` (`src/core/commands/references.ts`) over the
+  built list. Each command declares the ids it names through `Command.references()` - exempting its
+  own reserved values, so `#` stays with `bg` and `stop` with `bgm` - and an id no declaration
+  answers becomes a `ParserError` at WARNING against the script line, with the command replaced by a
+  `NoOp` holding it. The pass maps rather than filters: **the list keeps its length**, because
+  `VnPath` records actions against command indices and every save is a path, so a dropped command is
+  every later save replaying into the wrong scene. Declaring the id and reparsing mints the real
+  command back at the same index. `Say` is the exception, via `survivesUndeclaredReference()`: the
+  line is still said, in `default` styling with the raw id as its name tag. A new command that names
+  an id has to override `references()` or its typos go unreported;
+  `docs/adr/0004-an-undeclared-reference-neutralizes-its-command.md` has the reasoning, including the
+  two alternatives it beat.
 - `seedState` takes a required manifest. A no-arg call would mint an identity-less state, which is the thing
   `id` exists to prevent; tests use `TEST_MANIFEST` from `test/helpers/testManifest.ts`.
 - The manifest schema is the one place the **actor-key casing rule** is stated as data. `YamlParser` decides a
@@ -203,6 +216,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
+- **The three throws on an id that will not resolve are invariant guards, not a failure mode.**
+  `BackgroundRenderer`, `SpriteRenderer` and `AudioRenderer` still throw on an undeclared id, but the
+  parse pass above guarantees none reaches them. All four wordings come from `undeclaredMessage` in
+  `core/manifest.ts`, so a guard that does fire says what the author was already told. A *missing*
+  file is a different matter and still reaches them - see below.
 - **`loadAssets` reports rather than refuses.** It resolves with the *declarations* whose file could
   not be loaded - the path, plus the key the manifest declares it under - scoped to the state it was
   given, since the loaders keep every path they have ever been handed and an old typo is not this
@@ -291,7 +309,9 @@ If you're tempted to import from any of these, don't.
 
 ## Typical tasks and where to start
 
-- **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
+- **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. If it names an
+  asset or actor id, override `references()` so a typo is a warning rather than a crash, exempting
+  any value the engine has spoken for. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.

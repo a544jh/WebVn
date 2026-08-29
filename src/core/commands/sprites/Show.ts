@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { Reference } from "../../manifest"
 import { SpriteInstance, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { makeZodCmdHandler, registerCommandHandler, SourceLocation } from "../Parser"
@@ -39,6 +40,16 @@ class Show extends Command {
     newState.animatableState = { ...state.animatableState, sprites: newSprites }
 
     return newState
+  }
+
+  // Two references, because a sprite name means nothing without the actor whose sprites it is
+  // declared among. The instance id is not one: it is the identity of a thing on screen, which no
+  // manifest declares.
+  public references(): Reference[] {
+    return [
+      { kind: "actor", id: this.cmd.actor },
+      { kind: "sprite", actor: this.cmd.actor, id: this.cmd.sprite },
+    ]
   }
 }
 

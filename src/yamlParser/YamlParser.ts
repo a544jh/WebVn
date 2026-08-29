@@ -5,6 +5,7 @@ import { seedState, VnManifest } from "../core/manifest"
 import { Command } from "../core/commands/Command"
 import { Say } from "../core/commands/text/Say"
 import { updateLabels } from "../core/commands/controlFlow/Label"
+import { checkReferences } from "../core/commands/references"
 import { composeDocuments, FIRST_LINE, getLines, multiDocumentError, yamlProblems } from "./yamlDocument"
 import { parseManifest } from "./parseManifest"
 
@@ -30,8 +31,12 @@ const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserE
     errors.push(new ParserError("story must be a sequence", getLines(storyNode, lineCounter), ErrorLevel.ERROR))
   } else if (isSeq(storyNode)) {
     const [commands, storyErrors] = storyToCommands(storyNode, doc, lineCounter)
-    errors = errors.concat(storyErrors)
-    newState = { ...newState, commands }
+    // The ids the script named are checked once the whole story is built, not inside the handlers:
+    // a handler returns a command or an error, so reporting from one means dropping the command and
+    // shifting every later index. See core/commands/references.ts.
+    const [checked, referenceErrors] = checkReferences(commands, manifest)
+    errors = errors.concat(storyErrors, referenceErrors)
+    newState = { ...newState, commands: checked }
   }
 
   newState = updateLabels(newState)

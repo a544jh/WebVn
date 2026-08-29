@@ -378,7 +378,7 @@ audioAssets:
 
       expect(manifest?.id).toBe("webvn-demo")
       expect(manifest?.title).toBe("WebVn Demo")
-      expect(Object.keys(manifest?.actors ?? {}).sort()).toEqual(["A1", "A2", "narrator"])
+      expect(Object.keys(manifest?.actors ?? {}).sort()).toEqual(["A1", "A2", "Rando", "narrator"])
       expect(manifest?.backgrounds).toEqual({ a: "a.png", b: "b.png" })
       expect(manifest?.audioAssets).toEqual({
         map01: { file: "bgm/map01.ogg" },

@@ -93,3 +93,30 @@ export function seedState(manifest: VnManifest): VnPlayerState {
     seenCommands: new ConsecutiveIntegerSet(),
   }
 }
+
+// An id a script names, expecting the manifest to declare it. Naming one is the whole of what a
+// script does with the manifest, so a reference the manifest does not answer is the only way the
+// two documents can disagree. A sprite carries its actor as well, because an actor's sprites are
+// declared inside that actor and the id alone does not say whose it is.
+export type Reference =
+  | { readonly kind: "background"; readonly id: string }
+  | { readonly kind: "audio"; readonly id: string }
+  | { readonly kind: "actor"; readonly id: string }
+  | { readonly kind: "sprite"; readonly actor: string; readonly id: string }
+
+// What an author is told about a reference the manifest does not answer. Both layers say it from
+// here: the parse-time pass reports it against the script line, and the three sub-renderers throw it
+// as the guard that should now be unreachable - a guard that does fire says what the author was
+// already told rather than describing the same failure a second way.
+export function undeclaredMessage(reference: Reference): string {
+  switch (reference.kind) {
+    case "background":
+      return `No background is declared as ${reference.id}`
+    case "audio":
+      return `No audio asset is declared as ${reference.id}`
+    case "actor":
+      return `No actor is declared as ${reference.id}`
+    case "sprite":
+      return `Actor ${reference.actor} declares no sprite named ${reference.id}`
+  }
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { VnManifest } from "../../src/core/manifest"
-import { liveSprites, nextStop, settle, StartedVn, startVn } from "../helpers/vnHarness"
+import { liveSprites, nextStop, StartedVn, startVn, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
 
 // A sprite instance's id is what a `show` writes to and a `hide` takes back, and it defaults to the
 // actor. Two ids for one actor put that actor on screen twice - which the sprite map, keyed by
@@ -62,7 +62,8 @@ const advance = async (started: StartedVn): Promise<void> => {
 }
 
 // A declared sprite name is checkable against the manifest, unlike an instance id, so an unknown one
-// is the manifest and the script disagreeing and is reported rather than swallowed.
+// is the manifest and the script disagreeing - reported at parse time, and the `show` that named it
+// neutralized, rather than swallowed or thrown several scenes later.
 const undeclaredScript = `
 story:
   - Before anyone is shown
@@ -95,26 +96,20 @@ describe("sprite ids", () => {
     expect(liveSprites(started.root)).toEqual({})
   })
 
-  it("reports a sprite name the actor does not declare, in place of one that is showing", async () => {
-    const started = await startVn(undeclaredScript, { manifest: MANIFEST })
+  it("reports a sprite name the actor does not declare, and leaves the one that is showing", async () => {
+    const started = await startVnWithErrors(undeclaredScript, { manifest: MANIFEST })
     await registerTestSprites(started.renderer)
 
+    expect(started.errors.map((e) => e.message)).toEqual(["Actor Jenny declares no sprite named furious"])
+
     await advance(started)
-    expect(Object.keys(liveSprites(started.root))).toEqual(["Jenny"])
+    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
 
-    const thrown: string[] = []
-    const onError = (e: ErrorEvent) => thrown.push(e.message)
-    const onRejection = (e: PromiseRejectionEvent) => thrown.push(String(e.reason))
-    window.addEventListener("error", onError)
-    window.addEventListener("unhandledrejection", onRejection)
-
-    // The render throws, so it never comes to rest: a direct call rather than a wait on a stop that
-    // will not arrive.
-    started.renderer.advance()
-    await settle()
-
-    window.removeEventListener("error", onError)
-    window.removeEventListener("unhandledrejection", onRejection)
-    expect(thrown.join("\n")).toContain("Jenny declares no sprite named furious")
+    // Past the undeclared name. A render that throws never comes to rest, so the stop `advance`
+    // waits for is also the proof that this one did not - which is what it did before the parser
+    // started checking the ids a script names.
+    await advance(started)
+    expect(textBoxText(started.root)).toBe("Still here")
+    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
   })
 })

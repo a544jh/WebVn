@@ -17,6 +17,10 @@ actors:
     sprites:
       idle: idle.png
       "2": "2.png"
+  # Declared and nothing more, which is the whole of what an actor with no styling needs: the script
+  # speaks as Rando and the engine's default actor supplies the rest. An id no declaration answers is
+  # a warning against the line that named it, so a cast member gets an entry even when it is empty.
+  Rando: {}
 
 backgrounds:
   a: a.png

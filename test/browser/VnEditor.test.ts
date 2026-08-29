@@ -46,9 +46,9 @@ describe("adopting a manifest", () => {
     // did not change, its meaning did.
     //
     // The spec asks for this as "an id that was an error under the old manifest is not one under
-    // the new". No such error exists yet - parseStory seeds from the manifest and validates no ids
-    // against it, which is what ticket 03 (undeclared assets are parse errors) would add - so what
-    // is asserted is the other half of the same reparse: the same script saying something else.
+    // the new". Ticket 03 added that error, but this rename keeps the actor's key and changes only
+    // the name it displays under, so what is asserted is the other half of the same reparse: the
+    // same script saying something else.
     await adopt(vn, manifestWith("first-id", "Renamed"))
 
     expect(nameTag(vn.root)?.textContent).toBe("Renamed")

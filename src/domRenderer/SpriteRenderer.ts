@@ -1,4 +1,5 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
+import { undeclaredMessage } from "../core/manifest"
 import { Actor, SpriteInstance } from "../core/state"
 import { spriteAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer } from "./DomRenderer"
@@ -157,7 +158,8 @@ export class SpriteRenderer {
   // bug fix.
   private resolve(actors: Record<string, Actor>, sprite: SpriteInstance): string {
     const path = spriteAssetPath(actors, sprite)
-    if (path === undefined) throw new Error(`Actor ${sprite.actor} declares no sprite named ${sprite.sprite}`)
+    if (path === undefined)
+      throw new Error(undeclaredMessage({ kind: "sprite", actor: sprite.actor, id: sprite.sprite }))
     return path
   }
 

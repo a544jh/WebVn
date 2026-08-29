@@ -66,7 +66,14 @@ export const multiDocumentError = (docs: Document[], lc: LineCounter, subject: s
 // part is dropped, so joining two documents and splitting them again returns exactly what went in.
 export const splitDocuments = (text: string): string[] => {
   const [docs] = composeDocuments(text)
-  const starts = docs.map((doc, i) => (i === 0 ? 0 : doc.range?.[0] ?? 0))
+  const starts = [0]
+  for (const doc of docs.slice(1)) {
+    // The composer always sets a range. Without one there is no boundary to cut on, and a guessed
+    // one would silently hand back overlapping halves, so give back one part and let the caller
+    // refuse it - which is what the payload reader does with anything that is not two documents.
+    if (doc.range === undefined) return [text]
+    starts.push(doc.range[0])
+  }
   return starts.map((start, i) => {
     const part = text.slice(start, i + 1 < starts.length ? starts[i + 1] : undefined)
     return i === 0 ? part : part.replace(/^---[^\S\n]*\n?/, "")

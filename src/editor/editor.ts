@@ -187,6 +187,11 @@ export class VnEditor {
     }
     this.manifestDoc.markClean()
     this.manifest = manifest
+    // Before the await, not after: the flag means "the buffer parsed", which is settled here. Left
+    // until the end it would keep Export greyed out for the length of the asset load - and, if this
+    // adoption were superseded, leave it greyed out for good over a manifest that parsed fine.
+    this.manifestParsed = true
+    this.refreshManifestTab()
 
     // Reparsed against the new manifest: actor and asset ids resolve through it, so the same script
     // means something different now - which is the point, since fixing a typo'd id in the manifest
@@ -197,7 +202,6 @@ export class VnEditor {
     const failed = await this.renderer.loadAssets(state)
     if (generation !== this.adoptGeneration) return
 
-    this.manifestParsed = true
     this.setAssetsLoaded(failed)
 
     // Later saves go to the new key. Nothing migrates - see DomRenderer.setSaveId.

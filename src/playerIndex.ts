@@ -52,7 +52,10 @@ async function boot(): Promise<void> {
   window.vnDomRenderer = renderer
 
   const [state] = YamlParser.parseStory(script, manifest)
-  await renderer.loadAssets(state)
+  const failed = await renderer.loadAssets(state)
+  // The player has no tab to mark, but a declared file that is not there is worth saying somewhere
+  // other than the frame it eventually throws on.
+  if (failed.length > 0) console.warn("Declared files that could not be loaded: " + failed.join(", "))
   // Animated, unlike the editor: everything the story runs before its first stop is played out,
   // which is what makes an intro or a title screen possible.
   renderer.loadStory(state, true)

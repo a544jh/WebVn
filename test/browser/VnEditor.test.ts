@@ -43,6 +43,11 @@ describe("adopting a manifest", () => {
     // Note what is *not* true here: the script buffer is clean and untouched. goToLine skips the
     // reparse when it is, which is right when only the playhead moved and wrong here - the script
     // did not change, its meaning did.
+    //
+    // The spec asks for this as "an id that was an error under the old manifest is not one under
+    // the new". No such error exists yet - parseStory seeds from the manifest and validates no ids
+    // against it, which is what ticket 03 (undeclared assets are parse errors) would add - so what
+    // is asserted is the other half of the same reparse: the same script saying something else.
     await adopt(vn, manifestWith("first-id", "Renamed"))
 
     expect(nameTag(vn.root)?.textContent).toBe("Renamed")
@@ -85,6 +90,27 @@ describe("adopting a manifest", () => {
     await settle()
 
     expect(renders).toBe(0)
+  })
+
+  it("marks the tab for a declared file that is not there, without calling the manifest invalid", async () => {
+    const vn = await started()
+
+    // The two states the badge covers are not the same: a parse failure means the preview is
+    // running a *different* manifest, a load failure means it is running this one with a file
+    // missing under it. The badge means "this buffer is not fully in effect", which is both -
+    // otherwise a filename typo stays invisible until the story reaches the asset and throws.
+    await adopt(
+      vn,
+      `${manifestWith("first-id", "Original")}
+backgrounds:
+  nowhere: no-such-file.png
+`
+    )
+
+    expect(vn.editor.isManifestValid()).toBe(true)
+    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(true)
+    // Adopted regardless: declaring an asset before the art exists is the normal authoring order.
+    expect(nameTag(vn.root)?.textContent).toBe("Original")
   })
 
   it("writes later saves under the adopted id", async () => {

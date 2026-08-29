@@ -49,6 +49,9 @@ export async function encodePayload(manifestText: string, script: string): Promi
 // travelled, and reading it as a script against the demo's manifest would give every shared story
 // the same project id - which is to say the same save key, which is the collision keying saves by id
 // exists to end. The player reports the failure rather than loading half a project.
+// `splitDocuments` is where this shares its counting with the parsers' `multiDocumentError`; the
+// predicate itself cannot be shared, because a payload wants exactly two documents and a buffer
+// wants at most one.
 export async function decodePayload(encoded: string): Promise<[string, string]> {
   const documents = splitDocuments(await decodeText(encoded))
   if (documents.length !== 2) {

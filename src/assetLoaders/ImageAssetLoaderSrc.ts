@@ -5,8 +5,9 @@ export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
   private assets: Record<string, HTMLImageElement | null> = {}
   private failed: Set<string> = new Set()
 
-  // Idempotent, because registration happens again on every load: re-registering a loaded asset as
-  // null would drop what is already decoded and re-fetch it.
+  // Idempotent, because registration happens again on every load - and adopting a manifest makes
+  // that every editor blur. Re-registering a loaded asset as null would drop what is already
+  // decoded and re-fetch the whole project each time.
   public registerAsset(path: string): void {
     if (this.assets[path] === undefined) this.assets[path] = null
   }

@@ -304,7 +304,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   hidden, and on `pagehide` (never `unload`). **The debounce is the guarantee and every flush is a
   bonus** — no unload-time hook can promise an async OPFS write completes, so do not lengthen the
   interval on the theory that the flushes cover it. It stores **the buffer, not the parse**: a manifest
-  that does not parse is still the author's work and is the edit they most want back.
+  that does not parse is still the author's work and is the edit they most want back. Its indicator is a
+  filled badge, not coloured text - green stored, `orange` unstored, `red` failed, the two problem
+  colours being the literal ones `setErrorMarker` paints the gutter with.
 - **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
   `chooseProject` writes nothing, the lock is taken, and only then does `claimProject` seed or record.

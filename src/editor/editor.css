@@ -37,22 +37,38 @@
 }
 
 /* The store indicator, pushed to the far edge of the tab bar so it cannot read as a third tab: the
-   tabs carry per-buffer error status and this is per-project. */
+   tabs carry per-buffer error status and this is per-project.
+
+   A filled badge rather than coloured text. Text alone was the first attempt and it was effectively
+   invisible - a small grey label at the edge of a grey tab bar is exactly what an eye skips, and this
+   is the one thing on screen that answers "is my work safe". The fill is what makes it findable
+   without being looked for.
+
+   The two problem states take the same literal colours the gutter markers do (setErrorMarker's
+   "orange" and "red"), so orange means the same thing everywhere in this editor: something needs
+   your attention but the story still runs. Green is this element's own, because the gutter has no
+   "fine" marker to match - it says nothing when a buffer is clean. */
 .vn-editor-store-state {
   margin-left: auto;
   align-self: flex-end;
   padding: 2px 8px;
+  border-radius: 3px;
   font-size: 0.85em;
-  color: #666;
+  /* White on green and on red, black on orange: orange is light enough that white text on it fails
+     to be readable, which is the whole point of the change. */
+  color: white;
+  background: green;
 }
 
 .vn-editor-store-state[data-vn-store-state="unstored"] {
-  color: #b8860b;
+  color: black;
+  background: orange;
 }
 
 /* Quota exhaustion is a real outcome, and silently staying dirty forever is the worst version of
    it. The console carries the error itself. */
 .vn-editor-store-state[data-vn-store-state="failed"] {
-  color: red;
+  color: white;
+  background: red;
   font-weight: bold;
 }

@@ -22,6 +22,12 @@ loaders report a declared file that is not there instead of hanging on it. That 
 URL-payload item and its save-keying child below, and the ordering edge between them.
 VnEditor has tests and a startEditor harness for the first time, which is the start of T.
 
+Extracted: the storage chain's first five tickets, 2026-08-29, as .scratch/project-storage/.
+E and its object-URL test are two of them; the OPFS store below is split into three, because
+one "L" line was hiding a filesystem layer, a project layer and a boot path. The picker and
+everything past it stay unextracted - their shape depends on the store's API being real. That
+spec also lists what the design doc predates and nobody should re-derive.
+
 Sizes: S = hours, M = a day or two, L = several days.
 
 
@@ -49,7 +55,9 @@ Sizes: S = hours, M = a day or two, L = several days.
        One interface behind that makes the storage backend swappable.
        Two implementations, one per entry point and both permanent: OPFS for
        the editor, URLs for the player. The player does not import to read.
-       design-docs/PROJECT_STORAGE.md
+       It resolves paths rather than ids, and only loadAsset consults it, so
+       the render path stays synchronous.
+       .scratch/project-storage/issues/01-asset-resolver.md
 
   F  Parser benchmark at 1k/10k/50k commands, written down   S
        Spike. Settles whether YAML parse time is worth designing around, and
@@ -71,8 +79,10 @@ Sizes: S = hours, M = a day or two, L = several days.
 == STORAGE ==  design-docs/PROJECT_STORAGE.md
 
   E -> OPFS project store                                L
-             author-chosen id directories, tmp-then-move writes,
-             enumeration as truth
+             Now three tickets: 03 primitives (tmp-then-move writes, walk,
+             recursive delete, feature detection), 04 the store over them
+             (id directories, enumeration as truth), 05 the editor booting
+             through both and autosaving into them.
              |
              +-> project rename: copy + delete, editor.yaml     M
              |     pendingRename marker, quota precheck, overwrite dialog.
@@ -112,6 +122,7 @@ Sizes: S = hours, M = a day or two, L = several days.
              +-> content addressing (optional, cheaper now than later)
 
   E -> object URL lifetime test (cloneNode against a revoked blob URL)
+         .scratch/project-storage/issues/02-object-url-lifetime.md
 
 
 == EDITOR ==  design-docs/EDITOR.md

@@ -286,7 +286,10 @@ See [ROUGH_EDGES.md](./ROUGH_EDGES.md) for the running list of typos, design sme
 
 ## Design docs — decisions not yet built
 `design-docs/` holds architecture that has been reasoned through but not implemented. It is not documentation of
-the current code, so do not read it as describing what exists.
+the current code, so do not read it as describing what exists - with one exception: as parts of a doc get built,
+the section describing each is marked **Landed** with a date in place, rather than deleted. Those markers are
+the only sentences in `design-docs/` that describe the present tense, and they exist so a reader can tell a
+prescription that is still waiting from one that is now code.
 
 **They are binding, not merely topical.** Each one already *decides* things, often in more detail than a reader
 skimming for its subject expects — mechanisms, key formats, UI triggers, and enumerated audits of existing code.
@@ -298,18 +301,25 @@ covers.
 - [PROJECT_STORAGE.md](./design-docs/PROJECT_STORAGE.md) — how an author's project (script, assets, metadata) is
   stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvn.zip` archive as the
   canonical artifact, a library of projects rather than one, and four ingestion paths sharing one back half
-  behind a `SourceLoader`. Read it before touching the asset loaders, the hardcoded asset lists in
-  `src/demoStory.ts`, or the `vn-test` save key.
+  behind a `SourceLoader`. Read it before touching the asset loaders, `src/domRenderer/assetPaths.ts`, the
+  editor's boot path, or anything that writes to localStorage.
   **Already decides:** the save key is `vn-save-<id>` and why the prefix exists; renaming a project orphans the
   old key deliberately rather than migrating; the rename dialog is triggered from the manifest *on editor blur*,
-  and blur's weaknesses (incidental focus changes, never fires on a tab close) are named there.
+  and blur's weaknesses (incidental focus changes, never fires on a tab close) are named there; a project
+  directory holds `manifest.yaml`, `script.yaml` and an **`assets/`** directory over the three asset folders,
+  which the code does not do yet - `src/domRenderer/assetPaths.ts` builds unprefixed paths, and moving it is
+  the first step of the resolver ticket.
+  Its first five tickets are extracted at `.scratch/project-storage/` - the resolver seam, the object-URL
+  lifetime pin, and the OPFS primitives/store/editor-boot trio. Read that spec before starting any of it: it
+  lists what the design doc predates and is now code.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
   `include` directive, resolved at parse time rather than as a command. Read it before changing
-  `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's single-buffer assumptions.
+  `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's buffer handling.
   **Already decides:** the multi-buffer mechanism — one `CodeMirror.Doc` per file swapped with `swapDoc`, a file
   switcher, markers filtered to the open buffer plus an indicator that a *different* buffer has errors, and
-  "clean" redefined as all buffers clean. It also **enumerates the six single-buffer assumptions in `VnEditor`
-  with line numbers**, so that audit does not need doing again.
+  "clean" redefined as all buffers clean. **Half of that landed with manifest editing** and the section says
+  which half; what is left is the part that is about N files rather than two, enumerated there with line
+  numbers, so that audit does not need doing again.
 - [EDITOR.md](./design-docs/EDITOR.md) — autocompletion, command documentation, list continuation and
   find-in-file for the script editor, and the CodeMirror 6 migration under them (5.x was archived in April
   2026). Read it before touching `src/editor/`, the command registry, or the `codemirror` dependency.

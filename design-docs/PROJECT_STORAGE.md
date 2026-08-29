@@ -2,44 +2,52 @@
 
 How an author's project is held while they are editing it, and how it leaves the browser.
 
-Status: design, nothing here is implemented yet. Written up so the reasoning survives; expect the details to
-move as it gets built. The constraint the whole document is shaped by: no cloud, no accounts, no server. A
+Status: partly built. The constraint the whole document is shaped by: no cloud, no accounts, no server. A
 free, open-source tool with no strings attached cannot have a backend, so everything below happens on the
 author's own machine.
+
+**Landed as of 2026-08-29**, each marked inline where it is described: the manifest and its asset
+declarations, the id charset rule, the `vn-save-<id>` key, the two-document `?vn=` payload, and the demo's
+`manifest.yaml` and `script.yaml` as real files. Nothing under "Storage: OPFS" exists yet -
+`.scratch/project-storage/` holds the first five tickets of it, and that spec lists what has already landed
+so it is not re-derived. Everything else here is still design, and expect the details to move as it gets
+built.
 
 ## Two different things are called "saving"
 
 These keep getting conflated and they are unrelated:
 
 - **Player saves.** Where a player is in a story: `[...decisions, remainingAdvances]` plus `seenCommands`, in
-  localStorage under `vn-<id>`. Tiny, already works, described in the save/load section of `CLAUDE.md`. Not
-  what this document is about, except for one consequence in "Load-bearing details" below.
+  localStorage under `vn-save-<id>`. Tiny, already works, described in the save/load section of `CLAUDE.md`.
+  Not what this document is about, except for one consequence in "Load-bearing details" below.
 - **Project persistence.** The author's script, assets and metadata. Does not exist yet at all. This is the
   hard one, and it is what follows.
 
 ## Prerequisite: assets have to become project data
 
-Today a project cannot declare its own assets. `actors`, `backgrounds` and `audioAssets` live in
-`src/demoStory.ts` as a hardcoded `VnPlayerState`, and reach the parser through `baseState` - see the comment
-at `src/yamlParser/YamlParser.ts:21`. The YAML supplies the story; everything else is a TypeScript constant
-compiled into the bundle. No storage design can work until that moves into the project.
+**Landed 2026-08-28.** A project declares its assets in `manifest.yaml`, validated with Zod, and
+`seedState(manifest)` copies them into a starting `VnPlayerState`. What follows described the state before
+that: `actors`, `backgrounds` and `audioAssets` lived in `src/demoStory.ts` as a hardcoded state and reached
+the parser through a `baseState` parameter that would accept a mid-story one. `.scratch/asset-manifest/` and
+`.scratch/asset-ids/`, decided in `docs/adr/0001-manifest-seeds-the-initial-state.md`.
 
-The second prerequisite is an indirection between "logical asset key" and "URL to fetch". Right now the path
-is built by string concatenation at seven call sites:
+The second prerequisite is an indirection between "logical asset key" and "URL to fetch", and it is **still
+open** - TODO item E, ticketed as `.scratch/project-storage/issues/01-asset-resolver.md`. The seven call
+sites that concatenated paths are now four calls into `src/domRenderer/assetPaths.ts`, which is the one place
+an id becomes a path; what has not moved is where that path is *fetched from*. It still lands in
+`img.src = path` / `new Audio(path)` in the two loaders, resolved as a relative URL against the document.
+That is convenient: **anything that produces a URL is already a valid backend**, because
+`URL.createObjectURL(blob)` drops into `ImageAssetLoaderSrc` and `AudioAssetLoaderSrc` unchanged.
 
-- `src/domRenderer/DomRenderer.ts:399,406,411` (`sprites/<actor>/<file>`, `backgrounds/<file>`, `audio/<file>`)
-- `src/domRenderer/BackgroundRenderer.ts:77,128,160`
-- `src/domRenderer/SpriteRenderer.ts:167`
-- `src/domRenderer/AudioRenderer.ts:16,27`
+So introduce an `AssetResolver` - logical path in, URL out, async - and consult it in `loadAsset` and nowhere
+else. Do this first and the storage choice stops being architectural; it becomes one class.
 
-and lands in `img.src = path` / `new Audio(path)`, resolved as a relative URL against the document. That is
-convenient: **anything that produces a URL is already a valid backend**, because `URL.createObjectURL(blob)`
-drops into `ImageAssetLoaderSrc` and `AudioAssetLoaderSrc` unchanged.
-
-So introduce an `AssetResolver` - logical key in, URL out, possibly async - with implementations for the
-current relative-path scheme (deployed builds, the demo) and for a project store. Do this first and the
-storage choice stops being architectural; it becomes one class. It also de-duplicates path building across
-four files.
+**It resolves paths, not ids, and the loaders stay keyed by path.** The question "possibly async?" is settled
+by where the two live: resolving an id to a file is a manifest question and stays the synchronous function it
+is in `assetPaths.ts`, because `SpriteRenderer` and `BackgroundRenderer` do it mid-render. Resolving a file to
+bytes is a storage question and is async. The async boundary already exists in the right place -
+`loadAssets` preloads everything a state declares before the story runs - so nothing in the render path has
+to learn to await.
 
 ### The player and the editor get different resolvers
 
@@ -120,6 +128,28 @@ projects/
 editor.yaml
 ```
 
+**The `assets/` level is kept, and the code moves to match it** - confirmed 2026-08-29, when building the
+store forced the question. It is worth writing down why, because the code currently disagrees and the
+argument three paragraphs above looks like it settles the matter the other way.
+
+`src/domRenderer/assetPaths.ts` builds `backgrounds/a.png` and `sprites/A1/idle.png` with no prefix, and
+`test-assets/` is laid out to match. So "the path model is already ours" is true - but it is a claim about
+the *shape*, that a project holds a directory tree with actor-scoped sprite folders rather than a flat
+key-value map, and a shared parent does not touch that. All three consumers still agree with each other,
+because all three carry the same prefix: the OPFS directory, the published folder and the zip are still the
+same tree.
+
+What the wrapper buys is room at the project's top level. A project directory is not going to hold only these
+five things: export writes a `README.txt` there, `design-docs/SCRIPT_INCLUDES.md` puts N script files in a
+project, and per-project editor state is a plausible fourth. Without the wrapper each of those lands in the
+same namespace as `backgrounds/` and `sprites/`, and "which top-level entries are assets" becomes a rule
+someone has to know. With it, everything above `assets/` is the project describing itself and everything
+below is media.
+
+The cost is a one-time move, and it is the whole cost: the three prefixes are written once in
+`assetPaths.ts`, so nothing in `src/` outside that file has to change. See
+`.scratch/project-storage/issues/01-asset-resolver.md`, which does it as its first step.
+
 `editor.yaml` sits beside `projects/`, not inside a project. It holds the editor's own bookkeeping - last
 opened, last exported, a rename in flight - none of which is project data and none of which should travel in
 an export. Keeping it outside the project directories is what lets a `.webvn.zip` stay *exactly the contents
@@ -132,19 +162,33 @@ dependency already in the tree, and so a human can read it in the export. It hol
 asset declarations that currently live in `demoStory.ts`:
 
 ```yaml
+formatVersion: 1
 id: my-story        # author-chosen, restricted charset, names the directory
 title: My Story
-formatVersion: 1
 actors:
   A1:
     name: Actor
     nameTagColor: purple
-    sprites: [idle.png, "2.png"]
-backgrounds: [a.png, b.png]
-audioAssets: [bgm/map01.ogg, sfx/bigthump.ogg]
+    sprites:
+      idle: idle.png
+      angry: "2.png"
+backgrounds:
+  street: a.png
+  room: b.png
+audioAssets:
+  theme:
+    file: bgm/map01.ogg
+    title: Theme
+    artist: Someone
 ```
 
-Validate it with Zod, matching how commands are already parsed (`makeZodCmdHandler`).
+**Landed 2026-08-28**, validated with Zod in `src/yamlParser/parseManifest.ts` as this section proposed. The
+example above has been corrected to the shipped shape: the three declarations are **keyed maps of id to
+file**, not lists, so the script names an id and the manifest says which file it is. That makes the manifest a
+symbol table rather than a preload index - a file can be renamed without touching the story, and an audio
+asset has somewhere to carry its title. `.scratch/asset-ids/`. `formatVersion: 1` is required and checked
+before the rest of the schema, precisely because a v0 manifest's lists would otherwise produce a shape error
+per declaration and bury the one message that explains them all.
 
 **The id is author-chosen, not a UUID, and it names the directory.** An earlier draft used a UUID
 precisely so that renaming would never have to move a directory. That was traded away deliberately: a
@@ -166,6 +210,11 @@ which is a zip extracted onto a real filesystem:
 
 The id is mandatory at creation - it is the directory name, so it must exist before the first write. There is
 no unnamed-project state.
+
+**Landed 2026-08-28**, as `ID_PATTERN` and `WINDOWS_RESERVED` in `src/yamlParser/parseManifest.ts`, ahead of
+anything that stores a directory. The store validates an id by reusing that schema rather than restating the
+rule: it has to hold for the OPFS directory name, the export filename and the localStorage key suffix at
+once, and a second copy is a copy that drifts.
 
 **Uniqueness is per-library, not global.** Two authors may both pick `demo`, and if both publish under the
 same origin their players share a save key. The UUID scheme avoided this by accident. It is an accepted
@@ -315,11 +364,19 @@ tool - and "load the demo" is it.
 
 Build it as a URL import of a demo laid out in `dist/` as a published project, not as a special case that
 writes files directly. Almost all of it is already there: `CopyPlugin` copies `test-assets/` into `dist/`
-verbatim, so the sprites, backgrounds and audio are already deployed at the paths `DomRenderer` builds. What
-is missing is `manifest.yaml` and `script.yaml` as real files rather than the TypeScript constants in
-`src/demoStory.ts`. Import them back into `demoStory.ts` as strings with `?raw` - vite supports it natively
-and webpack 5 matches it with a `resourceQuery: /raw/` rule of `type: "asset/source"` - and the YAML files
-become the single source, with `test/demo/DemoStory.test.ts` untouched.
+verbatim, so the sprites, backgrounds and audio are already deployed at the paths `DomRenderer` builds.
+
+**The file half landed 2026-08-28/29, exactly as prescribed here.** `test-assets/manifest.yaml` and
+`test-assets/script.yaml` are real files, imported back into `src/demoStory.ts` as strings with `?raw` - vite
+supports it natively and webpack 5 matches it with a `resourceQuery: /raw/` rule of `type: "asset/source"` -
+so the YAML files are the single source and `test/demo/DemoStory.test.ts` was untouched. `dist/` is therefore
+already a published project directory. What is left of this section is the URL import that reads it back, and
+the button that calls it.
+
+Until that exists, an empty library has nothing to show, so
+`.scratch/project-storage/issues/05-editor-boots-from-the-store.md` seeds the demo into the store directly
+from those same `?raw` constants - scaffolding, with its deletion condition named in the ticket: when URL
+import lands, the seed becomes a call to it and the demo stops being a special case.
 
 Three things fall out of doing it this way rather than special-casing:
 
@@ -481,10 +538,12 @@ canonical artifact** - not a preference for a single file, but the only mechanis
 every browser.
 
 **Consequence of splitting the manifest out:** `?vn=<gzipped script>` no longer describes a complete story,
-since the asset and actor declarations are in `manifest.yaml`. The intended fix is to make the URL payload a
-two-document YAML stream - manifest, `---`, script - which the `yaml` dependency already parses via
-`parseAllDocuments`, and which stays small under gzip. Assets themselves can never travel in a URL, so a
-shared link with custom assets also needs a base URL for them, e.g. `&assets=<url>`. That is worth having
+since the asset and actor declarations are in `manifest.yaml`. **Landed 2026-08-29** as prescribed - the URL
+payload is a two-document YAML stream, manifest, `---`, script, parsed with the `yaml` dependency's
+`parseAllDocuments`, and it stays small under gzip. A single-document payload is refused rather than read
+against a default manifest; `docs/adr/0003-the-url-payload-carries-the-manifest.md` says why, and says it
+because the next reader will want to accept one for backwards compatibility. Assets themselves can never
+travel in a URL, so a shared link with custom assets also needs a base URL for them, e.g. `&assets=<url>`. That is worth having
 anyway: it makes reusable asset packs possible.
 
 **Note what this competes with.** Once a published VN can be opened by URL ("Importing from a URL" above), a
@@ -519,15 +578,19 @@ Things that will break quietly if they are skipped.
   standalone player receives a story from a URL and has no project directory, so a save made from a shared
   link can only be matched if the id travelled with the story. Since the id *is* the directory name this is
   now true by construction, but the export path still has to carry it deliberately. A URL payload arriving
-  with no id is invalid and the player bails - there is no fallback key. This is also the fix for the
-  hardcoded `loadFromLocalStorage("test")` and the stale-save bug in `ROUGH_EDGES.md`.
+  with no id is invalid and the player bails - there is no fallback key. **Landed 2026-08-29**: `seedState`
+  copies `id` onto `VnPlayerState`, so a reload carries its own save key and no caller can swap the story
+  without swapping the key. The hardcoded `loadFromLocalStorage("test")` is gone with it. The *stale-save*
+  bug in `ROUGH_EDGES.md` is not fixed and was never this: the id names the project, not the version of its
+  script, so a save made before an edit still loads afterwards.
 
-- **The player-save key becomes `vn-save-<id>`.** Keep a prefix: localStorage is origin-wide and shared with
-  the editor's own keys, so once ids are author-chosen an unprefixed key lets a project named `settings` or
-  `theme` collide with whatever the app stores under that name. The prefix is the only thing separating the
-  author-controlled keyspace from the app-controlled one, and the two-level shape leaves `vn-editor-*` free.
-  The current `vn-<id>` dates to the first localStorage commit in 2021 and had no design behind it; reshaping
-  it is free now, when the only key in existence is the demo's `vn-test`, and will not be later.
+- **The player-save key becomes `vn-save-<id>`. Landed 2026-08-29.** Keep a prefix: localStorage is
+  origin-wide and shared with the editor's own keys, so once ids are author-chosen an unprefixed key lets a
+  project named `settings` or `theme` collide with whatever the app stores under that name. The prefix is the
+  only thing separating the author-controlled keyspace from the app-controlled one, and the two-level shape
+  leaves `vn-editor-*` free. The `vn-<id>` it replaced dated to the first localStorage commit in 2021 and had
+  no design behind it; reshaping it was free while the only key in existence was the demo's `vn-test`, and
+  would not have been later.
 
 - **Renaming a project does not touch player saves.** The save key follows the id, so a rename orphans
   `vn-save-<old-id>` - deliberately. Migrating it would be a half-measure: nothing local can reach the saves
@@ -557,9 +620,16 @@ Things that will break quietly if they are skipped.
 
 ## Open questions
 
+Two that were open here are now settled and have moved into the sections they belong to: whether asset
+resolution is async (it is, and it resolves paths rather than ids), and whether a project directory has an
+`assets/` level (it does not).
+
 - **zip.js's tree-shaken reader size.** Unmeasured, and it decides zip.js against unzipit plus client-zip.
 - **`createWritable()` support in current Safari.** Reports conflict. Determines whether the worker plus
-  `createSyncAccessHandle()` path is a fallback or the primary implementation.
+  `createSyncAccessHandle()` path is a fallback or the primary implementation. Until someone measures it,
+  `.scratch/project-storage/issues/03-opfs-primitives.md` feature-detects and refuses rather than building a
+  second write implementation against a browser nobody has tested - a worker path is a ticket with a
+  reproduction attached, not a precaution.
 - **When the linked-folder layer ships, not whether.** It is the main justification for OPFS over IndexedDB,
   the only thing that pulls IndexedDB into the design, and - since `showDirectoryPicker()` is the only way to
   write a directory tree out of a browser - the folder export itself. It lands after zip export and import,

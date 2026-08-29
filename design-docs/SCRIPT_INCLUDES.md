@@ -146,24 +146,33 @@ feature with its own design. Document the limit so it arrives as a known constra
 
 ## The editor is the bulk of the work
 
-`VnEditor` is single-buffer from top to bottom, and every one of these assumes a single document:
+**Half of what this section prescribed landed 2026-08-29**, built for a different reason: manifest editing
+needed a second buffer, and `.scratch/manifest-editor/` built it as the mechanism named below rather than as
+a special case. `VnEditor` is now **one CodeMirror instance holding a `Doc` per buffer, swapped with
+`swapDoc`**, with per-buffer undo history, cursor and dirty flag coming along for free; a crude tab bar over
+it; markers cleared and written per buffer (`clearMarkers(buffer)`, `markErrors(buffer, errors)`); and the
+indicator that a *different* buffer has errors, as a tab wearing the worst level marked in its own gutter
+(`refreshTab`). Everything that means "the script" now says so by name - `parseDocument`, `goToLine`, the
+position marker and the render callback take `scriptDoc`, never `getValue()` - which was the single largest
+piece of this list.
 
-- `getScript()` returns the one document's text; `loadScript` sets it.
-- `parseDocument` parses `getValue()` and clears and repopulates one error gutter.
-- `isClean()` is one document's dirty flag, and `goToLine` uses it to decide whether to reparse.
-- `setErrorMarker` and `setPositionMarker` write gutter markers by absolute line number.
-- The render callback at `editor.ts:46` moves the cursor to the current command's `startLine`, with no notion
-  of which file that line belongs to.
-- `goToLine`'s `findIndex` at `editor.ts:115` matches a command purely by line range.
+`test/browser/VnEditor.test.ts` and the `startEditor` harness landed with it, so "nothing tests the editor" is
+no longer true either, though the jump modes, the gutter markers and `loadScript` are still uncovered (TODO
+item T).
 
-What multi-file needs: one `CodeMirror.Doc` per file with `swapDoc` to switch between them, which brings
-per-file undo history and cursor position along for free; a file switcher; markers filtered to the open buffer,
-plus some indicator that a *different* file has errors, since otherwise a broken script looks clean; "clean"
-redefined as all buffers clean; and file-aware matching in `goToLine` and the position marker.
+What is left, and it is the part that is about *N* files rather than about two:
 
-This is where the schedule goes, and it is worth being blunt about why: **nothing tests the editor.** The
-browser vitest project covers `DomRenderer`, and the demo project covers whole-story playthroughs. Every
-change in the list above is verified by hand.
+- `getScript()` returns the script buffer's text. Under includes the script is a tree, and `getScript` has to
+  mean the *resolved* one - see "Export stays flat" below.
+- The tab bar is two hardcoded buffers (`type BufferName = "script" | "manifest"`), enumerated in a
+  `Record`. A file switcher over N files makes that dynamic. It was deliberately built crude so this is not a
+  fight, but it is not free.
+- `goToLine`'s `findIndex` (`editor.ts:330`) matches a command purely by line range, and the position marker
+  (`editor.ts:351`) writes by absolute line number within one doc. Both need `SourceLocation` to carry a file,
+  and both need to do nothing when the command's file is not the open one.
+- "Clean" is still per buffer, and it means two different things by design: the manifest's dirtiness *gates*
+  its adoption, while the script's cleanliness must never gate a reparse. Redefining clean as "all buffers
+  clean" has to keep that distinction rather than flatten it.
 
 ## Export stays flat
 

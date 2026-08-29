@@ -19,6 +19,21 @@ also what player saves are keyed under, so changing it is how an author declares
 everything filed under the old one - a rename and a save-break are the same gesture, deliberately.
 _Avoid_: slug, uuid, key
 
+**Project directory**:
+The directory a project's files sit in, under `projects/`. Named after the project id and normally
+equal to it, but a *separate thing*: every read, write, store and lock addresses the directory, never
+the id, because the two can disagree - an author who edits `id:` in the buffer has made them disagree
+- and code that addressed the id would be asserting an invariant it cannot check. When they disagree
+the fix is always to rename the directory to match the manifest, never the other way round.
+_Avoid_: folder, project path, project name
+
+**Resolver**:
+What answers "where do this file's bytes come from", given a path inside a project. One per entry
+point and both permanent: relative paths for the player, OPFS for the editor. Distinct from
+`assetPaths.ts`, which answers "which file is this id" - a manifest question rather than a storage
+one.
+_Avoid_: loader (that is the thing that holds the decoded asset), fetcher, backend
+
 **Manifest**:
 What a project declares about itself: its identity, its cast, and which background, audio and sprite
 assets exist, each under an id. An input to the parser, which seeds a starting state from it - not a

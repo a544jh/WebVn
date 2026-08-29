@@ -1,6 +1,6 @@
 # OPFS primitives: atomic writes, walk, delete
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 The filesystem layer the project store is built on, knowing nothing about manifests, projects or ids.
 `design-docs/PROJECT_STORAGE.md`, "Storage: OPFS" and "Load-bearing details". Its own ticket because

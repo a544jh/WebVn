@@ -1,6 +1,6 @@
 # Pin what a clone needs from an object URL
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 `design-docs/PROJECT_STORAGE.md`, "Load-bearing details": *object URLs must survive until story
 teardown*. On TODO as `E -> object URL lifetime test`. Small, and worth doing before the OPFS

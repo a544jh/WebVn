@@ -1,6 +1,6 @@
 # The AssetResolver seam
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 TODO item E, and the gate on the whole storage chain. `design-docs/PROJECT_STORAGE.md`, "Prerequisite:
 assets have to become project data". A refactor with no behaviour change: what it buys is that

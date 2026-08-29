@@ -192,6 +192,12 @@ export const typeManifest = (started: StartedEditor, text: string): void => {
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
 
+// The same for the script buffer, which is the one the editor opens on.
+export const typeScript = (started: StartedEditor, text: string): void => {
+  editorTab(started.editorRoot, "script").click()
+  codeMirrorOf(started.editorRoot).getDoc().setValue(text)
+}
+
 // Leaving the editor, which is what adopts a manifest.
 export const blurEditor = async (started: StartedEditor): Promise<void> => {
   const cm = codeMirrorOf(started.editorRoot)

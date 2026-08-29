@@ -3,7 +3,16 @@ import { VnPlayer } from "../../src/core/player"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { pauseMenu } from "../../src/domRenderer/menus/PauseMenu"
 import { saveMenu } from "../../src/domRenderer/menus/SaveLoadMenu"
-import { nextStop, settle, startVn, textBoxText } from "../helpers/vnHarness"
+import {
+  blurEditor,
+  nextStop,
+  settle,
+  startEditor,
+  StartedEditor,
+  startVn,
+  textBoxText,
+  typeScript,
+} from "../helpers/vnHarness"
 
 const script = `
 story:
@@ -143,5 +152,74 @@ describe("DomRenderer scroll wheel", () => {
 
     // the wheel over the rest of the menu is swallowed wherever the list happens to sit
     expect(wheel(root.querySelector(".vn-save-return") as HTMLDivElement, -NOTCH)).toBe(false)
+  })
+})
+
+// The gesture that used to crash: an author breaks the script, the preview reloads onto a story with
+// almost nothing left in it, and the wheel is rolled up and down over it. `seenCommands` is carried
+// across the reload, so it still holds indices the shortened story does not have, and the skip the
+// wheel asks for used to be granted at the end of it. Each grant recorded an advance the story could
+// not walk; scrolling back up then replayed one and threw "path does not match the story".
+describe("the wheel over a script edited shorter", () => {
+  const manifest = `
+formatVersion: 1
+id: wheel-test
+title: A Test Story
+`
+
+  const broken = `
+story:
+  - "First line"
+  -- Hello, This is WebVn - A fast visual novel engine for the modern web.
+  - "Third line"
+`
+
+  // Read to the end, so every command is marked seen, and then broken. The blur is what reparses,
+  // and the reload leaves a one-command story with the old story's marks still on it.
+  const brokenAfterReading = async (): Promise<StartedEditor> => {
+    const vn = await startEditor(manifest, script)
+    for (let i = 0; i < 2; i++) {
+      const stop = nextStop(vn.renderer, vn.player)
+      vn.renderer.advance()
+      await stop
+    }
+    expect(textBoxText(vn.root)).toBe("Third line")
+
+    typeScript(vn, broken)
+    await blurEditor(vn)
+    expect(vn.player.state.commands).toHaveLength(1)
+    expect(vn.player.state.seenCommands.contains(1)).toBe(true)
+    return vn
+  }
+
+  it("steps nothing forward, however many notches it is given", async () => {
+    const vn = await brokenAfterReading()
+    const at = vn.player.state.commandIndex
+
+    for (let i = 0; i < 5; i++) {
+      wheel(vn.root, NOTCH)
+      await settle()
+    }
+
+    expect(vn.player.state.commandIndex).toBe(at)
+    // and nothing was written down that a replay would then be asked to walk
+    expect(vn.player.path.toShorthandPath()).toEqual([0])
+  })
+
+  it("scrolls back up over what it scrolled down through", async () => {
+    const vn = await brokenAfterReading()
+
+    // Down more than once before coming back up, which is what "rapidly" meant: undo pops one step,
+    // so a single stray one was survivable and the second was the one that threw.
+    for (let i = 0; i < 3; i++) {
+      wheel(vn.root, NOTCH)
+      await settle()
+    }
+    wheel(vn.root, -NOTCH)
+    await settle()
+
+    expect(vn.player.path.toShorthandPath()).toEqual([0])
+    expect(vn.player.state.commandIndex).toBe(1)
+    expect(textBoxText(vn.root)).toBe("First line")
   })
 })

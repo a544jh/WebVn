@@ -31,7 +31,7 @@ export class VnPlayer {
 
   public advance(): void {
     const newState = State.advance(this.state)
-    if (this.state.stopAfterRender && newState !== this.state) {
+    if (this.state.stopAfterRender && this.storyMoved(newState)) {
       this.path = this.path.advance()
     }
     this.state = newState
@@ -39,10 +39,24 @@ export class VnPlayer {
 
   public advanceUntilStop(): void {
     const newState = State.advanceUntilStop(this.state)
-    if (this.state.stopAfterRender && newState !== this.state) {
+    if (this.state.stopAfterRender && this.storyMoved(newState)) {
       this.path = this.path.advance()
     }
     this.state = newState
+  }
+
+  // Whether an advance got anywhere, which is the only thing worth recording: a path step the story
+  // cannot reproduce is one `Advance.tryPerform` refuses on the next replay, and `undo` replays.
+  //
+  // The index rather than the state object, because at the end of the story `advance` still hands
+  // back a *fresh* snapshot - it rebuilds one, clearing the frame's transition and sfx flags, before
+  // finding there is no command left to apply - so object identity reads as movement where there was
+  // none. Advancing at the end is how that is reached without editing anything; a script edited
+  // shorter under a `seenCommands` that still remembers the longer one is how the skip button and the
+  // scroll wheel reach it, since both ask `isNextCommandSeen` for permission. Replay compares the
+  // index, so recording compares the index.
+  private storyMoved(newState: VnPlayerState): boolean {
+    return newState.commandIndex !== this.state.commandIndex
   }
 
   public makeDecision(id: number): void {
@@ -72,7 +86,12 @@ export class VnPlayer {
     this.state = State.fromPath(this.startingState, this.path)
   }
 
+  // Past the last command there is no next command to have seen, whatever `seenCommands` says about
+  // that index - and it can say the wrong thing, since the marks are carried across a `reloadStory`
+  // and a script edited shorter leaves them pointing beyond the end. Without the bound, skip mode
+  // spins on the last frame of such a story and the scroll wheel steps a story that cannot step.
   public isNextCommandSeen(): boolean {
+    if (this.state.commandIndex >= this.state.commands.length) return false
     return this.state.seenCommands.contains(this.state.commandIndex)
   }
 

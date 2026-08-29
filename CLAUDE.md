@@ -112,6 +112,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   one project's progress under another's — see ADR 0001's 2026-08-29 amendment before moving it back out.
 - `VnPath` (src/core/vnPath.ts) records *user actions* (`Advance`, `MakeDecision`, `GoToCommand`) — not state snapshots. Saving stores this path in shorthand (decisions + trailing advances). Loading replays from `startingState` by reapplying actions.
 - Consequence: commands must be **pure** with respect to state. Any nondeterminism (random, time, network) breaks replay. If you add one, seed it from state.
+- **A step is recorded only when the story actually moved, and `commandIndex` is what says so.** `State.advance`
+  hands back a fresh snapshot even at the end of the story — it rebuilds one, clearing the frame's transition and
+  sfx flags, before finding there is no command left — so `newState !== state` reads as movement where there was
+  none. `VnPlayer.storyMoved` compares the index, which is the same test `Advance.tryPerform` uses to decide the
+  replay moved, so recording and replay cannot disagree. They did once: advancing at the end wrote steps no
+  replay could walk, and the next `undo` threw "path does not match the story" out of `VnAction.perform`. Reaching
+  that end without clicking past it takes a script edited shorter under a `seenCommands` that still remembers the
+  longer one, which is why `isNextCommandSeen` is bounded by `commands.length` as well.
 
 ### Command registration
 - Every command module (e.g. `core/commands/text/TextBox.ts`) calls `registerCommandHandler("textbox", handler)` at import time.

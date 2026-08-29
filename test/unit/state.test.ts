@@ -392,6 +392,50 @@ describe("path replay matches live play", () => {
     expect(player.state.commandIndex).toBe(2) // showing s2
   })
 
+  it("records nothing for an advance made at the end of the story", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2")]))
+    autorun(player)
+    press(player) // showing s2, which is the last command
+    const atEnd = player.path.toShorthandPath()
+
+    press(player)
+    press(player)
+    press(player)
+
+    // `advance` hands back a fresh snapshot even here, so identity would have called each of these
+    // a step. A recorded step the story cannot walk is one the next replay throws on.
+    expect(player.state.commandIndex).toBe(2)
+    expect(player.path.toShorthandPath()).toEqual(atEnd)
+  })
+
+  it("survives an undo after advancing past the end of the story", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2")]))
+    autorun(player)
+    press(player)
+    press(player)
+    press(player)
+
+    // The crash this covers: the extra presses used to be recorded, undo popped only one of them,
+    // and replaying the rest walked off the end of the story.
+    player.undo()
+    expect(player.state.commandIndex).toBe(1) // showing s1
+  })
+
+  it("does not skip into a command index seenCommands remembers from a longer script", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3")]))
+    autorun(player)
+    press(player)
+    press(player) // every command seen, and the story is over
+
+    // The script was edited down to one line under it. reloadStory carries the marks over, so the
+    // set still holds indices this story does not have.
+    player.reloadStory(makeState([say("s1")]))
+    expect(player.state.commandIndex).toBe(1)
+    expect(player.state.seenCommands.contains(1)).toBe(true)
+
+    expect(player.isNextCommandSeen()).toBe(false)
+  })
+
   it("fromPath reproduces the live state after a decision", () => {
     const player = new VnPlayer(makeState(branchingScript()))
     autorun(player)

@@ -1,6 +1,6 @@
 import { parse, stringify } from "yaml"
 import { parseManifest, validateProjectId } from "../yamlParser/parseManifest"
-import { listDirectories, opfsRoot, readText, removeRecursive, writeFile } from "./opfs"
+import { listDirectories, opfsRoot, readBlob, readText, removeRecursive, writeFile } from "./opfs"
 
 // Project semantics over the OPFS primitives: where a project's files live, what counts as a
 // project, and how one is read and written. design-docs/PROJECT_STORAGE.md, "Layout" and "Multiple
@@ -152,6 +152,16 @@ export const writeScript = (directory: string, text: string): Promise<void> =>
 
 export const writeManifest = (directory: string, text: string): Promise<void> =>
   root().then((dir) => writeFile(dir, projectPath(directory, MANIFEST_FILE), text))
+
+// One file inside a project, addressed by its path within the project - `assets/backgrounds/a.png`,
+// which is exactly what src/domRenderer/assetPaths.ts builds. The editor's AssetResolver reads
+// through this, so the projects/<directory>/ layout stays this module's business rather than being
+// re-spelled on the render path.
+export const readProjectFile = async (directory: string, path: string): Promise<Blob> =>
+  readBlob(await root(), projectPath(directory, path))
+
+export const writeProjectFile = async (directory: string, path: string, data: Blob | string): Promise<void> =>
+  writeFile(await root(), projectPath(directory, path), data)
 
 // A hint, not a source of truth. Anything unreadable, unparseable or the wrong shape reads as empty
 // and the caller falls back to enumeration - see EditorState for why that is the whole versioning

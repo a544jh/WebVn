@@ -35,3 +35,24 @@
 .vn-editor-tab-warning {
   color: orange;
 }
+
+/* The store indicator, pushed to the far edge of the tab bar so it cannot read as a third tab: the
+   tabs carry per-buffer error status and this is per-project. */
+.vn-editor-store-state {
+  margin-left: auto;
+  align-self: flex-end;
+  padding: 2px 8px;
+  font-size: 0.85em;
+  color: #666;
+}
+
+.vn-editor-store-state[data-vn-store-state="unstored"] {
+  color: #b8860b;
+}
+
+/* Quota exhaustion is a real outcome, and silently staying dirty forever is the worst version of
+   it. The console carries the error itself. */
+.vn-editor-store-state[data-vn-store-state="failed"] {
+  color: red;
+  font-weight: bold;
+}

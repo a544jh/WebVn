@@ -33,6 +33,33 @@ const BUFFER_LABELS: Record<BufferName, string> = {
 // manifest is what you go to when the story needs something it does not have yet.
 const INITIAL_BUFFER: BufferName = "script"
 
+// Whether the author's project is in the store. Per project rather than per buffer: both buffers go
+// to one store, and an author thinks "is my project stored", not "is my manifest stored".
+//
+// Three states, not four. There is no transient "storing..." - a local OPFS write is milliseconds
+// and it would only flicker - and no "storing is unavailable", because a browser that cannot store
+// gets no editor at all rather than one that quietly keeps nothing. `failed` earns its place
+// because quota exhaustion is a real outcome and silently staying dirty forever is the worst
+// version of it.
+//
+// The same three values are what src/storage/projectStoring.ts reports. They are spelled in both
+// places rather than shared through an import, because an import either way would pull OPFS into
+// src/editor/ or CodeMirror into src/storage/ - and the wiring in src/index.ts assigns one to the
+// other, so a fourth state added on one side fails to compile rather than drifting.
+export type StoreState = "stored" | "unstored" | "failed"
+
+const STORE_LABELS: Record<StoreState, string> = {
+  stored: "stored",
+  unstored: "unstored",
+  failed: "could not store",
+}
+
+const STORE_TITLES: Record<StoreState, string> = {
+  stored: "Everything you have typed is in this browser's project store",
+  unstored: "There are changes not yet written to this browser's project store",
+  failed: "The last write to this browser's project store failed - see the console",
+}
+
 // https://github.com/codemirror/CodeMirror/issues/988#issuecomment-14921785
 function betterTab(cm: CodeMirror.Editor) {
   if (cm.somethingSelected()) {
@@ -79,6 +106,20 @@ export class VnEditor {
   // Fires after every adoption attempt, so a host page can follow `isManifestValid`.
   public onManifestStateChangeCallbacks: Array<() => void> = []
 
+  // Fires on every edit, with the buffer that changed and its whole text. What a host page does
+  // with it is its own business - storing lives outside src/editor/, the same division as the
+  // fullscreen and export-URL buttons.
+  public onBufferChangeCallbacks: Array<(buffer: BufferName, text: string) => void> = []
+
+  // The indicator above the buffer's right corner. Owned here because it is a pixel in the tab bar;
+  // driven from outside, because what it reports is a write this class knows nothing about.
+  private storeStateElem: HTMLSpanElement
+
+  // `setValue` fires `change` like a keystroke does, so an unguarded handler would write back
+  // everything it just read on every boot. Raised around every programmatic write below, and
+  // lowered synchronously after it, because CodeMirror emits the event from inside setValue.
+  private loadingBuffer = false
+
   // `manifest` is what `manifestText` parses to - the caller has already parsed it, because it
   // needed the id to seed the player and key its saves. loadProject puts the text in the buffer.
   constructor(root: HTMLDivElement, player: VnPlayer, parser: VnParser, renderer: Renderer, manifest: VnManifest) {
@@ -96,8 +137,12 @@ export class VnEditor {
       this.scriptDoc.setCursor({ line: location.startLine - 1, ch: 0 })
     })
 
-    const [tabBar, tabs] = makeTabBar((buffer) => this.showBuffer(buffer))
+    const [tabBar, tabs, storeStateElem] = makeTabBar((buffer) => this.showBuffer(buffer))
     this.tabs = tabs
+    this.storeStateElem = storeStateElem
+    // The project the editor opens with came out of the store, so "stored" is the honest starting
+    // point; the first keystroke is what makes it otherwise.
+    this.setStoreState("stored")
     root.appendChild(tabBar)
 
     this.vnEditor = codeMirror(root, {
@@ -128,6 +173,14 @@ export class VnEditor {
       const location = getCurrentLocation(this.player)
       if (location !== null) this.goToLine(location.startLine)
     })
+    // Which buffer changed comes from the doc, not from `activeBuffer`: they agree today, but the
+    // active tab is UI state and the doc is the thing that actually changed.
+    this.vnEditor.on("change", (instance) => {
+      if (this.loadingBuffer) return
+      const doc = instance.getDoc()
+      const buffer: BufferName = doc === this.manifestDoc ? "manifest" : "script"
+      this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, doc.getValue()))
+    })
     this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
       // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
       event.preventDefault()
@@ -148,14 +201,14 @@ export class VnEditor {
 
   // Both buffers, which is what booting a project means now.
   public async loadProject(manifestText: string, script: string): Promise<void> {
-    this.manifestDoc.setValue(manifestText)
+    this.setBuffer(this.manifestDoc, manifestText)
     this.manifestDoc.markClean()
     this.setManifestParsed(true)
     await this.loadScript(script)
   }
 
   public async loadScript(script: string): Promise<void> {
-    this.scriptDoc.setValue(script)
+    this.setBuffer(this.scriptDoc, script)
     const state = this.parseDocument()
 
     const failed = await this.renderer.loadAssets(state)
@@ -209,6 +262,23 @@ export class VnEditor {
     // carried in on that state, so later saves go to the new key without a second call to make.
     this.player.reloadStory(state)
     this.renderer.render(false)
+  }
+
+  // Every programmatic write to a buffer goes through here, so that reading a project in is never
+  // mistaken for the author typing it. CodeMirror emits `change` from inside setValue, so the flag
+  // can be lowered on the next line rather than needing a generation counter.
+  private setBuffer(doc: CodeMirror.Doc, text: string): void {
+    this.loadingBuffer = true
+    doc.setValue(text)
+    this.loadingBuffer = false
+  }
+
+  // Driven by whoever does the writing. Called after each write resolves or rejects, and on the
+  // first keystroke that makes the project unstored.
+  public setStoreState(state: StoreState): void {
+    this.storeStateElem.textContent = STORE_LABELS[state]
+    this.storeStateElem.title = STORE_TITLES[state]
+    this.storeStateElem.dataset.vnStoreState = state
   }
 
   public getScript(): string {
@@ -381,8 +451,11 @@ export class VnEditor {
   }
 }
 
-// The tab bar: a click swaps the doc and moves an active class, and that is all it does.
-function makeTabBar(onSelect: (buffer: BufferName) => void): [HTMLDivElement, Record<BufferName, HTMLButtonElement>] {
+// The tab bar: a click swaps the doc and moves an active class, and that is all it does. It also
+// carries the store indicator, pushed to the far edge - see below.
+function makeTabBar(
+  onSelect: (buffer: BufferName) => void
+): [HTMLDivElement, Record<BufferName, HTMLButtonElement>, HTMLSpanElement] {
   const bar = document.createElement("div")
   bar.classList.add("vn-editor-tabs")
   const tabs = {} as Record<BufferName, HTMLButtonElement>
@@ -397,7 +470,15 @@ function makeTabBar(onSelect: (buffer: BufferName) => void): [HTMLDivElement, Re
     bar.appendChild(tab)
     tabs[name] = tab
   }
-  return [bar, tabs]
+
+  // In the tab bar row so it travels with the editor rather than being page chrome, and pushed to
+  // the far edge (`margin-left: auto`) so it cannot read as a third tab: the tabs carry per-buffer
+  // error status and this is per-project.
+  const storeState = document.createElement("span")
+  storeState.classList.add("vn-editor-store-state")
+  bar.appendChild(storeState)
+
+  return [bar, tabs, storeState]
 }
 
 // The command the player last ran. Null on the first frame of a boot, where nothing has run yet.

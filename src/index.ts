@@ -9,7 +9,6 @@ import "codemirror/lib/codemirror.css"
 
 import { encodePayload, playerUrl } from "./scriptUrl"
 import { bootEditor } from "./editorBoot"
-import { isSupported } from "./storage/opfs"
 
 declare global {
   interface Window {
@@ -28,17 +27,14 @@ boot().catch((e) => refuseToLoad("Something went wrong opening your project.", e
 // the wiring lives inside it, where the objects exist. src/playerIndex.ts already has that shape and
 // the same reason for it.
 async function boot(): Promise<void> {
-  // A browser that cannot store gets no editor at all, rather than a memory-only one. A second boot
-  // path that behaves differently and is exercised by nobody is a maintenance cost with no owner,
-  // and an editor that silently cannot keep the author's work is worse than one that says so up
-  // front. The blast radius is small on purpose: src/playerIndex.ts never touches OPFS, so the
-  // *player* still works in any browser, and it is only authoring that needs a place to put things.
-  if (!isSupported()) {
-    refuseToLoad("This browser cannot store projects, so the editor will not load. Try a recent Chrome or Edge.")
+  const booted = await bootEditor({ vnDiv, vnEditorDiv, vnDivContainer })
+  // Three reasons, one surface: this browser cannot store, or this project is open in another tab.
+  if (booted.kind === "refused") {
+    refuseToLoad(booted.reason)
     return
   }
 
-  const { player, renderer, editor, openProject } = await bootEditor({ vnDiv, vnEditorDiv, vnDivContainer })
+  const { player, renderer, editor, openProject } = booted
   window.vnPlayer = player
   window.vnDomRenderer = renderer
 

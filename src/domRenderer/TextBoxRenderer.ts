@@ -65,29 +65,42 @@ export class TextBoxRenderer {
   private async renderAdv(committedAdv: ADVTextBox | null, adv: ADVTextBox, animate: boolean): Promise<void> {
     const [animationFinished, resolveAnimationFinished] = createResolvablePromise()
 
-    this.advTextBox.innerHTML = "" // this will clear any pending span event listners?
+    // The box this pass writes into, captured before the first await rather than read again after
+    // it. An unanimated render swaps in a fresh clone (see `render`), so a pass that resumes here
+    // after being superseded appends into the element it started with - which is by then detached -
+    // instead of piling its text on top of the text that replaced it. Belt and braces: reaching it
+    // takes an overlap the two `animate` cases below already rule out, and ROUGH_EDGES.md's entry
+    // on this says what is still needed for the one they do not.
+    const box = this.advTextBox
+    box.innerHTML = "" // this will clear any pending span event listners?
 
     // enter
-    if (!this.root.contains(this.advTextBox)) {
-      this.root.appendChild(this.advTextBox)
+    if (!this.root.contains(box)) {
+      this.root.appendChild(box)
       if (animate) {
         const [promise, resolve] = createResolvablePromise()
-        this.advTextBox.style.transform = "scaleY(0)"
-        this.advTextBox.offsetHeight // force reflow
-        this.advTextBox.style.transform = "scaleY(1)"
+        box.style.transform = "scaleY(0)"
+        box.offsetHeight // force reflow
+        box.style.transform = "scaleY(1)"
         const animationFinished = () => {
-          this.advTextBox.removeEventListener("transitionend", animationFinished)
+          box.removeEventListener("transitionend", animationFinished)
           resolve()
         }
-        this.advTextBox.addEventListener("transitionend", animationFinished)
+        box.addEventListener("transitionend", animationFinished)
         await promise
       }
     }
 
     const prevNameTag = committedAdv === null ? undefined : committedAdv.nameTag
-    await this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
+    const nameTagFinished = this.renderAdvNameTag(prevNameTag, adv.nameTag, animate)
+    // Awaited only to sequence the text after the name tag's entrance, and there is nothing to
+    // sequence when nothing animates: awaiting anyway - even an already settled promise - yields a
+    // microtask, which is enough for a second render issued in the same turn to interleave between
+    // the clear above and the append below. An unanimated render has to land in one step, which is
+    // what "jump straight to end-state" means everywhere else in this renderer.
+    if (animate) await nameTagFinished
 
-    appendTextNodesToDiv(adv.textNodes, this.advTextBox, animate, resolveAnimationFinished)
+    appendTextNodesToDiv(adv.textNodes, box, animate, resolveAnimationFinished)
 
     return animationFinished
   }

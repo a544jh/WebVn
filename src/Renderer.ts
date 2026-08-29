@@ -1,3 +1,4 @@
+import { DeclaredAsset } from "./core/manifest"
 import { VnPlayerState } from "./core/state"
 
 export interface Renderer {
@@ -7,5 +8,6 @@ export interface Renderer {
   loadStory: (state: VnPlayerState, animate: boolean) => void
   onRenderCallbacks: Array<() => void>
   onFinishedCallbacks: Array<() => void>
-  loadAssets(state?: VnPlayerState): Promise<unknown>
+  // Resolves with the declarations whose file could not be loaded - see DomRenderer.loadAssets.
+  loadAssets(state?: VnPlayerState): Promise<DeclaredAsset[]>
 }

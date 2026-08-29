@@ -38,7 +38,8 @@ export function pauseMenu(root: HTMLDivElement, renderer: DomRenderer): void {
 // looks a track up without holding a reference to the manifest.
 //
 // An id is a name for the author, not for the player, so an undeclared or untitled track shows
-// nothing at all rather than its id.
+// nothing at all rather than its id. An uncredited one drops the "by" rather than the whole line:
+// the title is the part worth reading.
 function nowPlayingElem(renderer: DomRenderer): HTMLDivElement | null {
   const state = renderer.getCommittedState()
   const bgm = state?.animatableState.audio.bgm
@@ -46,21 +47,16 @@ function nowPlayingElem(renderer: DomRenderer): HTMLDivElement | null {
 
   const title = state.audioAssets[bgm]?.title
   if (title === undefined) return null
+  const artist = state.audioAssets[bgm].artist
 
   const elem = document.createElement("div")
   elem.classList.add("vn-now-playing")
-  elem.appendChild(line("vn-now-playing-title", title))
 
-  const artist = state.audioAssets[bgm].artist
-  if (artist !== undefined) elem.appendChild(line("vn-now-playing-artist", artist))
+  const text = document.createElement("div")
+  text.classList.add("vn-now-playing-title")
+  text.innerText = `Now playing: ${title}` + (artist === undefined ? "" : ` by ${artist}`)
+  elem.appendChild(text)
 
-  return elem
-}
-
-function line(className: string, text: string): HTMLDivElement {
-  const elem = document.createElement("div")
-  elem.classList.add(className)
-  elem.innerText = text
   return elem
 }
 

@@ -10,16 +10,25 @@ import { Actor, Actors, AudioAsset, DefaultActor, NARRATOR_ACTOR_ID, TextMode, V
 // what lets a file be renamed without touching the story, and what gives an audio asset somewhere
 // to carry a title.
 //
-// `id` and `title` are identity rather than content, and nothing downstream of `seedState` reads
-// them: `id` is what saves are keyed under and what names the project's directory, `title` is
-// display-only. Keeping them here rather than in a wrapping type is
-// `docs/adr/0001-manifest-seeds-the-initial-state.md`'s 2026-08-28 amendment.
+// `id` and `title` are identity rather than content: `id` is what saves are keyed under and what
+// names the project's directory, `title` is display-only. Keeping them here rather than in a
+// wrapping type is `docs/adr/0001-manifest-seeds-the-initial-state.md`'s 2026-08-28 amendment;
+// `seedState` copying them into the state, so that a reload carries the save key with it, is that
+// ADR's 2026-08-29 one.
 export interface VnManifest {
   readonly id: string
   readonly title: string
   readonly actors: Record<string, Actor>
   readonly backgrounds: Record<string, string>
   readonly audioAssets: Record<string, AudioAsset>
+}
+
+// One asset a manifest declares: the path it resolves to, and the key path the manifest addresses it
+// by. The second is what lets a failed load be reported against the line that declared it - nothing
+// else survives the trip, because a loader only ever sees a path.
+export interface DeclaredAsset {
+  readonly path: string
+  readonly manifestKey: (string | number)[]
 }
 
 // The engine's own actors, which every project gets without declaring them: the default actor all
@@ -48,6 +57,8 @@ function seedActors(manifest: VnManifest): Actors {
 // from `test/helpers/testManifest.ts`.
 export function seedState(manifest: VnManifest): VnPlayerState {
   return {
+    id: manifest.id,
+    title: manifest.title,
     actors: seedActors(manifest),
     backgrounds: { ...manifest.backgrounds },
     audioAssets: { ...manifest.audioAssets },

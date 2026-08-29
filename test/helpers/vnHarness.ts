@@ -1,10 +1,12 @@
+import * as CodeMirror from "codemirror"
 import { expect } from "vitest"
 import { VnPlayer } from "../../src/core/player"
 import { VnPlayerState } from "../../src/core/state"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
-import { VnManifest } from "../../src/core/manifest"
+import { seedState, VnManifest } from "../../src/core/manifest"
+import { VnEditor } from "../../src/editor/editor"
 
 // Shared setup for the browser-backed suites: mounting a VN into a fresh DOM root, waiting for
 // the render loop to come to rest, and reading what ended up on screen.
@@ -119,3 +121,71 @@ export const liveSprites = (root: HTMLDivElement): Record<string, HTMLImageEleme
 
 export const decisionItems = (root: HTMLDivElement): HTMLDivElement[] =>
   [...root.querySelectorAll("#vn-decision-renderer .vn-decision-item")] as HTMLDivElement[]
+
+// Mounting the editor, which nothing did before - TODO item T's "nothing mounts VnEditor; every
+// editor change is verified by hand". Player, renderer and editor over one document, seeded from
+// the manifest text the test supplies, so a test declares only the actors and assets it needs.
+export interface StartedEditor {
+  root: HTMLDivElement
+  editorRoot: HTMLDivElement
+  player: VnPlayer
+  renderer: DomRenderer
+  editor: VnEditor
+}
+
+export const startEditor = async (manifestText: string, script: string): Promise<StartedEditor> => {
+  const root = createVnRoot()
+  const editorRoot = document.createElement("div")
+  document.body.appendChild(editorRoot)
+
+  const [manifest, errors] = YamlParser.parseManifest(manifestText)
+  expect(errors).toEqual([])
+  if (manifest === null) throw new Error("the test's own manifest does not parse")
+
+  const player = new VnPlayer(seedState(manifest))
+  const renderer = new DomRenderer(root, player)
+  const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
+
+  const firstStop = nextStop(renderer, player)
+  await editor.loadProject(manifestText, script)
+  await firstStop
+  return { root, editorRoot, player, renderer, editor }
+}
+
+export const editorTab = (editorRoot: HTMLDivElement, buffer: "script" | "manifest"): HTMLButtonElement =>
+  editorRoot.querySelector(`.vn-editor-tab[data-vn-buffer="${buffer}"]`) as HTMLButtonElement
+
+// CodeMirror 5 hangs its instance off its own wrapper element, which is how a test reaches a buffer
+// without VnEditor growing a hook for it. The one place these suites touch CodeMirror: everything
+// they assert on is player and renderer state, so they survive the CM6 migration that deletes the
+// tab bar.
+const codeMirrorOf = (editorRoot: HTMLDivElement): CodeMirror.Editor =>
+  (editorRoot.querySelector(".CodeMirror") as unknown as { CodeMirror: CodeMirror.Editor }).CodeMirror
+
+// Types into the manifest buffer, the way switching tabs and editing does.
+export const typeManifest = (started: StartedEditor, text: string): void => {
+  editorTab(started.editorRoot, "manifest").click()
+  codeMirrorOf(started.editorRoot).getDoc().setValue(text)
+}
+
+// Leaving the editor, which is what adopts a manifest.
+export const blurEditor = async (started: StartedEditor): Promise<void> => {
+  const cm = codeMirrorOf(started.editorRoot)
+  cm.focus()
+  cm.getInputField().blur()
+  await settle()
+}
+
+export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
+  ...editorRoot.querySelectorAll(".vn-marker-error"),
+]
+
+// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message.
+// CodeMirror puts a marker in a per-line wrapper rather than inside the gutter column, so the line
+// is read off the line-number element sitting in the same wrapper.
+export const markedLines = (editorRoot: HTMLDivElement): Array<{ line: number; message: string }> =>
+  errorMarkers(editorRoot).map((marker) => {
+    const wrapper = marker.closest(".CodeMirror-gutter-wrapper")?.parentElement
+    const lineNumber = wrapper?.querySelector(".CodeMirror-linenumber")?.textContent
+    return { line: Number(lineNumber), message: (marker as HTMLElement).title }
+  })

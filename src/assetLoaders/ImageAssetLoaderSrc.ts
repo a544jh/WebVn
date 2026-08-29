@@ -1,10 +1,15 @@
 import { AssetLoader } from "./AssetLoader"
+import { loadAllOf } from "./loadAll"
 
 export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
   private assets: Record<string, HTMLImageElement | null> = {}
+  private failed: Set<string> = new Set()
 
+  // Idempotent, because registration happens again on every load - and adopting a manifest makes
+  // that every editor blur. Re-registering a loaded asset as null would drop what is already
+  // decoded and re-fetch the whole project each time.
   public registerAsset(path: string): void {
-    this.assets[path] = null
+    if (this.assets[path] === undefined) this.assets[path] = null
   }
 
   public getAsset(path: string): HTMLImageElement | null | undefined {
@@ -21,18 +26,13 @@ export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
     }
     const img = new Image()
     img.src = path
-    const decodePromise = img.decode()
-    decodePromise.then(() => {
+    // decode() rejects on a failed load, which is the reporting this loader already had.
+    return img.decode().then(() => {
       this.assets[path] = img
     })
-    return decodePromise
   }
 
-  public loadAll(): Promise<void[]> {
-    const decodePromises = []
-    for (const path in this.assets) {
-      decodePromises.push(this.loadAsset(path))
-    }
-    return Promise.all(decodePromises)
+  public loadAll(): Promise<string[]> {
+    return loadAllOf(Object.keys(this.assets), this.failed, this.loadAsset.bind(this))
   }
 }

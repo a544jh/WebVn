@@ -1,6 +1,6 @@
 # Editing manifest.yaml in the editor
 
-Status: ready-for-agent
+Status: done
 
 The editor can author a script but not a project. `manifest.yaml` became a real document in
 [#35](https://github.com/a544jh/WebVn/pull/35) and a symbol table in
@@ -120,6 +120,15 @@ solve this. Give `DomRenderer` the save id as its own field, set from the manife
 updated when the editor adopts a new one. That is the same shape as the editor's `manifest` field
 becoming mutable, for the same reason.
 
+> **Overturned in implementation, 2026-08-29.** The paragraph above is wrong twice. ADR 0001 never
+> decided that identity stays out of the state - its 2026-08-28 amendment decides only that `id` and
+> `title` live on `VnManifest` rather than on a wrapping `ProjectManifest`, and `seedState` dropping
+> them was a leftover from before the manifest had identity at all. And the threading prescribed here
+> has a failure mode the state does not: `setSaveId` and `reloadStory` are two calls with nothing
+> tying them, so a later caller that reloads without rekeying writes one project's progress under
+> another's key in silence. `seedState` now copies `id` and `title` into the state, `setSaveId` does
+> not exist, and `persistGlobalSave` reads `player.state.id`. See ADR 0001's 2026-08-29 amendment.
+
 **`PROJECT_STORAGE.md` already hangs the project rename off this exact event.** *"The rename is
 triggered from the manifest, on editor blur. That is already when the script is reparsed, so the id
 change is noticed on the same event rather than needing a new one: blur, see that `id` differs from
@@ -202,6 +211,13 @@ makes about undeclared assets. The fix belongs in the loaders:
 unusable in the normal authoring order - declare the asset, then draw it - so a manifest that
 references files which do not exist yet is still adopted. The report goes to the console *and* to the
 tab, per decision 4.
+
+> **Extended in implementation, 2026-08-29.** Console and tab turned out not to be enough in use: the
+> tab says *something* is wrong with the buffer and the console says which file, but neither points
+> at the declaration, which is the whole distance this report exists to close. A failed load is now
+> also a `ParserError` at WARNING level on the line that declared it. That needed the failure to
+> carry more than a path - `loadAssets` reports the declaration (path plus the key the manifest
+> declares it under) and `parseManifest` gained `declarationLocations` to turn that key into lines.
 
 **What "proceeds" does not mean.** An earlier draft of this ticket said a missing background is a
 wrong frame rather than a reason to refuse a manifest. That is false, and the correction matters
@@ -599,8 +615,9 @@ make it lie. But whoever finishes this ticket should not have to rediscover whic
   consequence that named this ticket
 - `docs/adr/0003-the-url-payload-carries-the-manifest.md` - decision 8 as a standing contract, written
   because the next reader will try to accept a bare script for backwards compatibility
-- `docs/adr/0001-manifest-seeds-the-initial-state.md` - why `id` is not in `VnPlayerState`, which is
-  what makes the save rekey a threading problem rather than a lookup
+- `docs/adr/0001-manifest-seeds-the-initial-state.md` - where identity lives, and (2026-08-29) why
+  `seedState` copies it into the state after all, which makes the save rekey a lookup rather than a
+  threading problem. Decision 2 above predates that and is marked overturned.
 - `design-docs/EDITOR.md` - the CM6 migration, and the `swapDoc` row in its 5.x-to-6 table that this
   ticket's mechanism is chosen from
 - `design-docs/SCRIPT_INCLUDES.md` - the single-buffer audit with line numbers, and the multi-buffer

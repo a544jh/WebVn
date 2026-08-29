@@ -2,6 +2,12 @@ import { ConsecutiveIntegerSet } from "../lib/ConsecutiveIntegerSet"
 import { Command } from "./commands/Command"
 import { VnPath } from "./vnPath"
 export interface VnPlayerState {
+  // The project this state belongs to, copied in by `seedState`. Inert - no command reads either,
+  // and `advance` writes neither - but `id` is what saves are keyed under, and holding it here is
+  // what stops a reload from ever writing one project's progress under another's key. See
+  // docs/adr/0001-manifest-seeds-the-initial-state.md's 2026-08-29 amendment.
+  readonly id: string
+  readonly title: string
   readonly actors: Actors
   readonly backgrounds: Record<string, string>
   readonly audioAssets: Record<string, AudioAsset>

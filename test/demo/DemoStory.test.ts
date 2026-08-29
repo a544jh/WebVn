@@ -894,12 +894,12 @@ describe("demo story - player actions", () => {
 
   it("persists seen commands under the demo's save id, so a reload remembers them", async () => {
     const h = await startDemo()
-    expect(localStorage.getItem("vn-test")).toBeNull()
+    expect(localStorage.getItem(`vn-save-${demoManifest.id}`)).toBeNull()
 
     await advanceToStop(h, STOPS_UP_TO_DECISION.indexOf("And now... Actors!"))
 
-    // exactly what playerIndex.ts does on boot
-    const saved = loadFromLocalStorage("test")
+    // exactly what playerIndex.ts does on boot: the key is the manifest's id, not a hardcoded name
+    const saved = loadFromLocalStorage(demoManifest.id)
     expect(saved.saves).toEqual([])
 
     const [state] = YamlParser.parseStory(demoYaml, demoManifest)

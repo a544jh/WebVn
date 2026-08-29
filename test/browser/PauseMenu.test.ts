@@ -49,10 +49,9 @@ const openPauseMenu = (started: StartedVn): HTMLDivElement => {
   return started.root
 }
 
-const nowPlaying = (root: HTMLDivElement) => ({
-  title: root.querySelector(".vn-now-playing-title")?.textContent ?? null,
-  artist: root.querySelector(".vn-now-playing-artist")?.textContent ?? null,
-})
+// One line, title and artist together - there is no separate artist element to read.
+const nowPlaying = (root: HTMLDivElement): string | null =>
+  root.querySelector(".vn-now-playing-title")?.textContent ?? null
 
 // Chromium's autoplay policy rejects play() without a user gesture, and AudioRenderer does not
 // catch that.
@@ -71,21 +70,21 @@ const advance = async (started: StartedVn): Promise<void> => {
 }
 
 describe("the pause menu's now-playing line", () => {
-  it("names the playing track and its artist", async () => {
+  it("names the playing track and its artist on one line", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
     await advance(started)
 
-    expect(nowPlaying(openPauseMenu(started))).toEqual({ title: "Daylight - 8bit remix", artist: "a544jh" })
+    expect(nowPlaying(openPauseMenu(started))).toBe("Now playing: Daylight - 8bit remix by a544jh")
   })
 
-  it("shows the title alone when nothing is credited", async () => {
+  it("drops the credit when nothing is credited", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
     await advance(started)
     await advance(started)
 
-    expect(nowPlaying(openPauseMenu(started))).toEqual({ title: "Untitled Waltz", artist: null })
+    expect(nowPlaying(openPauseMenu(started))).toBe("Now playing: Untitled Waltz")
   })
 
   // An id is a name for the author, not for the player, so a track declared with no metadata has
@@ -95,7 +94,7 @@ describe("the pause menu's now-playing line", () => {
     registerTestAudio(started.renderer)
     for (let i = 0; i < 3; i++) await advance(started)
 
-    expect(nowPlaying(openPauseMenu(started))).toEqual({ title: null, artist: null })
+    expect(nowPlaying(openPauseMenu(started))).toBe(null)
   })
 
   it("shows nothing once the music has stopped", async () => {
@@ -103,7 +102,7 @@ describe("the pause menu's now-playing line", () => {
     registerTestAudio(started.renderer)
     for (let i = 0; i < 4; i++) await advance(started)
 
-    expect(nowPlaying(openPauseMenu(started))).toEqual({ title: null, artist: null })
+    expect(nowPlaying(openPauseMenu(started))).toBe(null)
   })
 
   it("leaves the menu's own items alone", async () => {

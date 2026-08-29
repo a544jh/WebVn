@@ -10,6 +10,7 @@ import { Decision } from "../../src/core/commands/controlFlow/Decision"
 import { Jump } from "../../src/core/commands/controlFlow/Jump"
 import { Label, updateLabels } from "../../src/core/commands/controlFlow/Label"
 import { loc, makeCommand } from "../helpers/commands"
+import { YamlParser } from "../../src/yamlParser/YamlParser"
 
 const say = (text: string) => new Say(loc, "narrator", text)
 
@@ -551,5 +552,25 @@ describe("path replay matches live play", () => {
     const start = makeState([say("s1"), say("s2")])
     const path = VnPath.emptyPath().makeDecision(0)
     expect(() => State.fromPath(start, path)).toThrow(/does not match the story/)
+  })
+})
+
+// Identity is seeded rather than threaded to whoever writes a save. Inert - nothing reads it while a
+// story runs - but it has to survive every state a command returns, or the save key drifts away from
+// the project halfway through a playthrough. ADR 0001's 2026-08-29 amendment.
+describe("seeded identity", () => {
+  const manifest = { ...TEST_MANIFEST, id: "a-project", title: "A Project" }
+
+  it("copies the manifest's id and title into the starting state", () => {
+    const state = seedState(manifest)
+    expect(state.id).toBe("a-project")
+    expect(state.title).toBe("A Project")
+  })
+
+  it("carries them through an advance", () => {
+    const [state] = YamlParser.parseStory("story:\n  - a line\n  - another line\n", manifest)
+    const advanced = State.advance(State.advance(state))
+    expect(advanced.id).toBe("a-project")
+    expect(advanced.title).toBe("A Project")
   })
 })

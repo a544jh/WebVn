@@ -15,6 +15,13 @@ ids from; audio carries title/artist and the pause menu shows a now-playing line
 unblocked - src/domRenderer/assetPaths.ts is the seam it slots into - and the manifest
 shape is settled ahead of the storage chain, which was the point of doing it first.
 
+Landed: .scratch/manifest-editor/, 2026-08-29. manifest.yaml is a second buffer in the
+editor, adopted on blur; the ?vn= payload is a two-document stream carrying it; saves are
+keyed vn-save-<id> from the manifest rather than the hardcoded "test"; and the asset
+loaders report a declared file that is not there instead of hanging on it. That takes the
+URL-payload item and its save-keying child below, and the ordering edge between them.
+VnEditor has tests and a startEditor harness for the first time, which is the start of T.
+
 Sizes: S = hours, M = a day or two, L = several days.
 
 
@@ -54,9 +61,11 @@ Sizes: S = hours, M = a day or two, L = several days.
        design-docs/PROJECT_STORAGE.md
 
   T  Behavioural editor tests                                M
-       Nothing mounts VnEditor today. Written as "this script produces these
-       errors and this player state" they survive the CM6 rewrite; written
-       against .CodeMirror-* classes they do not.
+       Started: test/helpers/vnHarness.ts's startEditor mounts one, and
+       test/browser/VnEditor.test.ts covers adopt-on-blur. Still nothing on the
+       jump modes, the gutter markers or loadScript. Written as "this script
+       produces these errors and this player state" they survive the CM6
+       rewrite; written against .CodeMirror-* classes they do not.
 
 
 == STORAGE ==  design-docs/PROJECT_STORAGE.md
@@ -102,17 +111,14 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
 
-  URL payload becomes a two-document YAML stream            M
-         Ready - D landed, so a manifest is a document rather than a constant.
-         manifest, ---, script, so the project id travels with the story.
-         +-> player save keying (replaces the hardcoded "test")
-               vn-save-<id>; free to reshape now, not later.
-               A URL payload with no id is invalid and the player bails.
-               Not before the payload above - see the edges below.
   E -> object URL lifetime test (cloneNode against a revoked blob URL)
 
 
 == EDITOR ==  design-docs/EDITOR.md
+
+  Manifest editing landed 2026-08-29: two buffers on one CodeMirror instance, a tab bar
+  over them, adopt-on-blur. The tab bar is what grows into the file switcher below - CM6
+  supplies the buffer model and no UI for choosing between buffers.
 
   T -> CM6 migration                                         L
          +-> autocompletion  (needs B)                              M
@@ -137,10 +143,6 @@ Sizes: S = hours, M = a day or two, L = several days.
 
   CM6 before editor multi-buffer, or multi-buffer gets built twice.
   OPFS store before the includes resolver, or SourceLoader gets written twice.
-  Two-document URL payload before player save keying. ?vn= carries a script alone
-  and is parsed against the demo's manifest, so once saves are keyed by id the
-  only id in scope is webvn-demo and every shared story saves on top of every
-  other one. Harmless only while the key is the hardcoded "test" everyone shares.
 
   D -> E -> OPFS store -> library UI + zip export is what turns this into a tool
   someone other than its author can use. Everything in the editor chain is

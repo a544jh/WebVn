@@ -1,4 +1,5 @@
-import { Actor, AudioAsset, SpriteInstance } from "../core/state"
+import { DeclaredAsset } from "../core/manifest"
+import { Actor, AudioAsset, SpriteInstance, VnPlayerState } from "../core/state"
 
 // Where an asset id becomes a path under the project directory. The script names ids; the manifest
 // says which file each one is; this is the one place the two are put together, so what
@@ -33,4 +34,31 @@ export const spriteFilePath = (actor: string, file: string): string => `sprites/
 export const spriteAssetPath = (actors: Record<string, Actor>, instance: SpriteInstance): string | undefined => {
   const file = actors[instance.actor]?.sprites?.[instance.sprite]
   return file === undefined ? undefined : spriteFilePath(instance.actor, file)
+}
+
+// Every asset a state declares, whether or not the story reaches it - the manifest is the file
+// index. The one walk of the three declarations: `DomRenderer.loadAssets` preloads what it yields
+// and reports failures out of the same list, so what is preloaded, what is asked for later and what
+// an error points at cannot drift apart.
+//
+// Split by loader rather than returned flat, because sprites and backgrounds are images and audio
+// is not, and the caller would otherwise have to know which is which a second time.
+export const declaredAssets = (state: VnPlayerState): { images: DeclaredAsset[]; audio: DeclaredAsset[] } => {
+  const images: DeclaredAsset[] = []
+  const audio: DeclaredAsset[] = []
+
+  for (const actor in state.actors) {
+    const sprites = state.actors[actor].sprites ?? {}
+    for (const id in sprites) {
+      images.push({ path: spriteFilePath(actor, sprites[id]), manifestKey: ["actors", actor, "sprites", id] })
+    }
+  }
+  for (const id in state.backgrounds) {
+    images.push({ path: backgroundFilePath(state.backgrounds[id]), manifestKey: ["backgrounds", id] })
+  }
+  for (const id in state.audioAssets) {
+    audio.push({ path: audioFilePath(state.audioAssets[id].file), manifestKey: ["audioAssets", id] })
+  }
+
+  return { images, audio }
 }

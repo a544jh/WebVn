@@ -5,3 +5,27 @@
 .vn-error-gutter {
   width: .5em;
 }
+
+.vn-editor-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.vn-editor-tab {
+  font: inherit;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  background: #eee;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.vn-editor-tab-active {
+  background: #fff;
+  font-weight: bold;
+}
+
+/* "this buffer is not fully in effect" - it failed to parse, or a file it declares is missing. */
+.vn-editor-tab-error {
+  color: red;
+}

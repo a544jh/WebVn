@@ -149,7 +149,7 @@ an asset the manifest does not declare is broken-on-arrival for every imported p
 already holds the manifest. The design doc's claim that "the engine will not load an undeclared asset
 either" is not quite what the code does - `backgrounds`/`audioAssets` only drive `DomRenderer.loadAssets`
 preloading, so today it is a render-time miss, not a refusal. The rule is agreed; it changes author-visible
-behaviour, so it is filed as `03-undeclared-assets-are-parse-errors.md` rather than riding along here.
+behaviour, so it is filed as `03-undeclared-references.md` rather than riding along here.
 
 **How a player should handle unknown commands** - the script-side equivalent of a format version - is a
 separate refinement, not blocked on anything here.

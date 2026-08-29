@@ -48,7 +48,7 @@ renderers *throw*:
 - `BackgroundRenderer.ts:78`, `:129`, `:161` - ``throw new Error(`Could not load ${state.image}`)``
 
 An undeclared asset takes the render down rather than quietly rendering nothing. That matters to
-`../asset-manifest/issues/03-undeclared-assets-are-parse-errors.md`, which is arguing about how to
+`../asset-manifest/issues/03-undeclared-references.md`, which is arguing about how to
 report something that is already fatal.
 
 What ids buy, beyond tidiness:

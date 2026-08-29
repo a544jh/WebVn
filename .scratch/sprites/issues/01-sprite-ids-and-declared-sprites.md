@@ -136,7 +136,7 @@ the upgrade path is open rather than closed off.
 Sprite ids are invented in the script, so nothing can validate them - `hide: jenny-twni` is a silent
 no-op today, since `delete` on a missing key does nothing. Declared sprite *names* are different: the
 manifest holds them, so `sprite: hapy` is checkable and belongs to
-`../asset-manifest/issues/03-undeclared-assets-are-parse-errors.md`.
+`../asset-manifest/issues/03-undeclared-references.md`.
 
 Decision: unknown sprite ids stay runtime errors, in the same class as a runaway loop. **The editor
 must surface them clearly** rather than letting them vanish. That is a new requirement on the editor

@@ -33,10 +33,23 @@ the engine has spoken for: `stop`, which is how `bgm` stops the music, and a lea
 how a background says it is a colour.
 _Avoid_: asset name, handle, path (a path is what an id resolves *to*)
 
+**Reference**:
+An id a script names, expecting the manifest to declare it: a background, an audio track, an actor,
+or one of that actor's sprites. Naming one is the whole of what a script does with the manifest, so
+a reference the manifest does not answer is the only way the two documents can disagree - as an
+undeclared asset, or an undeclared actor.
+_Avoid_: usage, mention, lookup
+
 **Undeclared asset**:
 An asset id a script names that the manifest does not declare. Visible by reading the two documents,
-so a parser can refuse it without touching the filesystem.
+so a parser can report it without touching the filesystem.
 _Avoid_: unknown asset, bad asset
+
+**Undeclared actor**:
+An actor id a script names that the manifest does not declare. The same failure as an undeclared
+asset and caught the same way, but an actor is cast rather than an asset, so the two are named
+apart.
+_Avoid_: unknown actor, undeclared character
 
 **Missing asset**:
 A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed

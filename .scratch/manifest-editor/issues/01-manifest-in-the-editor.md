@@ -199,7 +199,7 @@ awaited before the reload, and neither loader can report a missing file:
   rendering, since resolution goes by path, but it is why the typo persists.
 
 This is not an exotic case: declaring a file before the art exists is the normal authoring order,
-which is the same argument `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md`
+which is the same argument `.scratch/asset-manifest/issues/03-undeclared-references.md`
 makes about undeclared assets. The fix belongs in the loaders:
 
 - Add an `error` listener to the audio loader so a failed load settles instead of hanging.
@@ -544,7 +544,7 @@ Recorded so the mechanism is not relitigated. All were weighed at the 2026-08-29
 
 ## This ticket and ticket 03, in plain words
 
-`.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` also concerns assets and the
+`.scratch/asset-manifest/issues/03-undeclared-references.md` also concerns assets and the
 manifest, and the two are constantly mistaken for each other. The line between them:
 
 **03 is a mistake you can catch by reading the two documents.** The script says `bg: forst` and the
@@ -599,7 +599,7 @@ make it lie. But whoever finishes this ticket should not have to rediscover whic
   declared file that does not exist stays a load failure - this ticket only makes it a survivable and
   reported one.
 - **Refusing to parse a script that names an undeclared asset.**
-  `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` is that rule, and it is
+  `.scratch/asset-manifest/issues/03-undeclared-references.md` is that rule, and it is
   independent of where the manifest is edited. See the boundary above.
 - **Making the renderers survive a missing asset.** They throw on null rather than degrading, so a
   story that reaches a declared-but-missing file still dies mid-render. Reporting it at adoption time is
@@ -625,7 +625,7 @@ make it lie. But whoever finishes this ticket should not have to rediscover whic
 - `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the `vn-save-<id>`
   key this adopts
 - `ROUGH_EDGES.md` - the stale-save entry this narrows to its remaining half
-- `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` - the other half of
+- `.scratch/asset-manifest/issues/03-undeclared-references.md` - the other half of
   "declared before it exists is the normal authoring order"
 - `TODO` - item `A` for the disposable-feature precedent this ticket turned out not to share, the
   multi-buffer line under the CM6 migration, and item `T` for the missing editor tests

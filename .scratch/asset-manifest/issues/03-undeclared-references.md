@@ -171,7 +171,7 @@ machine after an import.
 
 ## Comments
 
-### 2026-08-29 - done, landed on `claude/undeclared-references`
+### 2026-08-29 - done, landed in [#38](https://github.com/a544jh/WebVn/pull/38)
 
 Built as written; the six sections map one-to-one onto the diff. What is worth knowing beyond the
 ticket:

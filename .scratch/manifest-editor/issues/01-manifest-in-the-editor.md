@@ -1,13 +1,14 @@
 # Editing manifest.yaml in the editor
 
-Status: needs-triage
+Status: ready-for-agent
 
 The editor can author a script but not a project. `manifest.yaml` became a real document in
 [#35](https://github.com/a544jh/WebVn/pull/35) and a symbol table in
 [#36](https://github.com/a544jh/WebVn/pull/36) - it now decides the cast, every asset id, and the
 project's identity - and there is still no way to change it without editing a file in the repo and
-rebuilding. Filed 2026-08-28 from a shape sketched by the author; see the frontier at the bottom for
-what is still open.
+rebuilding. Filed 2026-08-28 from a shape sketched by the author; refined 2026-08-29, which settled
+the frontier and grew the ticket by one thing nobody had noticed - the asset loaders cannot report a
+file that is not there, and apply-on-blur is the first caller that has to survive one.
 
 ## The shape, as sketched
 
@@ -53,7 +54,135 @@ manifest means:
 3. **Reseed and reload the story.** `seedState(manifest)` is what turns a manifest into a starting
    state, and the starting state is what a `VnPath` replays from.
 
-Point 3 is the one with a real question in it - see the frontier.
+In order, and with the await where `loadScript` already puts it:
+
+```
+parseManifest(text) -> null? mark the gutter, keep the last valid manifest, stop
+                    -> ok?   this.manifest = manifest
+                             state = parseDocument()            // reparses the script, remarks its gutter
+                             await renderer.loadAssets(state)   // before anything renders
+                             player.reloadStory(state)
+                             renderer.render(false)
+```
+
+**The reparse must not be gated on the script buffer being dirty.** `goToLine` skips `parseDocument`
+when the script doc `isClean()`, which is right when only the playhead moved and wrong here: the
+script is untouched and its meaning changed anyway. An apply that reuses `goToLine` wholesale
+silently does nothing on the common case.
+
+## Decisions taken in refinement
+
+### 1. Applying reloads, and keeps the path as far as it replays
+
+`player.reloadStory(state)` - the call `goToLine` already makes after a script edit. It is not a
+weaker answer than dropping the path, it is the same answer the script buffer gives, and the
+machinery underneath is honest about the reseed:
+
+- `reloadStory` sets `startingState` to the new state, so every later replay (undo, a replay jump,
+  loading a save) starts from the new beginning rather than the old one.
+- `replayAsFarAsPossible` walks the recorded actions against that new beginning and **stops at the
+  first one that no longer applies**, returning the truncated path. Nothing is replayed against a
+  state it does not fit; the path is cut back to the part that still describes where the player is.
+- `seenCommands` is carried over by hand (`state.seenCommands = this.state.seenCommands`), because
+  every seed mints its own set. Read text stays read across a manifest edit, as it does across a
+  script edit.
+
+So the "keep it and accept that it may not replay" option turned out not to exist: the path cannot
+mis-replay, it can only be shortened. The third option - keep it only when the reseed is provably
+compatible - is exactly what `replayAsFarAsPossible` approximates, and the cheap approximation is the
+one that already ships.
+
+### 2. `id` is editable, and saves key off it from now on
+
+The TODO in `index.ts` (`// TODO: id from VN title`) predates the manifest having an `id`; the field
+it was waiting for now exists, so this ticket spends it. Three call sites hardcode `"test"`:
+
+- `src/index.ts:19` - `loadFromLocalStorage("test")`
+- `src/playerIndex.ts:16` - the same, and it already has `demoManifest` in scope
+- `src/domRenderer/DomRenderer.ts:287` - `persistGlobalSave`, with its own `// TODO get id from vn "title" ?`
+
+The writer is the awkward one. `DomRenderer` has the player, and **`VnPlayerState` deliberately does
+not carry `id`** - `seedState` copies the declarations and drops identity, which is
+`docs/adr/0001-manifest-seeds-the-initial-state.md`'s amendment. Do not put `id` into the state to
+solve this. Give `DomRenderer` the save id as its own field, set from the manifest at construction and
+updated when the editor applies a new one. That is the same shape as the editor's `manifest` field
+becoming mutable, for the same reason.
+
+What an in-session id edit does, precisely: **later writes go to the new key.** The slots already in
+memory stay in memory and land under the new key on the next save; nothing re-reads the old key, and
+nothing migrates. That is a project rename by the crudest definition, and it is the honest one until
+`PROJECT_STORAGE.md`'s library exists - at which point renaming is a library operation and this
+becomes a special case of it.
+
+Two consequences to write down rather than discover:
+
+- **`vn-test` saves are orphaned.** The key is `vn-${id}`, so the demo moves to `vn-webvn-demo` and
+  anything saved before this lands is unreachable. Acceptable: the only saves that exist are the
+  demo's, on the machines of people who can clear a localStorage key.
+- **The prefix does not match the design doc.** `save.ts` writes `vn-<id>`; `PROJECT_STORAGE.md`
+  says `vn-save-<id>`. Leave the prefix alone here. Renaming the key is that doc's to do, and doing
+  it in the same change would orphan the saves twice.
+
+### 3. A declared file that is not there must not hang the apply
+
+Found while reading, and the reason this ticket is not purely an editor change. `loadAssets` is
+awaited before the reload, and neither loader can report a missing file:
+
+- **`AudioAssetLoaderSrc.loadAsset` never settles on a 404.** It resolves from a `canplaythrough`
+  listener and registers no `error` listener, so a declaration pointing at a file that does not exist
+  leaves a promise pending forever. `Promise.all` never resolves, the apply never reaches
+  `reloadStory`, and **nothing tells the author anything**: the manifest parsed clean, so there is no
+  error marker either. The editor just quietly stops applying manifests.
+- **`ImageAssetLoaderSrc.loadAsset` rejects.** `img.decode()` rejects on a failed load, so
+  `Promise.all` rejects and the apply is lost as an unhandled rejection - louder, but no more visible
+  to the author.
+- **Registration is cumulative and never cleared.** `registerAsset` writes into a record that is only
+  ever added to, and `loadAll` re-walks every path it has ever seen. So one typo'd filename does not
+  just break its own apply, it breaks **every later apply in the session**, including the one that
+  fixes the typo. Renaming a declaration also leaves the old path registered - harmless for
+  rendering, since resolution goes by path, but it is why the typo persists.
+
+This is not an exotic case: declaring a file before the art exists is the normal authoring order,
+which is the same argument `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md`
+makes about undeclared assets. The fix belongs in the loaders:
+
+- Add an `error` listener to the audio loader so a failed load settles instead of hanging.
+- Have `loadAll` resolve with what failed rather than rejecting, so the caller can decide. The apply
+  should proceed - a missing background is a wrong frame, not a reason to refuse a manifest - and
+  report the failed paths.
+- A failed path must not stay registered as pending in a way that re-fails every subsequent `loadAll`.
+  Either drop it or record the failure so it is not retried on every apply.
+
+Where the report surfaces is an interface question, not a mechanism one: the console is enough to
+start with, since these are filenames and not source locations, and there is no line to mark.
+
+### 4. The tab bar gets an error state
+
+Question was whether an invalid manifest blocks anything besides itself. It does not - the last valid
+manifest keeps the preview alive and the script buffer keeps working - and that is exactly why it needs
+saying: the author is looking at a preview built from a manifest that is not the one on screen, and the
+only sign of that is a gutter marker in a tab they are not looking at. A class on the manifest tab when
+its last parse failed, cleared when one succeeds, is about three lines and answers it. No new concept:
+same information the gutter already has, in the one place that is visible from the other tab.
+
+### 5. There is a test, and it is the first one `VnEditor` has ever had
+
+Apply-on-blur and keep-the-last-valid-manifest are behavioural rather than DOM-shaped, so the test
+survives the CM6 migration that deletes the tab bar - which makes this the cheapest place to start
+`TODO` item `T` ("nothing mounts `VnEditor`; every editor change is verified by hand"). Browser
+project, since CodeMirror needs a document.
+
+What is worth asserting, in rough order of value:
+
+- A valid manifest edit, on blur, changes what the script parses to - an id that was an error under
+  the old manifest is not one under the new.
+- An invalid manifest edit, on blur, leaves the preview on the last valid manifest and marks the
+  error gutter.
+- A second valid edit after an invalid one applies normally - the last-valid state is not sticky.
+- The script buffer being clean does not stop the reparse (the `isClean` trap above).
+
+Assert on player and renderer state, not on CodeMirror internals. The tab bar itself stays
+hand-verified; it is the part being thrown away.
 
 ## Two things that break, found while reading
 
@@ -82,6 +211,9 @@ edge, and it is why the tabs need a switch handler rather than pure CSS.
 - **`VnEditor`'s constructor takes the manifest.** Making it a mutable field with a setter is the
   smallest change; whether the second CodeMirror belongs inside `VnEditor` or beside it is an
   interface question, not a mechanism one.
+- **The render callback is bound to the script instance.** `onRenderCallbacks` sets the position
+  marker and moves the cursor on `this.vnEditor`; with two instances those have to keep pointing at
+  the script one rather than at whichever is visible.
 - **`index.ts` seeds the player from `demoManifest`** before constructing the editor, and calls
   `editor.loadScript(demoYaml)` to boot. A manifest buffer means that boot loads two documents.
 - The script buffer already has a `blur` handler (it re-syncs the position marker), so blur is an
@@ -100,11 +232,11 @@ That is an argument for keeping it crude, not for waiting:
 - `TODO` already makes the same call for item `A` (find-in-file): *"Disposable - the CM6 migration
   deletes it - and there is no reason for it to wait behind anything."*
 - The disposable part is genuinely small: two instances, a tab bar, and a show/hide. The part that
-  survives the migration is the apply-on-blur behaviour and the keep-the-last-valid-manifest rule,
-  which are about `parseManifest`'s contract rather than about CodeMirror.
+  survives the migration is the apply-on-blur behaviour, the keep-the-last-valid-manifest rule, the
+  save rekey and the loader fix - none of which are about CodeMirror.
 
-So the recommendation is to build it now and expect the CM6 migration to delete the tab bar - but it
-should be a deliberate choice, since it is the second disposable editor feature in a row.
+So: build it now and expect the CM6 migration to delete the tab bar. Deliberate, and the second
+disposable editor feature in a row.
 
 ## Not in scope
 
@@ -113,43 +245,27 @@ should be a deliberate choice, since it is the second disposable editor feature 
   and it needs item `B` and the syntax tree first.
 - **Where the manifest text is stored.** Today it is a `?raw` import of a file in the repo; the OPFS
   project store is what makes it editable-and-saved. `design-docs/PROJECT_STORAGE.md`.
-- **Creating or renaming a project.** Editing the `id` field is a different thing from having a
-  project rename flow, and the frontier below is about whether it may be edited at all.
-- **Adding or uploading asset files.** This edits declarations, not the assets they point at, so a
-  newly declared file that does not exist is a load failure and nothing here changes that.
-
-## Frontier - open questions
-
-**1. What does applying a manifest do to the current playthrough?** `goToLine` reloads the script with
-`player.reloadStory(...)`, deliberately keeping the path so the choices made so far survive an edit. A
-manifest change is different in kind: it changes `startingState`, and a `VnPath` is only meaningful
-against the starting state it was recorded from. Keeping the path across a reseed means replaying old
-actions from a new beginning. Options are to reload from the top and drop the path, to keep it and
-accept that it may not replay, or to keep it only when the reseed is provably compatible - which
-probably cannot be decided cheaply.
-
-**2. May `id` be edited in-session, and what happens to saves when it is?** `id` is the save key
-(`vn-save-<id>` per `PROJECT_STORAGE.md`, currently the hardcoded `"test"` in `index.ts`). Editing it
-in a live editor is a project rename with no rename flow behind it. The cheap answer is that it is
-allowed and saves simply key differently from then on; the honest one may be that the editor should
-refuse it until project rename exists.
-
-**3. Does an invalid manifest block anything besides itself?** The last valid manifest keeps the
-preview alive, so the script buffer keeps working. But the author now sees a preview built from a
-manifest that is not what is on screen in the other tab, with no indication of that beyond the error
-markers on a tab they may not be looking at. Whether the tab bar needs an error state is a small
-question with a real answer.
-
-**4. Is there a test to write, or is this hand-verified like the rest of the editor?** `EDITOR.md` is
-blunt that nothing mounts `VnEditor` and every editor change is verified by hand - that is item `T`.
-Apply-on-blur with a keep-the-last-valid rule is behavioural rather than DOM-shaped, so it is the kind
-of test that would survive the CM6 rewrite. It may be the cheapest place to start item `T`.
+- **A project rename flow, and migrating saves across an id change.** The id becomes the save key
+  here; moving existing saves to a new key, or listing projects, is `PROJECT_STORAGE.md`'s library.
+- **Renaming the save key to `vn-save-<id>`.** Same doc, and doing it here orphans saves twice.
+- **Adding or uploading asset files.** This edits declarations, not the assets they point at. A
+  declared file that does not exist stays a load failure - this ticket only makes it a survivable and
+  reported one.
+- **Refusing to parse a script that names an undeclared asset.**
+  `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` is that rule, and it is
+  independent of where the manifest is edited.
 
 ## See also
 
 - `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` - the error-handling rule, and the
   consequence that named this ticket
+- `docs/adr/0001-manifest-seeds-the-initial-state.md` - why `id` is not in `VnPlayerState`, which is
+  what makes the save rekey a threading problem rather than a lookup
 - `design-docs/EDITOR.md` - the CM6 migration and multi-buffer this duplicates and is deleted by
-- `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives
+- `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the save key
+- `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` - the other half of
+  "declared before it exists is the normal authoring order"
 - `TODO` - item `A` for the disposable-feature precedent, item `T` for the missing editor tests
-- `src/editor/editor.ts`, `src/index.ts`, `src/demoStory.ts`, `src/yamlParser/parseManifest.ts`
+- `src/editor/editor.ts`, `src/index.ts`, `src/playerIndex.ts`, `src/demoStory.ts`,
+  `src/core/player.ts` (`reloadStory`), `src/core/save.ts`, `src/assetLoaders/`,
+  `src/yamlParser/parseManifest.ts`

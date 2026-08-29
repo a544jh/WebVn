@@ -10,7 +10,7 @@ rebuilding. Filed 2026-08-28 from a shape sketched by the author; refined 2026-0
 the same day over five rounds, which is where most of what follows comes from. The refinement settled
 the frontier and changed the mechanism under the sketched UI from two editor instances to one instance
 with a `Doc` per buffer. The grilling grew the ticket twice: the asset loaders cannot report a file
-that is not there, and apply-on-blur is the first caller that has to survive one; and the `?vn=`
+that is not there, and adopt-on-blur is the first caller that has to survive one; and the `?vn=`
 payload has to carry the manifest, because keying saves by `id` without it is the one thing `TODO`
 says not to do.
 
@@ -20,7 +20,7 @@ says not to do.
   second instance beside the first; refinement changed the mechanism and kept the UI. See below.
 - **Tabs above the editor** switch between them. Crude CSS, no styling work: a tab click swaps the
   doc and moves an active class, and that is all the tabs do.
-- The manifest **applies on editor blur**, not on every keystroke - and only when the manifest buffer
+- The manifest is **adopted on editor blur**, not on every keystroke - and only when the manifest buffer
   is actually dirty. See decision 6.
 - **Error handling as already documented** - `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md`.
 - The **`?vn=` payload carries the manifest** alongside the script, because a manifest the author can
@@ -48,7 +48,7 @@ Note the ADR's last consequence: `ParserError` and `SourceLocation` are the curr
 so the existing gutter machinery (`setErrorMarker`) works unchanged on manifest errors. The failure
 modes differ; the reporting does not.
 
-## What applying a manifest has to do
+## What adopting a manifest has to do
 
 More than swapping the field. `parseDocument()` passes `this.manifest` into `parseStory`, so a new
 manifest means:
@@ -66,25 +66,25 @@ In order, and with the await where `loadScript` already puts it:
 
 ```
 blur -> manifest doc isClean()? stop - nothing was edited (decision 6)
-        generation = ++applyGeneration                          (decision 7)
+        generation = ++adoptGeneration                          (decision 7)
         parseManifest(text) -> null? mark the gutter and the tab, keep the last
                                      valid manifest, stop
                             -> ok?   this.manifest = manifest
                                      state = parseDocument()    // reparses the script, remarks its gutter
                                      await renderer.loadAssets(state)
-                                     if (generation !== applyGeneration) stop
+                                     if (generation !== adoptGeneration) stop
                                      player.reloadStory(state)
                                      renderer.render(false)
 ```
 
 **The reparse must not be gated on the script buffer being dirty.** `goToLine` skips `parseDocument`
 when the script doc `isClean()`, which is right when only the playhead moved and wrong here: the
-script is untouched and its meaning changed anyway. An apply that reuses `goToLine` wholesale
+script is untouched and its meaning changed anyway. An adoption that reuses `goToLine` wholesale
 silently does nothing on the common case.
 
 ## Decisions taken in refinement
 
-### 1. Applying reloads, and keeps the path as far as it replays
+### 1. Adopting reloads, and keeps the path as far as it replays
 
 `player.reloadStory(state)` - the call `goToLine` already makes after a script edit. It is not a
 weaker answer than dropping the path, it is the same answer the script buffer gives, and the
@@ -117,8 +117,17 @@ The writer is the awkward one. `DomRenderer` has the player, and **`VnPlayerStat
 not carry `id`** - `seedState` copies the declarations and drops identity, which is
 `docs/adr/0001-manifest-seeds-the-initial-state.md`'s amendment. Do not put `id` into the state to
 solve this. Give `DomRenderer` the save id as its own field, set from the manifest at construction and
-updated when the editor applies a new one. That is the same shape as the editor's `manifest` field
+updated when the editor adopts a new one. That is the same shape as the editor's `manifest` field
 becoming mutable, for the same reason.
+
+**`PROJECT_STORAGE.md` already hangs the project rename off this exact event.** *"The rename is
+triggered from the manifest, on editor blur. That is already when the script is reparsed, so the id
+change is noticed on the same event rather than needing a new one: blur, see that `id` differs from
+the directory name, show the dialog."* So the id edit this ticket allows is not an orphan awaiting a
+rename flow - it is the seam that flow is designed to plug into. That doc also names blur's second
+weakness, which decision 6 does not solve: it **never fires on a tab close**. Moot here, because
+nothing persists yet and a tab close loses the buffers either way; not moot once OPFS makes the
+buffers worth keeping.
 
 What an in-session id edit does, precisely: **later writes go to the new key.** The slots already in
 memory stay in memory and land under the new key on the next save; nothing re-reads the old key, and
@@ -161,22 +170,22 @@ Accepted for now, per the grilling: the `id` names the project rather than the v
 and an author who needs a clean slate can append a version to the `id`, since the `id` *is* the save
 key. That is a crude lever but a real one, and it is why payload versioning is not needed yet.
 
-### 3. A declared file that is not there must not hang the apply
+### 3. A declared file that is not there must not hang the adoption
 
 Found while reading, and the reason this ticket is not purely an editor change. `loadAssets` is
 awaited before the reload, and neither loader can report a missing file:
 
 - **`AudioAssetLoaderSrc.loadAsset` never settles on a 404.** It resolves from a `canplaythrough`
   listener and registers no `error` listener, so a declaration pointing at a file that does not exist
-  leaves a promise pending forever. `Promise.all` never resolves, the apply never reaches
+  leaves a promise pending forever. `Promise.all` never resolves, the adoption never reaches
   `reloadStory`, and **nothing tells the author anything**: the manifest parsed clean, so there is no
-  error marker either. The editor just quietly stops applying manifests.
+  error marker either. The editor just quietly stops adopting manifests.
 - **`ImageAssetLoaderSrc.loadAsset` rejects.** `img.decode()` rejects on a failed load, so
-  `Promise.all` rejects and the apply is lost as an unhandled rejection - louder, but no more visible
+  `Promise.all` rejects and the adoption is lost as an unhandled rejection - louder, but no more visible
   to the author.
 - **Registration is cumulative and never cleared.** `registerAsset` writes into a record that is only
   ever added to, and `loadAll` re-walks every path it has ever seen. So one typo'd filename does not
-  just break its own apply, it breaks **every later apply in the session**, including the one that
+  just break its own adoption, it breaks **every later adoption in the session**, including the one that
   fixes the typo. Renaming a declaration also leaves the old path registered - harmless for
   rendering, since resolution goes by path, but it is why the typo persists.
 
@@ -187,11 +196,11 @@ makes about undeclared assets. The fix belongs in the loaders:
 - Add an `error` listener to the audio loader so a failed load settles instead of hanging.
 - Have `loadAll` resolve with what failed rather than rejecting, so the caller can decide.
 - A failed path must not stay registered as pending in a way that re-fails every subsequent `loadAll`.
-  Either drop it or record the failure so it is not retried on every apply.
+  Either drop it or record the failure so it is not retried on every adoption.
 
-**The apply proceeds, and the failures are reported.** Refusing the apply would make the editor
+**The adoption proceeds, and the failures are reported.** Refusing it would make the editor
 unusable in the normal authoring order - declare the asset, then draw it - so a manifest that
-references files which do not exist yet still applies. The report goes to the console *and* to the
+references files which do not exist yet is still adopted. The report goes to the console *and* to the
 tab, per decision 4.
 
 **What "proceeds" does not mean.** An earlier draft of this ticket said a missing background is a
@@ -204,7 +213,7 @@ sub-renderers throw on null rather than degrading:
 - `AudioRenderer.ts:20,31` - `if (!newAudio) throw new Error("Could not play audio " + ...)`
 
 So a declared file that nothing displays is silent forever, and one the story *reaches* throws
-mid-render, on the frame that command paints. This ticket makes the failure reportable at apply time;
+mid-render, on the frame that command paints. This ticket makes the failure reportable at adoption time;
 it does not make the renderers survive it. Doing that means deciding what a missing sprite looks like
 on screen, which is a renderer change with its own blast radius and its own ticket.
 
@@ -216,6 +225,11 @@ saying: the author is looking at a preview built from a manifest that is not the
 only sign of that is a gutter marker in a tab they are not looking at. A class on the manifest tab when
 its last parse failed, cleared when one succeeds, is about three lines and answers it. No new concept:
 same information the gutter already has, in the one place that is visible from the other tab.
+
+**This was already designed, in another document.** `design-docs/SCRIPT_INCLUDES.md` lists what
+multi-buffer needs and includes *"markers filtered to the open buffer, plus some indicator that a
+different file has errors, since otherwise a broken script looks clean"*. Same requirement, arrived
+at from includes rather than from the manifest, which is a good sign it is the right one.
 
 **A failed asset load marks it too.** The two states are not identical - a parse failure means the
 preview is built from a *different* manifest than the buffer shows, while a load failure means the
@@ -238,7 +252,7 @@ What is worth asserting, in rough order of value:
   the old manifest is not one under the new.
 - An invalid manifest edit, on blur, leaves the preview on the last valid manifest and marks the
   error gutter.
-- A second valid edit after an invalid one applies normally - the last-valid state is not sticky.
+- A second valid edit after an invalid one is adopted normally - the last-valid state is not sticky.
 - The script buffer being clean does not stop the reparse (the `isClean` trap above).
 
 **The harness does not exist yet, and building it is half the value.** `test/helpers/vnHarness.ts`'s
@@ -256,27 +270,34 @@ because `CompressionStream` is why it was put there.
 Assert on player and renderer state, not on CodeMirror internals. The tab bar itself stays
 hand-verified; it is the part being thrown away.
 
-### 6. Blur applies only when the manifest buffer is dirty
+### 6. Blur adopts only when the manifest buffer is dirty
 
 Blur is a much broader event than "I finished editing the manifest": clicking the preview, the
 Fullscreen button, a jump-mode radio, or another browser tab all fire it. Unguarded, each one would
 reparse, reload assets, reload the story and re-render - so clicking into the preview to test
 something would reload the story out from under the author.
 
-Gate the apply on the manifest doc's own `isClean()`. It kills every spurious case in one line, keeps
+**One rule to reconcile.** `SCRIPT_INCLUDES.md` says multi-buffer wants *"'clean' redefined as all
+buffers clean"*. That is about a save-state notion across N script files, and it does not conflict
+with what follows - but the two dirty flags here are used for opposite purposes, so an implementer
+holding both documents needs it said: the manifest buffer's own dirtiness gates its adoption, the
+script buffer's cleanliness must never gate the reparse, and an all-buffers-clean rule is a third
+thing again, for whoever adds the third buffer.
+
+Gate the adoption on the manifest doc's own `isClean()`. It kills every spurious case in one line, keeps
 the sketched interaction, and reuses a gate this file already has - `goToLine` does the same thing for
 the script. Note it is the *opposite* gate from the trap above: the manifest's dirtiness gates the
-apply; the script's cleanliness must not gate the reparse.
+adoption; the script's cleanliness must not gate the reparse.
 
-### 7. Overlapping applies need a generation guard
+### 7. Overlapping adoptions need a generation guard
 
-The apply is asynchronous - `await renderer.loadAssets(state)` sits between parsing and reloading -
-so two blurs in quick succession, or an apply racing a script reload, can resolve out of order and let
+The adoption is asynchronous - `await renderer.loadAssets(state)` sits between parsing and reloading -
+so two blurs in quick succession, or an adoption racing a script reload, can resolve out of order and let
 an older manifest win. `DomRenderer` already carries `renderGeneration` for exactly this hazard, and
 `CLAUDE.md` documents at length both how it works and that the fast gate cannot see it. The editor's
-apply has no equivalent.
+adoption has no equivalent.
 
-Bump a counter at the top of the apply, capture it, and bail after the await if it has moved. Four
+Bump a counter at the top of the adoption, capture it, and bail after the await if it has moved. Four
 lines, and it mirrors a pattern this codebase has already committed to rather than inventing one.
 
 ### 8. The `?vn=` payload becomes two documents: manifest, then script
@@ -351,9 +372,9 @@ silent-data-loss path gets much easier to hit the moment authors learn the paylo
 Three separable landings in one ticket. The order matters because the first one silently breaks the
 others if it comes last:
 
-1. **The loader fix** (decision 3). Independent of everything else, and the apply depends on it - an
-   apply built on loaders that hang is an apply that appears to work until the first typo.
-2. **The editor: buffers, tabs, apply, tab state, the `startEditor` harness and its tests**
+1. **The loader fix** (decision 3). Independent of everything else, and the adoption depends on it -
+   an adoption built on loaders that hang is one that appears to work until the first typo.
+2. **The editor: buffers, tabs, adoption, tab state, the `startEditor` harness and its tests**
    (decisions 1, 4, 5, 6, 7, 10, and the mechanism below).
 3. **The payload, the save rekey and the export gate** (decisions 2, 8, 9). Last, because exporting a
    manifest needs a manifest buffer to export from.
@@ -362,6 +383,13 @@ others if it comes last:
 
 The sketch's second instance was the first shape that came to mind, not a rejection of the
 alternative. CodeMirror 5 already has multi-buffer: `cm.swapDoc(doc)`, one `CodeMirror.Doc` per file.
+
+**And this was prescribed before the ticket existed.** `design-docs/SCRIPT_INCLUDES.md` says outright
+what multi-file needs: *"one `CodeMirror.Doc` per file with `swapDoc` to switch between them, which
+brings per-file undo history and cursor position along for free; a file switcher"*. The refinement
+re-derived that from the CodeMirror source rather than reading it there first. It is a stronger
+argument than the one the refinement found, because it makes this the two-buffer subset of a design
+the repo has already committed to - not merely 5.x's ancestor of the CM6 model.
 `design-docs/EDITOR.md`'s own migration table has the row - `swapDoc` maps to CM6's *"hold an
 `EditorState` per file, `view.setState()`"* - so this is the 5.x spelling of the model the migration
 adopts, and porting it is a call-site change rather than a deletion.
@@ -391,7 +419,7 @@ That `!cm` branch is the detached-doc path. Marker data is stored on the line ha
 its markers across the swap**. They appear on `Editor` in the typings only because CM5 delegates every
 `Doc.prototype` method onto the editor except `iter insert remove copy getEditor constructor`.
 
-This is load-bearing for the apply flow rather than incidental: applying the manifest reparses the
+This is load-bearing for the adoption rather than incidental: adopting the manifest reparses the
 *script* while the *manifest* buffer is the visible one, so the script's error gutter is remarked
 while its doc is detached. It works; TypeScript will not believe it. Add
 `src/types/codemirror.d.ts` declaring the two methods on `CodeMirror.Doc` - a global augmentation in
@@ -424,6 +452,11 @@ it outright.
 - **`VnEditor`'s constructor takes the manifest.** Making it a mutable field with a setter is the
   smallest change; whether the tab bar belongs inside `VnEditor` or beside it is an interface
   question, not a mechanism one.
+- **The single-buffer audit is already written.** `SCRIPT_INCLUDES.md` enumerates the six places
+  `VnEditor` assumes one document, with line numbers - `getScript`/`loadScript`, `parseDocument`,
+  `isClean` and `goToLine`, the two marker setters, the render callback at `editor.ts:46`, and
+  `goToLine`'s `findIndex` at `editor.ts:115`. Work from that list rather than rediscovering it. What
+  follows is the same audit stated for two buffers rather than N.
 - **Everything that means "the script" has to say so.** `parseDocument`, `goToLine`, the position
   marker and the render callback all reach through `this.vnEditor.getDoc()` today, which silently
   means "whatever is on screen" once a swap exists. They want the script `Doc` by name - the render
@@ -455,7 +488,7 @@ twice over, and both corrections point the same way:
   mechanism is ported at migration time, not deleted - the call site changes and the shape does not.
 
 What is thrown away is a `swapDoc` call and two `Doc` constructions. Everything else - the tab bar,
-apply-on-blur, keep-the-last-valid-manifest, the save rekey, the loader fix - either survives or was
+adopt-on-blur, keep-the-last-valid-manifest, the save rekey, the loader fix - either survives or was
 never about CodeMirror. Item `A` genuinely is deleted by the migration, since CM6 ships search as an
 extension; this is not that, and should stop borrowing its argument.
 
@@ -483,7 +516,7 @@ Recorded so the mechanism is not relitigated. All were weighed at the 2026-08-29
   currency, so the gutter machinery works on manifest errors unchanged. A textarea has no gutter, and
   no YAML highlighting on a document that is nothing but nested YAML.
 - **A form generated from the Zod schema.** Tempting, because a form cannot produce a syntactically
-  invalid manifest and would delete apply-on-blur and the keep-the-last-valid rule with it. Rejected:
+  invalid manifest and would delete adopt-on-blur and the keep-the-last-valid rule with it. Rejected:
   it round-trips YAML through a UI and loses comments - the demo's manifest opens with a six-line
   comment block - and `PROJECT_STORAGE.md` wants `manifest.yaml` as a real file in the archive. Worth
   naming, because if a form is ever the destination then the buffer is the throwaway and none of the
@@ -516,7 +549,7 @@ Three places they touch:
 
 - **A shared motive.** Authors declare things before the art exists, so both have to stay usable while
   half the assets are missing. That is the argument for 03's severity question and for this ticket's
-  "the apply proceeds".
+  "the adoption proceeds".
 - **03 gets more valuable once this lands.** Its pitch is "an error you can fix now", and until the
   manifest is editable, fixing it means editing a repo file and rebuilding.
 - **This ticket expires one of 03's premises.** 03 records that a `ParserError` is invisible to a
@@ -553,7 +586,7 @@ make it lie. But whoever finishes this ticket should not have to rediscover whic
   `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` is that rule, and it is
   independent of where the manifest is edited. See the boundary above.
 - **Making the renderers survive a missing asset.** They throw on null rather than degrading, so a
-  story that reaches a declared-but-missing file still dies mid-render. Reporting it at apply time is
+  story that reaches a declared-but-missing file still dies mid-render. Reporting it at adoption time is
   this ticket; deciding what a missing sprite looks like on screen is not.
 - **Invalidating saves when a story changes.** Accepted for now: the `id` names the project, not the
   version of its script, and an author who needs a clean slate can append a version to the `id`, which
@@ -570,6 +603,8 @@ make it lie. But whoever finishes this ticket should not have to rediscover whic
   what makes the save rekey a threading problem rather than a lookup
 - `design-docs/EDITOR.md` - the CM6 migration, and the `swapDoc` row in its 5.x-to-6 table that this
   ticket's mechanism is chosen from
+- `design-docs/SCRIPT_INCLUDES.md` - the single-buffer audit with line numbers, and the multi-buffer
+  design this ticket builds a two-buffer subset of
 - `design-docs/PROJECT_STORAGE.md` - where the manifest text eventually lives, and the `vn-save-<id>`
   key this adopts
 - `ROUGH_EDGES.md` - the stale-save entry this narrows to its remaining half

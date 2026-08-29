@@ -14,7 +14,9 @@ _Avoid_: game, novel, story (a story is the command sequence inside one)
 
 **Project id**:
 The author-chosen name a project is filed under, and the source of truth for its identity. A
-directory name or an archive filename is a label derived from it, and is allowed to go stale.
+directory name or an archive filename is a label derived from it, and is allowed to go stale. It is
+also what player saves are keyed under, so changing it is how an author declares a break with
+everything filed under the old one - a rename and a save-break are the same gesture, deliberately.
 _Avoid_: slug, uuid, key
 
 **Manifest**:
@@ -55,6 +57,12 @@ _Avoid_: tab (a tab is how a buffer is chosen), pane, editor instance
 A single YAML document in YAML's own sense: one unit of a `---`-separated stream. A buffer holds
 exactly one; the URL payload is a stream of two.
 _Avoid_: file (a document may travel without being a file), doc
+
+**Adopt**:
+What the editor does with an edited manifest: parse it, take it as the one the project is now
+described by, and rebuild everything downstream of it. Reserved for the manifest, because *apply* is
+what a command does to a state.
+_Avoid_: apply
 
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a

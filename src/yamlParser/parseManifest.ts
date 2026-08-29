@@ -2,7 +2,7 @@ import { Document, isMap, isNode, isScalar, LineCounter, YAMLMap } from "yaml"
 import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
 import { VnManifest } from "../core/manifest"
-import { isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
+import { DEFAULT_ACTOR_ID, isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
 import { composeDocuments, documentLines, FIRST_LINE, getLines, multiDocumentError, yamlProblems } from "./yamlDocument"
 
 // manifest.yaml, the document a project declares itself in. It lives here rather than next to
@@ -35,8 +35,8 @@ const isCapitalized = (key: string) => key.length > 0 && key[0] !== key[0].toLow
 const actorIdSchema = z
   .string()
   .refine(
-    (key) => key === "default" || key === NARRATOR_ACTOR_ID || isCapitalized(key),
-    `must be capitalized - only "default" and "${NARRATOR_ACTOR_ID}", the engine's own actors, are lowercase`
+    (key) => key === DEFAULT_ACTOR_ID || key === NARRATOR_ACTOR_ID || isCapitalized(key),
+    `must be capitalized - only "${DEFAULT_ACTOR_ID}" and "${NARRATOR_ACTOR_ID}", the engine's own actors, are lowercase`
   )
 
 // An asset id names a file the script asks for; nothing derives a filename or a directory name from

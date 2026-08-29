@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { VnManifest } from "../../src/core/manifest"
-import { liveSprites, nextStop, StartedVn, startVn, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
+import { advanceVn, liveSprites, startVn, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
 
 // A sprite instance's id is what a `show` writes to and a `hide` takes back, and it defaults to the
 // actor. Two ids for one actor put that actor on screen twice - which the sprite map, keyed by
@@ -55,12 +55,6 @@ story:
   - Nobody
 `
 
-const advance = async (started: StartedVn): Promise<void> => {
-  const stop = nextStop(started.renderer, started.player)
-  started.renderer.advance()
-  await stop
-}
-
 // A declared sprite name is checkable against the manifest, unlike an instance id, so an unknown one
 // is the manifest and the script disagreeing - reported at parse time, and the `show` that named it
 // neutralized, rather than swallowed or thrown several scenes later.
@@ -82,17 +76,17 @@ describe("sprite ids", () => {
     const started = await startVn(script, { manifest: MANIFEST })
     await registerTestSprites(started.renderer)
 
-    await advance(started)
+    await advanceVn(started)
     const both = liveSprites(started.root)
     expect(Object.keys(both).sort()).toEqual(["Jenny", "jenny-twin"])
     // The script names declared sprites; the manifest is what says which file each one is.
     expect(both["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
     expect(both["jenny-twin"].dataset.testAsset).toBe("sprites/Jenny/b.png")
 
-    await advance(started)
+    await advanceVn(started)
     expect(Object.keys(liveSprites(started.root))).toEqual(["Jenny"])
 
-    await advance(started)
+    await advanceVn(started)
     expect(liveSprites(started.root)).toEqual({})
   })
 
@@ -102,13 +96,13 @@ describe("sprite ids", () => {
 
     expect(started.errors.map((e) => e.message)).toEqual(["Actor Jenny declares no sprite named furious"])
 
-    await advance(started)
+    await advanceVn(started)
     expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
 
-    // Past the undeclared name. A render that throws never comes to rest, so the stop `advance`
+    // Past the undeclared name. A render that throws never comes to rest, so the stop advanceVn
     // waits for is also the proof that this one did not - which is what it did before the parser
     // started checking the ids a script names.
-    await advance(started)
+    await advanceVn(started)
     expect(textBoxText(started.root)).toBe("Still here")
     expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
   })

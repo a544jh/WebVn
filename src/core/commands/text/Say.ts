@@ -2,6 +2,7 @@ import {
   Actor,
   ADVNameTag,
   ADVTextBox,
+  DEFAULT_ACTOR_ID,
   NARRATOR_ACTOR_ID,
   TextBoxType,
   TextMode,
@@ -88,7 +89,7 @@ export class Say extends Command {
   // The engine's own two actors are exempt: `narrator` is the unnamed voice a plain line is said in
   // and `default` is what every other actor inherits from, so neither is a project's to declare.
   public references(): Reference[] {
-    if (this.actorName === NARRATOR_ACTOR_ID || this.actorName === "default") return []
+    if (this.actorName === NARRATOR_ACTOR_ID || this.actorName === DEFAULT_ACTOR_ID) return []
     return [{ kind: "actor", id: this.actorName }]
   }
 

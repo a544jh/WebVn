@@ -60,6 +60,14 @@ export const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void>
     renderer.onFinishedCallbacks.push(callback)
   })
 
+// One click's worth of story: advance, and wait for the next stop. A render that throws never comes
+// to rest, so a stop that arrives is also the proof that none did.
+export const advanceVn = async (started: MountedVn): Promise<void> => {
+  const stop = nextStop(started.renderer, started.player)
+  started.renderer.advance()
+  await stop
+}
+
 export interface MountedVn {
   player: VnPlayer
   renderer: DomRenderer

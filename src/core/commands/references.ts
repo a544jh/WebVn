@@ -30,13 +30,10 @@ const isDeclared = (manifest: VnManifest, reference: Reference): boolean => {
 // command's sprite references to that actor: there is no point reporting that an actor nobody
 // declared declares no sprites, and the actor reference has already said the useful half.
 const undeclaredReferences = (command: Command, manifest: VnManifest): Reference[] => {
-  const references = command.references()
-  const undeclaredActors = references.filter((r) => r.kind === "actor" && !isDeclared(manifest, r)).map((r) => r.id)
+  const undeclared = command.references().filter((reference) => !isDeclared(manifest, reference))
+  const undeclaredActors = undeclared.filter((r) => r.kind === "actor").map((r) => r.id)
 
-  return references.filter((reference) => {
-    if (isDeclared(manifest, reference)) return false
-    return !(reference.kind === "sprite" && undeclaredActors.includes(reference.actor))
-  })
+  return undeclared.filter((r) => !(r.kind === "sprite" && undeclaredActors.includes(r.actor)))
 }
 
 export const checkReferences = (commands: Command[], manifest: VnManifest): [Command[], ParserError[]] => {

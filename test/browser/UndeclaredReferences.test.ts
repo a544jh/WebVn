@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { VnManifest } from "../../src/core/manifest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
-import { nextStop, SCENE_HEIGHT, SCENE_WIDTH, StartedVn, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
+import { advanceVn, SCENE_HEIGHT, SCENE_WIDTH, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
 
 // The regression net for the whole of ticket 03: this exact script threw out of DomRenderer.render
 // before the parser started checking the ids a script names. Now the `bg` naming an id nobody
@@ -58,13 +58,6 @@ const paintedBackground = (root: HTMLDivElement): number[] => {
   return [data[0], data[1], data[2]]
 }
 
-// A render that throws never comes to rest, so a stop that arrives is also the proof that none did.
-const advance = async (started: StartedVn): Promise<void> => {
-  const stop = nextStop(started.renderer, started.player)
-  started.renderer.advance()
-  await stop
-}
-
 describe("a background the manifest does not declare", () => {
   it("is reported, leaves the background that is up alone, and does not stop the story", async () => {
     const started = await startVnWithErrors(script, { manifest: MANIFEST })
@@ -72,13 +65,13 @@ describe("a background the manifest does not declare", () => {
 
     expect(started.errors.map((e) => e.message)).toEqual(["No background is declared as forset"])
 
-    await advance(started)
+    await advanceVn(started)
     expect(textBoxText(started.root)).toBe("The declared background is up")
     expect(paintedBackground(started.root)).toEqual(BG_COLOR)
 
     // Past the undeclared one: the frame is unchanged, the line after it is said, and the render
     // came to rest rather than throwing.
-    await advance(started)
+    await advanceVn(started)
     expect(textBoxText(started.root)).toBe("Still playing")
     expect(paintedBackground(started.root)).toEqual(BG_COLOR)
     expect(started.player.state.animatableState.background.image).toBe("a")

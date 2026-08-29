@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { pauseMenu } from "../../src/domRenderer/menus/PauseMenu"
 import { VnManifest } from "../../src/core/manifest"
-import { nextStop, startVn, StartedVn } from "../helpers/vnHarness"
+import { advanceVn, startVn, StartedVn } from "../helpers/vnHarness"
 
 // The now-playing line: what the manifest's audio metadata exists for. The bgm in the committed
 // state is an asset id, and seedState copied the declarations into the state beside it, so the
@@ -63,17 +63,11 @@ afterEach(() => {
   HTMLMediaElement.prototype.play = realPlay
 })
 
-const advance = async (started: StartedVn): Promise<void> => {
-  const stop = nextStop(started.renderer, started.player)
-  started.renderer.advance()
-  await stop
-}
-
 describe("the pause menu's now-playing line", () => {
   it("names the playing track and its artist on one line", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
-    await advance(started)
+    await advanceVn(started)
 
     expect(nowPlaying(openPauseMenu(started))).toBe("Now playing: Daylight - 8bit remix by a544jh")
   })
@@ -81,8 +75,8 @@ describe("the pause menu's now-playing line", () => {
   it("drops the credit when nothing is credited", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
-    await advance(started)
-    await advance(started)
+    await advanceVn(started)
+    await advanceVn(started)
 
     expect(nowPlaying(openPauseMenu(started))).toBe("Now playing: Untitled Waltz")
   })
@@ -92,7 +86,7 @@ describe("the pause menu's now-playing line", () => {
   it("shows nothing for a track with no title, rather than its id", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
-    for (let i = 0; i < 3; i++) await advance(started)
+    for (let i = 0; i < 3; i++) await advanceVn(started)
 
     expect(nowPlaying(openPauseMenu(started))).toBe(null)
   })
@@ -100,7 +94,7 @@ describe("the pause menu's now-playing line", () => {
   it("shows nothing once the music has stopped", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
-    for (let i = 0; i < 4; i++) await advance(started)
+    for (let i = 0; i < 4; i++) await advanceVn(started)
 
     expect(nowPlaying(openPauseMenu(started))).toBe(null)
   })
@@ -108,7 +102,7 @@ describe("the pause menu's now-playing line", () => {
   it("leaves the menu's own items alone", async () => {
     const started = await startVn(script, { manifest: MANIFEST })
     registerTestAudio(started.renderer)
-    await advance(started)
+    await advanceVn(started)
     const root = openPauseMenu(started)
 
     expect([...root.querySelectorAll(".vn-pause-menu-item")].map((e) => e.textContent)).toEqual([

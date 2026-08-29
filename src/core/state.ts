@@ -95,6 +95,13 @@ export interface Actor {
 
 export const NARRATOR_ACTOR_ID = "narrator"
 
+// The engine's own two actors, which no project declares and every project gets: the unnamed voice
+// a plain line is said in, and the actor all others inherit from. Both are reserved the way
+// STOP_AUDIO_ID and isBackgroundColor are, so the rule that a lowercase key is one of these two is
+// stated here rather than wherever it happens to be tested. `Actors` writes `default` as a property
+// name below because that is what the type is; this is for the comparisons.
+export const DEFAULT_ACTOR_ID = "default"
+
 export interface Actors {
   default: DefaultActor // all actors inherit from this
   [NARRATOR_ACTOR_ID]: Actor // the unnamed actor, for "narrative" text

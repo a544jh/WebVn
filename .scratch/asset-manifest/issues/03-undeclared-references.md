@@ -187,16 +187,25 @@ ticket:
 - **The undeclared-actor rule is in the pass, not in `show`.** A sprite reference is dropped when the
   same command's actor reference is itself undeclared, so a future command naming a sprite without
   its actor still reports.
-- **Two existing tests named ids their manifests did not declare**, which is the invariant this
-  ticket enforces finding its first two cases in the repo's own suite. `test/unit/YamlParser.test.ts`
-  says a line as `A1` against `TEST_MANIFEST` while testing anchors, and now parses against a
-  manifest declaring it. `test/browser/SpriteIds.test.ts` asserted the *old* behaviour outright - it
-  waited for the renderer to throw `Actor Jenny declares no sprite named furious` - and is now the
-  sprite half of the new one: reported at parse time, the showing sprite left alone, the story
-  playing on.
+- **Three things in the repo named ids nothing declared**, which is this invariant finding its first
+  cases in our own tree. The demo itself is one: `test-assets/script.yaml:161` says a line as
+  `Rando`, so the demo manifest now declares `Rando: {}` - an entry with nothing in it, which is all
+  an actor with no styling needs and keeps the demo from shipping the permanent warning this ticket
+  refused. `test/unit/YamlParser.test.ts` says a line as `A1` against `TEST_MANIFEST` while testing
+  anchors, and now parses against a manifest declaring it. `test/browser/SpriteIds.test.ts` asserted
+  the *old* behaviour outright - it waited for the renderer to throw `Actor Jenny declares no sprite
+  named furious` - and is now the sprite half of the new one: reported at parse time, the showing
+  sprite left alone, the story playing on.
 - **`startVn` refuses a script with warnings**, so the harness gained `startVnWithErrors` for the two
   suites whose warnings are the point. The guard is worth keeping: it is what caught the two tests
   above.
+
+Out of the review that followed: `default` became `DEFAULT_ACTOR_ID` in `core/state.ts` rather than a
+third bare spelling, since it is reserved exactly the way `STOP_AUDIO_ID` is; and the `advance`
+helper three browser suites each had a copy of moved into the harness as `advanceVn`. Declined:
+folding `isDeclared`'s switch and `undeclaredMessage`'s into one per-kind table. They sit in two
+layers on purpose - a renderer imports `core/manifest`, not `core/commands` - and a fifth kind fails
+`tsc` in both (TS2366, verified), so the drift a table would prevent is already compiler-caught.
 
 Not done, and still not in scope: the renderers surviving a *missing* asset, and `sfx: stop` learning
 to stop a sound.

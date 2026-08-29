@@ -84,6 +84,15 @@ described by, and rebuild everything downstream of it. Reserved for the manifest
 what a command does to a state.
 _Avoid_: apply
 
+**Store**:
+What the editor does with the author's buffers: write them into the project store in OPFS, so the
+work survives a reload. The store is the noun and storing is the verb - the project store stores the
+script - while the file-level operation underneath it is a *write*. Reserved for the author's
+project, because a *save* is the player's: a save slot holds a path through a story, and the two are
+unrelated things that both used to be called saving.
+_Avoid_: save, autosave (those are the player's save slots), persist (that is
+`navigator.storage.persist`, which this design also calls)
+
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a
 link. Two documents, manifest first.
@@ -188,7 +197,7 @@ A command the player has read at least once, anywhere, ever. Deliberately global
 across undo, save slots and replays, because it exists to tell skip mode what may be skipped.
 
 **Save slot**:
-A stored path plus the time it was stored, which is all a save is.
+A path plus the time it was saved, which is all a save is.
 
 ### Authoring-only
 

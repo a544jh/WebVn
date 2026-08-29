@@ -7,8 +7,17 @@ durable, and it is the prerequisite that the project picker, rename, import, exp
 includes all hang off.
 
 Extracted 2026-08-29 as **tranche 1** of that chain - the seam, the filesystem layer, the store on
-top of it, and the editor booting through all three. The picker and everything past it are tranche 2
-and 3, sketched at the bottom so the ordering is written down rather than rediscovered.
+top of it, the editor booting through all three, and the lock that keeps two tabs from overwriting
+each other. Grilled over five rounds on 2026-08-30, which is where most of the specifics below come
+from; the picker and everything past it are tranche 2 and 3, sketched at the bottom so the ordering
+is written down rather than rediscovered.
+
+## Vocabulary
+
+The editor **stores** the author's project into OPFS; the store **writes** files; a **save** is the
+player's - a save slot holding a path through a story. `CONTEXT.md` has the entry, with `save`,
+`autosave` and `persist` on its _Avoid_ list. The first draft of these tickets used "autosave"
+throughout, which collides with a term this codebase has meant something else by since 2021.
 
 ## What already landed, and must not be re-filed
 
@@ -34,11 +43,11 @@ the cheapest way to waste a day here is to re-derive one of these:
   declared each one. Import's "fail the whole import and name the missing files" has a precedent to
   follow rather than a mechanism to invent.
 
-## The five tickets
+## The six tickets
 
 They are ordered by what each one needs from the last, not by size. Only 01 and 02 are independently
-shippable; 03 through 05 are a working editor cut into reviewable pieces, and 05 is the one an author
-would notice.
+shippable; 03 through 06 are a working editor cut into reviewable pieces, 05 is the one an author
+would notice, and 06 is the one that keeps 05 from losing their work.
 
 1. **`01-asset-resolver.md`** - TODO item E, and the gate on everything else. One interface between
    "logical path inside a project" and "URL something can fetch", consulted in exactly one place.
@@ -55,7 +64,11 @@ would notice.
 4. **`04-project-store.md`** - project semantics over those primitives. The layout, enumeration as
    the truth about what exists, the manifest as the truth about what a project is.
 5. **`05-editor-boots-from-the-store.md`** - the OPFS resolver, boot from `editor.yaml`'s last-opened
-   project, and autosave. The first ticket with a user-visible effect.
+   project, storing, and the indicator that says whether storing has happened. The first ticket with
+   a user-visible effect, and the one that makes OPFS a hard requirement: a browser without it gets
+   no editor rather than a memory-only one.
+6. **`06-one-tab-per-project.md`** - a `navigator.locks` lock taken at boot, so a second tab is
+   refused instead of racing the first one's writes.
 
 ## What tranche 1 deliberately does not do
 
@@ -66,9 +79,11 @@ would notice.
   crash-safe ordering deserves its own ticket rather than a paragraph in 04.
 - **No import, no export, no zip.** A separate effort with its own spec, and the doc's hard
   constraint - export must not ship ahead of zip import - belongs there where it will be read.
-- **No `navigator.locks`.** Two tabs on one project race the autosave that 05 introduces. That is a
-  real bug the moment 05 lands, and it is tranche 2's first ticket rather than tranche 1's last only
-  because it needs the picker's teardown path to have somewhere to put the banner.
+- **No rename, picker, import or export** - see the three bullets around this one. What *was* here
+  and has moved into tranche 1 is `navigator.locks`, as ticket 06. It sat in tranche 2 until it
+  became clear that 05 is what creates the hazard: before storing exists a second tab costs nothing,
+  and after it there is exactly one copy of the author's work and two debounced writers. Deferring it
+  would have meant shipping a known way to lose an author's work out of the durability effort.
 
 ## Cross-edges worth remembering
 

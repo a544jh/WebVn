@@ -309,9 +309,10 @@ covers.
   directory holds `manifest.yaml`, `script.yaml` and an **`assets/`** directory over the three asset folders,
   which the code does not do yet - `src/domRenderer/assetPaths.ts` builds unprefixed paths, and moving it is
   the first step of the resolver ticket.
-  Its first five tickets are extracted at `.scratch/project-storage/` - the resolver seam, the object-URL
-  lifetime pin, and the OPFS primitives/store/editor-boot trio. Read that spec before starting any of it: it
-  lists what the design doc predates and is now code.
+  Its first six tickets are extracted at `.scratch/project-storage/` - the resolver seam, the object-URL
+  lifetime pin, the OPFS primitives/store/editor-boot trio, and the two-tab lock. Read that spec before
+  starting any of it: it lists what the design doc predates and is now code, and it carries the vocabulary
+  rule that the editor **stores** a project while a **save** is the player's.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
   `include` directive, resolved at parse time rather than as a command. Read it before changing
   `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's buffer handling.

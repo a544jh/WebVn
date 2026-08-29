@@ -22,11 +22,20 @@ loaders report a declared file that is not there instead of hanging on it. That 
 URL-payload item and its save-keying child below, and the ordering edge between them.
 VnEditor has tests and a startEditor harness for the first time, which is the start of T.
 
-Extracted: the storage chain's first five tickets, 2026-08-29, as .scratch/project-storage/.
-E and its object-URL test are two of them; the OPFS store below is split into three, because
-one "L" line was hiding a filesystem layer, a project layer and a boot path. The picker and
-everything past it stay unextracted - their shape depends on the store's API being real. That
-spec also lists what the design doc predates and nobody should re-derive.
+Extracted: the storage chain's first six tickets, 2026-08-29, as .scratch/project-storage/,
+then grilled over five rounds on 2026-08-30. E and its object-URL test are two of them; the
+OPFS store below is split into three, because one "L" line was hiding a filesystem layer, a
+project layer and a boot path. navigator.locks moved up from the picker's tranche to sit beside
+storing - before storing exists a second tab costs nothing, and after it two debounced writers
+share one copy of the author's work, so the two ship together. The picker and everything past
+it stay unextracted - their shape depends on the store's API being real. That spec also lists
+what the design doc predates and nobody should re-derive.
+
+The grilling settled: the resolver resolves paths rather than ids and only loadAsset consults
+it; assets live under assets/ and the code moves to match; a browser without OPFS gets no
+editor rather than a memory-only one; storing is debounced with a stored/unstored/failed
+indicator above the buffer's right corner; and "store" is now a reserved word - see CONTEXT.md,
+because "save" is the player's.
 
 Sizes: S = hours, M = a day or two, L = several days.
 
@@ -93,7 +102,7 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     worst introduction to an authoring tool, so the
              |     |     "load the demo" button below lives here.
              |     +-> persist() + estimate() + export nag    S
-             +-> navigator.locks for two-tab autosave         S
+             (navigator.locks moved into tranche 1 - see below)
              +-> linked-folder layer  (after zip import/export)     M
              |     |     showDirectoryPicker() is the only way to write a
              |     |     directory tree out of a browser, so this is the

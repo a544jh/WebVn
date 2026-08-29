@@ -26,6 +26,11 @@ nothing thrown and nothing logged.
 Ticket 05's `OpfsAssetResolver` is the first thing in this codebase to ever hand the loaders a URL
 that can be revoked. This test is what makes the rule visible to whoever writes it.
 
+It is also what backs ticket 01's decision that `AssetResolver` has no `release` method and that
+revocation, when eviction eventually needs it, belongs to the loader rather than to the thing that
+minted the URL. That decision is only safe if the consequence of getting it wrong is written down
+somewhere executable, and this is that somewhere.
+
 ## The test
 
 `test/browser/objectUrlLifetime.test.ts`, or added to `test/browser/assetLoaders.test.ts` alongside

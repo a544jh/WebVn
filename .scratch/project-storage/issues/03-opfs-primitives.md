@@ -38,7 +38,7 @@ than to add a second walk later.
 ## Atomic writes are not optional
 
 `writeFile` writes `<name>.tmp` beside the target and then `move()`s it into place. The doc is
-explicit that this is load-bearing rather than a nicety: autosave (ticket 05) writes constantly, and
+explicit that this is load-bearing rather than a nicety: storing (ticket 05) writes constantly, and
 a tab killed mid-write to `script.yaml` truncates the author's work with no other copy anywhere.
 
 Two things to get right:
@@ -48,11 +48,24 @@ Two things to get right:
   "function"`); without it, fall back to a direct write and leave a comment saying plainly that a
   crash mid-write can truncate on that path. There is no atomic alternative, so the fallback is a
   known degradation rather than a bug to fix later.
-- **Two writes to one path must not share a tmp name.** A debounced autosave can start a second write
+- **Two writes to one path must not share a tmp name.** Debounced storing can start a second write
   while the first is between its write and its move, and both would be using `script.yaml.tmp`.
   Serialize per path (a `Map<string, Promise<void>>` of in-flight writes, chained) or make the tmp
   name unique per write. Serializing is preferable: it also makes the last write win, which is what a
   debounced save wants, whereas unique names make two concurrent writes race to be last.
+
+## What the browser actually provides
+
+Measured in this repo's browser vitest project (headless Chromium via Playwright), not assumed:
+
+- `navigator.storage.getDirectory()` works, and the OPFS root came up **empty at the start of a
+  run**, so runs do not inherit each other's files. Within a run they would, hence `clearOpfs()`
+  below.
+- **`FileSystemFileHandle.move()` exists.** The atomic write below is therefore testable rather than
+  aspirational, and the fallback path is for other engines, not for the one the tests run in.
+- `FileSystemDirectoryHandle.entries()` / `keys()` exist at runtime. Only the *types* are missing.
+- **`createSyncAccessHandle` is `undefined` on the main thread.** It is worker-only by design, so it
+  cannot be feature-detected from where this module runs without spawning a worker first.
 
 ## Feature detection, and what to do when it fails
 
@@ -62,22 +75,31 @@ implementation has.
 
 **Do not build the worker path in this ticket.** It is a whole second implementation of the write
 half, justified by reports rather than by a measurement, and it would land untested against the
-browser it exists for. Instead: `isSupported()` checks for `navigator.storage?.getDirectory` and for
-`createWritable` on a handle, and a browser that fails it gets a clear refusal from the layer above
-("this browser cannot store projects") rather than a silent failure or a half-working editor. If a
-real browser turns out to need the worker, it is a ticket with a reproduction attached.
+browser it exists for. And per the measurement above, detecting whether it is even *needed* costs a
+worker, so the detection is not free either. If a real browser turns out to require it, that is a
+ticket with a reproduction attached.
+
+So `isSupported()` checks `navigator.storage?.getDirectory` and `createWritable` on a handle, and
+**a browser that fails it does not get an editor at all.** The editor's boot refuses, the way
+`showLoadError` already refuses for the player - see ticket 05. There is deliberately no
+memory-only editor: a second boot path that works differently and is exercised by nobody is a
+maintenance cost with no owner, and an editor that silently cannot store is worse than one that says
+so. The *player* is unaffected either way, since it never touches OPFS.
 
 Record what current Safari actually does if a Safari is available - that measurement is one of the
 doc's open questions and this is the moment someone is looking.
 
 ## Type declarations `lib.dom` does not have
 
-Checked against the TypeScript in the tree, so this is what will actually be missing:
+Checked against the TypeScript in the tree, so this is what will actually be missing - and note it
+does not match what the *runtime* has, per the measurements above:
 
 - `navigator.storage.getDirectory()`, `estimate()`, `persist()`, `persisted()`, `createWritable()`,
   `getFileHandle`, `getDirectoryHandle` and `removeEntry` are all **present**.
-- `FileSystemDirectoryHandle`'s async iteration - `entries()`, `values()`, `keys()` - is **absent**.
-- `FileSystemFileHandle.move()` is **absent**, which follows from it not being in the spec.
+- `FileSystemDirectoryHandle`'s async iteration - `entries()`, `values()`, `keys()` - is **absent**
+  from the types while present at runtime.
+- `FileSystemFileHandle.move()` is **absent** from the types, which follows from it not being in the
+  spec, and is likewise present at runtime in Chromium.
 
 So this ticket adds `src/types/fileSystem.d.ts`, declaring those back exactly as
 `src/types/screenOrientation.d.ts` declares `ScreenOrientation.lock`: a global augmentation with no

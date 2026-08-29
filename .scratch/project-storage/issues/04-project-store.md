@@ -37,6 +37,19 @@ lastOpened: my-story
 Keep the type open for the fields tranche 2 adds (`pendingRename` above all) but do not add them
 speculatively - a field nothing writes is a field nobody can tell is dead.
 
+`lastOpened` does no work while there is exactly one project, which there is until the picker lands.
+It goes in anyway because the boot logic it feeds - "`lastOpened`, else the first of
+`listProjects()`" - is what the picker needs regardless, and having it exercised from the first
+commit beats bolting it on underneath a picker later.
+
+**`editor.yaml` gets no schema version, deliberately.** Adding one is such a reflexive suggestion
+that it needs a stated reason to be absent: this file is *defined* as losable - the doc's recovery
+argument turns on the store degrading gracefully without it, and the read below already treats a
+missing or unparseable one as empty. That rule is the migration strategy. A future shape that does
+not parse under the current reader is discarded and rebuilt from enumeration, which is exactly what
+a version field would have triggered. Durable versioning lives where it can survive: each project's
+own `formatVersion`, in its manifest.
+
 ## `src/storage/projectStore.ts`
 
 ```ts
@@ -53,7 +66,7 @@ export interface ProjectFiles {
 
 export const listProjects = (): Promise<ProjectSummary[]>
 export const readProject = (directory: string): Promise<ProjectFiles>
-export const createProject = (id: string, files: ProjectFiles): Promise<void>
+export const createProject = (id: string, files?: ProjectFiles): Promise<void>
 export const deleteProject = (directory: string): Promise<void>
 export const writeScript = (directory: string, text: string): Promise<void>
 export const writeManifest = (directory: string, text: string): Promise<void>
@@ -66,6 +79,19 @@ Reads and writes are addressed by **directory**, not by id, and the parameter is
 everywhere for that reason. The two agree in every healthy project and the whole rename ticket exists
 to restore them when they do not, so a store that took an `id` would be quietly asserting an
 invariant it cannot check.
+
+## Creating a project, with or without contents
+
+`createProject` takes the files or mints them. The no-files form is what the picker's "new project"
+will call, and building it now costs almost nothing while retrofitting it means the picker ticket
+reaching back into this API. Ticket 05's demo seed is the same call with different bytes, so there
+is one code path for "put a project into the store" rather than two.
+
+**What it mints has to be valid, not empty.** A genuinely empty `script.yaml` has no `story` key,
+which `parseStory` reports as an error - so a brand-new project would open with a red gutter as its
+first impression. Write a minimal manifest (`formatVersion: 1`, the id, `title` defaulting to the
+id) and a script holding a single narrator line, so it parses clean and the author's first frame is
+a working story rather than a complaint.
 
 ## Two truths, and they answer different questions
 
@@ -127,6 +153,9 @@ the DOM, and `core/` stays free of both.
 - editor state round-trips, and a missing or unparseable `editor.yaml` reads as empty rather than
   throwing - it is a hint, not a source of truth, and the doc's recovery reasoning depends on losing
   it being survivable
+- `createProject` with no files produces a project that parses clean: assert zero errors from both
+  `parseManifest` and `parseStory` over what it wrote, which is the whole point of minting a valid
+  script rather than an empty one
 
 ## Not in scope
 

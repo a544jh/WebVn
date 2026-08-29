@@ -51,6 +51,21 @@ every declared asset before a story runs, so by the time anything renders, the b
 loader and the URL has done its job. Resolution at render time is a synchronous map lookup and must
 stay one.
 
+## Why not resolve ahead, in `loadAssets`
+
+The obvious alternative is to leave the loaders ignorant of storage entirely: `loadAssets` resolves
+every declared path up front and calls `registerAsset(logicalPath, url)`. It is a cleaner-looking
+boundary, and it would put revocation under one owner later.
+
+It costs a re-read of the whole project on every keystroke pause. **Registration is cumulative and
+re-runs on every adopt-on-blur**, and `loadAsset` early-returns for anything already loaded *before*
+it would resolve - so consulting the resolver there means only genuinely new assets are resolved.
+Resolving ahead means N OPFS reads and N fresh object URLs every time the manifest is adopted,
+unless `loadAssets` starts tracking what is already loaded, which is duplicating the loader's own
+state in its caller.
+
+That is the argument. "Less invasive" is true but is not the reason.
+
 So `assetPaths.ts` keeps both halves and keeps its name. It answers "which file is this id", which is
 a manifest question and stays a pure function of the declarations. The resolver answers "where do
 this file's bytes come from", which is a storage question. Two questions, two modules.
@@ -62,6 +77,12 @@ this file's bytes come from", which is a storage question. Two questions, two mo
    the standalone player, the deployed demo and every test use permanently, because a published VN
    *is* a directory of relative paths. `design-docs/PROJECT_STORAGE.md`'s "The player and the editor
    get different resolvers" is the reasoning, and it is the steady state rather than a migration.
+
+   **Its anticipated second caller is a player loading a VN from another origin**, which needs a base
+   URL rather than resolving against the document. That is deliberately not built here - nothing in
+   tranche 1 has a caller for it, and the interesting half of outside-origin is CORS and partial
+   failure, not the base. Keep the class shaped so a base can be a constructor argument later: do not
+   collapse it into a bare function or a singleton.
 2. **`AssetLoader<T>` gains a resolver.** Both implementations take one in their constructor and
    default to `RelativePathResolver`, so the eight construction sites - two in `DomRenderer`, six in
    `test/browser/assetLoaders.test.ts` - are unchanged. `loadAsset` becomes
@@ -132,6 +153,12 @@ exists there.
   evict, so an object URL minted here lives as long as the page, which is correct and is what ticket
   02 pins; the doc's "revoke on teardown, never on load" needs a teardown to exist first, and none
   does. Adding a release hook now would be adding a lifecycle with no caller.
+
+  **Say on the interface who would own revocation when eviction does arrive: the loader, not the
+  resolver.** The loader holds the element and knows when it drops one; the resolver hands back a URL
+  and forgets it. Without that line the instinct is to give the thing that minted the URL the job of
+  revoking it, and a resolver that revokes breaks every `cloneNode` the loaders hand out - which is
+  exactly the failure ticket 02 exists to pin.
 - **Caching what the player fetches.** Explicitly deferred by the doc, and it is a fork (Cache API
   plus hand-fetching, or a service worker) rather than a resolver implementation.
 - **The decoded-bitmap ceiling.** Independent of this and of the backend; it needs eviction in the

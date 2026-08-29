@@ -524,6 +524,19 @@ Publish targets, none of which need a server we run: a static folder, a single-f
 inlined as data URIs (pleasant below ~20MB, silly above ~100MB), or a zip dropped on itch.io, GitHub Pages or
 Neocities - which is the free "cloud" without us hosting anything.
 
+**A published folder normally holds the player too**, not just the project: `player.html` and its bundle
+sitting beside `manifest.yaml`, `script.yaml` and `assets/`. That is what `dist/` already is, and it is why
+the demo's two documents sit at the dist root rather than in a subdirectory - a reading that makes the layout
+deliberate rather than accidental. Import needs no rule for the extra files: it reads `manifest.yaml` and
+fetches exactly what the manifest declares, so `player.html` and the bundle are skipped by the same rule that
+skips everything else undeclared.
+
+**Whether the player can also load a VN hosted somewhere else is open**, and deliberately not decided here.
+The mechanism would be a base URL on the relative resolver - a few lines - but the substance is CORS and what
+a partial failure looks like, which is the same territory as URL import and should be decided where it is
+testable. Nothing in the storage tickets depends on the answer; `.scratch/project-storage/issues/01-asset-resolver.md`
+only asks that `RelativePathResolver` stay shaped so a base can be added to it later.
+
 **"A static folder" is not a uniform feature.** There is no portable way to write a directory tree out of a
 browser. `showDirectoryPicker()` does it properly - point it at a git working copy or a folder synced to
 Netlify or itch, and the export is the same directory walk with a different root handle - but it is Chromium
@@ -571,9 +584,13 @@ Things that will break quietly if they are skipped.
   whether the file is 400KB or 4MB, and the loaders hold every registered asset decoded for the lifetime of
   the page with no eviction. Fine for the demo's two backgrounds; the ceiling to think about once an author
   imports forty. Independent of the storage backend.
-- **Two tabs on one project race the autosave.** Take a `navigator.locks` lock keyed by project id; the second
-  tab gets read-only or an "already open in another tab" banner. Cheap now, annoying to retrofit once people
-  have data.
+- **Two tabs on one project race the editor's storing.** Take a `navigator.locks` lock keyed by the project
+  *directory* - which is what writes address - and the second tab gets an "already open in another tab"
+  refusal rather than an editor. Ticketed as `.scratch/project-storage/issues/06-one-tab-per-project.md`, and
+  deliberately in the same tranche as storing itself: before storing exists a second tab costs nothing, and
+  after it there is exactly one copy of the author's work and two debounced writers, so the two must ship
+  together. Read-only for the second tab was considered and dropped - a mounted editor whose writes are
+  suppressed is the memory-only path the editor otherwise refuses to have, reached from another direction.
 - **The project id must be embedded in the exported story, not derived from its OPFS location.** The
   standalone player receives a story from a URL and has no project directory, so a save made from a shared
   link can only be matched if the id travelled with the story. Since the id *is* the directory name this is

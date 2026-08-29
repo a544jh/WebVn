@@ -42,7 +42,7 @@ const INITIAL_BUFFER: BufferName = "script"
 // because quota exhaustion is a real outcome and silently staying dirty forever is the worst
 // version of it.
 //
-// The same three values are what src/storage/projectStoring.ts reports. They are spelled in both
+// The same three values are what src/storage/ProjectStoring.ts reports. They are spelled in both
 // places rather than shared through an import, because an import either way would pull OPFS into
 // src/editor/ or CodeMirror into src/storage/ - and the wiring in src/index.ts assigns one to the
 // other, so a fourth state added on one side fails to compile rather than drifting.
@@ -200,10 +200,23 @@ export class VnEditor {
   }
 
   // Both buffers, which is what booting a project means now.
+  //
+  // The manifest buffer is parsed here rather than assumed to parse. A project can be *stored* with a
+  // broken manifest.yaml - the store deliberately keeps one listable - and a cold boot is the one
+  // moment nothing has adopted it yet, so this is where the gutter, the tab and the Export gate would
+  // otherwise all say the manifest is fine while the preview runs under a placeholder. Same three
+  // effects as adoptManifest, from one rule: what the manifest gutter says is what the manifest
+  // buffer parses to, whichever path put the text there. The caller has already parsed it once, to
+  // seed the player - a second parse of a small document is the price of not having to be told.
   public async loadProject(manifestText: string, script: string): Promise<void> {
     this.setBuffer(this.manifestDoc, manifestText)
     this.manifestDoc.markClean()
-    this.setManifestParsed(true)
+
+    const [manifest, errors] = this.parser.parseManifest(manifestText)
+    this.clearMarkers("manifest")
+    this.markErrors("manifest", errors)
+    this.setManifestParsed(manifest !== null)
+
     await this.loadScript(script)
   }
 

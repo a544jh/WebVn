@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { demoManifest } from "../../src/demoStory"
 import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
-import { STORE_DEBOUNCE_MS } from "../../src/storage/projectStoring"
+import { STORE_DEBOUNCE_MS } from "../../src/storage/ProjectStoring"
 import {
   createProject,
   listProjects,
@@ -15,6 +15,8 @@ import {
   SCENE_WIDTH,
   advanceVn,
   blurEditor,
+  editorTab,
+  markedLines,
   sleep,
   startEditorFromStore,
   storeStateOf,
@@ -96,23 +98,35 @@ describe("the editor over the project store", () => {
     expect((await readProject("my-story")).manifestText).toBe("formatVersion: 1\nid: [unclosed\n")
   })
 
-  it("opens a project whose stored manifest does not parse", async () => {
+  it("opens a project whose stored manifest does not parse, and says so", async () => {
     // The state the store deliberately keeps listable. Refusing here would make the editor the one
-    // place an author cannot go to fix it.
+    // place an author cannot go to fix it - but opening it silently is worse than refusing: the
+    // preview would be running a placeholder while the gutter, the tab and Export all said the
+    // manifest was fine, and a link exported then is one the player refuses.
     await storeMyStory("formatVersion: 1\nid: [unclosed\n")
 
     const started = await startEditorFromStore()
 
     expect(textBoxText(started.root)).toBe("The stored first line")
-    expect(started.editor.isManifestValid()).toBe(true)
+    expect(started.editor.isManifestValid()).toBe(false)
+    editorTab(started.editorRoot, "manifest").click()
+    expect(markedLines(started.editorRoot).length).toBeGreaterThan(0)
   })
 
-  it("seeds the demo when the library is empty, and opens it", async () => {
+  it("seeds the demo when the library is empty, and opens it playable", async () => {
     const started = await startEditorFromStore()
 
     expect(started.directory).toBe(demoManifest.id)
     expect((await listProjects()).map((p) => p.id)).toEqual([demoManifest.id])
     expect((await readProject(demoManifest.id)).scriptText).toContain("This is WebVn")
+    // Playable, not merely stored. Reaching this line is already most of the proof - the harness
+    // awaits a render that finished with the player stopped, which a story that failed to build or a
+    // sub-renderer that threw never produces - so what is left to say is that the story is the demo's
+    // and that it ran commands to get here. The demo opens with `textbox: close`, so there is no ADV
+    // box to read at its first stop.
+    expect(started.editor.isManifestValid()).toBe(true)
+    expect(started.player.state.title).toBe(demoManifest.title)
+    expect(started.player.state.commandIndex).toBeGreaterThan(0)
   })
 
   it("goes unstored on a keystroke and stored once the write resolves", async () => {

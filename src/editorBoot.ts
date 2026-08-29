@@ -1,6 +1,6 @@
 import { seedState, VnManifest } from "./core/manifest"
 import { VnPlayer } from "./core/player"
-import { loadFromLocalStorage } from "./core/save"
+import { loadSaveData } from "./core/save"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
@@ -8,7 +8,7 @@ import { chooseProject, claimProject } from "./storage/openProject"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
 import { readProject } from "./storage/projectStore"
-import { ProjectStoring } from "./storage/projectStoring"
+import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
 // Opening a project out of the store: which one, read it, and build the player, renderer, editor and
@@ -102,15 +102,9 @@ export const bootEditor = async (elements: EditorElements): Promise<EditorBoot> 
   }
   const openWith = manifest ?? placeholderManifest(directory)
 
-  let save
-  try {
-    // The key comes from the manifest that was just read - seedState copies `id` onto the state, so
-    // a reload carries the save key with it.
-    save = loadFromLocalStorage(openWith.id)
-  } catch (e) {
-    save = undefined
-  }
-  const player = new VnPlayer(seedState(openWith), save)
+  // The key comes from the manifest that was just read - seedState copies `id` onto the state, so a
+  // reload carries the save key with it.
+  const player = new VnPlayer(seedState(openWith), loadSaveData(openWith.id))
 
   // The editor's resolver: an asset's bytes come out of this project's directory in OPFS. The
   // player keeps relative paths - design-docs/PROJECT_STORAGE.md's "the player and the editor get

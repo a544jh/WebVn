@@ -10,7 +10,7 @@ import { seedState, VnManifest } from "../../src/core/manifest"
 import { VnEditor } from "../../src/editor/editor"
 import { bootEditor, RefusedBoot } from "../../src/editorBoot"
 import { ProjectLock } from "../../src/storage/projectLock"
-import { ProjectStoring } from "../../src/storage/projectStoring"
+import { ProjectStoring } from "../../src/storage/ProjectStoring"
 
 // Shared setup for the browser-backed suites: mounting a VN into a fresh DOM root, waiting for
 // the render loop to come to rest, and reading what ended up on screen.

@@ -78,9 +78,17 @@ export interface EditorState {
   readonly lastOpened?: string
 }
 
-// The store addresses one directory rather than taking one per call, because none of its callers
-// have a second one to pass. It is `opfsRoot` in the app; the browser suites point it at a scratch
-// directory of their own, since they share one origin and run in parallel.
+// The store addresses one root rather than taking a directory per call, which is the one place this
+// layer departs from `opfs.ts`'s "every function takes the directory handle it works under, so
+// nothing here holds global state". That departure is deliberate, and the reason is `OpfsAssetResolver`:
+// it is constructed inside the boot and consulted from inside `AssetLoader.loadAsset`, several
+// synchronous frames down the render path, so there is no call chain to thread a root along. A
+// `root` parameter on these six functions would look tidier and would leave the resolver - the one
+// caller a test most needs to redirect - pointing at the real OPFS root.
+//
+// So it is settable instead, and the browser suites point it at a scratch directory of their own,
+// since they share one origin and run their files in parallel. Do not "fix" this into a parameter
+// without first finding somewhere for the resolver's root to come from.
 let root: () => Promise<FileSystemDirectoryHandle> = opfsRoot
 
 export const setStoreRoot = (dir: () => Promise<FileSystemDirectoryHandle>): void => {

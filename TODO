@@ -92,8 +92,8 @@ Sizes: S = hours, M = a day or two, L = several days.
              src/storage/: opfs.ts (tmp-then-move writes serialized per path,
              walk with sizes, recursive delete, feature detection), projectStore.ts
              (id directories, enumeration as truth, editor.yaml), openProject.ts,
-             projectStoring.ts, projectLock.ts, OpfsAssetResolver.ts; the boot in
-             src/editorBoot.ts. A browser without OPFS gets no editor at all.
+             ProjectStoring.ts, projectLock.ts, OpfsAssetResolver.ts, seedDemoProject.ts;
+             the boot in src/editorBoot.ts. No OPFS means no editor at all.
              |
              +-> project rename: copy + delete, editor.yaml     M
              |     pendingRename marker, quota precheck, overwrite dialog.

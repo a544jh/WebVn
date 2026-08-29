@@ -170,6 +170,23 @@ export const parseManifest = (text: string): [VnManifest | null, ParserError[]] 
   return [result.data, errors]
 }
 
+// Where each of these declarations sits in the manifest text, so a failure a parser cannot see - a
+// file that is not there - can still be marked on the line that declared it. Keys are the paths
+// `declaredAssets` hands back: ["backgrounds", id], ["audioAssets", id], ["actors", a, "sprites", id].
+//
+// Composed once for the whole batch rather than per key, and located to the whole `key: value` pair,
+// the same way issueLocation locates a schema failure. A key that is not there - a manifest edited
+// since the load began - falls back to the first line rather than going unreported.
+export const declarationLocations = (text: string, keys: (string | number)[][]): SourceLocation[] => {
+  const [docs, lineCounter] = composeDocuments(text)
+  const doc = docs[0]
+  return keys.map((key) => {
+    const parent = key.length === 1 ? doc.contents : doc.getIn(key.slice(0, -1), true)
+    const lines = isMap(parent) ? entryLines(parent, key[key.length - 1], lineCounter) : undefined
+    return lines ?? FIRST_LINE
+  })
+}
+
 // Zod's own message says what is wrong but not where in the document, so the path goes in front of
 // it: "actors.a1: must be capitalized ...".
 const issueMessage = (issue: ZodIssue): string =>

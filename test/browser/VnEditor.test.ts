@@ -3,6 +3,7 @@ import {
   blurEditor,
   editorTab,
   errorMarkers,
+  markedLines,
   nameTag,
   settle,
   startEditor,
@@ -111,6 +112,40 @@ backgrounds:
     expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(true)
     // Adopted regardless: declaring an asset before the art exists is the normal authoring order.
     expect(nameTag(vn.root)?.textContent).toBe("Original")
+  })
+
+  it("marks the declaring line for a file that is not there, not just the tab", async () => {
+    const vn = await started()
+    const manifest = `${manifestWith("first-id", "Original")}
+backgrounds:
+  nowhere: no-such-file.png
+`
+    await adopt(vn, manifest)
+
+    // A filename is the one thing an author cannot check by reading the two documents, so the report
+    // has to land on the edit that caused it rather than in the console.
+    const marked = markedLines(vn.editorRoot)
+    expect(marked).toHaveLength(1)
+    expect(marked[0].message).toContain("backgrounds/no-such-file.png")
+    // The `nowhere: no-such-file.png` line, 1-based, in the buffer as typed.
+    expect(marked[0].line).toBe(manifest.split("\n").findIndex((l) => l.includes("no-such-file")) + 1)
+  })
+
+  it("clears a missing-file marker once the declaration is fixed", async () => {
+    const vn = await started()
+    await adopt(
+      vn,
+      `${manifestWith("first-id", "Original")}
+backgrounds:
+  nowhere: no-such-file.png
+`
+    )
+    expect(markedLines(vn.editorRoot)).toHaveLength(1)
+
+    await adopt(vn, manifestWith("first-id", "Original"))
+
+    expect(markedLines(vn.editorRoot)).toEqual([])
+    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(false)
   })
 
   it("writes later saves under the adopted id", async () => {

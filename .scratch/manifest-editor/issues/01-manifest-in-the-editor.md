@@ -212,6 +212,13 @@ unusable in the normal authoring order - declare the asset, then draw it - so a 
 references files which do not exist yet is still adopted. The report goes to the console *and* to the
 tab, per decision 4.
 
+> **Extended in implementation, 2026-08-29.** Console and tab turned out not to be enough in use: the
+> tab says *something* is wrong with the buffer and the console says which file, but neither points
+> at the declaration, which is the whole distance this report exists to close. A failed load is now
+> also a `ParserError` at WARNING level on the line that declared it. That needed the failure to
+> carry more than a path - `loadAssets` reports the declaration (path plus the key the manifest
+> declares it under) and `parseManifest` gained `declarationLocations` to turn that key into lines.
+
 **What "proceeds" does not mean.** An earlier draft of this ticket said a missing background is a
 wrong frame rather than a reason to refuse a manifest. That is false, and the correction matters
 because it sets this ticket's boundary. A failed preload leaves `assets[path]` at `null`, and the

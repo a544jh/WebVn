@@ -141,8 +141,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   0002); on success reparse the script against it, reload assets, then `reloadStory` + `render(false)`.
   A generation counter guards the `await` in the middle, the same hazard `renderGeneration` covers.
 - The manifest tab carries one error class meaning **"this buffer is not fully in effect"** - a parse
-  failure and a failed asset load both set it; the gutter and console tell them apart. Export is
-  greyed out while the manifest does not parse, because the player refuses such a payload.
+  failure and a failed asset load both set it. Both also mark the gutter: a missing file becomes a
+  `ParserError` at WARNING level against the line that declared it, located by
+  `declarationLocations(text, keys)`, because a filename is the one thing an author cannot check by
+  reading the two documents. Export is greyed out only while the manifest does not *parse*, because
+  that is what the player refuses; a story that declares a file nobody has drawn yet still plays.
 - `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 
@@ -166,10 +169,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   `audioAssets`. The three asset declarations are **keyed maps, not lists**: the script names an id and
   the manifest says which file it is, so the manifest is a symbol table rather than a preload index.
   `src/domRenderer/assetPaths.ts` is the one place an id becomes a path. Two functions per asset kind:
-  `xFilePath(file)` for preloading, which walks the declarations and so already has every filename,
-  and `xAssetPath(declarations, id)` for rendering, which has an id. The second is defined in terms
-  of the first, so the directory prefix is written once and what is preloaded cannot drift from what
-  is asked for. Do not re-spell `"audio/"`, `"backgrounds/"` or `sprites/<actor>/` anywhere else.
+  `xFilePath(file)` for preloading and `xAssetPath(declarations, id)` for rendering, which has an id.
+  The second is defined in terms of the first, so the directory prefix is written once and what is
+  preloaded cannot drift from what is asked for. Do not re-spell `"audio/"`, `"backgrounds/"` or
+  `sprites/<actor>/` anywhere else. `declaredAssets(state)` is the one walk of all three declarations,
+  yielding each path with the manifest key it was declared under; `loadAssets` preloads what it
+  yields and reports failures out of the same list, so what is preloaded, what is asked for and what
+  an error points at cannot come apart.
   `VnManifest` (src/core/manifest.ts) is that declaration as a type, and `seedState(manifest)` copies it
   into a starting `VnPlayerState`. It is an **input**, never a live field — nothing playback points into it.
 - **The two parsers deliberately disagree about failure.** `parseStory` always returns a playable state, with
@@ -197,12 +203,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 
 ### Renderer contract
 - `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
-- **`loadAssets` reports rather than refuses.** It resolves with the declared asset paths that could
-  not be loaded, scoped to the state it was given - the loaders keep every path they have ever been
-  handed, and an old typo is not this story's. Declaring an asset before the art exists is the normal
-  authoring order, so a missing file is not a reason to refuse a story; it is also invisible until
-  the story reaches it and a sub-renderer throws on the null, hence the report. Making the renderers
-  *survive* one is a separate change with its own blast radius.
+- **`loadAssets` reports rather than refuses.** It resolves with the *declarations* whose file could
+  not be loaded - the path, plus the key the manifest declares it under - scoped to the state it was
+  given, since the loaders keep every path they have ever been handed and an old typo is not this
+  story's. The key is what survives the trip: a loader only ever sees a path, and without it the
+  editor could name the file but not mark the line. Declaring an asset before the art exists is the
+  normal authoring order, so a missing file is not a reason to refuse a story; it is also invisible
+  until the story reaches it and a sub-renderer throws on the null, hence the report. Making the
+  renderers *survive* one is a separate change with its own blast radius.
 - **Starting a story is `loadStory(state, animate)`, and nothing boots itself.** It swaps the story into the player and renders in one synchronous step; the auto-advance in `render` then walks to the first stop, painting every frame. Those two steps must not be separated by an `await` — `render` bumps `renderGeneration`, and that bump is the only thing that stops a pass still in flight from auto-advancing the story that replaced it. A bare `player.loadState` followed by an awaited asset load is exactly the bug this replaced. `animate` is the caller's choice: the player passes `true` so an intro or title screen plays out, the editor passes `false` so reloading a script lands on the first stop without replaying the opening.
 - `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~340 lines and growing — candidates for extraction if you touch it.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).

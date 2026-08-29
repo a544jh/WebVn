@@ -179,3 +179,13 @@ export const blurEditor = async (started: StartedEditor): Promise<void> => {
 export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
   ...editorRoot.querySelectorAll(".vn-marker-error"),
 ]
+
+// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message.
+// CodeMirror puts a marker in a per-line wrapper rather than inside the gutter column, so the line
+// is read off the line-number element sitting in the same wrapper.
+export const markedLines = (editorRoot: HTMLDivElement): Array<{ line: number; message: string }> =>
+  errorMarkers(editorRoot).map((marker) => {
+    const wrapper = marker.closest(".CodeMirror-gutter-wrapper")?.parentElement
+    const lineNumber = wrapper?.querySelector(".CodeMirror-linenumber")?.textContent
+    return { line: Number(lineNumber), message: (marker as HTMLElement).title }
+  })

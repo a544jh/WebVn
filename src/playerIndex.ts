@@ -55,7 +55,9 @@ async function boot(): Promise<void> {
   const failed = await renderer.loadAssets(state)
   // The player has no tab to mark, but a declared file that is not there is worth saying somewhere
   // other than the frame it eventually throws on.
-  if (failed.length > 0) console.warn("Declared files that could not be loaded: " + failed.join(", "))
+  if (failed.length > 0) {
+    console.warn("Declared files that could not be loaded: " + failed.map((asset) => asset.path).join(", "))
+  }
   // Animated, unlike the editor: everything the story runs before its first stop is played out,
   // which is what makes an intro or a title screen possible.
   renderer.loadStory(state, true)

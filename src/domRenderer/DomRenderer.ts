@@ -16,7 +16,8 @@ import { saveToLocalStorage, VnSaveSlotData } from "../core/save"
 import { MenuCreator } from "./menus/MenuCreator"
 import { pauseMenu } from "./menus/PauseMenu"
 import { FreeformTextRenderer } from "./FreeformTextRenderer"
-import { audioFilePath, backgroundFilePath, spriteFilePath } from "./assetPaths"
+import { declaredAssets } from "./assetPaths"
+import { DeclaredAsset } from "../core/manifest"
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -399,36 +400,21 @@ export class DomRenderer implements Renderer {
   // Defaults to the player's own state, but a caller booting a story can pass it before the swap:
   // the assets to preload come from the story, not from whatever the player is holding.
   //
-  // Resolves with the paths this state declares that could not be loaded. A file that is not there
-  // yet is not a reason to refuse a story - declaring an asset before drawing it is the normal
-  // authoring order - but it is invisible until the story reaches it and a sub-renderer throws on
-  // the null, so the caller is told at load time instead. Scoped to what this state declares, since
-  // the loaders keep every path they have ever been handed and an old typo is not this story's.
-  public async loadAssets(state: VnPlayerState = this.player.state): Promise<string[]> {
-    // Everything declared, whether or not the story reaches it - the manifest is the file index.
-    // The paths come from the same functions the renderers resolve through, so what is preloaded
-    // and what is asked for later cannot drift apart.
-    const declared: string[] = []
-    const declare = (loader: { registerAsset(path: string): void }, path: string) => {
-      declared.push(path)
-      loader.registerAsset(path)
-    }
-    for (const actor in state.actors) {
-      const sprites = state.actors[actor].sprites ?? {}
-      for (const name in sprites) {
-        declare(this.imageLoader, spriteFilePath(actor, sprites[name]))
-      }
-    }
-    for (const id in state.backgrounds) {
-      declare(this.imageLoader, backgroundFilePath(state.backgrounds[id]))
-    }
-    for (const id in state.audioAssets) {
-      declare(this.audioLoader, audioFilePath(state.audioAssets[id].file))
-    }
+  // Resolves with the declarations this state makes that could not be loaded - the path, and the key
+  // the manifest declares it under, so the editor can mark the line rather than only say the name. A
+  // file that is not there yet is not a reason to refuse a story - declaring an asset before drawing
+  // it is the normal authoring order - but it is invisible until the story reaches it and a
+  // sub-renderer throws on the null, so the caller is told at load time instead. Scoped to what this
+  // state declares, since the loaders keep every path they have ever been handed and an old typo is
+  // not this story's.
+  public async loadAssets(state: VnPlayerState = this.player.state): Promise<DeclaredAsset[]> {
+    const { images, audio } = declaredAssets(state)
+    images.forEach((asset) => this.imageLoader.registerAsset(asset.path))
+    audio.forEach((asset) => this.audioLoader.registerAsset(asset.path))
 
     const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
     const failed = new Set([...imagesFailed, ...audioFailed])
-    return declared.filter((path) => failed.has(path))
+    return [...images, ...audio].filter((asset) => failed.has(asset.path))
   }
 }
 

@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
 import { VnPlayer } from "../core/player"
+import { DeclaredAsset } from "../core/manifest"
 import { VnPlayerState } from "../core/state"
 import { Renderer } from "../Renderer"
 import { VnRoot } from "./VnRoot"
@@ -65,7 +66,7 @@ export class ReactRenderer implements Renderer {
     this.onFinishedCallbacks.forEach((cb) => cb())
   }
 
-  public loadAssets(): Promise<string[]> {
+  public loadAssets(): Promise<DeclaredAsset[]> {
     return Promise.resolve([])
   }
 }

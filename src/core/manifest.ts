@@ -23,6 +23,14 @@ export interface VnManifest {
   readonly audioAssets: Record<string, AudioAsset>
 }
 
+// One asset a manifest declares: the path it resolves to, and the key path the manifest addresses it
+// by. The second is what lets a failed load be reported against the line that declared it - nothing
+// else survives the trip, because a loader only ever sees a path.
+export interface DeclaredAsset {
+  readonly path: string
+  readonly manifestKey: (string | number)[]
+}
+
 // The engine's own actors, which every project gets without declaring them: the default actor all
 // others inherit from, and the unnamed narrator.
 const DEFAULT_ACTOR: DefaultActor = {

@@ -2,7 +2,8 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { codeMirror } from "./codeMirror"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
-import { VnManifest } from "../core/manifest"
+import { declarationLocations } from "../yamlParser/parseManifest"
+import { DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
@@ -155,7 +156,7 @@ export class VnEditor {
     const state = this.parseDocument()
 
     const failed = await this.renderer.loadAssets(state)
-    this.setAssetsLoaded(failed)
+    this.reportMissingFiles(state, failed)
 
     // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
     // through the intro again. The standalone player boots the same story with animations.
@@ -202,7 +203,7 @@ export class VnEditor {
     const failed = await this.renderer.loadAssets(state)
     if (generation !== this.adoptGeneration) return
 
-    this.setAssetsLoaded(failed)
+    this.reportMissingFiles(state, failed)
 
     // Reloading rather than loading: the path is replayed against the new starting state and cut
     // back to the part that still applies, the same answer a script edit gets. An edited `id` is
@@ -241,12 +242,29 @@ export class VnEditor {
   }
 
   // A declared file that is not there is reported rather than refused: declaring an asset before the
-  // art exists is the normal authoring order. The tab carries the same news for anyone not watching
-  // the console. What this does not do is make the story survive one - a sub-renderer still throws
-  // on the frame that paints it, which is a renderer change with its own blast radius.
-  private setAssetsLoaded(failed: string[]): void {
+  // art exists is the normal authoring order. What this does not do is make the story survive one -
+  // a sub-renderer still throws on the frame that paints it, which is a renderer change with its own
+  // blast radius.
+  //
+  // Reported on the line that declared it, because that is the edit that caused it and a filename
+  // is otherwise the one thing an author cannot check by reading the two documents. A warning rather
+  // than an error: the manifest is well-formed and the story runs, right up until it reaches the
+  // asset. The tab carries the same news for anyone looking at the other buffer.
+  //
+  // Marked without clearing the gutter first - the adoption cleared it before marking the parse
+  // problems this is added to, and a boot has nothing to clear.
+  private reportMissingFiles(state: VnPlayerState, failed: DeclaredAsset[]): void {
     this.assetsLoaded = failed.length === 0
-    if (failed.length > 0) console.warn("Declared files that could not be loaded: " + failed.join(", "))
+    // The buffer is the manifest this state was seeded from, so its keys are the ones to look up.
+    const locations = declarationLocations(
+      this.manifestDoc.getValue(),
+      failed.map((asset) => asset.manifestKey)
+    )
+    failed.forEach((asset, i) => {
+      const message = `Could not load ${asset.path} - the manifest declares it, but the file is not there.`
+      this.setErrorMarker(this.manifestDoc, new ParserError(message, locations[i], ErrorLevel.WARNING))
+      console.warn(message)
+    })
     this.refreshManifestTab()
   }
 

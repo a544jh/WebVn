@@ -256,9 +256,13 @@ export class VnEditor {
   // blast radius.
   //
   // Reported on the line that declared it, because that is the edit that caused it and a filename
-  // is otherwise the one thing an author cannot check by reading the two documents. A warning rather
-  // than an error: the manifest is well-formed and the story runs, right up until it reaches the
-  // asset. The tab carries the same news for anyone looking at the other buffer.
+  // is otherwise the one thing an author cannot check by reading the two documents. The tab carries
+  // the same news, in the same colour, for anyone looking at the other buffer.
+  //
+  // A warning rather than an error, and the manifest is adopted anyway: the buffer parsed and the
+  // story runs, right up until it reaches the asset. Red in this gutter is for a manifest that did
+  // not parse, which is the one that is not adopted - so an undrawn declaration, which is the normal
+  // authoring order, must not wear it.
   //
   // Marked without clearing the gutter first - the adoption cleared it before marking the parse
   // problems this is added to, and a boot has nothing to clear.
@@ -277,13 +281,21 @@ export class VnEditor {
     this.refreshManifestTab()
   }
 
-  // One class, meaning "this buffer is not fully in effect". It covers both a parse failure (the
-  // preview is running a different manifest) and a failed asset load (the preview is running this
-  // manifest with a file missing under it); the gutter and the console still tell them apart. It is
-  // the same indicator design-docs/SCRIPT_INCLUDES.md wants for a script buffer that is not on
-  // screen - without it, a broken buffer behind another tab looks clean.
+  // Two classes, because the two states they cover are not the same failure. A parse failure means
+  // the buffer was never adopted and the preview is running a *different* manifest: red, the colour
+  // its gutter is already wearing. A failed asset load means the preview is running this one, with a
+  // file missing under it: orange, matching that marker, since the story plays until it reaches the
+  // asset and declaring art before it is drawn is the normal authoring order.
+  //
+  // Either way the tab says something, which is the point - it is the only sign visible from the
+  // other buffer that what is on screen is not what the preview is running, and design-docs/
+  // SCRIPT_INCLUDES.md wants the same indicator for a script buffer that is not on screen.
   private refreshManifestTab(): void {
-    this.tabs.manifest.classList.toggle("vn-editor-tab-error", !this.manifestParsed || !this.assetsLoaded)
+    const unadopted = !this.manifestParsed
+    this.tabs.manifest.classList.toggle("vn-editor-tab-error", unadopted)
+    // Never both: an unadopted manifest's assets are last adoption's news, and two colour rules on
+    // one element resolve by stylesheet order rather than by which one matters.
+    this.tabs.manifest.classList.toggle("vn-editor-tab-warning", !unadopted && !this.assetsLoaded)
     this.onManifestStateChangeCallbacks.forEach((cb) => cb())
   }
 

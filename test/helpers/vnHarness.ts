@@ -204,12 +204,23 @@ export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
   ...editorRoot.querySelectorAll(".vn-marker-error"),
 ]
 
-// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message.
-// CodeMirror puts a marker in a per-line wrapper rather than inside the gutter column, so the line
-// is read off the line-number element sitting in the same wrapper.
-export const markedLines = (editorRoot: HTMLDivElement): Array<{ line: number; message: string }> =>
+// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message
+// and its colour - which is the only place an error's level is visible, since nothing but
+// setErrorMarker reads one. CodeMirror puts a marker in a per-line wrapper rather than inside the
+// gutter column, so the line is read off the line-number element sitting in the same wrapper.
+export interface MarkedLine {
+  line: number
+  message: string
+  color: string
+}
+
+export const markedLines = (editorRoot: HTMLDivElement): MarkedLine[] =>
   errorMarkers(editorRoot).map((marker) => {
     const wrapper = marker.closest(".CodeMirror-gutter-wrapper")?.parentElement
     const lineNumber = wrapper?.querySelector(".CodeMirror-linenumber")?.textContent
-    return { line: Number(lineNumber), message: (marker as HTMLElement).title }
+    return {
+      line: Number(lineNumber),
+      message: (marker as HTMLElement).title,
+      color: (marker as HTMLElement).style.background,
+    }
   })

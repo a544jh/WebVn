@@ -140,12 +140,18 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - Adopting means: parse; on failure mark the gutter and the tab and keep the last valid manifest (ADR
   0002); on success reparse the script against it, reload assets, then `reloadStory` + `render(false)`.
   A generation counter guards the `await` in the middle, the same hazard `renderGeneration` covers.
-- The manifest tab carries one error class meaning **"this buffer is not fully in effect"** - a parse
-  failure and a failed asset load both set it. Both also mark the gutter: a missing file becomes a
+- **The manifest tab carries two classes, because the two states are not degrees of each other.**
+  `vn-editor-tab-error` is red and means the buffer did not parse, so it was never adopted and the
+  preview is running a *different* manifest; `vn-editor-tab-warning` is orange and means the preview
+  is running this one with a file missing under it. Never both - red wins, since an unadopted
+  manifest's assets are the previous adoption's news, and two colour rules on one element resolve by
+  stylesheet order rather than by which one matters. Each colour matches what that failure already
+  wears in the gutter, which is the other half of the same signal: a missing file becomes a
   `ParserError` at WARNING level against the line that declared it, located by
   `declarationLocations(text, keys)`, because a filename is the one thing an author cannot check by
   reading the two documents. Export is greyed out only while the manifest does not *parse*, because
-  that is what the player refuses; a story that declares a file nobody has drawn yet still plays.
+  that is what the player refuses; a story that declares a file nobody has drawn yet still plays -
+  which is also why an undrawn declaration is orange rather than red.
 - `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 

@@ -36,6 +36,15 @@ const adopt = async (editor: StartedEditor, manifestText: string): Promise<void>
   await blurEditor(editor)
 }
 
+// What the manifest tab is saying. Red is "the preview is running a different manifest", orange is
+// "it is running this one with a file missing under it", and the two are not degrees of each other.
+const manifestTabState = (vn: StartedEditor): "unadopted" | "missing-file" | "in-effect" => {
+  const classes = editorTab(vn.editorRoot, "manifest").classList
+  if (classes.contains("vn-editor-tab-error")) return "unadopted"
+  if (classes.contains("vn-editor-tab-warning")) return "missing-file"
+  return "in-effect"
+}
+
 describe("adopting a manifest", () => {
   it("makes the script mean the new manifest's actors", async () => {
     const vn = await started()
@@ -65,7 +74,7 @@ describe("adopting a manifest", () => {
     expect(errorMarkers(vn.editorRoot).length).toBeGreaterThan(0)
     // Visible from the other buffer, which is the whole point: otherwise the only sign that the
     // preview is running a different manifest is a gutter in a tab nobody is looking at.
-    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(true)
+    expect(manifestTabState(vn)).toBe("unadopted")
   })
 
   it("is not sticky - a valid edit after an invalid one is adopted normally", async () => {
@@ -75,7 +84,7 @@ describe("adopting a manifest", () => {
 
     expect(nameTag(vn.root)?.textContent).toBe("Recovered")
     expect(vn.editor.isManifestValid()).toBe(true)
-    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(false)
+    expect(manifestTabState(vn)).toBe("in-effect")
   })
 
   it("does nothing on a blur that edited nothing", async () => {
@@ -93,13 +102,13 @@ describe("adopting a manifest", () => {
     expect(renders).toBe(0)
   })
 
-  it("marks the tab for a declared file that is not there, without calling the manifest invalid", async () => {
+  it("marks the tab in orange for a declared file that is not there, without calling it invalid", async () => {
     const vn = await started()
 
-    // The two states the badge covers are not the same: a parse failure means the preview is
-    // running a *different* manifest, a load failure means it is running this one with a file
-    // missing under it. The badge means "this buffer is not fully in effect", which is both -
-    // otherwise a filename typo stays invisible until the story reaches the asset and throws.
+    // The two states the tab covers are not the same failure, so they are not the same colour: a
+    // parse failure means the preview is running a *different* manifest, a load failure means it is
+    // running this one with a file missing under it. Both have to say something, or a filename typo
+    // stays invisible until the story reaches the asset and throws.
     await adopt(
       vn,
       `${manifestWith("first-id", "Original")}
@@ -109,7 +118,7 @@ backgrounds:
     )
 
     expect(vn.editor.isManifestValid()).toBe(true)
-    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(true)
+    expect(manifestTabState(vn)).toBe("missing-file")
     // Adopted regardless: declaring an asset before the art exists is the normal authoring order.
     expect(nameTag(vn.root)?.textContent).toBe("Original")
   })
@@ -129,6 +138,27 @@ backgrounds:
     expect(marked[0].message).toContain("backgrounds/no-such-file.png")
     // The `nowhere: no-such-file.png` line, 1-based, in the buffer as typed.
     expect(marked[0].line).toBe(manifest.split("\n").findIndex((l) => l.includes("no-such-file")) + 1)
+    // Orange, not red: red is for a manifest that did not parse, which is the one that is not
+    // adopted. Declaring art nobody has drawn yet is the normal authoring order.
+    expect(marked[0].color).toBe("orange")
+  })
+
+  it("says unadopted, not missing-file, when a broken edit lands on top of a missing file", async () => {
+    const vn = await started()
+    await adopt(
+      vn,
+      `${manifestWith("first-id", "Original")}
+backgrounds:
+  nowhere: no-such-file.png
+`
+    )
+    expect(manifestTabState(vn)).toBe("missing-file")
+
+    await adopt(vn, "formatVersion: 1\nid: no-title-here\n")
+
+    // The missing file is the *last* adoption's news - this buffer never got as far as loading
+    // anything. Two colour rules on one tab would otherwise resolve by stylesheet order.
+    expect(manifestTabState(vn)).toBe("unadopted")
   })
 
   it("clears a missing-file marker once the declaration is fixed", async () => {
@@ -145,7 +175,7 @@ backgrounds:
     await adopt(vn, manifestWith("first-id", "Original"))
 
     expect(markedLines(vn.editorRoot)).toEqual([])
-    expect(editorTab(vn.editorRoot, "manifest").classList.contains("vn-editor-tab-error")).toBe(false)
+    expect(manifestTabState(vn)).toBe("in-effect")
   })
 
   it("writes later saves under the adopted id", async () => {

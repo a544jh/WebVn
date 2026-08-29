@@ -31,9 +31,35 @@ the engine has spoken for: `stop`, which is how `bgm` stops the music, and a lea
 how a background says it is a colour.
 _Avoid_: asset name, handle, path (a path is what an id resolves *to*)
 
+**Undeclared asset**:
+An asset id a script names that the manifest does not declare. Visible by reading the two documents,
+so a parser can refuse it without touching the filesystem.
+_Avoid_: unknown asset, bad asset
+
+**Missing asset**:
+A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed
+load can tell - which is what makes it a different problem from an undeclared one rather than a
+degree of it.
+_Avoid_: broken asset, unloaded asset, bad asset
+
 **Script**:
 The YAML text an author writes. What a Story is parsed *from*.
 _Avoid_: source, code
+
+**Buffer**:
+One document open in the editor, with its own text, undo history, cursor and dirty flag. The editor
+holds one per file - today the script and the manifest, later one per included script.
+_Avoid_: tab (a tab is how a buffer is chosen), pane, editor instance
+
+**Document**:
+A single YAML document in YAML's own sense: one unit of a `---`-separated stream. A buffer holds
+exactly one; the URL payload is a stream of two.
+_Avoid_: file (a document may travel without being a file), doc
+
+**Payload**:
+A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a
+link. Two documents, manifest first.
+_Avoid_: story, script, export (an export is the archive, which carries the assets too)
 
 **Story**:
 The ordered sequence of commands a visual novel is made of, under the script's top-level `story` key.

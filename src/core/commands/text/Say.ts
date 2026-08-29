@@ -2,12 +2,14 @@ import {
   Actor,
   ADVNameTag,
   ADVTextBox,
+  DEFAULT_ACTOR_ID,
   NARRATOR_ACTOR_ID,
   TextBoxType,
   TextMode,
   TextNode,
   VnPlayerState,
 } from "../../state"
+import { Reference } from "../../manifest"
 import { Command } from "../Command"
 import { Decision } from "../controlFlow/Decision"
 import { SourceLocation } from "../Parser"
@@ -82,5 +84,19 @@ export class Say extends Command {
     const newState = { ...state, animatableState, stopAfterRender }
 
     return newState
+  }
+
+  // The engine's own two actors are exempt: `narrator` is the unnamed voice a plain line is said in
+  // and `default` is what every other actor inherits from, so neither is a project's to declare.
+  public references(): Reference[] {
+    if (this.actorName === NARRATOR_ACTOR_ID || this.actorName === DEFAULT_ACTOR_ID) return []
+    return [{ kind: "actor", id: this.actorName }]
+  }
+
+  // The line is still said, in default styling with the raw id as its name tag - the fallback above,
+  // promoted from accident to decision by ADR 0004 and now accompanied by a warning. Dropping a line
+  // of dialogue to punish a misspelt name is a larger hole than showing it in the wrong colour.
+  public survivesUndeclaredReference(): boolean {
+    return true
   }
 }

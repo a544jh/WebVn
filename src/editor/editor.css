@@ -25,7 +25,13 @@
   font-weight: bold;
 }
 
-/* "this buffer is not fully in effect" - it failed to parse, or a file it declares is missing. */
+/* "the preview is running a different manifest" - this buffer did not parse, so it was not adopted. */
 .vn-editor-tab-error {
   color: red;
+}
+
+/* "in effect, with a file missing under it" - adopted, and the story plays until it reaches the
+   asset. Orange rather than red, and the same orange its gutter marker wears. */
+.vn-editor-tab-warning {
+  color: orange;
 }

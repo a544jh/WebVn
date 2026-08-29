@@ -51,6 +51,13 @@ asset and caught the same way, but an actor is cast rather than an asset, so the
 apart.
 _Avoid_: unknown actor, undeclared character
 
+**Neutralized command**:
+A command replaced by a no-op because it named a reference the manifest does not answer. It keeps
+its index - every save is a path of indices - so the story plays straight through it, and declaring
+the id and reparsing mints the real command back where it was. A `Say` is warned about but never
+neutralized: its text does not depend on the actor it names.
+_Avoid_: disabled, stripped, dropped (a dropped command would shift every index after it)
+
 **Missing asset**:
 A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed
 load can tell - which is what makes it a different problem from an undeclared one rather than a

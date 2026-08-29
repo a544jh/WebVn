@@ -1,6 +1,7 @@
 import * as CodeMirror from "codemirror"
 import { expect } from "vitest"
 import { VnPlayer } from "../../src/core/player"
+import { ParserError } from "../../src/core/commands/Parser"
 import { VnPlayerState } from "../../src/core/state"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
@@ -59,6 +60,14 @@ export const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void>
     renderer.onFinishedCallbacks.push(callback)
   })
 
+// One click's worth of story: advance, and wait for the next stop. A render that throws never comes
+// to rest, so a stop that arrives is also the proof that none did.
+export const advanceVn = async (started: MountedVn): Promise<void> => {
+  const stop = nextStop(started.renderer, started.player)
+  started.renderer.advance()
+  await stop
+}
+
 export interface MountedVn {
   player: VnPlayer
   renderer: DomRenderer
@@ -80,18 +89,33 @@ export interface StartedVn extends MountedVn {
   root: HTMLDivElement
 }
 
+export interface StartedVnWithErrors extends StartedVn {
+  errors: ParserError[]
+}
+
+// For a script whose warnings are the point: an id the manifest does not declare is reported and
+// its command neutralized, so such a story still mounts and still plays.
+export const startVnWithErrors = async (
+  script: string,
+  options: { actions?: boolean; manifest?: VnManifest } = {}
+): Promise<StartedVnWithErrors> => {
+  const root = createVnRoot(options)
+  const [state, errors] = YamlParser.parseStory(script, options.manifest ?? TEST_MANIFEST)
+  const mounted = mountVn(root, state)
+  await mounted.firstStop
+  return { root, errors, ...mounted }
+}
+
 // Parses a script and plays it up to its first stop - the whole boot the browser suites do. Pass a
-// `manifest` when the script names assets or actors; TEST_MANIFEST declares none.
+// `manifest` when the script names assets or actors; TEST_MANIFEST declares none. A test's own
+// script is expected to parse clean, undeclared ids included.
 export const startVn = async (
   script: string,
   options: { actions?: boolean; manifest?: VnManifest } = {}
 ): Promise<StartedVn> => {
-  const root = createVnRoot(options)
-  const [state, errors] = YamlParser.parseStory(script, options.manifest ?? TEST_MANIFEST)
-  expect(errors).toEqual([])
-  const mounted = mountVn(root, state)
-  await mounted.firstStop
-  return { root, ...mounted }
+  const started = await startVnWithErrors(script, options)
+  expect(started.errors).toEqual([])
+  return started
 }
 
 // appendTextNodesToDiv assigns each character to `span.innerText`, and the innerText setter
@@ -180,12 +204,23 @@ export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
   ...editorRoot.querySelectorAll(".vn-marker-error"),
 ]
 
-// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message.
-// CodeMirror puts a marker in a per-line wrapper rather than inside the gutter column, so the line
-// is read off the line-number element sitting in the same wrapper.
-export const markedLines = (editorRoot: HTMLDivElement): Array<{ line: number; message: string }> =>
+// The lines carrying an error marker in the buffer on screen, 1-based, with the marker's message
+// and its colour - which is the only place an error's level is visible, since nothing but
+// setErrorMarker reads one. CodeMirror puts a marker in a per-line wrapper rather than inside the
+// gutter column, so the line is read off the line-number element sitting in the same wrapper.
+export interface MarkedLine {
+  line: number
+  message: string
+  color: string
+}
+
+export const markedLines = (editorRoot: HTMLDivElement): MarkedLine[] =>
   errorMarkers(editorRoot).map((marker) => {
     const wrapper = marker.closest(".CodeMirror-gutter-wrapper")?.parentElement
     const lineNumber = wrapper?.querySelector(".CodeMirror-linenumber")?.textContent
-    return { line: Number(lineNumber), message: (marker as HTMLElement).title }
+    return {
+      line: Number(lineNumber),
+      message: (marker as HTMLElement).title,
+      color: (marker as HTMLElement).style.background,
+    }
   })

@@ -10,7 +10,11 @@ import { TEST_MANIFEST } from "../helpers/testManifest"
 // the lib's internal node-type symbol still looks like a plain object to those guards,
 // which would silently downgrade every aliased command to "Unrecognized item".
 
-const parse = (yaml: string) => YamlParser.parseStory(yaml, TEST_MANIFEST)
+// The anchor below says a line as A1, and a script naming an actor the manifest does not declare is
+// a warning of its own now - which is not what these tests are about.
+const MANIFEST = { ...TEST_MANIFEST, actors: { A1: {} } }
+
+const parse = (yaml: string) => YamlParser.parseStory(yaml, MANIFEST)
 
 describe("YamlParser anchors and aliases", () => {
   it("expands an alias into the command its anchor holds", () => {
@@ -24,7 +28,7 @@ story:
     expect(errors).toEqual([])
     expect(state.commands).toHaveLength(1)
 
-    const textBox = state.commands[0].apply(seedState(TEST_MANIFEST)).animatableState.text as ADVTextBox
+    const textBox = state.commands[0].apply(seedState(MANIFEST)).animatableState.text as ADVTextBox
     expect(textBox.textNodes[0].text).toBe("Hello from the anchor")
     expect(textBox.nameTag?.name).toBe("A1")
   })

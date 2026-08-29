@@ -1,4 +1,5 @@
 import { AssetLoader } from "../assetLoaders/AssetLoader"
+import { undeclaredMessage } from "../core/manifest"
 import { AudioAsset, AudioState } from "../core/state"
 import { audioAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
@@ -102,6 +103,6 @@ export class AudioRenderer {
 // different failure from a declared asset that would not load - hence a different message.
 function pathOf(assets: Record<string, AudioAsset>, id: string): string {
   const path = audioAssetPath(assets, id)
-  if (path === undefined) throw new Error(`No audio asset is declared as ${id}`)
+  if (path === undefined) throw new Error(undeclaredMessage({ kind: "audio", id }))
   return path
 }

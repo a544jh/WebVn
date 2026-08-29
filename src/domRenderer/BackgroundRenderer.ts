@@ -1,4 +1,5 @@
 import { ImageAssetLoaderSrc } from "../assetLoaders/ImageAssetLoaderSrc"
+import { undeclaredMessage } from "../core/manifest"
 import { Background, isBackgroundColor, ViewBox } from "../core/state"
 import { backgroundAssetPath } from "./assetPaths"
 import { createResolvablePromise, DomRenderer, lerp } from "./DomRenderer"
@@ -126,7 +127,7 @@ export class BackgroundRenderer {
     }
 
     const path = backgroundAssetPath(backgrounds, state.image)
-    if (path === undefined) throw new Error(`No background is declared as ${state.image}`)
+    if (path === undefined) throw new Error(undeclaredMessage({ kind: "background", id: state.image }))
     const image = this.assetLoader.getAsset(path)
     if (!image) throw new Error(`Could not load ${state.image}`)
 

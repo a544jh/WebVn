@@ -51,7 +51,13 @@ async function boot(): Promise<void> {
   const renderer = new DomRenderer(vnDiv, player)
   window.vnDomRenderer = renderer
 
-  const [state] = YamlParser.parseStory(script, manifest)
+  const [state, scriptErrors] = YamlParser.parseStory(script, manifest)
+  // Not showLoadError: a script with a broken command still has content worth showing, and every
+  // reference the manifest could not answer has already been neutralized - ADR 0002 and 0004. The
+  // player has no gutter to mark, so the console is where the author is told, as below.
+  if (scriptErrors.length > 0) {
+    console.warn("Script errors:\n" + scriptErrors.map((e) => `L${e.location.startLine}: ${e.message}`).join("\n"))
+  }
   const failed = await renderer.loadAssets(state)
   // The player has no tab to mark, but a declared file that is not there is worth saying somewhere
   // other than the frame it eventually throws on.

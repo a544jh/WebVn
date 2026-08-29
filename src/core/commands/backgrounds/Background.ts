@@ -1,4 +1,5 @@
-import { Background, ViewBox, VnPlayerState } from "../../state"
+import { Background, isBackgroundColor, ViewBox, VnPlayerState } from "../../state"
+import { Reference } from "../../manifest"
 import { Command } from "../Command"
 import { ErrorLevel, makeZodCmdHandler, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 import { z, ZodError, ZodTypeAny } from "zod"
@@ -24,6 +25,13 @@ class SetBackground extends Command {
       ...state,
       animatableState: { ...state.animatableState, background: newBackground },
     }
+  }
+
+  // A leading `#` is a colour rather than an id, which is why the test lives in core/state.ts
+  // beside the renderer's own use of it.
+  public references(): Reference[] {
+    if (isBackgroundColor(this.cmd.image)) return []
+    return [{ kind: "background", id: this.cmd.image }]
   }
 }
 

@@ -18,6 +18,12 @@ import { pauseMenu } from "./menus/PauseMenu"
 import { FreeformTextRenderer } from "./FreeformTextRenderer"
 import { declaredAssets } from "./assetPaths"
 import { DeclaredAsset } from "../core/manifest"
+import { AssetResolver } from "../assetLoaders/AssetResolver"
+
+export interface DomRendererOptions {
+  container?: HTMLElement
+  resolver?: AssetResolver
+}
 
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
@@ -54,15 +60,23 @@ export class DomRenderer implements Renderer {
 
   private arrow: HTMLDivElement
 
+  // The two optional dependencies travel in one object rather than as a third and fourth positional
+  // argument, so a caller that wants only the resolver does not have to name a container it does
+  // not have.
+  //
   // `container` is the element the scene is scaled inside when it goes fullscreen. It sits outside
   // the root, so it is passed in rather than found: this renderer touches nothing above `elem`
   // except the document-level listeners below. It defaults to the root, which scales to 1 and pads
   // nothing - a renderer mounted without a container is simply never scaled.
-  constructor(elem: HTMLDivElement, player: VnPlayer, container: HTMLElement = elem) {
+  //
+  // `resolver` says where an asset's bytes come from and is handed straight to both loaders. It
+  // defaults to relative paths, which is what the standalone player, the deployed demo and every
+  // test want; the editor passes an OPFS-backed one.
+  constructor(elem: HTMLDivElement, player: VnPlayer, options: DomRendererOptions = {}) {
     this.finished = true
 
     this.root = elem
-    this.container = container
+    this.container = options.container ?? elem
 
     this.menuDiv = document.createElement("div")
     this.menuDiv.classList.add("vn-menu-container")
@@ -117,8 +131,8 @@ export class DomRenderer implements Renderer {
       this.showMenu(pauseMenu)
     })
 
-    this.imageLoader = new ImageAssetLoaderSrc()
-    this.audioLoader = new AudioAssetLoaderSrc()
+    this.imageLoader = new ImageAssetLoaderSrc(options.resolver)
+    this.audioLoader = new AudioAssetLoaderSrc(options.resolver)
 
     this.textBoxRenderer = new TextBoxRenderer(this.root)
     this.freeformTextRenderer = new FreeformTextRenderer(this.root)

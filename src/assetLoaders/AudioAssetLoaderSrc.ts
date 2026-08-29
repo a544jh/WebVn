@@ -1,9 +1,15 @@
 import { AssetLoader } from "./AssetLoader"
+import { AssetResolver, RelativePathResolver } from "./AssetResolver"
 import { loadAllOf } from "./loadAll"
 
 export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
   private assets: Record<string, HTMLAudioElement | null> = {}
   private failed: Set<string> = new Set()
+  private resolver: AssetResolver
+
+  constructor(resolver: AssetResolver = new RelativePathResolver()) {
+    this.resolver = resolver
+  }
 
   // Idempotent, for the same reason as the image loader's.
   public registerAsset(path: string): void {
@@ -18,13 +24,17 @@ export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
     return asset.cloneNode() as HTMLAudioElement
   }
 
-  public loadAsset(path: string): Promise<void> {
+  // Consulted here and nowhere else, after the early return - see the image loader for why that
+  // ordering is the whole reason the resolver lives in `loadAsset` rather than in its caller.
+  public async loadAsset(path: string): Promise<void> {
     if (this.assets[path] !== undefined && this.assets[path] !== null) {
-      return Promise.resolve()
+      return
     }
-    const audio = new Audio(path)
+    const url = await this.resolver.resolve(path)
+    const audio = new Audio(url)
     return new Promise((resolve, reject) => {
       audio.addEventListener("canplaythrough", () => {
+        // Keyed by the logical path, not the URL - see the image loader.
         this.assets[path] = audio
         resolve()
       })

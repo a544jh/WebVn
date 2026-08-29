@@ -48,7 +48,7 @@ async function boot(): Promise<void> {
   const player = new VnPlayer(seedState(manifest), save)
   window.vnPlayer = player
 
-  const renderer = new DomRenderer(vnDiv, player, vnDivContainer)
+  const renderer = new DomRenderer(vnDiv, player, { container: vnDivContainer })
   window.vnDomRenderer = renderer
   // The button is page chrome rather than part of the vn, so the wiring stays here and the
   // mechanism lives in the renderer. Wired inside boot because that is where the renderer exists -

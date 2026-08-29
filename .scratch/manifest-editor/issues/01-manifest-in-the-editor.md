@@ -6,11 +6,13 @@ The editor can author a script but not a project. `manifest.yaml` became a real 
 [#35](https://github.com/a544jh/WebVn/pull/35) and a symbol table in
 [#36](https://github.com/a544jh/WebVn/pull/36) - it now decides the cast, every asset id, and the
 project's identity - and there is still no way to change it without editing a file in the repo and
-rebuilding. Filed 2026-08-28 from a shape sketched by the author; refined 2026-08-29, which settled
-the frontier, changed the mechanism under the sketched UI from two editor instances to one instance
-with a `Doc` per buffer, and grew the ticket by one thing nobody had noticed - the asset loaders
-cannot report a file that is not there, and apply-on-blur is the first caller that has to survive
-one.
+rebuilding. Filed 2026-08-28 from a shape sketched by the author; refined 2026-08-29, then grilled
+the same day over five rounds, which is where most of what follows comes from. The refinement settled
+the frontier and changed the mechanism under the sketched UI from two editor instances to one instance
+with a `Doc` per buffer. The grilling grew the ticket twice: the asset loaders cannot report a file
+that is not there, and apply-on-blur is the first caller that has to survive one; and the `?vn=`
+payload has to carry the manifest, because keying saves by `id` without it is the one thing `TODO`
+says not to do.
 
 ## The shape, as sketched
 
@@ -18,8 +20,11 @@ one.
   second instance beside the first; refinement changed the mechanism and kept the UI. See below.
 - **Tabs above the editor** switch between them. Crude CSS, no styling work: a tab click swaps the
   doc and moves an active class, and that is all the tabs do.
-- The manifest **applies on editor blur**, not on every keystroke.
+- The manifest **applies on editor blur**, not on every keystroke - and only when the manifest buffer
+  is actually dirty. See decision 6.
 - **Error handling as already documented** - `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md`.
+- The **`?vn=` payload carries the manifest** alongside the script, because a manifest the author can
+  change is one a shared link has to carry. See decision 8.
 
 ## Why blur, and why that is not the script's blur
 
@@ -60,12 +65,16 @@ manifest means:
 In order, and with the await where `loadScript` already puts it:
 
 ```
-parseManifest(text) -> null? mark the gutter, keep the last valid manifest, stop
-                    -> ok?   this.manifest = manifest
-                             state = parseDocument()            // reparses the script, remarks its gutter
-                             await renderer.loadAssets(state)   // before anything renders
-                             player.reloadStory(state)
-                             renderer.render(false)
+blur -> manifest doc isClean()? stop - nothing was edited (decision 6)
+        generation = ++applyGeneration                          (decision 7)
+        parseManifest(text) -> null? mark the gutter and the tab, keep the last
+                                     valid manifest, stop
+                            -> ok?   this.manifest = manifest
+                                     state = parseDocument()    // reparses the script, remarks its gutter
+                                     await renderer.loadAssets(state)
+                                     if (generation !== applyGeneration) stop
+                                     player.reloadStory(state)
+                                     renderer.render(false)
 ```
 
 **The reparse must not be gated on the script buffer being dirty.** `goToLine` skips `parseDocument`
@@ -139,6 +148,19 @@ shared links - but not the other: the id names the project, not the version of i
 made before an edit still loads afterwards and `loadFromSlot` can still throw uncaught into
 `SaveLoadMenu`. That entry stays open.
 
+The throw is worth knowing precisely, because the symptom is not what it sounds like.
+`SaveLoadMenu.ts:75` calls `DomRenderer.loadFromSlot`, which calls `VnPlayer.loadFromSlot`, which
+calls `State.fromShorthandPath`. That throws in two places: `state.ts:328`, where `makeDecision`
+returns the *same state object* when the recorded id matches no option, so identity is the detector;
+and `state.ts:323`, where a replay that never reaches a decision at all gives up after 10000 advances.
+Neither is caught, and the `SaveLoadMenu` click handler is a bare listener, so `renderer.closeMenu()`
+on the next line never runs. The player clicks Load, confirms, and the menu sits there. **It is a dead
+button, not a crash screen** - which is why nobody has reported it.
+
+Accepted for now, per the grilling: the `id` names the project rather than the version of its script,
+and an author who needs a clean slate can append a version to the `id`, since the `id` *is* the save
+key. That is a crude lever but a real one, and it is why payload versioning is not needed yet.
+
 ### 3. A declared file that is not there must not hang the apply
 
 Found while reading, and the reason this ticket is not purely an editor change. `loadAssets` is
@@ -163,16 +185,30 @@ which is the same argument `.scratch/asset-manifest/issues/03-undeclared-assets-
 makes about undeclared assets. The fix belongs in the loaders:
 
 - Add an `error` listener to the audio loader so a failed load settles instead of hanging.
-- Have `loadAll` resolve with what failed rather than rejecting, so the caller can decide. The apply
-  should proceed - a missing background is a wrong frame, not a reason to refuse a manifest - and
-  report the failed paths.
+- Have `loadAll` resolve with what failed rather than rejecting, so the caller can decide.
 - A failed path must not stay registered as pending in a way that re-fails every subsequent `loadAll`.
   Either drop it or record the failure so it is not retried on every apply.
 
-Where the report surfaces is an interface question, not a mechanism one: the console is enough to
-start with, since these are filenames and not source locations, and there is no line to mark.
+**The apply proceeds, and the failures are reported.** Refusing the apply would make the editor
+unusable in the normal authoring order - declare the asset, then draw it - so a manifest that
+references files which do not exist yet still applies. The report goes to the console *and* to the
+tab, per decision 4.
 
-### 4. The tab bar gets an error state
+**What "proceeds" does not mean.** An earlier draft of this ticket said a missing background is a
+wrong frame rather than a reason to refuse a manifest. That is false, and the correction matters
+because it sets this ticket's boundary. A failed preload leaves `assets[path]` at `null`, and the
+sub-renderers throw on null rather than degrading:
+
+- `BackgroundRenderer.ts:131` - `if (!image) throw new Error("Could not load " + state.image)`
+- `SpriteRenderer.ts:142` - `if (!elem) throw new Error("Can't render unloaded sprite")`
+- `AudioRenderer.ts:20,31` - `if (!newAudio) throw new Error("Could not play audio " + ...)`
+
+So a declared file that nothing displays is silent forever, and one the story *reaches* throws
+mid-render, on the frame that command paints. This ticket makes the failure reportable at apply time;
+it does not make the renderers survive it. Doing that means deciding what a missing sprite looks like
+on screen, which is a renderer change with its own blast radius and its own ticket.
+
+### 4. The tab bar gets an error state, for parse failures and load failures alike
 
 Question was whether an invalid manifest blocks anything besides itself. It does not - the last valid
 manifest keeps the preview alive and the script buffer keeps working - and that is exactly why it needs
@@ -180,6 +216,14 @@ saying: the author is looking at a preview built from a manifest that is not the
 only sign of that is a gutter marker in a tab they are not looking at. A class on the manifest tab when
 its last parse failed, cleared when one succeeds, is about three lines and answers it. No new concept:
 same information the gutter already has, in the one place that is visible from the other tab.
+
+**A failed asset load marks it too.** The two states are not identical - a parse failure means the
+preview is built from a *different* manifest than the buffer shows, while a load failure means the
+preview is the buffer's manifest with a file missing under it - and one reading of that says the badge
+should mean staleness only, with load failures going to the console. Rejected: a filename typo is
+otherwise invisible until the story reaches the asset and throws, which is the worst possible moment
+and the furthest from the edit that caused it. The badge means "this buffer is not fully in effect",
+which covers both, and the gutter and console still distinguish them for anyone who looks.
 
 ### 5. There is a test, and it is the first one `VnEditor` has ever had
 
@@ -197,8 +241,122 @@ What is worth asserting, in rough order of value:
 - A second valid edit after an invalid one applies normally - the last-valid state is not sticky.
 - The script buffer being clean does not stop the reparse (the `isClean` trap above).
 
+**The harness does not exist yet, and building it is half the value.** `test/helpers/vnHarness.ts`'s
+`startVn` mounts a `DomRenderer` into a fresh root; nothing anywhere mounts a `VnEditor`, which is
+precisely why item `T` exists. Add a `startEditor` beside it that mounts player, renderer and editor
+over one root, seeded from `TEST_MANIFEST` so the test declares only the two or three assets it needs.
+That helper, not the test, is what retires "every editor change is verified by hand".
+
+**The payload gets its own tests, in a file that already exists.**
+`test/browser/scriptUrl.test.ts` has five round-trip and URL-shape tests, and decision 8 changes the
+contract they encode. Extend it: round-trip a manifest and a script together, assert the manifest is
+the first document, and assert a legacy single-document payload is rejected. It stays in `browser`
+because `CompressionStream` is why it was put there.
+
 Assert on player and renderer state, not on CodeMirror internals. The tab bar itself stays
 hand-verified; it is the part being thrown away.
+
+### 6. Blur applies only when the manifest buffer is dirty
+
+Blur is a much broader event than "I finished editing the manifest": clicking the preview, the
+Fullscreen button, a jump-mode radio, or another browser tab all fire it. Unguarded, each one would
+reparse, reload assets, reload the story and re-render - so clicking into the preview to test
+something would reload the story out from under the author.
+
+Gate the apply on the manifest doc's own `isClean()`. It kills every spurious case in one line, keeps
+the sketched interaction, and reuses a gate this file already has - `goToLine` does the same thing for
+the script. Note it is the *opposite* gate from the trap above: the manifest's dirtiness gates the
+apply; the script's cleanliness must not gate the reparse.
+
+### 7. Overlapping applies need a generation guard
+
+The apply is asynchronous - `await renderer.loadAssets(state)` sits between parsing and reloading -
+so two blurs in quick succession, or an apply racing a script reload, can resolve out of order and let
+an older manifest win. `DomRenderer` already carries `renderGeneration` for exactly this hazard, and
+`CLAUDE.md` documents at length both how it works and that the fast gate cannot see it. The editor's
+apply has no equivalent.
+
+Bump a counter at the top of the apply, capture it, and bail after the await if it has moved. Four
+lines, and it mirrors a pattern this codebase has already committed to rather than inventing one.
+
+### 8. The `?vn=` payload becomes two documents: manifest, then script
+
+Not scope creep - the thing that makes decision 2 legal. `TODO`'s ordering edges say it outright:
+
+> Two-document URL payload before player save keying. `?vn=` carries a script alone and is parsed
+> against the demo's manifest, so once saves are keyed by id the only id in scope is webvn-demo and
+> every shared story saves on top of every other one. Harmless only while the key is the hardcoded
+> "test" everyone shares.
+
+Keying saves by `id` while the payload carries no manifest would *claim* per-project saves and not
+deliver them, which is worse than today's uniformly-shared key. So the payload carries the manifest,
+and the two land together.
+
+The format is a two-document YAML stream, **manifest first, then the script**. Cheaper than `TODO`'s
+`M` suggests, because the seam exists: `composeDocuments` already returns every document with one
+shared `LineCounter`, and its comment says why - *"a stray `---` is a thing a caller may want to
+refuse rather than silently drop."* Line numbers across the split come out right for free. What is
+missing is that both parsers take `docs[0]` and drop the rest, which decision 10 fixes.
+
+**A single-document payload is invalid, and every link shared before this breaks.** Accepting a bare
+script for backwards compatibility would reintroduce exactly the collision above. The payload needs no
+version field to tell old from new: one document is legacy, two is current, and the manifest inside
+carries `formatVersion: 1` for anything finer. The only links in the wild are the author's own.
+
+**The player says so.** `playerIndex.ts` ignores `parseStory`'s error list entirely and has no error
+UI at all; this is the first time the player must speak to a *player* rather than an author. Render
+one plain line into the vn div - "this story could not be loaded". A blank stage is indistinguishable
+from a bug, and this is a dead end rather than a degraded render. One unstyled line; a real error
+screen belongs to `PROJECT_STORAGE.md`.
+
+**The two-document form is transport only.** Decode splits the stream and hands the manifest to
+`parseManifest` and the script to `parseStory`; the editor's two buffers keep parsing as single
+documents, so per-buffer gutters stay trivially correct.
+
+**The demo boots through the same path.** With `?vn=` absent, `playerIndex.ts` falls back to the
+demo - but as a source of `(manifestText, scriptText)`, not as a second code path. That makes
+`demoStory.ts`'s own comment come true (*"the demo becomes an ordinary project loaded through the
+normal path"*) and, more usefully, means every demo load exercises the payload path instead of leaving
+it to shared links nobody clicks.
+
+### 9. Export is refused while the manifest is invalid
+
+`exportUrl()` validates nothing today - `playerUrl(await encodeScript(editor.getScript()))` - and that
+is coherent for the script, because a script full of errors still plays. It is not coherent for the
+manifest, because decision 8 makes the player bail on one that does not parse. A link that is
+*guaranteed* to fail is not a degraded artifact, it is a dead one, and the author finds out when
+somebody else clicks it.
+
+Grey out Export while the manifest is invalid, following `canSave`'s precedent - the pause menu
+already greys out Save when the path cannot be expressed as a save. The state is free: decision 4
+already tracks whether the manifest last parsed.
+
+The payload carries the **raw manifest buffer text**, not a re-serialisation of the parsed manifest.
+The demo's manifest opens with a six-line comment block, and round-tripping through the parser eats
+comments.
+
+### 10. Both parsers refuse a multi-document input
+
+`parseStory` and `parseManifest` both take `docs[0]` and silently drop the rest, so a stray `---`
+pasted into either buffer discards everything after it with no message. `composeDocuments` anticipated
+this and returns every document precisely so a caller can refuse. Make both parsers report a
+`ParserError` when handed more than one document.
+
+It is the same check decision 8's splitter needs to reject a legacy payload, written once - and the
+silent-data-loss path gets much easier to hit the moment authors learn the payload format is built on
+`---`.
+
+## Order of work
+
+Three separable landings in one ticket. The order matters because the first one silently breaks the
+others if it comes last:
+
+1. **The loader fix** (decision 3). Independent of everything else, and the apply depends on it - an
+   apply built on loaders that hang is an apply that appears to work until the first typo.
+2. **The editor: buffers, tabs, apply, tab state, the `startEditor` harness and its tests**
+   (decisions 1, 4, 5, 6, 7, 10, and the mechanism below).
+3. **The payload, the save rekey and the export gate** (decisions 2, 8, 9). Last, because exporting a
+   manifest needs a manifest buffer to export from.
 
 ## One instance, two `Doc`s - not two instances
 
@@ -335,6 +493,47 @@ Recorded so the mechanism is not relitigated. All were weighed at the 2026-08-29
   `formatVersion`-checked-first, and turns the two parsers' deliberate disagreement about failure
   into a single-document contradiction.
 
+## This ticket and ticket 03, in plain words
+
+`.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` also concerns assets and the
+manifest, and the two are constantly mistaken for each other. The line between them:
+
+**03 is a mistake you can catch by reading the two documents.** The script says `bg: forst` and the
+manifest declares no `forst`. Both documents are in front of you, so the parser can see the mismatch
+just by reading them. Today it sees nothing, and the story parses clean, plays, and blows up on the
+frame that needs the image.
+
+**This ticket is a mistake you can only catch by trying to load a file.** The manifest says the
+`forest` background lives in `forst.png`, and no such file exists. 03's check passes, because the
+script asked for something the manifest genuinely declares. Nothing is wrong on paper. It surfaces
+only when something tries to fetch the file - and today that failure is invisible, which is what
+decision 3 is about.
+
+So they cover disjoint halves and neither makes the other unnecessary: a parser can catch the first
+and can never catch the second, because it does not know what files exist.
+
+Three places they touch:
+
+- **A shared motive.** Authors declare things before the art exists, so both have to stay usable while
+  half the assets are missing. That is the argument for 03's severity question and for this ticket's
+  "the apply proceeds".
+- **03 gets more valuable once this lands.** Its pitch is "an error you can fix now", and until the
+  manifest is editable, fixing it means editing a repo file and rebuilding.
+- **This ticket expires one of 03's premises.** 03 records that a `ParserError` is invisible to a
+  player because `playerIndex.ts` throws its error list away. Decision 8 gives the player its first
+  error surface, so that stops being true.
+
+## `TODO` goes stale when this lands
+
+Not edited here - `TODO` describes what is *not yet done*, so editing it before the work lands would
+make it lie. But whoever finishes this ticket should not have to rediscover which places went stale:
+
+- The **`URL payload becomes a two-document YAML stream`** item and its **`player save keying`**
+  child, both of which this ticket does.
+- The ordering edge beginning **"Two-document URL payload before player save keying"**, which is
+  satisfied inside one ticket rather than across two.
+- The **`== EDITOR ==`** section, which has no entry for manifest editing at all.
+
 ## Not in scope
 
 - **The CodeMirror 6 migration**, and multi-buffer proper. `design-docs/EDITOR.md`.
@@ -352,12 +551,21 @@ Recorded so the mechanism is not relitigated. All were weighed at the 2026-08-29
   reported one.
 - **Refusing to parse a script that names an undeclared asset.**
   `.scratch/asset-manifest/issues/03-undeclared-assets-are-parse-errors.md` is that rule, and it is
-  independent of where the manifest is edited.
+  independent of where the manifest is edited. See the boundary above.
+- **Making the renderers survive a missing asset.** They throw on null rather than degrading, so a
+  story that reaches a declared-but-missing file still dies mid-render. Reporting it at apply time is
+  this ticket; deciding what a missing sprite looks like on screen is not.
+- **Invalidating saves when a story changes.** Accepted for now: the `id` names the project, not the
+  version of its script, and an author who needs a clean slate can append a version to the `id`, which
+  is the save key. Payload versioning or content addressing would do it properly and belongs with the
+  `TODO` item that already carries them.
 
 ## See also
 
 - `docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` - the error-handling rule, and the
   consequence that named this ticket
+- `docs/adr/0003-the-url-payload-carries-the-manifest.md` - decision 8 as a standing contract, written
+  because the next reader will try to accept a bare script for backwards compatibility
 - `docs/adr/0001-manifest-seeds-the-initial-state.md` - why `id` is not in `VnPlayerState`, which is
   what makes the save rekey a threading problem rather than a lookup
 - `design-docs/EDITOR.md` - the CM6 migration, and the `swapDoc` row in its 5.x-to-6 table that this

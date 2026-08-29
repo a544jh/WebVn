@@ -5,7 +5,9 @@ Status: needs-triage
 Split out of `02-manifest-yaml.md` during its 2026-08-28 refinement. The rule is agreed; the severity and
 the author experience are not, which is why this is its own ticket rather than a rider on the file format.
 
-Blocked on `02-manifest-yaml.md`, which is what makes the manifest a file index in the first place.
+Unblocked. `02-manifest-yaml.md`, which is what makes the manifest a file index in the first place,
+landed in [#35](https://github.com/a544jh/WebVn/pull/35); this file said it was still blocking until
+2026-08-29, which hid a ready ticket from anyone scanning for one.
 
 ## The rule
 
@@ -43,6 +45,11 @@ receives the manifest.
   `ParserError` here is invisible to a player either way. Does that stay true, or does an undeclared asset
   become one of the things that stops a story loading?
 
+  **This premise expires.** `.scratch/manifest-editor/issues/01-manifest-in-the-editor.md` gives the
+  player its first error surface - a payload it cannot load says so in the vn div - so "invisible
+  either way" stops being the answer as soon as that lands. The question becomes a real choice rather
+  than a moot one.
+
 ## Why it is worth doing
 
 It turns a silent wrong-frame into a message that names the file and the line, at the moment the author can
@@ -53,4 +60,8 @@ after an import.
 ## See also
 
 - `.scratch/asset-manifest/issues/02-manifest-yaml.md` - where this was split from
+- `.scratch/manifest-editor/issues/01-manifest-in-the-editor.md` - the other half of the same problem,
+  and the boundary between them: this ticket catches a script naming an asset the manifest never
+  declared, which a parser can see by reading both documents; that one catches a manifest naming a
+  file that is not there, which only a failed load can reveal
 - `design-docs/PROJECT_STORAGE.md` - "The manifest is the index"

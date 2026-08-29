@@ -232,24 +232,39 @@ edge, and it is why the tabs need a switch handler rather than pure CSS.
 - The script buffer already has a `blur` handler (it re-syncs the position marker), so blur is an
   established event here, not a new concept.
 
-## This is disposable, like find-in-file
+## Mostly disposable, like find-in-file - but less of it than it looks
 
 `design-docs/EDITOR.md` migrates to CodeMirror 6, and its model is one `EditorState` per file swapped
 with `view.setState()` - which is *also* what script includes need, and which `TODO` carries as
-"editor multi-buffer (shared with includes)" under the CM6 migration. Two CodeMirror 5 instances with
-a tab bar is a second implementation of that, thrown away by the migration.
+"editor multi-buffer, file switcher, per-buffer markers" under the CM6 migration.
 
-That is an argument for keeping it crude, not for waiting:
+Read that `TODO` line carefully before calling this throwaway: **CM6 supplies the buffer model, not a
+UI for choosing between buffers.** It is a library of editor extensions and ships no tab bar or file
+switcher, which is why the switcher is listed there as work rather than as something the migration
+brings. So the migration deletes less of this than a first look suggests:
+
+- **Deleted:** the second `CodeMirror()` instance and the `display: none` show/hide, and the
+  `.refresh()` on switch with it - one view swapping states never constructs a hidden instance to
+  mis-measure.
+- **Survives, and grows:** the tab bar's markup and its switch handler. A two-tab toggle is the
+  ancestor of the file switcher that multi-buffer needs anyway, with the manifest as one buffer among
+  N rather than one of two.
+- **Untouched:** apply-on-blur, the keep-the-last-valid-manifest rule, the save rekey and the loader
+  fix. None of those are about CodeMirror.
+
+That is still an argument for keeping it crude, and now also an argument that crude is cheap:
 
 - The manifest is unauthorable **today**, and the CM6 migration is an `L` behind item `T`.
 - `TODO` already makes the same call for item `A` (find-in-file): *"Disposable - the CM6 migration
-  deletes it - and there is no reason for it to wait behind anything."*
-- The disposable part is genuinely small: two instances, a tab bar, and a show/hide. The part that
-  survives the migration is the apply-on-blur behaviour, the keep-the-last-valid-manifest rule, the
-  save rekey and the loader fix - none of which are about CodeMirror.
+  deletes it - and there is no reason for it to wait behind anything."* This ticket is the weaker
+  version of that claim, not the same one.
+- The genuinely thrown-away part is two instances and a show/hide. That is small enough not to argue
+  about, and the switcher it hangs off is a down payment on multi-buffer rather than a write-off.
 
-So: build it now and expect the CM6 migration to delete the tab bar. Deliberate, and the second
-disposable editor feature in a row.
+So: build it now, expect the second instance to die at the migration and the tab bar to be rewritten
+into the file switcher rather than deleted. Keep the markup dumb enough that turning two tabs into a
+list of files is not a fight, but do not build the file switcher here - two hardcoded tabs is the
+right size for a two-buffer editor.
 
 ## Not in scope
 

@@ -63,12 +63,13 @@ export class VnEditor {
   private activeBuffer: BufferName = INITIAL_BUFFER
   private tabs: Record<BufferName, HTMLButtonElement>
 
-  // Whether the manifest buffer last parsed, and whether every file it declares loaded. The first
-  // gates Export, because a payload whose manifest does not parse is one the player refuses; both
-  // mark the tab, which is the only sign visible from the other buffer that what is on screen is
-  // not what the preview is running.
+  // Whether the manifest buffer last parsed. Gates Export, because a payload whose manifest does not
+  // parse is one the player refuses. What a tab shows is not read from here - see refreshTab.
   private manifestParsed = true
-  private assetsLoaded = true
+
+  // The worst level marked in each buffer, which is what its tab wears. Kept beside the markers
+  // because CodeMirror offers no way to ask a gutter what is in it.
+  private markedLevel: Record<BufferName, ErrorLevel | null> = { script: null, manifest: null }
 
   // Adopting is asynchronous - the asset load sits between parsing and reloading - so two blurs in
   // quick succession can resolve out of order and let an older manifest win. Same hazard and same
@@ -138,10 +139,8 @@ export class VnEditor {
   // which loads it as a fresh story.
   private parseDocument(): VnPlayerState {
     const [state, errors] = this.parser.parseStory(this.scriptDoc.getValue(), this.manifest)
-    this.scriptDoc.clearGutter("vn-error-gutter")
-    for (const error of errors) {
-      this.setErrorMarker(this.scriptDoc, error)
-    }
+    this.clearMarkers("script")
+    this.markErrors("script", errors)
 
     this.scriptDoc.markClean()
     return state
@@ -151,8 +150,7 @@ export class VnEditor {
   public async loadProject(manifestText: string, script: string): Promise<void> {
     this.manifestDoc.setValue(manifestText)
     this.manifestDoc.markClean()
-    this.manifestParsed = true
-    this.refreshManifestTab()
+    this.setManifestParsed(true)
     await this.loadScript(script)
   }
 
@@ -180,15 +178,12 @@ export class VnEditor {
     const generation = ++this.adoptGeneration
 
     const [manifest, errors] = this.parser.parseManifest(this.manifestDoc.getValue())
-    this.manifestDoc.clearGutter("vn-error-gutter")
-    for (const error of errors) {
-      this.setErrorMarker(this.manifestDoc, error)
-    }
+    this.clearMarkers("manifest")
+    this.markErrors("manifest", errors)
 
     if (manifest === null) {
       // Left dirty on purpose: the buffer has not been adopted, so the next blur tries again.
-      this.manifestParsed = false
-      this.refreshManifestTab()
+      this.setManifestParsed(false)
       return
     }
     this.manifestDoc.markClean()
@@ -196,8 +191,7 @@ export class VnEditor {
     // Before the await, not after: the flag means "the buffer parsed", which is settled here. Left
     // until the end it would keep Export greyed out for the length of the asset load - and, if this
     // adoption were superseded, leave it greyed out for good over a manifest that parsed fine.
-    this.manifestParsed = true
-    this.refreshManifestTab()
+    this.setManifestParsed(true)
 
     // Reparsed against the new manifest: actor and asset ids resolve through it, so the same script
     // means something different now - which is the point, since fixing a typo'd id in the manifest
@@ -267,35 +261,62 @@ export class VnEditor {
   // Marked without clearing the gutter first - the adoption cleared it before marking the parse
   // problems this is added to, and a boot has nothing to clear.
   private reportMissingFiles(state: VnPlayerState, failed: DeclaredAsset[]): void {
-    this.assetsLoaded = failed.length === 0
     // The buffer is the manifest this state was seeded from, so its keys are the ones to look up.
     const locations = declarationLocations(
       this.manifestDoc.getValue(),
       failed.map((asset) => asset.manifestKey)
     )
-    failed.forEach((asset, i) => {
-      const message = `Could not load ${asset.path}`
-      this.setErrorMarker(this.manifestDoc, new ParserError(message, locations[i], ErrorLevel.WARNING))
-      console.warn(message)
-    })
-    this.refreshManifestTab()
+    this.markErrors(
+      "manifest",
+      failed.map((asset, i) => {
+        console.warn(`Could not load ${asset.path}`)
+        return new ParserError(`Could not load ${asset.path}`, locations[i], ErrorLevel.WARNING)
+      })
+    )
   }
 
-  // Two classes, because the two states they cover are not the same failure. A parse failure means
-  // the buffer was never adopted and the preview is running a *different* manifest: red, the colour
-  // its gutter is already wearing. A failed asset load means the preview is running this one, with a
-  // file missing under it: orange, matching that marker, since the story plays until it reaches the
-  // asset and declaring art before it is drawn is the normal authoring order.
+  // A buffer's markers and its tab go together, so they are cleared together.
+  private clearMarkers(buffer: BufferName): void {
+    this.docFor(buffer).clearGutter("vn-error-gutter")
+    this.markedLevel[buffer] = null
+    this.refreshTab(buffer)
+  }
+
+  // Marks on top of what is already there rather than replacing it, because reportMissingFiles adds
+  // to the parse problems the adoption just marked. The level therefore only rises between clears,
+  // which is what stops a manifest that failed to parse from ending up in a missing file's orange.
+  private markErrors(buffer: BufferName, errors: ParserError[]): void {
+    const doc = this.docFor(buffer)
+    for (const error of errors) {
+      this.setErrorMarker(doc, error)
+      const worst = this.markedLevel[buffer]
+      if (worst === null || error.level > worst) this.markedLevel[buffer] = error.level
+    }
+    this.refreshTab(buffer)
+  }
+
+  // One rule for both tabs: a tab wears the worst level marked in its own gutter - red for an error,
+  // orange for a warning, nothing when the buffer is clean. That is what makes a tab a summary of
+  // its gutter rather than a second signal to keep in sync with it, and one rule says the right
+  // thing in both buffers. On the manifest, red is a buffer that did not parse and was therefore
+  // never adopted, so the preview is running a *different* manifest; orange is one adopted with a
+  // file missing under it. On the script, red is a story that could not be built as written and
+  // orange one built with lines that do nothing.
   //
-  // Either way the tab says something, which is the point - it is the only sign visible from the
-  // other buffer that what is on screen is not what the preview is running, and design-docs/
-  // SCRIPT_INCLUDES.md wants the same indicator for a script buffer that is not on screen.
-  private refreshManifestTab(): void {
-    const unadopted = !this.manifestParsed
-    this.tabs.manifest.classList.toggle("vn-editor-tab-error", unadopted)
-    // Never both: an unadopted manifest's assets are last adoption's news, and two colour rules on
-    // one element resolve by stylesheet order rather than by which one matters.
-    this.tabs.manifest.classList.toggle("vn-editor-tab-warning", !unadopted && !this.assetsLoaded)
+  // A tab is the only sign visible from the other buffer, which is why the script needs one at all:
+  // since docs/adr/0004-an-undeclared-reference-neutralizes-its-command.md, fixing an id the script
+  // names is a *manifest* edit, and the complaint it clears is marked in the buffer nobody is
+  // looking at. design-docs/SCRIPT_INCLUDES.md wants the same indicator per included script file.
+  private refreshTab(buffer: BufferName): void {
+    const level = this.markedLevel[buffer]
+    this.tabs[buffer].classList.toggle("vn-editor-tab-error", level === ErrorLevel.ERROR)
+    this.tabs[buffer].classList.toggle("vn-editor-tab-warning", level === ErrorLevel.WARNING)
+  }
+
+  // Export is gated on this and nothing else, so this is where the host page is told. A story that
+  // declares a file nobody has drawn yet still plays, and still exports.
+  private setManifestParsed(parsed: boolean): void {
+    this.manifestParsed = parsed
     this.onManifestStateChangeCallbacks.forEach((cb) => cb())
   }
 

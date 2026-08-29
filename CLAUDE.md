@@ -140,18 +140,23 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
 - Adopting means: parse; on failure mark the gutter and the tab and keep the last valid manifest (ADR
   0002); on success reparse the script against it, reload assets, then `reloadStory` + `render(false)`.
   A generation counter guards the `await` in the middle, the same hazard `renderGeneration` covers.
-- **The manifest tab carries two classes, because the two states are not degrees of each other.**
-  `vn-editor-tab-error` is red and means the buffer did not parse, so it was never adopted and the
-  preview is running a *different* manifest; `vn-editor-tab-warning` is orange and means the preview
-  is running this one with a file missing under it. Never both - red wins, since an unadopted
-  manifest's assets are the previous adoption's news, and two colour rules on one element resolve by
-  stylesheet order rather than by which one matters. Each colour matches what that failure already
-  wears in the gutter, which is the other half of the same signal: a missing file becomes a
-  `ParserError` at WARNING level against the line that declared it, located by
+- **A tab wears the worst level marked in its own gutter** - `vn-editor-tab-error` red,
+  `vn-editor-tab-warning` orange, nothing when the buffer is clean. One rule for both buffers, in
+  `refreshTab`, which is why the tab cannot drift from the gutter it summarises: `markErrors` raises
+  the level and `clearMarkers` resets it, so nothing else has to remember. It says the right thing in
+  both buffers for free. On the manifest, red is a buffer that did not parse and was therefore never
+  adopted - the preview is running a *different* manifest - and orange one adopted with a file
+  missing under it. On the script, red is a story that could not be built as written (`story`
+  missing, a bad anchor, a stray `---`) and orange one built with lines that do nothing (an
+  unrecognized command, options that failed their schema, an undeclared reference). **The script tab
+  matters most while the manifest is on screen**: since ADR 0004, fixing an id the script names is a
+  manifest edit, so the buffer being edited is not the buffer holding the complaint.
+- A missing file is marked at WARNING against the line that declared it, located by
   `declarationLocations(text, keys)`, because a filename is the one thing an author cannot check by
-  reading the two documents. Export is greyed out only while the manifest does not *parse*, because
-  that is what the player refuses; a story that declares a file nobody has drawn yet still plays -
-  which is also why an undrawn declaration is orange rather than red.
+  reading the two documents. Not an error: the manifest is adopted anyway, and declaring art before
+  it is drawn is the normal authoring order. Export is greyed out only while the manifest does not
+  *parse*, because that is what the player refuses; a story that declares a file nobody has drawn yet
+  still plays.
 - `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 

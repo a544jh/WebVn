@@ -91,6 +91,11 @@ manifest can ever declare it, and `Sfx.apply` has no `stop` handling the way `Bg
 the one spelling guaranteed to fail the one spelling that never warns. Whether `sfx` *should* learn
 to stop a sound is a separate ticket that nobody has filed.
 
+It gets the ordinary message - `No audio asset is declared as stop` - and no special case, which was
+considered and declined. A bespoke wording would be the only id-specific branch in
+`undeclaredMessage`, earned by one spelling; the generic message is true, and the manifest refusing
+`stop` on the way to declaring it is a second signpost rather than a dead end.
+
 ### 3. The pass, in `src/core/commands/references.ts`
 
 `(Command[], VnManifest) => [Command[], ParserError[]]`, called from `parseStory` after

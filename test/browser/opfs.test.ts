@@ -19,7 +19,7 @@ import { writeFile } from "../../src/storage/opfs"
 let dir: FileSystemDirectoryHandle
 
 beforeEach(async () => {
-  dir = await clearOpfs()
+  dir = await clearOpfs("test-scratch-opfs")
 })
 
 const walked = async (start: FileSystemDirectoryHandle, path?: string): Promise<WalkedFile[]> => {

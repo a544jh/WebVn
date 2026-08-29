@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { decodeProject, decodePayload, encodeProject, encodePayload, playerUrl } from "../../src/scriptUrl"
+import { decodePayload, decodeText, encodePayload, encodeText, playerUrl } from "../../src/scriptUrl"
 
 const manifest = `# A comment the payload has to keep.
 formatVersion: 1
@@ -13,13 +13,13 @@ story:
   - Second line
 `
 
-describe("story url encoding", () => {
+describe("url payload encoding", () => {
   it("round trips a manifest and a script", async () => {
-    expect(await decodeProject(await encodeProject(manifest, script))).toEqual([manifest, script])
+    expect(await decodePayload(await encodePayload(manifest, script))).toEqual([manifest, script])
   })
 
   it("puts the manifest first", async () => {
-    const [first] = await decodeProject(await encodeProject(manifest, script))
+    const [first] = await decodePayload(await encodePayload(manifest, script))
     expect(first).toBe(manifest)
   })
 
@@ -27,23 +27,23 @@ describe("story url encoding", () => {
     // A link shared before the manifest travelled. Reading it as a script against the demo's
     // manifest would give every shared story the same id, which is the same save key - see
     // docs/adr/0003-the-url-payload-carries-the-manifest.md.
-    await expect(decodeProject(await encodePayload(script))).rejects.toThrow()
+    await expect(decodePayload(await encodeText(script))).rejects.toThrow()
   })
 
   it("encodes to characters that need no url escaping", async () => {
-    const encoded = await encodeProject(manifest, script)
+    const encoded = await encodePayload(manifest, script)
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/)
   })
 
   it("survives a trip through the query string the player reads", async () => {
-    const encoded = await encodeProject(manifest, script)
+    const encoded = await encodePayload(manifest, script)
     const vn = new URL(playerUrl(encoded, "https://example.com/webvn/index.html")).searchParams.get("vn")
     expect(vn).toBe(encoded)
-    expect(await decodeProject(vn as string)).toEqual([manifest, script])
+    expect(await decodePayload(vn as string)).toEqual([manifest, script])
   })
 
   it("round trips text on its own", async () => {
-    expect(await decodePayload(await encodePayload(script))).toBe(script)
+    expect(await decodeText(await encodeText(script))).toBe(script)
   })
 
   it("points at the player next to the page that exported it", () => {

@@ -419,20 +419,21 @@ export class DomRenderer implements Renderer {
     // The paths come from the same functions the renderers resolve through, so what is preloaded
     // and what is asked for later cannot drift apart.
     const declared: string[] = []
+    const declare = (loader: { registerAsset(path: string): void }, path: string) => {
+      declared.push(path)
+      loader.registerAsset(path)
+    }
     for (const actor in state.actors) {
       const sprites = state.actors[actor].sprites ?? {}
       for (const name in sprites) {
-        declared.push(spriteFilePath(actor, sprites[name]))
-        this.imageLoader.registerAsset(spriteFilePath(actor, sprites[name]))
+        declare(this.imageLoader, spriteFilePath(actor, sprites[name]))
       }
     }
     for (const id in state.backgrounds) {
-      declared.push(backgroundFilePath(state.backgrounds[id]))
-      this.imageLoader.registerAsset(backgroundFilePath(state.backgrounds[id]))
+      declare(this.imageLoader, backgroundFilePath(state.backgrounds[id]))
     }
     for (const id in state.audioAssets) {
-      declared.push(audioFilePath(state.audioAssets[id].file))
-      this.audioLoader.registerAsset(audioFilePath(state.audioAssets[id].file))
+      declare(this.audioLoader, audioFilePath(state.audioAssets[id].file))
     }
 
     const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])

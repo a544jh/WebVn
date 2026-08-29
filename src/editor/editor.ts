@@ -145,7 +145,8 @@ export class VnEditor {
   public async loadProject(manifestText: string, script: string): Promise<void> {
     this.manifestDoc.setValue(manifestText)
     this.manifestDoc.markClean()
-    this.setManifestState({ parsed: true, assetsLoaded: true })
+    this.manifestParsed = true
+    this.refreshManifestTab()
     await this.loadScript(script)
   }
 
@@ -154,8 +155,7 @@ export class VnEditor {
     const state = this.parseDocument()
 
     const failed = await this.renderer.loadAssets(state)
-    this.setManifestState({ parsed: this.manifestParsed, assetsLoaded: failed.length === 0 })
-    reportMissingFiles(failed)
+    this.setAssetsLoaded(failed)
 
     // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
     // through the intro again. The standalone player boots the same story with animations.
@@ -181,7 +181,8 @@ export class VnEditor {
 
     if (manifest === null) {
       // Left dirty on purpose: the buffer has not been adopted, so the next blur tries again.
-      this.setManifestState({ parsed: false, assetsLoaded: this.assetsLoaded })
+      this.manifestParsed = false
+      this.refreshManifestTab()
       return
     }
     this.manifestDoc.markClean()
@@ -196,8 +197,8 @@ export class VnEditor {
     const failed = await this.renderer.loadAssets(state)
     if (generation !== this.adoptGeneration) return
 
-    this.setManifestState({ parsed: true, assetsLoaded: failed.length === 0 })
-    reportMissingFiles(failed)
+    this.manifestParsed = true
+    this.setAssetsLoaded(failed)
 
     // Later saves go to the new key. Nothing migrates - see DomRenderer.setSaveId.
     this.renderer.setSaveId(manifest.id)
@@ -236,15 +237,23 @@ export class VnEditor {
     this.vnEditor.focus()
   }
 
+  // A declared file that is not there is reported rather than refused: declaring an asset before the
+  // art exists is the normal authoring order. The tab carries the same news for anyone not watching
+  // the console. What this does not do is make the story survive one - a sub-renderer still throws
+  // on the frame that paints it, which is a renderer change with its own blast radius.
+  private setAssetsLoaded(failed: string[]): void {
+    this.assetsLoaded = failed.length === 0
+    if (failed.length > 0) console.warn("Declared files that could not be loaded: " + failed.join(", "))
+    this.refreshManifestTab()
+  }
+
   // One class, meaning "this buffer is not fully in effect". It covers both a parse failure (the
   // preview is running a different manifest) and a failed asset load (the preview is running this
   // manifest with a file missing under it); the gutter and the console still tell them apart. It is
   // the same indicator design-docs/SCRIPT_INCLUDES.md wants for a script buffer that is not on
   // screen - without it, a broken buffer behind another tab looks clean.
-  private setManifestState(state: { parsed: boolean; assetsLoaded: boolean }): void {
-    this.manifestParsed = state.parsed
-    this.assetsLoaded = state.assetsLoaded
-    this.tabs.manifest.classList.toggle("vn-editor-tab-error", !state.parsed || !state.assetsLoaded)
+  private refreshManifestTab(): void {
+    this.tabs.manifest.classList.toggle("vn-editor-tab-error", !this.manifestParsed || !this.assetsLoaded)
     this.onManifestStateChangeCallbacks.forEach((cb) => cb())
   }
 
@@ -320,15 +329,6 @@ function makeTabBar(onSelect: (buffer: BufferName) => void): [HTMLDivElement, Re
     tabs[name] = tab
   }
   return [bar, tabs]
-}
-
-// A declared file that is not there is reported rather than refused: declaring an asset before the
-// art exists is the normal authoring order. The tab carries the same news for anyone not watching
-// the console. What this does not do is make the story survive one - a sub-renderer still throws on
-// the frame that paints it, which is a renderer change with its own blast radius.
-function reportMissingFiles(paths: string[]): void {
-  if (paths.length === 0) return
-  console.warn("Declared files that could not be loaded: " + paths.join(", "))
 }
 
 // The command the player last ran. Null on the first frame of a boot, where nothing has run yet.

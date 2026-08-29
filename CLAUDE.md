@@ -144,7 +144,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 
 ### The URL payload
-- `?vn=` carries a **two-document YAML stream, manifest first**, gzipped and base64'd. A
+- `?vn=` carries a **two-document YAML stream, manifest first**, gzipped and base64'd. `src/scriptUrl.ts`
+  keeps the vocabulary `CONTEXT.md` sets: `encodeText`/`decodeText` are the transport over any text,
+  `encodePayload`/`decodePayload` are the manifest-and-script pair. A
   single-document payload is refused rather than read as a script against a default manifest -
   `docs/adr/0003-the-url-payload-carries-the-manifest.md` says why, and says it because the next
   reader will want to accept one for backwards compatibility.
@@ -191,7 +193,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   layers is a rule that drifts.
 
 ### Renderer contract
-- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
+- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`, `setSaveId(id)`.
 - **`loadAssets` reports rather than refuses.** It resolves with the declared asset paths that could
   not be loaded, scoped to the state it was given - the loaders keep every path they have ever been
   handed, and an old typo is not this story's. Declaring an asset before the art exists is the normal

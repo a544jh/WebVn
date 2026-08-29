@@ -11,7 +11,7 @@ import "codemirror/lib/codemirror.css"
 import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { demoManifest, demoManifestYaml, demoYaml } from "./demoStory"
-import { encodeProject, playerUrl } from "./scriptUrl"
+import { encodePayload, playerUrl } from "./scriptUrl"
 
 let save
 try {
@@ -185,7 +185,7 @@ editor.onManifestStateChangeCallbacks.push(() => {
 })
 
 async function exportUrl() {
-  const url = playerUrl(await encodeProject(editor.getManifestText(), editor.getScript()), location.href)
+  const url = playerUrl(await encodePayload(editor.getManifestText(), editor.getScript()), location.href)
   try {
     await navigator.clipboard.writeText(url)
     exportUrlMessage.textContent = "Copied the story URL to the clipboard"
@@ -198,4 +198,4 @@ async function exportUrl() {
 }
 
 // Last, so the export gate above is listening before the boot reports how the manifest fared.
-editor.loadProject(demoManifestYaml, demoYaml)
+editor.loadProject(demoManifestYaml, demoYaml).catch((e) => console.error(e))

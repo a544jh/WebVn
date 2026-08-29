@@ -8,7 +8,7 @@ import { YamlParser } from "./yamlParser/YamlParser"
 import { loadFromLocalStorage } from "./core/save"
 import { VnPath } from "./core/vnPath"
 import { demoManifestYaml, demoYaml } from "./demoStory"
-import { decodeProject } from "./scriptUrl"
+import { decodePayload } from "./scriptUrl"
 
 declare global {
   interface Window {
@@ -28,7 +28,7 @@ boot().catch((e) => showLoadError(e))
 
 async function boot(): Promise<void> {
   const [manifestText, script] = params.has("vn")
-    ? await decodeProject(params.get("vn") as string)
+    ? await decodePayload(params.get("vn") as string)
     : [demoManifestYaml, demoYaml]
 
   const [manifest, manifestErrors] = YamlParser.parseManifest(manifestText)

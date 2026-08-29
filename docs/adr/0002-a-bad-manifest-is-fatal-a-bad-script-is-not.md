@@ -26,7 +26,7 @@ through enumeration, and the two should not disagree.
 - Every caller of `parseManifest` handles `null`. Today that is `demoStory.ts`, which throws, because the
   file is one we ship in our own bundle and CI parses it before anyone else sees it. A unit test asserting
   the demo's manifest parses with zero errors is the actual guarantee; the throw is type narrowing.
-- When manifest editing reaches the editor, it cannot show a half-applied manifest the way it shows a
+- When manifest editing reaches the editor, it cannot show a half-adopted manifest the way it shows a
   half-parsed script. It has to render the errors and keep the last valid manifest, which is a different
   interaction from the script buffer's and should not be assumed to fall out of the existing one.
 - `ParserError` and `SourceLocation` are still the currency, so the gutter machinery is shared even though

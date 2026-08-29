@@ -177,17 +177,35 @@ See [ROUGH_EDGES.md](./ROUGH_EDGES.md) for the running list of typos, design sme
 ## Design docs — decisions not yet built
 `design-docs/` holds architecture that has been reasoned through but not implemented. It is not documentation of
 the current code, so do not read it as describing what exists.
+
+**They are binding, not merely topical.** Each one already *decides* things, often in more detail than a reader
+skimming for its subject expects — mechanisms, key formats, UI triggers, and enumerated audits of existing code.
+Before deciding something in their territory, check whether they have already decided it: this has been
+rediscovered the expensive way more than once, most recently in `.scratch/manifest-editor/`, which re-derived a
+mechanism `SCRIPT_INCLUDES.md` prescribes outright. The list below says what each one settles, not just what it
+covers.
+
 - [PROJECT_STORAGE.md](./design-docs/PROJECT_STORAGE.md) — how an author's project (script, assets, metadata) is
   stored while editing and how it leaves the browser: OPFS as the working copy, a `.webvn.zip` archive as the
   canonical artifact, a library of projects rather than one, and four ingestion paths sharing one back half
   behind a `SourceLoader`. Read it before touching the asset loaders, the hardcoded asset lists in
   `src/demoStory.ts`, or the `vn-test` save key.
+  **Already decides:** the save key is `vn-save-<id>` and why the prefix exists; renaming a project orphans the
+  old key deliberately rather than migrating; the rename dialog is triggered from the manifest *on editor blur*,
+  and blur's weaknesses (incidental focus changes, never fires on a tab close) are named there.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
   `include` directive, resolved at parse time rather than as a command. Read it before changing
   `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's single-buffer assumptions.
+  **Already decides:** the multi-buffer mechanism — one `CodeMirror.Doc` per file swapped with `swapDoc`, a file
+  switcher, markers filtered to the open buffer plus an indicator that a *different* buffer has errors, and
+  "clean" redefined as all buffers clean. It also **enumerates the six single-buffer assumptions in `VnEditor`
+  with line numbers**, so that audit does not need doing again.
 - [EDITOR.md](./design-docs/EDITOR.md) — autocompletion, command documentation, list continuation and
   find-in-file for the script editor, and the CodeMirror 6 migration under them (5.x was archived in April
   2026). Read it before touching `src/editor/`, the command registry, or the `codemirror` dependency.
+  **Already decides:** the 5.x-to-6 API mapping, one row per call the editor makes — including `swapDoc` to
+  `view.setState()`, which is what makes a `Doc`-per-buffer editor a port at migration time rather than a
+  deletion.
 
 Sequencing across the three lives in [TODO](./TODO), which folds the dependency graph between them into the
 backlog rather than leaving an ordering nobody wrote down.
@@ -241,4 +259,19 @@ The five canonical triage roles, each label string equal to its name. See [docs/
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. Neither exists yet; `/domain-modeling` creates them lazily. See [docs/agents/domain.md](./docs/agents/domain.md).
+Single-context: one [CONTEXT.md](./CONTEXT.md) at the repo root, and `docs/adr/`. Both exist. See
+[docs/agents/domain.md](./docs/agents/domain.md).
+
+`CONTEXT.md` is the glossary, and it is opinionated: terms carry an `_Avoid_` list naming the words this project
+does *not* use for that concept. Check a term against it before coining one, and add resolved terms as they
+settle rather than in a batch. Two distinctions it draws that are easy to trip over: a **script** is the text and
+a **story** is the command sequence parsed from it; a command is **applied** to a state, while a manifest is
+**adopted** by the editor.
+
+The ADRs, newest first:
+- `0003-the-url-payload-carries-the-manifest.md` — the `?vn=` payload is a two-document YAML stream, manifest
+  first, and a single-document payload is refused rather than defaulted.
+- `0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` — why `parseStory` always returns a state and
+  `parseManifest` may return none.
+- `0001-manifest-seeds-the-initial-state.md` — why the manifest seeds `VnPlayerState` rather than living beside
+  it, and (2026-08-28 amendment) why `id` and `title` stay on the manifest and out of the state.

@@ -35,7 +35,7 @@ no manifest at all, and the preview has to be seeded from *something*.
 
 ADR 0002 already decided what happens, and named this ticket while doing it:
 
-> When manifest editing reaches the editor, it cannot show a half-applied manifest the way it shows a
+> When manifest editing reaches the editor, it cannot show a half-adopted manifest the way it shows a
 > half-parsed script. It has to render the errors and keep the last valid manifest, which is a
 > different interaction from the script buffer's and should not be assumed to fall out of the
 > existing one.

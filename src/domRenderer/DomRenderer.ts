@@ -28,6 +28,7 @@ export class DomRenderer implements Renderer {
   private renderGeneration = 0
 
   private root: HTMLDivElement
+  private container: HTMLElement
   private menuDiv: HTMLDivElement
   private player: VnPlayer
 
@@ -53,10 +54,15 @@ export class DomRenderer implements Renderer {
 
   private arrow: HTMLDivElement
 
-  constructor(elem: HTMLDivElement, player: VnPlayer) {
+  // `container` is the element the scene is scaled inside when it goes fullscreen. It sits outside
+  // the root, so it is passed in rather than found: this renderer touches nothing above `elem`
+  // except the document-level listeners below. It defaults to the root, which scales to 1 and pads
+  // nothing - a renderer mounted without a container is simply never scaled.
+  constructor(elem: HTMLDivElement, player: VnPlayer, container: HTMLElement = elem) {
     this.finished = true
 
     this.root = elem
+    this.container = container
 
     this.menuDiv = document.createElement("div")
     this.menuDiv.classList.add("vn-menu-container")
@@ -88,6 +94,12 @@ export class DomRenderer implements Renderer {
     // remembered for the contextmenu handler: not every browser gives that event a pointerType
     this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), { capture: true })
     document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
+    // Permanent, and registered here rather than alongside the request in `enterFullscreen`:
+    // leaving fullscreen is not something that request can await, since Esc and the browser's own
+    // chrome both do it, and a listener added per request would pile up one per click.
+    document.addEventListener("fullscreenchange", () => {
+      if (document.fullscreenElement === null) this.restoreScale()
+    })
     this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
       e.stopPropagation()
       this.undo()
@@ -415,6 +427,48 @@ export class DomRenderer implements Renderer {
     const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
     const failed = new Set([...imagesFailed, ...audioFailed])
     return [...images, ...audio].filter((asset) => failed.has(asset.path))
+  }
+
+  // Called by whatever chrome offers a fullscreen button - the button itself lives outside the vn,
+  // so it stays with the entry point and this is what it calls. Exiting is not the caller's to
+  // trigger; the constructor's `fullscreenchange` listener restores the scale however it happens.
+  public enterFullscreen(): void {
+    this.container.requestFullscreen({ navigationUI: "hide" }).then(() => {
+      // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
+      // do about that, and the scaling below still works, so swallow it.
+      screen.orientation.lock("landscape").catch(() => undefined)
+      window.setTimeout(() => this.setScale(), 500)
+    }) // hackety hack to let mobile ui settle..
+  }
+
+  // Fits the scene into the container it was given, letterboxing whichever axis is left over. The
+  // scene has a fixed size in css pixels, so going fullscreen is a scale rather than a relayout.
+  private setScale(): void {
+    const containerWidth = this.container.clientWidth // width of screen in css pixels
+    const vnWidth = this.root.clientWidth
+    const containerHeight = this.container.clientHeight
+    const vnHeight = this.root.clientHeight
+
+    let scale
+    // if screen is wider than vn aspect ratio
+    if (containerWidth / containerHeight > vnWidth / vnHeight) {
+      scale = containerHeight / vnHeight
+      this.container.style.paddingLeft = (containerWidth - vnWidth * scale) / 2 + "px"
+    } else {
+      scale = containerWidth / vnWidth
+      this.container.style.paddingTop = (containerHeight - vnHeight * scale) / 2 + "px"
+    }
+    this.root.style.margin = "initial"
+    this.root.style.transform = `scale(${scale})`
+    this.root.style.transformOrigin = "top left"
+  }
+
+  private restoreScale(): void {
+    this.container.style.paddingLeft = ""
+    this.container.style.paddingTop = ""
+    this.root.style.margin = ""
+    this.root.style.transform = ""
+    this.root.style.transformOrigin = ""
   }
 }
 

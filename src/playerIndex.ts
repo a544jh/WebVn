@@ -48,8 +48,12 @@ async function boot(): Promise<void> {
   const player = new VnPlayer(seedState(manifest), save)
   window.vnPlayer = player
 
-  const renderer = new DomRenderer(vnDiv, player)
+  const renderer = new DomRenderer(vnDiv, player, vnDivContainer)
   window.vnDomRenderer = renderer
+  // The button is page chrome rather than part of the vn, so the wiring stays here and the
+  // mechanism lives in the renderer. Wired inside boot because that is where the renderer exists -
+  // before it does, and on the error path where it never will, there is no scene to scale.
+  document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => renderer.enterFullscreen())
 
   const [state, scriptErrors] = YamlParser.parseStory(script, manifest)
   // Not showLoadError: a script with a broken command still has content worth showing, and every
@@ -77,52 +81,4 @@ function showLoadError(details: unknown): void {
   const message = document.createElement("p")
   message.textContent = "The VN could not be loaded."
   vnDiv.appendChild(message)
-}
-
-document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
-  document
-    .getElementById("vn-div-container")
-    ?.requestFullscreen({ navigationUI: "hide" })
-    .then(() => {
-      // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
-      // do about that, and the scaling below still works, so swallow it.
-      screen.orientation.lock("landscape").catch(() => undefined)
-      window.setTimeout(setScale, 500)
-    }) // hackety hack to let mobile ui settle..
-})
-
-document.addEventListener("fullscreenchange", () => {
-  if (document.fullscreenElement === null) {
-    restoreOnFullscreenExit()
-  }
-})
-
-// TODO move to DomRenderer
-function setScale() {
-  const containerWidth = vnDivContainer.clientWidth // width of screen in css pixels
-  const vnWidth = vnDiv.clientWidth
-  const containerHeight = vnDivContainer.clientHeight
-  const vnHeight = vnDiv.clientHeight
-
-  let scale
-  // if screen is wider than vn aspect ratio
-  if (containerWidth / containerHeight > vnWidth / vnHeight) {
-    scale = containerHeight / vnHeight
-    vnDivContainer.style.paddingLeft = (containerWidth - vnWidth * scale) / 2 + "px"
-  } else {
-    scale = containerWidth / vnWidth
-    vnDivContainer.style.paddingTop = (containerHeight - vnHeight * scale) / 2 + "px"
-  }
-  const transform = `scale(${scale})`
-  vnDiv.style.margin = "initial"
-  vnDiv.style.transform = transform
-  vnDiv.style.transformOrigin = "top left"
-}
-
-function restoreOnFullscreenExit() {
-  vnDivContainer.style.paddingLeft = ""
-  vnDivContainer.style.paddingTop = ""
-  vnDiv.style.margin = ""
-  vnDiv.style.transform = ""
-  vnDiv.style.transformOrigin = ""
 }

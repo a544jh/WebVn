@@ -34,7 +34,7 @@ window.vnPlayer = player
 
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
-const renderer = new DomRenderer(vnDiv, player)
+const renderer = new DomRenderer(vnDiv, player, vnDivContainer)
 window.vnDomRenderer = renderer
 
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
@@ -122,53 +122,9 @@ document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {
   editor.setJumpMode((e.target as HTMLInputElement).value as JumpMode)
 })
 
-document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => {
-  document
-    .getElementById("vn-div-container")
-    ?.requestFullscreen({ navigationUI: "hide" })
-    .then(() => {
-      // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
-      // do about that, and the scaling below still works, so swallow it.
-      screen.orientation.lock("landscape").catch(() => undefined)
-      window.setTimeout(setScale, 500)
-    }) // hackety hack to let mobile ui settle..
-})
-
-document.addEventListener("fullscreenchange", () => {
-  if (document.fullscreenElement === null) {
-    restoreOnFullscreenExit()
-  }
-})
-
-// TODO move to DomRenderer
-function setScale() {
-  const containerWidth = vnDivContainer.clientWidth // width of screen in css pixels
-  const vnWidth = vnDiv.clientWidth
-  const containerHeight = vnDivContainer.clientHeight
-  const vnHeight = vnDiv.clientHeight
-
-  let scale
-  // if screen is wider than vn aspect ratio
-  if (containerWidth / containerHeight > vnWidth / vnHeight) {
-    scale = containerHeight / vnHeight
-    vnDivContainer.style.paddingLeft = (containerWidth - vnWidth * scale) / 2 + "px"
-  } else {
-    scale = containerWidth / vnWidth
-    vnDivContainer.style.paddingTop = (containerHeight - vnHeight * scale) / 2 + "px"
-  }
-  const transform = `scale(${scale})`
-  vnDiv.style.margin = "initial"
-  vnDiv.style.transform = transform
-  vnDiv.style.transformOrigin = "top left"
-}
-
-function restoreOnFullscreenExit() {
-  vnDivContainer.style.paddingLeft = ""
-  vnDivContainer.style.paddingTop = ""
-  vnDiv.style.margin = ""
-  vnDiv.style.transform = ""
-  vnDiv.style.transformOrigin = ""
-}
+// The button is page chrome rather than part of the vn, so the wiring stays here and the
+// mechanism lives in the renderer.
+document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => renderer.enterFullscreen())
 
 const exportUrlMessage = document.getElementById("vn-btn-export-url-message") as HTMLSpanElement
 const exportUrlButton = document.getElementById("vn-btn-export-url") as HTMLButtonElement

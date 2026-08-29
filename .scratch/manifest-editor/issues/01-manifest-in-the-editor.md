@@ -92,7 +92,7 @@ mis-replay, it can only be shortened. The third option - keep it only when the r
 compatible - is exactly what `replayAsFarAsPossible` approximates, and the cheap approximation is the
 one that already ships.
 
-### 2. `id` is editable, and saves key off it from now on
+### 2. `id` is editable, and saves become `vn-save-<id>`
 
 The TODO in `index.ts` (`// TODO: id from VN title`) predates the manifest having an `id`; the field
 it was waiting for now exists, so this ticket spends it. Three call sites hardcode `"test"`:

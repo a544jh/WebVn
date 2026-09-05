@@ -11,8 +11,9 @@ import { writeManifest, writeScript } from "./projectStore"
 // src/editor/, the pixel stays in the tab bar, and neither imports the other. Both entry points wire
 // the two together in the two lines it takes.
 
-// The three values src/editor/editor.ts's StoreState spells; see that type for why they are written
-// in both places rather than shared.
+// The three values src/editor/editor.ts's `StoreState` spells, and below it that module's
+// `BufferName`. See `StoreState` there for why both are written in two places rather than shared,
+// and for what stops them drifting.
 export type StoreState = "stored" | "unstored" | "failed"
 
 export type StoredBuffer = "script" | "manifest"

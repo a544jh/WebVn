@@ -42,10 +42,19 @@ const INITIAL_BUFFER: BufferName = "script"
 // because quota exhaustion is a real outcome and silently staying dirty forever is the worst
 // version of it.
 //
-// The same three values are what src/storage/ProjectStoring.ts reports. They are spelled in both
-// places rather than shared through an import, because an import either way would pull OPFS into
-// src/editor/ or CodeMirror into src/storage/ - and the wiring in src/index.ts assigns one to the
-// other, so a fourth state added on one side fails to compile rather than drifting.
+// The same three values are what src/storage/ProjectStoring.ts reports, and the `BufferName` above
+// is duplicated there as `StoredBuffer`. Five words, spelled twice, deliberately - though not for
+// the reason an earlier version of this comment gave, which ruled out a door nobody proposed.
+//
+// The two modules must not import *each other*: that pulls OPFS into src/editor/ or CodeMirror into
+// src/storage/. A third module holding nothing but these two aliases would avoid that, since there
+// would be nothing in it to pull. It is not worth it here - a file with no natural home (src/types/
+// is for lib.dom augmentations) plus an `import type` idiom this repo uses nowhere, to save five
+// words - but it is the honest alternative, not an impossible one.
+//
+// What makes the duplication safe is that neither side can drift in silence. The two wiring lines in
+// src/editorBoot.ts assign one side to the other, so widening or narrowing either union on one side
+// alone is a compile error there. Verified by doing it, not assumed.
 export type StoreState = "stored" | "unstored" | "failed"
 
 const STORE_LABELS: Record<StoreState, string> = {

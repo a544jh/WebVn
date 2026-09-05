@@ -3,8 +3,10 @@ import { setStoreRoot } from "../../src/storage/projectStore"
 
 // OPFS is per-origin and outlives a test file, and the browser suites run their files in parallel
 // against one origin - so a suite that writes into it needs both a clean slate and a corner of its
-// own. `createVnRoot`'s `localStorage.clear()` plays the first role for the DOM suites; the scratch
-// directory is what plays the second, so a test that leaks cannot confuse a suite running beside it.
+// own. `createVnRoot`'s `clearSaves` plays the first role for the DOM suites - scoped to the ids a
+// suite owns, because localStorage is origin-wide too and a blanket clear was doing to saves exactly
+// what a shared scratch name does to files; the scratch directory is what plays the second, so a
+// test that leaks cannot confuse a suite running beside it.
 //
 // **The name has to be unique per suite, and that is on the caller.** Three suites shared one name
 // until 2026-09-05 and passed anyway, which is the whole problem: their `beforeEach` calls interleave

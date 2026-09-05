@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { AppShell } from "../../src/AppShell"
-import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, settle, waitFor } from "../helpers/vnHarness"
+import { SCENE_HEIGHT, SCENE_WIDTH, clearSaves, releaseStoredEditorLock, settle, waitFor } from "../helpers/vnHarness"
 import { createProject } from "../../src/storage/projectStore"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import { clearOpfsStore } from "../helpers/opfs"
@@ -46,7 +46,9 @@ let elements: {
 // The shape src/index.html has: a picker div, and a session div that starts `hidden` with the stage
 // and the editor inside it.
 const mountPage = (): void => {
-  localStorage.clear()
+  // This suite's own id, not everything: localStorage is origin-wide and a blanket clear takes out
+  // the saves of whatever suite is running beside this one.
+  clearSaves(DIRECTORY)
   document.body.innerHTML = ""
 
   const pickerDiv = document.createElement("div")
@@ -110,6 +112,11 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  // **Before the close, and before the next `beforeEach` clears the store.** A rename keeps working
+  // after the test that started it returns - the test waits for the part it asserts on, and the copy
+  // and the delete come after - so without this the next test wipes the scratch tree out from under
+  // it and the rename dies of `NotFoundError`, failing whatever else was running at the time.
+  await shell?.settled()
   await shell?.getSession()?.close()
   shell = null
 })

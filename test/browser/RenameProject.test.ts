@@ -17,6 +17,7 @@ import {
   SCENE_HEIGHT,
   SCENE_WIDTH,
   releaseStoredEditorLock,
+  clearSaves,
   settle,
   sleep,
   textBoxText,
@@ -153,7 +154,10 @@ let navigation: FakeNavigation
 let closes = 0
 
 const mountPage = (): void => {
-  localStorage.clear()
+  // This suite's two ids, not everything: localStorage is origin-wide, and a blanket clear takes out
+  // the saves of whatever suite is running beside this one - which is exactly what this suite's own
+  // save assertions would suffer from another file.
+  clearSaves(FROM, TO)
   document.body.innerHTML = ""
   const pickerDiv = document.createElement("div")
   const sessionDiv = document.createElement("div")
@@ -204,6 +208,11 @@ const editIdAndBlur = async (id: string): Promise<void> => {
 }
 
 afterEach(async () => {
+  // **Before the close, and before the next `beforeEach` clears the store.** A rename keeps working
+  // after the test that started it returns - the test waits for the part it asserts on, and the copy
+  // and the delete come after - so without this the next test wipes the scratch tree out from under
+  // it and the rename dies of `NotFoundError`, failing whatever else was running at the time.
+  await shell?.settled()
   await shell?.getSession()?.close()
   shell = null
 })

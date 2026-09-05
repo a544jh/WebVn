@@ -274,6 +274,17 @@ export class AppShell {
     return this.session
   }
 
+  // Resolves once every swap queued so far has finished. **Exposed for tests**, the way
+  // `BootedEditor.lock` is: a suite that clears the store between tests has to know the last one has
+  // stopped moving files, and a rename's tail outlives the test that started it - the test waits for
+  // the part it asserts on, not for the copy and the delete behind it. Deleting the tree underneath
+  // one is a `NotFoundError` thrown deep inside a run that has moved on to another file, which is
+  // how this was found: `removeRecursive` logged the scratch tree going 121ms before a `projectSize`
+  // walked into the hole.
+  public settled(): Promise<void> {
+    return this.swaps
+  }
+
   // Renaming: the manifest's id changed, so the directory follows it.
   //
   // **The ordering is the whole of this method**, and it is arranged so that nothing is torn down

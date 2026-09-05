@@ -151,15 +151,33 @@ including the round trip with the real boot underneath it.
 
 Four things worth recording.
 
-**`lastOpened` is a moment per project, keyed by directory.** Corrected 2026-09-05 after reading the
-canvas, which this ticket's paragraph on ordering had not been checked against: its rows each carry
-"opened just now" / "opened 2 days ago" / "opened 5 days ago", and one directory name cannot say
-that for three rows. The first attempt here kept the single name and put one row on top, on the
-reasoning that a field nothing writes is a field nobody can tell is dead - which is a good rule and
-was applied to the wrong question, because the canvas *does* write it. `EditorState.lastOpened` is
-now `Record<string, string>` of ISO timestamps, `recordOpened` merges rather than replaces (a rename
-marker is about to share that file), and the tranche 1 shape is discarded on read rather than
-migrated, which is what `editor.yaml` being defined as losable is for.
+**`lastOpened` is a moment per project, and the list is ordered by `created` rather than by it.**
+Two corrections, both 2026-09-05.
+
+First, the field: the canvas draws "opened just now" / "opened 2 days ago" / "opened 5 days ago" on
+three different rows, and one directory name cannot say that for three rows. `EditorState.lastOpened`
+is `Record<string, string>` of ISO timestamps; the tranche 1 single-name shape is discarded on read
+rather than migrated, which is what `editor.yaml` being defined as losable is for.
+
+Second, the sort. **This ticket's "`lastOpened` descending" is superseded: the picker orders by
+creation, oldest first.** A list that reorders itself under the author is the thing to avoid - every
+trip back from a project reshuffled the rows, and the spatial memory of where each one sits is worth
+more than having the likeliest one on top. Oldest-first is the strongest form of it: a new project
+appends at the bottom and no existing row moves at all. The rows still carry their last-opened line,
+so recency survives as information without being the sort.
+
+Note what the canvas did and did not settle here, because it is easy to over-read: `Main` happens to
+be drawn in recency order but `ManifestError` is drawn just-now / 5-days / 2-days, which is not any
+order at all. The drawings pin the row's **label** and say nothing about the sort, so this is not a
+departure from them.
+
+`created` is recorded because OPFS will not supply it. Measured 2026-09-05: Chromium enumerates a
+directory in descending codepoint order of the entry name, identically for two different creation
+sequences over the same names, and puts a deleted-then-recreated name back in the same slot - so
+there is no insertion component to read, and the standard defines no iteration order to rely on
+anyway. `createProject` writes the date, so every way into the store is dated by construction, and
+`forgetProject` takes both entries away on delete - otherwise the next project to reuse an id would
+inherit its predecessor's date and its place in the list.
 
 **`writeEditorState({ lastOpened })` landed in `bootEditor`, not in the picker.** The ticket says it
 moves to "wherever the picker opens a project", and that is this: the boot is where the lock is

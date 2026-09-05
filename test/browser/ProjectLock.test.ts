@@ -91,8 +91,11 @@ describe("booting a second tab on one project", () => {
     if (booted.kind === "booted") throw new Error("unreachable")
     expect(booted.reason).toContain("another tab")
     // And it wrote nothing on its way to being refused - the previous test shows a boot that gets
-    // through writes `lastOpened` here. That is why the lock is taken before that record rather than
-    // after: a lock taken after the first write was not there for the write it guards.
-    expect(await readEditorState()).toEqual({})
+    // through records `lastOpened` here. That is why the lock is taken before that record rather
+    // than after: a lock taken after the first write was not there for the write it guards.
+    //
+    // `lastOpened` specifically, not the whole file: `created` already holds the date this suite's
+    // own `createProject` wrote in beforeEach, which is the setup rather than the boot.
+    expect((await readEditorState()).lastOpened).toEqual({})
   })
 })

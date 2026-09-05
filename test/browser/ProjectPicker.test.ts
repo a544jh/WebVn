@@ -111,33 +111,90 @@ describe("the picker's list", () => {
     expect(rowTitles()).toEqual(["A Story", "B Story"])
   })
 
-  it("orders by when each project was last opened, most recent first", async () => {
+  it("orders by when each project was created, oldest first", async () => {
+    // Creation order rather than recency, so the list does not reorder itself under the author.
+    // OPFS cannot supply it - measured 2026-09-05, it enumerates by name with no insertion
+    // component - so the date is recorded as each project is created.
     await make("a-story", "A Story")
     await make("b-story", "B Story")
     await make("c-story", "C Story")
-    // A moment per project rather than one name: every row says when it was last opened, and one
-    // name could only ever speak for the top one.
     await writeEditorState({
-      lastOpened: { "a-story": daysAgo(5), "b-story": daysAgo(0.5), "c-story": daysAgo(2) },
+      created: { "a-story": daysAgo(5), "b-story": daysAgo(0.5), "c-story": daysAgo(2) },
     })
 
     await newPicker().render()
 
-    expect(rowDirectories()).toEqual(["b-story", "c-story", "a-story"])
+    expect(rowDirectories()).toEqual(["a-story", "c-story", "b-story"])
   })
 
-  it("says when each project was last opened, and says so when one never has been", async () => {
-    await make("opened-story", "Opened")
-    await make("fresh-story", "Fresh")
-    await writeEditorState({ lastOpened: { "opened-story": daysAgo(2) } })
+  it("does not move a row when its project is opened", async () => {
+    // The whole point of ordering by creation. Under recency ordering every trip back from a project
+    // reshuffled the list, and the spatial memory of where each row sits is worth more than having
+    // the likeliest one on top.
+    await make("a-story", "A Story")
+    await make("b-story", "B Story")
+    await make("c-story", "C Story")
+    const picker = newPicker()
+    await picker.render()
+    const before = rowDirectories()
+
+    const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "c-story")
+    if (booted.kind === "refused") throw new Error(booted.reason)
+    await booted.close()
+    document.body.appendChild(pickerRoot)
+    await picker.render()
+
+    expect(rowDirectories()).toEqual(before)
+  })
+
+  it("appends a new project at the end, leaving every existing row where it was", async () => {
+    await make("a-story", "A Story")
+    await make("b-story", "B Story")
+    await newPicker().render()
+    const before = rowDirectories()
+
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "Zebra")
+    pressConfirm()
+    await sleep(300)
+
+    const returning = newPicker()
+    await returning.render()
+    expect(rowDirectories()).toEqual([...before, "zebra"])
+  })
+
+  it("puts a project it has no creation date for above the ones it has", async () => {
+    // Everything that predates this file recording a date - an author's existing library - is older
+    // than everything that has one, and sorts among its own kind by the name it is addressed under.
+    await make("newer-story", "Newer")
+    await make("older-story", "Older")
+    await writeEditorState({ created: { "newer-story": daysAgo(1) } })
 
     await newPicker().render()
 
+    expect(rowDirectories()).toEqual(["older-story", "newer-story"])
+  })
+
+  it("says when each project was last opened, and says so when one never has been", async () => {
+    // Rows in creation order - `opened-story` first, because it was made first - each carrying its
+    // own last-opened line.
+    await make("opened-story", "Opened")
+    await make("fresh-story", "Fresh")
+    await writeEditorState({
+      created: { "opened-story": daysAgo(9), "fresh-story": daysAgo(8) },
+      lastOpened: { "opened-story": daysAgo(2) },
+    })
+
+    await newPicker().render()
+
+    expect(rowDirectories()).toEqual(["opened-story", "fresh-story"])
     expect(openedLabels()).toEqual(["opened 2 days ago", "not opened yet"])
   })
 
-  it("records the moment a project is opened, so the next visit lists it first", async () => {
-    // Written by the boot, not by the picker - but the picker is what it is for.
+  it("records the moment a project is opened, and says so on its row", async () => {
+    // Written by the boot, not by the picker - but the picker is what it is for. It is the row's
+    // line rather than the sort: recency survives as information without moving anything.
     await make("a-story", "A Story")
     await make("z-story", "Z Story")
     const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "z-story")
@@ -147,8 +204,8 @@ describe("the picker's list", () => {
 
     await newPicker().render()
 
-    expect(rowDirectories()).toEqual(["z-story", "a-story"])
-    expect(openedLabels()[0]).toBe("opened just now")
+    expect(rowDirectories()).toEqual(["a-story", "z-story"])
+    expect(openedLabels()).toEqual(["not opened yet", "opened just now"])
   })
 
   it("lists a project whose manifest does not parse, under its directory name", async () => {
@@ -329,6 +386,8 @@ describe("picker to editor and back", () => {
 
     expect((await readProject("b-story")).scriptText).toContain("Typed before going back")
     expect(Object.keys((await readEditorState()).lastOpened ?? {})).toEqual(["b-story"])
+    // And the order the picker comes back to is the one it left, because opening moves nothing.
+    expect((await readEditorState()).created).toHaveProperty("a-story")
     // The lock is let go on the way out, so the same project can be opened again.
     const again = await takeProjectLock("b-story")
     expect(again).not.toBe(null)
@@ -336,7 +395,7 @@ describe("picker to editor and back", () => {
 
     const returning = newPicker()
     await returning.render()
-    expect(rowDirectories()).toEqual(["b-story", "a-story"])
+    expect(rowDirectories()).toEqual(["a-story", "b-story"])
   })
 })
 

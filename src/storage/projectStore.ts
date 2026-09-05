@@ -81,6 +81,18 @@ export interface EditorState {
   // was one project and the field had nothing to decide; the read below discards that shape rather
   // than migrating it, which is exactly what this file being defined as losable is for.
   readonly lastOpened?: Record<string, string>
+  // **When each project came into the library**, same shape, and what the picker orders by.
+  //
+  // Recorded because OPFS will not tell us. Measured 2026-09-05: Chromium enumerates a directory in
+  // descending codepoint order of the entry name, identically for two different creation sequences
+  // over the same names, and puts a deleted-then-recreated name back in the same place - so there is
+  // no insertion component to read, and the standard does not define an iteration order to rely on
+  // anyway.
+  //
+  // Neither of these is an index: `listProjects` still walks `projects/` and this only ever answers
+  // questions *about* what that walk found. A project missing from either map is a project this file
+  // has nothing to say about, not a project that does not exist.
+  readonly created?: Record<string, string>
 }
 
 // The store addresses one root rather than taking a directory per call. This is the one place the
@@ -160,6 +172,10 @@ export const createProject = async (id: string, files: ProjectFiles): Promise<vo
   const dir = await root()
   await writeFile(dir, projectPath(id, MANIFEST_FILE), files.manifestText)
   await writeFile(dir, projectPath(id, SCRIPT_FILE), files.scriptText)
+  // After the files, because the files are the project and this is only a note about it - and here
+  // rather than at each caller, so every way of putting a project into the store is dated by
+  // construction: minting one, seeding the demo, and the import that will share this call.
+  await note("created", id)
 }
 
 // A brand-new project, under the title its author typed. **Valid, not empty**: a genuinely empty
@@ -209,31 +225,55 @@ export const readEditorState = async (): Promise<EditorState> => {
   const text = await root()
     .then((dir) => readText(dir, EDITOR_FILE))
     .catch(() => null)
-  if (text === null) return {}
-  let parsed: unknown
-  try {
-    parsed = parse(text)
-  } catch (e) {
-    return {}
-  }
-  if (typeof parsed !== "object" || parsed === null) return {}
-  const lastOpened = (parsed as Record<string, unknown>).lastOpened
-  if (typeof lastOpened !== "object" || lastOpened === null) return {}
-  // Entry by entry, so one unreadable value does not cost the rest. A directory that is no longer
-  // there is left in - enumeration is the truth about what exists, and this only ever orders what
-  // enumeration found.
-  const opened: Record<string, string> = {}
-  for (const [directory, at] of Object.entries(lastOpened as Record<string, unknown>)) {
-    if (typeof at === "string") opened[directory] = at
-  }
-  return { lastOpened: opened }
+  const parsed = text === null ? null : parseOrNull(text)
+  // Both maps, always, however little the file had to say - a missing file, an unparseable one and a
+  // valid one all read the same shape, so no caller has to tell those apart. They stay optional on
+  // the type because a *writer* need not supply either.
+  if (typeof parsed !== "object" || parsed === null) return { lastOpened: {}, created: {} }
+  const record = parsed as Record<string, unknown>
+  return { lastOpened: timestamps(record.lastOpened), created: timestamps(record.created) }
 }
 
-// Note the *moment* a project was opened, merging rather than replacing: this file will hold a
-// rename marker beside this field, and a caller that wrote the whole state would drop it.
-export const recordOpened = async (directory: string): Promise<void> => {
+const parseOrNull = (text: string): unknown => {
+  try {
+    return parse(text)
+  } catch (e) {
+    return null
+  }
+}
+
+// Entry by entry, so one unreadable value does not cost the rest, and anything that is not a map of
+// strings reads as empty - including `lastOpened: <directory>`, the single name tranche 1 wrote.
+// Discarding that shape *is* the migration; see EditorState for why this file gets no version.
+//
+// A directory that is no longer there is left in rather than pruned on read: this is a hint file,
+// and a read that writes is a read that races another tab doing the same.
+const timestamps = (value: unknown): Record<string, string> => {
+  if (typeof value !== "object" || value === null) return {}
+  const found: Record<string, string> = {}
+  for (const [directory, at] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof at === "string") found[directory] = at
+  }
+  return found
+}
+
+// Note the *moment* a project was opened, merging rather than replacing: this file holds two maps
+// already and a rename marker is to come, so a caller that wrote the whole state would drop them.
+export const recordOpened = (directory: string): Promise<void> => note("lastOpened", directory)
+
+const note = async (field: "lastOpened" | "created", directory: string): Promise<void> => {
   const state = await readEditorState()
-  await writeEditorState({ ...state, lastOpened: { ...state.lastOpened, [directory]: new Date().toISOString() } })
+  await writeEditorState({ ...state, [field]: { ...state[field], [directory]: new Date().toISOString() } })
+}
+
+// Forget what this file knew about a project. Called when one is deleted, and **not merely
+// tidiness**: an entry that outlives its directory is inherited by the next project to reuse that
+// id, which would open on someone else's creation date and take their place in the list.
+export const forgetProject = async (directory: string): Promise<void> => {
+  const { lastOpened = {}, created = {} } = await readEditorState()
+  delete lastOpened[directory]
+  delete created[directory]
+  await writeEditorState({ lastOpened, created })
 }
 
 export const writeEditorState = (state: EditorState): Promise<void> =>

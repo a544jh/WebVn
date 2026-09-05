@@ -24,8 +24,12 @@ left. Three things follow, and they are why this is written down rather than lef
 **Nothing is open, so nothing can be marked as open.** 02's "the open project is marked" was written
 for a panel living inside a booted editor. On a pre-boot page the honest ordering is `lastOpened`
 descending, which is the same field the ticket already makes do work - the row the author wants is
-simply first. Note what the canvas settled about that field and this file did not: every row carries
-its own "opened 2 days ago", so `lastOpened` is a **moment per project**, not one directory name.
+simply first. **Both halves of that sentence were superseded on 2026-09-05** - see ticket 02's
+comments. `lastOpened` is a **moment per project**, not one directory name, because every row on the
+canvas carries its own "opened 2 days ago"; and the list is ordered by a recorded **creation date**
+rather than by recency, because a list that reorders itself under the author is worse than one whose
+top row is not always the likeliest. The rows keep the last-opened line either way, which is the part
+the canvas actually settles.
 
 **The lock-ordering cross-edge mostly dissolves.** "Take the new lock before closing the old" exists
 because a switch happens *while holding a project*, and a refusal mid-switch would leave the author

@@ -91,6 +91,21 @@ the front door besides New project. That is deliberate: the author is mid-edit i
 been renamed underneath them, and bouncing them out to the picker to re-pick the thing they are
 already working on would be theatre. The picker does not flash in between.
 
+## The bookkeeping moves with the directory
+
+`editor.yaml` holds two maps keyed by directory - `created`, which the picker orders by, and
+`lastOpened`, which each row's line reads. A rename changes the key both are filed under, so it has
+to **carry the entries across and forget the old ones**, in the same step that clears
+`pendingRename`. `forgetProject(from)` already exists for delete; what is missing is the copy.
+
+Getting this wrong is not subtle: a renamed project with no `created` entry falls into the
+"no recorded creation" bucket, which sorts *above* everything dated - so renaming a project sends it
+to the top of the library. `lastOpened` matters less, since reopening under the new directory
+records it again on the way in, but there is no reason to drop it either.
+
+Note this is a merge into the file rather than a whole-state write: `pendingRename` is in there too,
+and the step that clears it must not take the maps with it.
+
 ## Saves are orphaned, deliberately
 
 The player's save key is `vn-save-<id>`, so a rename orphans the old one and nothing migrates it. Say
@@ -122,6 +137,8 @@ pressure the check above exists for, and leave behind a project the author did n
 - [ ] The destination has no `manifest.yaml` until the copy is otherwise complete - asserted, since
       every recovery state in ticket 05 turns on it
 - [ ] `pendingRename` is written before the copy and cleared after the delete
+- [ ] The renamed project keeps its place in the picker's order - its `created` entry moves to the
+      new directory and the old one is forgotten, and `lastOpened` goes with it
 - [ ] The copy is one recursive helper over the existing walk, streaming per file
 
 ## Not in scope

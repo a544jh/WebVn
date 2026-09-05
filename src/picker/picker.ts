@@ -3,7 +3,15 @@ import { icon } from "../chrome/icons"
 import { demoManifest } from "../demoStory"
 import { isPersisted } from "../storage/persistence"
 import { takeProjectLock } from "../storage/projectLock"
-import { deleteProject, listProjects, mintProject, ProjectSummary, readEditorState } from "../storage/projectStore"
+import {
+  deleteProject,
+  EditorState,
+  forgetProject,
+  listProjects,
+  mintProject,
+  ProjectSummary,
+  readEditorState,
+} from "../storage/projectStore"
 import { seedDemoProject } from "../storage/seedDemoProject"
 import { askForNewProject } from "./newProjectDialog"
 import "../chrome/chrome.css"
@@ -28,10 +36,12 @@ import "./picker.css"
 // a place the author can stay: they are on the list, looking at what they have.
 export type OpenProject = (directory: string) => Promise<string | null>
 
-// A row's own line, and what the ordering is by. Undefined for a project nobody has opened yet - one
-// just created in another tab, or a demo just added - which is a thing to say rather than a zero.
+// A row's own line, and what the list is ordered by. `openedAt` is undefined for a project nobody
+// has opened yet, which is a thing to say rather than a zero; `createdAt` is undefined for one that
+// predates this file recording it.
 interface ListedProject extends ProjectSummary {
   readonly openedAt: Date | undefined
+  readonly createdAt: Date | undefined
 }
 
 export class ProjectPicker {
@@ -70,7 +80,7 @@ export class ProjectPicker {
     const [projects, editorState, persisted] = await Promise.all([listProjects(), readEditorState(), isPersisted()])
     if (generation !== this.generation) return
 
-    this.root.replaceChildren(this.draw(order(projects, editorState.lastOpened ?? {}), persisted))
+    this.root.replaceChildren(this.draw(order(projects, editorState), persisted))
   }
 
   public stop(): void {
@@ -291,6 +301,10 @@ export class ProjectPicker {
     try {
       this.refusal = null
       await deleteProject(project.directory)
+      // The bookkeeping goes with the tree. An entry that outlives its directory would be inherited
+      // by the next project to reuse the id, which would then open on someone else's creation date
+      // and take their place in the list.
+      await forgetProject(project.directory)
     } finally {
       await lock.release()
     }
@@ -314,16 +328,30 @@ const header = (): HTMLElement => {
   return elem
 }
 
-// Most recently opened first, then whatever has never been opened, then by the name a project is
-// addressed under so the order is stable. **A moment per project rather than one name**: the rows
-// each say when they were last opened, and one name can only speak for one of them.
-const order = (projects: ProjectSummary[], lastOpened: Record<string, string>): ListedProject[] =>
+// **Creation order, oldest first, and it does not move.** A list that reorders itself under the
+// author is the thing to avoid: with recency ordering every trip back from a project reshuffles the
+// rows, and the spatial memory of where each one sits is worth more than having the likeliest one on
+// top. Oldest first rather than newest is the strongest form of that - a new project appends at the
+// bottom and no existing row moves at all.
+//
+// The rows still say when each was last opened, which is the canvas's line: recency survives as
+// information without being the sort.
+//
+// A project with no recorded creation predates this file recording one, so it is older than
+// everything that has one and sorts first, among its own kind by the name it is addressed under.
+// Nothing backfills a date on the way past: this walk must not write - two tabs listing at once
+// would race, and the recovery sweep already shares this path.
+const order = (projects: ProjectSummary[], state: EditorState): ListedProject[] =>
   projects
-    .map((project) => ({ ...project, openedAt: parseDate(lastOpened[project.directory]) }))
+    .map((project) => ({
+      ...project,
+      openedAt: parseDate(state.lastOpened?.[project.directory]),
+      createdAt: parseDate(state.created?.[project.directory]),
+    }))
     .sort((a, b) => {
-      if (a.openedAt !== undefined && b.openedAt !== undefined) return b.openedAt.getTime() - a.openedAt.getTime()
-      if (a.openedAt !== undefined) return -1
-      if (b.openedAt !== undefined) return 1
+      if (a.createdAt !== undefined && b.createdAt !== undefined) return a.createdAt.getTime() - b.createdAt.getTime()
+      if (a.createdAt !== undefined) return 1
+      if (b.createdAt !== undefined) return -1
       return a.directory.localeCompare(b.directory)
     })
 

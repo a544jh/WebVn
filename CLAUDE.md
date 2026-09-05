@@ -333,8 +333,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
   one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/appShell.ts` swaps them with
   `hidden`, and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
-  the truth, there is no index file — orders by `lastOpened` (a **moment per project**, keyed by
-  directory: every row says when it was last opened), and hands a directory to `bootEditor`. Its
+  the truth, there is no index file — orders by `created`, oldest first, so the list never moves under
+  the author, and hands a directory to `bootEditor`. `editor.yaml` holds `created` and `lastOpened`
+  as two maps keyed by directory; `createProject` dates a project and `forgetProject` un-dates a
+  deleted one, so a reused id cannot inherit its predecessor's place. Rows still show when each was
+  last opened — recency as information, not as the sort. OPFS cannot supply creation order: measured,
+  Chromium enumerates by descending name with no insertion component, and the standard defines no
+  order at all. Its
   layout comes from the design canvas `.scratch/project-library/design.md` links, which is binding
   for pixels — read it before changing what the picker or the dialogs look like. It has a `stop()` and a generation guard for the same reason `ProjectStoring` has a
   `stop()`: a superseded view that kept listening is a bug, not untidiness. Its font, icons and

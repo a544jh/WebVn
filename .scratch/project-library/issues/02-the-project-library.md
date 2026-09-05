@@ -182,3 +182,17 @@ reasoning alone and got the header, the panel, the placement of both actions, th
 and the refusal banner's home all differently. Corrected in the same branch. **Read the canvas before
 building anything it draws** - it had also grown two artboards nobody had mentioned, `NewProject` and
 `NewProjectTaken`, which are ticket 03's.
+
+**The view swap shipped broken, and the fix is a seam as much as a reorder.** Revealing `#vn-session`
+only *after* `bootEditor` returned meant the whole renderer was constructed inside a `hidden`
+subtree: `BackgroundRenderer`, `SpriteRenderer` and `FreeformTextRenderer` all measure the root in
+their constructors, so the background canvas came out 0x0 and never painted and every sprite and
+freeform box was positioned against a scene of zero. Nothing threw.
+
+Nothing caught it because the swap was in `src/index.ts`, which self-boots on import and cannot be
+imported by a test - the same reason `editorBoot.ts` was lifted out of there in tranche 1, applied to
+new logic and then forgotten. It is now `src/appShell.ts`, `test/browser/AppShell.test.ts` mounts the
+real two-div markup **with its `hidden`** and asserts the stage has a size and paints, and
+`DomRenderer` logs when its root measures zero. Note the second gap the suite had: every browser test
+mounts through `createVnRoot`, which appends a sized `#vn-div` straight to a visible `body`, so no
+existing test could have seen this whatever it asserted.

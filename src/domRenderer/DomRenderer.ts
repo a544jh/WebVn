@@ -182,6 +182,22 @@ export class DomRenderer implements Renderer {
       { signal }
     )
 
+    // **The sub-renderers below measure this root in their constructors**, and BackgroundRenderer
+    // sizes its canvas from what it reads - so a renderer built into an element that has not been
+    // laid out gets a 0x0 canvas that never paints and a scene size of zero that puts every sprite
+    // and freeform box in the wrong place. Nothing throws, so the only symptom is a blank stage.
+    //
+    // Said out loud rather than fixed here: making the measurement lazy is a change across three
+    // sub-renderers and the canvas maths, with its own blast radius. Shipped once (2026-09-05, the
+    // picker's first version revealed the session *after* booting into it), which is why this is
+    // worth a line of console over a comment nobody reads.
+    if (elem.clientWidth === 0 || elem.clientHeight === 0) {
+      console.error(
+        "The vn root has no size yet - it is hidden, detached, or unstyled. The background will not paint and " +
+          "sprites will be mispositioned. Lay the root out before constructing a DomRenderer over it."
+      )
+    }
+
     this.imageLoader = new ImageAssetLoaderSrc(options.resolver)
     this.audioLoader = new AudioAssetLoaderSrc(options.resolver)
 

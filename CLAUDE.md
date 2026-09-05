@@ -90,6 +90,7 @@ src/
   yamlParser/      YamlParser.ts (script) + parseManifest.ts (manifest.yaml) — the parser actually used
   storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
+  appShell.ts      the picker/session swap - which view is up, and the ordering that swap depends on
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
@@ -330,8 +331,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
-  one page: `index.html` holds `#vn-picker` and `#vn-session`, `index.ts` swaps them with `hidden`,
-  and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
+  one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/appShell.ts` swaps them with
+  `hidden`, and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
   the truth, there is no index file — orders by `lastOpened` (a **moment per project**, keyed by
   directory: every row says when it was last opened), and hands a directory to `bootEditor`. Its
   layout comes from the design canvas `.scratch/project-library/design.md` links, which is binding
@@ -358,6 +359,17 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   not parse; and a title is free text where a quote or a newline would break hand-rolled quoting.
   `createProject` writes the manifest **first**, so a project being made never presents as the
   manifest-less residue a crashed rename leaves.
+- **`appShell.ts` owns the swap, and one ordering in it is load-bearing: the session is revealed
+  *before* `bootEditor` runs.** `BackgroundRenderer`, `SpriteRenderer` and `FreeformTextRenderer`
+  each read the root's `clientWidth`/`clientHeight` in their **constructors**, and the background
+  canvas is sized from what they read — so a renderer built inside a `hidden` subtree gets a 0x0
+  canvas that never paints and a scene size of zero that mispositions every sprite. Nothing throws;
+  the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
+  when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
+- **That swap lives outside `src/index.ts` for the same reason `editorBoot.ts` does.** The entry
+  point self-boots on import and looks its elements up by id, so no suite can reach it — put
+  stateful logic there and it ships untested. Every other browser suite mounts through
+  `createVnRoot`, straight onto a visible body, so none of them can see a hidden-mount bug either.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
   `persisted()`, re-read on every render.

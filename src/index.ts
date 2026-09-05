@@ -9,9 +9,9 @@ import "./debugPanel.css"
 import "codemirror/lib/codemirror.css"
 
 import { icon } from "./chrome/icons"
-import { ProjectPicker } from "./picker/picker"
 import { encodePayload, playerUrl } from "./scriptUrl"
-import { BootedEditor, bootEditor, unsupportedBrowserReason } from "./editorBoot"
+import { unsupportedBrowserReason } from "./editorBoot"
+import { AppShell } from "./appShell"
 
 declare global {
   interface Window {
@@ -28,16 +28,34 @@ const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const backButton = document.getElementById("vn-btn-back") as HTMLButtonElement
 const sessionTitle = document.getElementById("vn-session-title") as HTMLSpanElement
 
-// One project open at a time, or none. Null is the picker being up, which is also where a cold boot
-// lands: `lastOpened` still exists and still orders the list, but it no longer decides where a boot
-// goes. The front door is the front door.
-let session: BootedEditor | null = null
-let picker: ProjectPicker | null = null
-
 // Taken off when the session is closed. The editor's own parts go away with it, but these four wire
 // into markup that outlives every session - a second boot would otherwise stack a second listener on
 // the same button, which is the entry point's version of the bug ticket 01 fixed in the storer.
 let wiring = new AbortController()
+
+// Which view is up and what it takes to swap them lives in src/appShell.ts, not here: this module
+// self-boots on import and looks its elements up by id, so nothing can exercise it, and the ordering
+// that swap depends on is load-bearing. What is left here is what a test could not run anyway.
+const shell = new AppShell(
+  { pickerDiv, sessionDiv, vnDiv, vnEditorDiv, vnDivContainer },
+  {
+    onOpen: (booted) => {
+      const { player, renderer, editor } = booted
+      window.vnPlayer = player
+      window.vnDomRenderer = renderer
+      // The title the manifest declared, beside the way back out. Nothing else on this page says
+      // which project is open - the picker knew, and the editor did not.
+      sessionTitle.textContent = player.state.title
+
+      wiring = new AbortController()
+      wireDebugPanel(player, renderer)
+      wireJumpMode(editor)
+      wireFullscreen(renderer)
+      wireExportUrl(editor)
+    },
+    onClose: () => wiring.abort(),
+  }
+)
 
 boot().catch((e) => refuseToLoad("Something went wrong opening your project.", e))
 
@@ -55,64 +73,9 @@ async function boot(): Promise<void> {
   }
 
   backButton.prepend(icon("chevron-left"))
-  backButton.addEventListener("click", () => void backToProjects())
+  backButton.addEventListener("click", () => void shell.backToProjects())
 
-  await showPicker()
-}
-
-// The picker is re-created every time it is shown, and comes down when a project goes up. Nothing
-// re-uses one: it holds a walk of a store that anything may have changed since.
-async function showPicker(): Promise<void> {
-  sessionDiv.hidden = true
-  pickerDiv.hidden = false
-  picker = new ProjectPicker(pickerDiv, openProject)
-  await picker.render()
-}
-
-// Opening is a full boot through the same path a cold start would take, so the player, the renderer
-// and the resolver never learn that other projects exist - they are rebuilt, on a state seeded from
-// this project's own manifest, which is what carries the save key with them.
-//
-// Resolves with a reason when the project could not be opened, which the picker shows while leaving
-// the author on the list. From the front door there is nothing to be stranded from: whatever was
-// open was released on the way out.
-async function openProject(directory: string): Promise<string | null> {
-  const booted = await bootEditor({ vnDiv, vnEditorDiv, vnDivContainer }, directory)
-  if (booted.kind === "refused") return booted.reason
-
-  picker?.stop()
-  picker = null
-  pickerDiv.hidden = true
-  sessionDiv.hidden = false
-
-  session = booted
-  wiring = new AbortController()
-  const { player, renderer, editor } = booted
-  // The title the manifest declared, beside the way back out. Nothing else on this page says which
-  // project is open - the picker knew, and the editor did not.
-  sessionTitle.textContent = player.state.title
-  window.vnPlayer = player
-  window.vnDomRenderer = renderer
-
-  wireDebugPanel(player, renderer)
-  wireJumpMode(editor)
-  wireFullscreen(renderer)
-  wireExportUrl(editor)
-
-  // Last, so the export gate above is listening before the boot reports how the manifest fared.
-  await booted.openProject()
-  return null
-}
-
-// The way back, and the only caller of `close()` in this tranche: flush what is pending, stop the
-// storer, tear the renderer down and release the lock, then draw the list again.
-async function backToProjects(): Promise<void> {
-  const closing = session
-  if (closing === null) return
-  session = null
-  wiring.abort()
-  await closing.close()
-  await showPicker()
+  await shell.showPicker()
 }
 
 // The editor's only refusal surface, and it has two callers: a browser without OPFS, and anything

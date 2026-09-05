@@ -1,5 +1,6 @@
 import { confirmDialog, noticeDialog } from "./chrome/dialog"
-import { moveSaveData } from "./core/save"
+import { VnPath } from "./core/vnPath"
+import { moveSaveData, saveToLocalStorage } from "./core/save"
 import { BootedEditor, bootEditor } from "./editorBoot"
 import { OpenProject, ProjectPicker } from "./picker/picker"
 import { availableBytes } from "./storage/persistence"
@@ -149,6 +150,15 @@ export class AppShell {
 
     // Everything below here is past the last refusal, so a failure is an error rather than a choice.
     const manifestText = session.editor.getManifestText()
+    // Where the author is in the story. A rename does not change the story, so landing them back at
+    // its first line would be the same theatre as bouncing them out to the picker - and the whole
+    // point of doing this without the picker is that nothing about their session should change.
+    const playhead = session.player.path
+    // A close flushes the *buffers* and not the player's save data, and seen commands move on every
+    // undo and decision without one - so this is written by hand, under the id the project is still
+    // filed as, for the move below to carry.
+    saveToLocalStorage(from, session.player.getGlobalSaveData())
+
     this.session = null
     this.options.onClose()
     await session.close()
@@ -158,12 +168,12 @@ export class AppShell {
     // unchanged by a rename, so every saved path still replays and every seen command is still seen
     // - there is no correctness reason to drop them, and this is the one copy that can be kept.
     moveSaveData(from, to)
-    await this.openRenamed(to, lock)
+    await this.openRenamed(to, lock, playhead)
   }
 
   // The other half of the swap, and the reason `bootEditor` takes a lock it did not open: this one
   // is already held, from before the old session was closed.
-  private async openRenamed(directory: string, lock: ProjectLock): Promise<void> {
+  private async openRenamed(directory: string, lock: ProjectLock, playhead: VnPath): Promise<void> {
     this.reveal()
     const booted = await bootEditor(this.elements, directory, lock)
     if (booted.kind === "refused") {
@@ -174,6 +184,12 @@ export class AppShell {
       return
     }
     await this.take(booted)
+
+    // After the load, not instead of it: the story has to be built before a path through it can be
+    // walked. The render is what moves the gutter marker and the cursor with it, since the editor
+    // follows the renderer rather than the player.
+    booted.player.restorePath(playhead)
+    booted.renderer.render(false)
   }
 
   // **The session is revealed before the renderer is built, and that ordering is the whole of this

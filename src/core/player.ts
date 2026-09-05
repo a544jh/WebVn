@@ -130,6 +130,19 @@ export class VnPlayer {
     this.path = keptPath
   }
 
+  // Put a path from another session of the same story back. A rename rebuilds the whole player - new
+  // directory, new resolver, new lock - over files it did not change, so the author's place in the
+  // story is the one thing that would otherwise be lost to an operation that changed nothing about
+  // the story.
+  //
+  // Replayed as far as it still applies, exactly as a script edit's path is: a path that no longer
+  // fits is truncated rather than throwing. It should always fit here, since a rename copies the
+  // script verbatim - but "should" is not a reason to reach for the version that throws.
+  public restorePath(path: VnPath): void {
+    this.path = path
+    this.reloadStory(this.startingState)
+  }
+
   public loadState(state: VnPlayerState): void {
     state.seenCommands = this.state.seenCommands
     this.state = state

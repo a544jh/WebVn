@@ -34,8 +34,10 @@ export function loadFromLocalStorage(id: string): VnGlobalSaveData {
 // an id is reusable, and a save left behind under one is a save the *next* project to claim that id
 // inherits. Its paths describe a story that project does not have, and replaying one throws.
 //
-// `to` is cleared when `from` has nothing, which is the case that matters most: renaming onto an
-// existing project destroys it, and its saves must not be left behind to greet whatever arrives.
+// The contract is total, and stating it that way is what makes the overwrite case fall out rather
+// than need a special case: **afterwards `to` holds exactly what `from` held, including nothing**.
+// Renaming onto an existing project destroys it, so anything of that project's left under its key
+// would be inherited by whatever arrives in its place.
 export function moveSaveData(from: string, to: string): void {
   const data = window.localStorage.getItem(saveKey(from))
   if (data === null) {

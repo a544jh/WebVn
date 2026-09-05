@@ -11,7 +11,7 @@ import {
   writeEditorState,
 } from "../../src/storage/projectStore"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
-import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep } from "../helpers/vnHarness"
+import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep, textBoxText } from "../helpers/vnHarness"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
 const SCRATCH = "test-scratch-rename"
@@ -24,7 +24,7 @@ const FROM = "old-name"
 const TO = "new-name"
 
 const manifestFor = (id: string): string => `formatVersion: 1\nid: ${id}\ntitle: A Story\n`
-const SCRIPT = "story:\n  - A line\n  - Another line\n"
+const SCRIPT = "story:\n  - A line\n  - Another line\n  - A third line\n  - A fourth line\n"
 
 const makeProject = async (id: string): Promise<void> => {
   await createProject(id, { manifestText: manifestFor(id), scriptText: SCRIPT })
@@ -286,20 +286,56 @@ describe("renaming from the editor", () => {
     expect(shell.getSession()?.editor.getManifestText()).toContain(`id: ${FROM}`)
   })
 
-  it("takes the author's saves with the project", async () => {
+  it("leaves the author where they were in the story", async () => {
+    // A rename changes nothing about the story, so landing back at its first line would be the same
+    // theatre as bouncing the author out to the picker - which this deliberately does not do.
     const shell = await openShell(FROM)
-    localStorage.setItem(
-      `vn-save-${FROM}`,
-      JSON.stringify({ seenCommands: [[0, 1]], saves: [{ timestamp: 1, path: [2] }] })
-    )
+    await advanceThrough(shell, 3)
+    const before = shell.getSession()?.player.state.commandIndex
+    expect(textBoxText(elements.vnDiv)).toBe("A fourth line")
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(900)
+    await sleep(1200)
+
+    expect(shell.getSession()?.directory).toBe(TO)
+    expect(shell.getSession()?.player.state.commandIndex).toBe(before)
+    expect(textBoxText(elements.vnDiv)).toBe("A fourth line")
+    // And it is a real path rather than a teleport, so undo still walks back from here.
+    shell.getSession()?.renderer.undo()
+    await sleep(150)
+    expect(textBoxText(elements.vnDiv)).toBe("A third line")
+  })
+
+  it("keeps what the player has already read, so skip mode still works", async () => {
+    // A close flushes the buffers and not the player's save data, so this would otherwise be lost
+    // between the last advance and the rename.
+    const shell = await openShell(FROM)
+    await advanceThrough(shell, 3)
+    const seen = shell.getSession()?.player.state.seenCommands.toJSON()
+
+    await editIdAndBlur(TO)
+    press("confirm")
+    await sleep(1200)
+
+    expect(shell.getSession()?.player.state.seenCommands.toJSON()).toEqual(seen)
+  })
+
+  it("takes the author's saves with the project", async () => {
+    // A real save slot, made the way the pause menu makes one, rather than JSON planted behind the
+    // session's back - the session's own data is what a rename has to carry.
+    const shell = await openShell(FROM)
+    await advanceThrough(shell, 2)
+    shell.getSession()?.renderer.saveToSlot(0)
+    const saved = shell.getSession()?.player.saves[0]
+
+    await editIdAndBlur(TO)
+    press("confirm")
+    await sleep(1200)
 
     expect(localStorage.getItem(`vn-save-${FROM}`)).toBe(null)
-    expect(JSON.parse(localStorage.getItem(`vn-save-${TO}`) ?? "null")?.saves).toEqual([{ timestamp: 1, path: [2] }])
-    expect(shell.getSession()?.player.saves).toEqual([{ timestamp: 1, path: [2] }])
+    expect(shell.getSession()?.player.saves).toEqual([saved])
+    expect(JSON.parse(localStorage.getItem(`vn-save-${TO}`) ?? "null")?.saves).toEqual([saved])
   })
 
   it("destroys the overwritten project's saves rather than handing them to the renamed one", async () => {
@@ -319,11 +355,13 @@ describe("renaming from the editor", () => {
     press("confirm")
     await sleep(200)
     press("confirm")
-    await sleep(900)
+    await sleep(1200)
 
-    // The renamed project had no saves of its own, so the destination must be left with none either.
-    expect(localStorage.getItem(`vn-save-${TO}`)).toBe(null)
+    // What is under the destination's key afterwards is the renamed project's own - here, nothing
+    // saved at all - and not one slot of the project that was destroyed.
     expect(shell.getSession()?.player.saves).toEqual([])
+    expect(JSON.parse(localStorage.getItem(`vn-save-${TO}`) ?? "null")?.saves).toEqual([])
+    expect(localStorage.getItem(`vn-save-${TO}`)).not.toContain("99")
   })
 
   it("asks a second question before overwriting, and declining it leaves both projects", async () => {
@@ -357,5 +395,24 @@ const withEstimate = async (estimate: StorageEstimate, run: () => Promise<void>)
     await run()
   } finally {
     navigator.storage.estimate = real
+  }
+}
+
+// One click's worth of story at a time, waiting for each render to come to rest - a fixed sleep is
+// what made the first version of the playhead test read two advances where it had made three.
+const advanceThrough = async (shell: AppShell, steps: number): Promise<void> => {
+  for (let step = 0; step < steps; step++) {
+    const session = shell.getSession()
+    if (session === null) throw new Error("no project is open")
+    const stopped = new Promise<void>((resolve) => {
+      const done = (): void => {
+        if (!session.player.state.stopAfterRender) return
+        session.renderer.onFinishedCallbacks.splice(session.renderer.onFinishedCallbacks.indexOf(done), 1)
+        resolve()
+      }
+      session.renderer.onFinishedCallbacks.push(done)
+    })
+    session.renderer.advance()
+    await stopped
   }
 }

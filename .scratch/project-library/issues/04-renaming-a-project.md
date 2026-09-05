@@ -91,6 +91,15 @@ the front door besides New project. That is deliberate: the author is mid-edit i
 been renamed underneath them, and bouncing them out to the picker to re-pick the thing they are
 already working on would be theatre. The picker does not flash in between.
 
+**And the session picks up where it was.** Added 2026-09-05, after the first implementation shipped
+without it: not passing through the picker is not much good if the author is dropped back at the
+first line of the story anyway, which is the same theatre by another route. A rename does not touch
+the script, so the path replays whole - `VnPlayer.restorePath` carries it across, the same
+`reloadStory` machinery an ordinary manifest adoption already uses to keep an author's place. What
+the player has read comes with it: a close flushes the *buffers* and not the save data, and
+`seenCommands` moves on every undo and decision without one, so the session's own global save is
+written under the old id by hand for the move to carry.
+
 ## The bookkeeping moves with the directory
 
 `editor.yaml` holds two maps keyed by directory - `created`, which the picker orders by, and
@@ -149,6 +158,8 @@ pressure the check above exists for, and leave behind a project the author did n
       every recovery state in ticket 05 turns on it
 - [ ] `pendingRename` is written before the copy and cleared after the delete
 - [ ] The author's saves are found under the new id, and nothing is left under the old one
+- [ ] The session comes back where it was - same playhead, same seen commands, and undo still walks
+      back from there
 - [ ] An overwrite destroys the overwritten project's saves rather than leaving them for the project
       that arrives in its place
 - [ ] The renamed project keeps its place in the picker's order - its `created` entry moves to the

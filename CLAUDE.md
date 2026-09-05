@@ -384,6 +384,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the destination lock → **close** → move → reopen: the lock before the close so a refusal never
   strands the author, and the close before the copy so a live storer cannot write into the tree
   mid-copy. `bootEditor` takes an already-held lock for exactly this caller.
+  The session is carried across, not just the files: `VnPlayer.restorePath` replays the old path
+  against the rebuilt player (a rename does not touch the script, so it replays whole), and the
+  session's global save is written by hand under the old id before the move — a close flushes the
+  buffers and not the save data, and `seenCommands` moves on every undo and decision without one.
 - **`opfs.ts`'s `writeFile` streams a Blob** (`blob.stream().pipeTo(writable)`; `pipeTo` closes the
   stream itself, so no `close()` after). `copyTree` is the one recursive copy — a rename's today,
   export and import's later — and it goes through `writeFile`, so it is serialized per path like

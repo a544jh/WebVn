@@ -13,13 +13,19 @@ library of projects, not a single loaded one" that the store could not deliver b
 Its own directory rather than more numbers under `.scratch/project-storage/`, because that spec is
 tranche 1's and says so throughout - what it does *not* do is most of what this one is.
 
+Its design is settled: `design.md` holds the decisions and links the canvas the drawings live on.
+The picker is a **page shown before the editor boots**, not the panel this spec first described - see
+that file for the three consequences, which are amended into ticket 02.
+
 ## The tickets, in dependency order
 
+0. **`00-editor-chrome-vocabulary.md`** - the chrome's font and icon helper. A prefactor like 01, and
+   numbered 00 rather than renumbering the rest. Everything visible below draws from it.
 1. **`01-closing-a-project.md`** - the teardown that switching needs: `close()` on the boot, `stop()`
    on the storer, the renderer's document listeners and timers, and the first caller of
    `ProjectLock.release`. No UI, and a prefactor: every ticket below remounts in the same page.
-2. **`02-the-project-library.md`** - the panel that lists projects and switches between them. The
-   first ticket an author can see, and where `lastOpened` finally does work.
+2. **`02-the-project-library.md`** - the page that lists projects and opens one, plus the editor's
+   way back to it. The first ticket an author can see, and where `lastOpened` finally does work.
 3. **`03-new-and-deleted-projects.md`** - making a project and destroying one, plus the editor's own
    confirm surface that 04 reuses.
 4. **`04-renaming-a-project.md`** - the manifest's id becomes the project's directory: copy, commit,
@@ -54,12 +60,13 @@ to bottom.
 
 ## Cross-edges worth remembering
 
-- **The lock is taken before the old project is closed, not after.** A switch that closes first and
-  is then refused - the chosen project is open in another tab - leaves the author with nothing. So
-  the boot grows a way to be told which directory to open and to refuse *before* anything is torn
-  down. The two locks are keyed on different directories, so holding both across the swap is not a
-  conflict. Ticket 02 decides this and 04 reuses it, since a rename reopens the session under a
-  directory the old lock does not cover.
+- **The lock is taken before the old project is closed, not after - but this belongs to ticket 04
+  now, not 02.** It exists because a swap made *while holding a project* can be refused, leaving the
+  author with nothing. Since the picker became a page, 02 is never in that position: it released on
+  the way out, and a refusal just leaves the author on the list. A rename still is, so the boot still
+  grows a way to be told which directory to open and to refuse *before* anything is torn down, and
+  the two locks being keyed on different directories is what makes holding both across that swap
+  safe. See `design.md`.
 - **`ProjectStoring`'s three listeners are a data-loss bug the moment this tranche starts.** Measured
   2026-09-05 and written into its constructor: a superseded storer keeps flushing, and on a switch
   back it queues older text last, which per-path serialization then lets win. Ticket 01 is first for

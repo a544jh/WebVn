@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
+import { confirmDialog, openDialog } from "../../src/chrome/dialog"
 import { icon } from "../../src/chrome/icons"
 
 // The authoring chrome's own vocabulary: the face it renders in, the status colours it means things
@@ -68,5 +69,53 @@ describe("the icon helper", () => {
   it("draws one name at two sizes", () => {
     expect(icon("plus", 24).getAttribute("width")).toBe("24")
     expect(icon("plus").getAttribute("width")).toBe("16")
+  })
+})
+
+// The confirm-and-prompt surface, exercised on its own rather than through either of its two hosts.
+// It is `<dialog>` and `showModal()`, so the platform supplies the backdrop, the top layer and the
+// focus trap - what is worth testing here is the part this file wrote.
+describe("the dialog surface", () => {
+  const dialogEl = (): HTMLDialogElement => document.querySelector("dialog.vn-dialog") as HTMLDialogElement
+
+  it("resolves true on confirm and takes itself down", async () => {
+    const answered = confirmDialog("Delete it?", ["This cannot be undone."], "Delete")
+    ;(dialogEl().querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
+
+    expect(await answered).toBe(true)
+    expect(document.querySelector("dialog.vn-dialog")).toBe(null)
+  })
+
+  it("resolves false however it is closed", async () => {
+    // Cancel and Escape are one code path: both end in a `close` event, which is where this is
+    // taken down. Escape itself is the user agent's and cannot be raised from script, so the close
+    // is issued directly - which is exactly what the platform does when Escape is pressed.
+    const answered = confirmDialog("Delete it?", [], "Delete")
+    dialogEl().close()
+
+    expect(await answered).toBe(false)
+    expect(document.querySelector("dialog.vn-dialog")).toBe(null)
+  })
+
+  it("keeps a refused confirm on screen, with what was typed still in it", async () => {
+    const content = document.createElement("input")
+    content.value = "half typed"
+    let refuse = "Not yet."
+    const answered = openDialog({
+      title: "Name it",
+      content,
+      validate: () => (refuse === "" ? null : refuse),
+    })
+
+    const confirm = dialogEl().querySelector(".vn-dialog-confirm") as HTMLButtonElement
+    confirm.click()
+    expect(dialogEl()).not.toBe(null)
+    expect((dialogEl().querySelector(".vn-dialog-problem") as HTMLElement).textContent).toBe("Not yet.")
+    expect((dialogEl().querySelector("input") as HTMLInputElement).value).toBe("half typed")
+
+    // And the message describes this attempt rather than the last one.
+    refuse = ""
+    confirm.click()
+    expect(await answered).toBe(true)
   })
 })

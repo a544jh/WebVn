@@ -1,0 +1,94 @@
+/* The confirm-and-prompt surface. `<dialog>` gives the backdrop, the top layer and the focus trap;
+   this is only what it looks like.
+
+   The colour vocabulary is the chrome's and it means the same thing here: red is a write that
+   failed or a document that did not parse, and a destructive action is the one case where red is
+   what the author is about to cause rather than what already went wrong. */
+
+.vn-dialog {
+  max-width: 32rem;
+  padding: 1.25rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  color: black;
+}
+
+.vn-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.vn-dialog-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.vn-dialog-body {
+  margin: 0 0 0.75rem;
+}
+
+.vn-dialog-field {
+  display: block;
+  margin: 0 0 0.75rem;
+}
+
+.vn-dialog-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.vn-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+/* Beneath the field it belongs to, which is the whole reason this is not window.prompt. */
+.vn-dialog-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.vn-dialog-problem {
+  margin: 0 0 0.75rem;
+  color: var(--vn-editor-status-error);
+  font-weight: 600;
+}
+
+/* Cancel is first in the DOM, so it is what Enter and the first tab reach; Confirm sits on the
+   right, where the eye ends up. row-reverse is what keeps those two facts independent. */
+.vn-dialog-buttons {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 0.5rem;
+}
+
+.vn-dialog-buttons button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  cursor: pointer;
+}
+
+.vn-dialog-buttons button:hover {
+  background: #fff;
+}
+
+.vn-dialog-destructive {
+  border-color: var(--vn-editor-status-error);
+  background: var(--vn-editor-status-error);
+  color: white;
+  font-weight: 600;
+}
+
+.vn-dialog-destructive:hover {
+  background: var(--vn-editor-status-error);
+  filter: brightness(1.15);
+}

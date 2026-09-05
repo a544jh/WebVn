@@ -1,9 +1,11 @@
+import { confirmDialog } from "../chrome/dialog"
 import { icon } from "../chrome/icons"
 import { demoManifest } from "../demoStory"
 import { isPersisted } from "../storage/persistence"
 import { takeProjectLock } from "../storage/projectLock"
-import { listProjects, ProjectSummary, readEditorState } from "../storage/projectStore"
+import { deleteProject, listProjects, mintProject, ProjectSummary, readEditorState } from "../storage/projectStore"
 import { seedDemoProject } from "../storage/seedDemoProject"
+import { askForNewProject } from "./newProjectDialog"
 import "../chrome/chrome.css"
 import "./picker.css"
 
@@ -24,9 +26,17 @@ import "./picker.css"
 export type OpenProject = (directory: string) => Promise<string | null>
 
 export class ProjectPicker {
-  // Everything this view listens to, so `stop()` takes it all off at once. Re-created on every Back
-  // to projects, so it comes down the way ProjectStoring does and for the same reason: a superseded
-  // component that kept its listeners is a measured data-loss bug, not a tidiness question.
+  // Everything this view listens to, so `stop()` takes it all off at once.
+  //
+  // **Insurance rather than a fix, and worth being honest about.** Every listener registered through
+  // it today is on an element this picker made inside its own root, and both `render` and `stop`
+  // call `replaceChildren` - so those elements are detached and unreferenced, and nothing in the app
+  // can reach their handlers. It is not the bug ProjectStoring's `stop()` closes, whose listeners
+  // are on `document` and `window` and genuinely outlive their session. What actually carries this
+  // teardown is the `stopped` flag and the generation below.
+  //
+  // It is kept because the moment a dialog here needs `document` - a key handler, an outside click -
+  // the picker is in exactly ProjectStoring's position, and this is where that listener will go.
   private listeners = new AbortController()
 
   // Every render walks the store, and the author can leave while that walk is in flight. Bumped by
@@ -116,12 +126,27 @@ export class ProjectPicker {
 
     open.addEventListener("click", () => void this.choose(project.directory), { signal: this.listeners.signal })
     row.appendChild(open)
+
+    const remove = document.createElement("button")
+    remove.type = "button"
+    remove.classList.add("vn-picker-delete")
+    remove.dataset.vnProject = project.directory
+    // The row's own button carries the name, so the icon says the rest. An icon with no text needs
+    // the label a screen reader looks for.
+    remove.setAttribute("aria-label", `Delete ${project.title ?? project.directory}`)
+    remove.title = "Delete this project"
+    remove.appendChild(icon("trash-2"))
+    remove.addEventListener("click", () => void this.remove(project), { signal: this.listeners.signal })
+    row.appendChild(remove)
+
     return row
   }
 
   private drawActions(projects: ProjectSummary[]): HTMLElement {
     const actions = document.createElement("div")
     actions.classList.add("vn-picker-actions")
+
+    actions.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
 
     // Shown only while the demo is absent. Its id is fixed, so a second press would collide with an
     // existing directory - hiding the button once the demo is listed is both the collision fix and
@@ -172,6 +197,73 @@ export class ProjectPicker {
     }
     await this.render()
   }
+
+  // One of the two ways to leave the front door without picking an existing row - a rename is the
+  // other. Not a switch: there is no session to switch from, so only the choose-and-boot half of
+  // opening applies and never the teardown half.
+  //
+  // A refused lock is possible even here: another tab can hold `projects/<id>/` if that id was just
+  // deleted and re-made, or if two tabs race the same new id. The project is created but not opened,
+  // and the author is left on the picker with the row present.
+  private async create(): Promise<void> {
+    // Walked as the dialog opens rather than taken from the last render, which may be old - and
+    // walked again below, because another tab can create the id while the dialog is up and
+    // `createProject` writes into projects/<id>/ unconditionally. The dialog's own check is what
+    // puts the message beside the field; this one is what makes it true at the moment of the write.
+    const taken = async (): Promise<Set<string>> => new Set((await listProjects()).map((p) => p.directory))
+    const before = await taken()
+
+    const chosen = await askForNewProject((id) => before.has(id))
+    if (chosen === null) return
+
+    if ((await taken()).has(chosen.id)) {
+      this.refusal = `"${chosen.id}" already names a project, so nothing was created.`
+      await this.render()
+      return
+    }
+
+    await mintProject(chosen.id, chosen.title)
+    this.refusal = await this.openProject(chosen.id)
+    if (this.refusal !== null) await this.render()
+  }
+
+  // Ask first, and say the project cannot be recovered - which is plainly true right now, because
+  // there is no export yet.
+  //
+  // **Take the lock on what is about to be deleted, and refuse if it is held.** On the picker this
+  // tab holds nothing and has no live storer to flush into a directory being removed, so the case
+  // that remains is the project being open **in another tab** - and a tree another tab is writing
+  // into must not be removed underneath it. The recovery sweep works out the same policy for its own
+  // delete; this is that policy, not a second one.
+  //
+  // The author stays on the picker afterwards. Auto-opening something because you deleted something
+  // else is not a thing to want, and from the front door there is nothing to land in.
+  private async remove(project: ProjectSummary): Promise<void> {
+    const name = project.title ?? project.directory
+    const confirmed = await confirmDialog(
+      `Delete "${name}"?`,
+      [
+        `This removes projects/${project.directory}/ and everything in it - the script, the manifest and every asset.`,
+        "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.",
+      ],
+      "Delete"
+    )
+    if (!confirmed) return
+
+    const lock = await takeProjectLock(project.directory)
+    if (lock === null) {
+      this.refusal = `"${project.directory}" is open in another tab, so it was not deleted.`
+      await this.render()
+      return
+    }
+    try {
+      this.refusal = null
+      await deleteProject(project.directory)
+    } finally {
+      await lock.release()
+    }
+    await this.render()
+  }
 }
 
 // `lastOpened` first, and the rest by the name they are addressed under. One field can only put one
@@ -201,7 +293,7 @@ const banner = (message: string): HTMLElement => {
 const emptyLibrary = (): HTMLElement => {
   const elem = document.createElement("p")
   elem.classList.add("vn-picker-empty")
-  elem.textContent = "No projects yet."
+  elem.textContent = "No projects yet. Start one, or add the demo to read how this works."
   return elem
 }
 

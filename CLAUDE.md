@@ -95,7 +95,7 @@ src/
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
   picker/          the front door: the project library as a page, shown before any editor
-  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons
+  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons, the dialogs
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
   types/           global .d.ts augmentations of lib.dom
@@ -344,6 +344,18 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
   Nothing seeds behind the author: a seed would have to run before the picker could render, when no
   lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+- **The dialogs are `src/chrome/dialog.ts`, built on `<dialog>` + `showModal()`.** Not
+  `window.confirm`/`window.prompt`: an id needs the schema's message beside the field it belongs to,
+  and the platform supplies the backdrop, top layer, focus trap and Escape for free. `validate`
+  refuses a confirm and keeps the dialog up with what was typed still in it. Two hosts, so it belongs
+  to neither: the picker opens these with no editor mounted, a rename will open one from inside an
+  editor.
+- **`createProject(id, files)` takes files; `mintProject(id, title)` makes a new one.** The minted
+  manifest is `stringify`d, not interpolated — `validateProjectId` accepts `true`, `false` and
+  `null`, which YAML reads as scalars, so an interpolated `id: true` produced a manifest that does
+  not parse; and a title is free text where a quote or a newline would break hand-rolled quoting.
+  `createProject` writes the manifest **first**, so a project being made never presents as the
+  manifest-less residue a crashed rename leaves.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
   `persisted()`, re-read on every render.

@@ -137,27 +137,42 @@ export const readProject = async (directory: string): Promise<ProjectFiles> => {
   return { manifestText, scriptText }
 }
 
-// Takes the files or mints them. The no-files form is what the picker's "new project" will call, and
-// ticket 05's demo seed is the same call with different bytes - so there is one code path for "put a
-// project into the store" rather than two.
+// Put a project into the store, from text that already exists: the demo seed, and later an import.
+// `mintProject` below is the same call with text this module writes, so there is one code path for
+// "put a project into the store" rather than two.
+//
+// The manifest is written **first**, and that ordering is load-bearing in two places: a directory
+// with no manifest is not a project, so a project being made must never present as the residue a
+// crashed rename leaves. (A rename's copy writes the manifest *last*, for the mirror-image reason -
+// it must not commit early.)
 //
 // This is the one place an id is validated, because it is the one place an id becomes a directory
 // name. It reuses the manifest schema's rule rather than restating it.
-export const createProject = async (id: string, files?: ProjectFiles): Promise<void> => {
+export const createProject = async (id: string, files: ProjectFiles): Promise<void> => {
   const problem = validateProjectId(id)
   if (problem !== null) throw new Error(`"${id}" cannot name a project: it ${problem}`)
 
-  const { manifestText, scriptText } = files ?? mintProject(id)
   const dir = await root()
-  await writeFile(dir, projectPath(id, MANIFEST_FILE), manifestText)
-  await writeFile(dir, projectPath(id, SCRIPT_FILE), scriptText)
+  await writeFile(dir, projectPath(id, MANIFEST_FILE), files.manifestText)
+  await writeFile(dir, projectPath(id, SCRIPT_FILE), files.scriptText)
 }
 
-// What a brand-new project holds. Valid, not empty: a genuinely empty script.yaml has no `story`
-// key, which parseStory reports as an error, so a new project would open with a red gutter as its
-// first impression. One narrator line parses clean and gives the author a working story to edit.
-const mintProject = (id: string): ProjectFiles => ({
-  manifestText: `formatVersion: 1\nid: ${id}\ntitle: ${id}\n`,
+// A brand-new project, under the title its author typed. **Valid, not empty**: a genuinely empty
+// script.yaml has no `story` key, which parseStory reports as an error, so a new project would open
+// with a red gutter as its first impression. One narrator line parses clean and gives the author a
+// working story to edit.
+export const mintProject = (id: string, title: string): Promise<void> => createProject(id, mintedFiles(id, title))
+
+// **Serialized rather than interpolated**, and that is a fix rather than a style. `validateProjectId`
+// accepts `true`, `false` and `null` - lowercase letters, starting with a letter, not Windows device
+// names - and YAML reads all three as scalars rather than strings, so an interpolated `id: true`
+// produced a manifest that does not parse: exactly the red gutter this function exists to avoid.
+// (Measured 2026-09-05 against this repo's own parser. `no`, `on` and `y` are safe, because the
+// library is YAML 1.2 rather than 1.1.) The title is worse, being free text the author typed: a
+// quote, a colon or a newline in it would break any hand-rolled quoting. `stringify` knows all of
+// those rules and this module does not have to.
+const mintedFiles = (id: string, title: string): ProjectFiles => ({
+  manifestText: stringify({ formatVersion: 1, id, title }),
   scriptText: "story:\n  - Your story starts here.\n",
 })
 

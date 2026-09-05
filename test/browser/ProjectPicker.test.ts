@@ -44,6 +44,42 @@ const demoButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn
 
 const refusalText = (): string | null => pickerRoot.querySelector(".vn-picker-refusal")?.textContent ?? null
 
+const newButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn-picker-new")
+
+const deleteButton = (directory: string): HTMLButtonElement =>
+  pickerRoot.querySelector(`.vn-picker-delete[data-vn-project="${directory}"]`) as HTMLButtonElement
+
+// The dialogs are src/chrome/'s, not window.confirm or window.prompt - which is what makes them
+// reachable from a test at all, and is most of the reason they exist.
+const dialog = (): HTMLDialogElement | null => document.querySelector("dialog.vn-dialog")
+
+const dialogText = (): string =>
+  [...(dialog()?.querySelectorAll(".vn-dialog-title, .vn-dialog-body") ?? [])].map((elem) => elem.textContent).join(" ")
+
+const dialogProblem = (): string | null => {
+  const problem = dialog()?.querySelector(".vn-dialog-problem") as HTMLElement | undefined
+  return problem === undefined || problem.hidden ? null : problem.textContent
+}
+
+const field = (label: string): HTMLInputElement => {
+  const row = [...(dialog()?.querySelectorAll(".vn-dialog-field") ?? [])].find(
+    (candidate) => candidate.querySelector(".vn-dialog-label")?.textContent === label
+  )
+  if (row === undefined) throw new Error(`the dialog has no "${label}" field`)
+  return row.querySelector("input") as HTMLInputElement
+}
+
+// Typing, rather than assigning: the id field tracks the title through `input` events, and that is
+// the behaviour under test.
+const typeInto = (input: HTMLInputElement, text: string): void => {
+  input.value = text
+  input.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+const pressConfirm = (): void => (dialog()?.querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
+
+const pressCancel = (): void => (dialog()?.querySelector(".vn-dialog-cancel") as HTMLButtonElement).click()
+
 beforeEach(async () => {
   await releaseStoredEditorLock()
   await clearOpfsStore(SCRATCH)
@@ -261,5 +297,199 @@ describe("what is not a project", () => {
     await newPicker().render()
 
     expect(rowDirectories()).toEqual(["a-story"])
+  })
+})
+
+describe("making a project", () => {
+  it("takes a title, derives an id from it, and opens what it made", async () => {
+    await newPicker().render()
+
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "The Lighthouse Keeper")
+    expect(field("Id").value).toBe("the-lighthouse-keeper")
+    pressConfirm()
+    await sleep(200)
+
+    expect((await listProjects()).map((project) => project.directory)).toEqual(["the-lighthouse-keeper"])
+    // Unlike Add demo project, this one opens what it made: populating the library and starting work
+    // are different intents.
+    expect(opened).toEqual(["the-lighthouse-keeper"])
+  })
+
+  it("stops deriving the id once the author edits it", async () => {
+    await newPicker().render()
+
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "The Lighthouse")
+    typeInto(field("Id"), "lighthouse")
+    typeInto(field("Title"), "The Lighthouse Keeper")
+
+    expect(field("Id").value).toBe("lighthouse")
+    pressConfirm()
+    await sleep(200)
+    expect((await listProjects()).map((project) => project.directory)).toEqual(["lighthouse"])
+  })
+
+  it("shows the title the author typed, not the id", async () => {
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "The Lighthouse Keeper")
+    pressConfirm()
+    await sleep(200)
+
+    const returning = newPicker()
+    await returning.render()
+    expect(rowTitles()).toEqual(["The Lighthouse Keeper"])
+  })
+
+  it("leaves the id empty when the title slugifies to nothing, and invents none", async () => {
+    // A project called `project-1` because the slugifier gave up is worse than being asked.
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+
+    typeInto(field("Title"), "...!!!...")
+    expect(field("Id").value).toBe("")
+    pressConfirm()
+    await settle()
+
+    expect(dialogProblem()).toContain("Give the project an id")
+    expect(await listProjects()).toEqual([])
+    pressCancel()
+  })
+
+  it("refuses an id the manifest schema rejects, in the schema's own words", async () => {
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+
+    typeInto(field("Title"), "My Story")
+    typeInto(field("Id"), "My Story")
+    pressConfirm()
+    await settle()
+
+    // The one rule, from the one place that states it - not a second copy that can drift from the
+    // directory name, the export filename and the save key it also has to hold for.
+    expect(dialogProblem()).toContain("a-z")
+    expect(await listProjects()).toEqual([])
+    pressCancel()
+  })
+
+  it("refuses an id that already names a project rather than writing over it", async () => {
+    await make("taken-story", "Taken")
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+
+    typeInto(field("Title"), "Taken Story")
+    expect(field("Id").value).toBe("taken-story")
+    pressConfirm()
+    await settle()
+
+    expect(dialogProblem()).toContain("already names a project")
+    expect((await readProject("taken-story")).manifestText).toContain("Taken")
+    pressCancel()
+  })
+
+  it("creates the project but leaves the author on the picker when the lock is refused", async () => {
+    // Another tab can hold projects/<id>/ if that id was just deleted and re-made, or if two tabs
+    // race the same new id.
+    refuseWith = `"new-story" is already open in another tab. Close it and reload this one.`
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "New Story")
+    pressConfirm()
+    await sleep(300)
+
+    expect(refusalText()).toContain("another tab")
+    expect(rowDirectories()).toEqual(["new-story"])
+  })
+
+  it("writes nothing when the dialog is dismissed", async () => {
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+    typeInto(field("Title"), "Never Made")
+
+    pressCancel()
+    await settle()
+
+    expect(await listProjects()).toEqual([])
+    expect(dialog()).toBe(null)
+  })
+})
+
+describe("deleting a project", () => {
+  it("asks first, says the project cannot be recovered, and then removes the tree", async () => {
+    await make("doomed", "Doomed")
+    await make("kept", "Kept")
+    await newPicker().render()
+
+    deleteButton("doomed").click()
+    await settle()
+    expect(dialogText()).toContain("Doomed")
+    expect(dialogText()).toContain("cannot be recovered")
+
+    pressConfirm()
+    await sleep(200)
+
+    expect(rowDirectories()).toEqual(["kept"])
+    expect(await listProjects()).toHaveLength(1)
+    // Still on the picker: auto-opening something because you deleted something else is not a thing
+    // to want.
+    expect(opened).toEqual([])
+  })
+
+  it("removes nothing when the confirmation is declined", async () => {
+    await make("doomed", "Doomed")
+    await newPicker().render()
+
+    deleteButton("doomed").click()
+    await settle()
+    pressCancel()
+    await settle()
+
+    expect(await listProjects()).toHaveLength(1)
+  })
+
+  it("refuses to delete a project another tab holds, and removes nothing", async () => {
+    // A tree another tab is writing into must not be removed underneath it. The same policy the
+    // recovery sweep needs, taken here rather than invented twice.
+    await make("held-story", "Held")
+    const held = await takeProjectLock("held-story")
+    if (held === null) throw new Error("the lock was already held before the test started")
+    await newPicker().render()
+
+    deleteButton("held-story").click()
+    await settle()
+    pressConfirm()
+    await sleep(200)
+
+    expect(refusalText()).toContain("another tab")
+    expect(await listProjects()).toHaveLength(1)
+    expect(rowDirectories()).toEqual(["held-story"])
+    await held.release()
+  })
+
+  it("leaves an empty picker offering both New project and Add demo project", async () => {
+    // Nothing re-seeds: since the picker there is no automatic seed at all, only the button, which
+    // comes back the moment the demo is gone. An author who deleted everything on purpose can get
+    // the story back.
+    await make(demoManifest.id, "The demo")
+    await newPicker().render()
+
+    deleteButton(demoManifest.id).click()
+    await settle()
+    pressConfirm()
+    await sleep(200)
+
+    expect(rows()).toHaveLength(0)
+    expect(pickerRoot.querySelector(".vn-picker-empty")).not.toBe(null)
+    expect(newButton()).not.toBe(null)
+    expect(demoButton()).not.toBe(null)
   })
 })

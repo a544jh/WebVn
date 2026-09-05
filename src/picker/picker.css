@@ -37,9 +37,16 @@
   gap: 2px;
 }
 
-/* One row is one button: the whole row opens the project, so there is no target to aim for. */
+/* A row is the project's own button plus its delete, side by side. Two buttons rather than one with
+   something inside it: a button cannot contain a button. */
+.vn-picker-project {
+  display: flex;
+  gap: 2px;
+}
+
+/* Opening is the whole row bar the trash, so there is barely a target to aim for. */
 .vn-picker-open {
-  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -71,6 +78,24 @@
    document did not parse. The project is listed and opens anyway - the editor is where it gets
    fixed. */
 .vn-picker-unparsed {
+  color: var(--vn-editor-status-error);
+}
+
+/* Muted until it is reached for, because destroying a project should not be the brightest thing in
+   the row. The icon takes this colour, which is what `currentColor` is for. */
+.vn-picker-delete {
+  display: flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  color: #555;
+  cursor: pointer;
+}
+
+.vn-picker-delete:hover {
+  background: #fff;
   color: var(--vn-editor-status-error);
 }
 

@@ -3,6 +3,7 @@ import { parseManifest } from "../../src/yamlParser/parseManifest"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import {
   createProject,
+  mintProject,
   deleteProject,
   listProjects,
   readEditorState,
@@ -73,26 +74,51 @@ describe("the project store", () => {
   })
 
   it("refuses an id that cannot name a directory", async () => {
-    await expect(createProject("MyStory")).rejects.toThrow(/a-z/)
-    await expect(createProject("con")).rejects.toThrow(/reserved device name/)
-    await expect(createProject("..")).rejects.toThrow(/a-z/)
-    await expect(createProject("")).rejects.toThrow(/a-z/)
+    await expect(mintProject("MyStory", "My Story")).rejects.toThrow(/a-z/)
+    await expect(mintProject("con", "Con")).rejects.toThrow(/reserved device name/)
+    await expect(mintProject("..", "Dots")).rejects.toThrow(/a-z/)
+    await expect(mintProject("", "Nameless")).rejects.toThrow(/a-z/)
 
     expect(await listProjects()).toEqual([])
   })
 
-  it("mints a project that parses clean when it is given no files", async () => {
+  it("mints a project that parses clean, under the title it was given", async () => {
     // A genuinely empty script.yaml has no `story` key, which parseStory reports - so a brand-new
     // project would open with a red gutter as its first impression.
-    await createProject("fresh")
+    await mintProject("fresh", "A Fresh Start")
 
     const { manifestText, scriptText } = await readProject("fresh")
     const [manifest, manifestErrors] = parseManifest(manifestText)
     expect(manifestErrors).toEqual([])
     if (manifest === null) throw new Error("the minted manifest does not parse")
     expect(manifest.id).toBe("fresh")
+    // The title the author typed, not a copy of the id: the picker shows one and addresses by the
+    // other.
+    expect(manifest.title).toBe("A Fresh Start")
     expect(YamlParser.parseStory(scriptText, manifest)[1]).toEqual([])
     expect(YamlParser.parseStory(scriptText, manifest)[0].commands.length).toBeGreaterThan(0)
+  })
+
+  it("mints a manifest that parses for every id the schema accepts", async () => {
+    // `true`, `false` and `null` fit the id charset and are the three YAML reads as scalars rather
+    // than strings, so an interpolated `id: true` produced a manifest that does not parse - exactly
+    // the red gutter minting exists to avoid. Measured 2026-09-05 before this was serialized.
+    for (const id of ["true", "false", "null", "no", "on", "y"]) {
+      await mintProject(id, `Project ${id}`)
+      const [manifest, errors] = parseManifest((await readProject(id)).manifestText)
+      expect(errors).toEqual([])
+      expect(manifest?.id).toBe(id)
+    }
+  })
+
+  it("mints a manifest that parses for a title with YAML in it", async () => {
+    // Free text the author typed, so a quote, a colon or a newline would break any hand-rolled
+    // quoting. The serializer knows those rules and this module does not have to.
+    await mintProject("quoted", 'He said: "hi"\nand left')
+
+    const [manifest, errors] = parseManifest((await readProject("quoted")).manifestText)
+    expect(errors).toEqual([])
+    expect(manifest?.title).toBe('He said: "hi"\nand left')
   })
 
   it("writes each buffer on its own", async () => {

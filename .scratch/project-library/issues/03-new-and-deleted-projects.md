@@ -1,6 +1,6 @@
 # 03: New projects, and deleting one
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 02 (the project library).
 
@@ -147,3 +147,34 @@ was a panel and would now rule out half its callers.
   checkbox on the rename dialog - but nothing needs it yet, and ticket 04's recursive copy is what it
   would be built on.
 - **Rename.** Ticket 04.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. `src/chrome/dialog.ts` is the surface,
+`src/picker/newProjectDialog.ts` the one dialog with fields in it, and the two flows are on
+`ProjectPicker`. Covered by `test/browser/ProjectPicker.test.ts` (new and delete end to end) and
+`test/browser/chrome.test.ts` (the surface on its own). This also ticks ticket 02's one outstanding
+criterion: the empty picker now offers both New project and Add demo project.
+
+**The surface is `<dialog>` + `showModal()`.** The platform supplies the backdrop, the top layer, the
+focus trap and Escape-to-dismiss, and every one of those is something a hand-rolled overlay in this
+codebase would get subtly wrong. `openDialog` takes a `content` element and a `validate` hook; a
+refused confirm shows its message and keeps what was typed. `confirmDialog` is the no-fields wrapper
+that delete uses and that a rename's two dialogs will.
+
+**`mintProject` serializes rather than interpolates.** The ticket asks for both interpolations to be
+quoted; `stringify` from the `yaml` library does it instead, because the title is the harder half -
+free text the author typed, where a quote, a colon or a newline breaks any hand-rolled quoting, and
+the library already knows every one of those rules. `createProject` now *requires* files and
+`mintProject(id, title)` is the call that makes a new project, so there is still one write path.
+`test/browser/projectStore.test.ts` pins `true`/`false`/`null` and a title with YAML in it.
+
+**The taken-id check is asked twice, on purpose.** Once inside the dialog's `validate`, which is what
+puts the message beside the field, and once after it resolves and before the write - another tab can
+create the id while the dialog is up, and `createProject` writes into `projects/<id>/`
+unconditionally. The first is the UI; the second is what makes it true.
+
+**Slugification folds accents rather than dropping them.** Without it a title spelled with a
+diaeresis loses its first letter outright (`Ürsula's Tale` becomes `rsula-s-tale`). That is the
+producer being better at its job, not a second rule about what an id may be - the one rule is still
+`validateProjectId`, which judges whatever the slugifier hands it.

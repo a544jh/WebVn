@@ -10,6 +10,7 @@ import {
   readProject,
   writeEditorState,
 } from "../../src/storage/projectStore"
+import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { createVnRoot, nextStop, releaseStoredEditorLock, settle, sleep, typeCharacter } from "../helpers/vnHarness"
 import { writeFile } from "../../src/storage/opfs"
@@ -19,12 +20,11 @@ const SCRATCH = "test-scratch-project-picker"
 
 // The front door. What it lists, what it opens, and what it does when it cannot open something.
 
-const manifestFor = (id: string, title: string): string => `formatVersion: 1\nid: ${id}\ntitle: ${title}\n`
 
 const SCRIPT = "story:\n  - A line\n"
 
 const make = (id: string, title: string): Promise<void> =>
-  createProject(id, { manifestText: manifestFor(id, title), scriptText: SCRIPT })
+  createProject(id, { manifestText: manifestNaming(id, title), scriptText: SCRIPT })
 
 let pickerRoot: HTMLDivElement
 let opened: string[]

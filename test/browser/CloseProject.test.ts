@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
 import { createProject, readProject } from "../../src/storage/projectStore"
+import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore } from "../helpers/opfs"
 import {
   advanceVn,
@@ -25,7 +26,6 @@ const SCRATCH = "test-scratch-close-project"
 const A = "close-test-a"
 const B = "close-test-b"
 
-const manifestFor = (id: string): string => `formatVersion: 1\nid: ${id}\ntitle: ${id}\n`
 
 const SCRIPT = "story:\n  - First line\n  - Second line\n"
 
@@ -120,8 +120,8 @@ beforeEach(async () => {
   // file is one tab for its whole run.
   await releaseStoredEditorLock()
   await clearOpfsStore(SCRATCH)
-  await createProject(A, { manifestText: manifestFor(A), scriptText: SCRIPT })
-  await createProject(B, { manifestText: manifestFor(B), scriptText: SCRIPT })
+  await createProject(A, { manifestText: manifestNaming(A), scriptText: SCRIPT })
+  await createProject(B, { manifestText: manifestNaming(B), scriptText: SCRIPT })
 
   root = createVnRoot({ actions: true })
   editorRoot = document.createElement("div")
@@ -252,7 +252,7 @@ describe("closing a project", () => {
     // false and rescheduled as if nothing had happened - which is the only case a teardown of an
     // animation loop is for. A pan is what keeps the loop genuinely hungry; without one the
     // renderable reports it wants no more frames and any teardown at all looks like it worked.
-    await createProject(A, { manifestText: manifestFor(A), scriptText: PANNING_SCRIPT })
+    await createProject(A, { manifestText: manifestNaming(A), scriptText: PANNING_SCRIPT })
     const booted = await open(A)
     await advanceVn(booted)
 

@@ -11,6 +11,7 @@ import {
   recordPendingRename,
   writeEditorState,
 } from "../../src/storage/projectStore"
+import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { releaseStoredEditorLock, settle } from "../helpers/vnHarness"
 
@@ -27,7 +28,6 @@ const SCRATCH = "test-scratch-recover"
 const FROM = "old-name"
 const TO = "new-name"
 
-const manifestFor = (id: string): string => `formatVersion: 1\nid: ${id}\ntitle: ${id}\n`
 const SCRIPT = "story:\n  - A line\n"
 
 let pickerRoot: HTMLDivElement
@@ -78,7 +78,7 @@ describe("a rename that was interrupted", () => {
   it("sweeps the destination when the copy never committed, and leaves the source alone", async () => {
     // Killed between the marker and the manifest write. The destination has no manifest, so it is
     // residue by the store's own rule and the source was never touched.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
     await halfCopied(TO)
     await recordPendingRename({ from: FROM, to: TO })
 
@@ -95,8 +95,8 @@ describe("a rename that was interrupted", () => {
   it("deletes the source when the copy committed, and leaves one project under the new id", async () => {
     // Killed after the manifest write, before the delete. Both are valid projects at that moment,
     // which is exactly why the delete below has to take a lock.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await writeEditorState({
       created: { [FROM]: "2026-01-01T00:00:00.000Z" },
       pendingRename: { from: FROM, to: TO },
@@ -114,7 +114,7 @@ describe("a rename that was interrupted", () => {
   })
 
   it("discards a marker naming a destination that never appeared, and deletes nothing", async () => {
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: "never-existed" })
 
     await renderPicker()
@@ -126,7 +126,7 @@ describe("a rename that was interrupted", () => {
   it("discards a marker naming a source that is already gone, and leaves the destination alone", async () => {
     // The delete finished and only the marker was left. Every step of finishing is safe to repeat,
     // which is what lets this run over a rename that got further than the marker suggests.
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: TO })
 
     await renderPicker()
@@ -140,8 +140,8 @@ describe("a rename that was interrupted", () => {
     // Between the commit and the delete both directories are listed projects, so a second tab can
     // legitimately have opened the source. Deleting it would take a project out from under a live
     // editor.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: TO })
     await holdAsAnotherTab(FROM)
 
@@ -167,9 +167,9 @@ describe("the marker's own survival", () => {
     // next render can finish the job. A delete in that window used to wipe it: `forgetProject`
     // spelled out the two date maps and wrote the file, dropping everything else in it - and the
     // interrupted rename's source became a permanent duplicate rather than one soon tidied away.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
-    await createProject("unrelated", { manifestText: manifestFor("unrelated"), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
+    await createProject("unrelated", { manifestText: manifestNaming("unrelated"), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: TO })
     await holdAsAnotherTab(FROM)
     await renderPicker()
@@ -183,7 +183,7 @@ describe("the marker's own survival", () => {
 
 describe("sweeping what is not a project", () => {
   it("removes a directory with no manifest, whether or not a marker mentions it", async () => {
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
     await halfCopied("nobody-mentioned-me")
 
     await renderPicker()
@@ -218,7 +218,7 @@ describe("sweeping what is not a project", () => {
     // The most that could be inferred without a marker, and inferring it would be wrong: it is
     // exactly the state createProject passes through between its two writes. A duplicate the author
     // can delete is the price of never making a wrong delete.
-    await writeFile(await storeRoot(SCRATCH), `projects/half-made/manifest.yaml`, manifestFor("half-made"))
+    await writeFile(await storeRoot(SCRATCH), `projects/half-made/manifest.yaml`, manifestNaming("half-made"))
 
     await renderPicker()
 
@@ -246,8 +246,8 @@ describe("when the store will not let recovery finish", () => {
   }
 
   it("still lists the library when the source of a committed rename cannot be removed", async () => {
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: TO })
     const held = await holdOpen(`projects/${FROM}/assets/stuck.png`)
 
@@ -266,7 +266,7 @@ describe("when the store will not let recovery finish", () => {
   })
 
   it("sweeps the residue it can when one directory will not go", async () => {
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
     await halfCopied("stuck-residue")
     await halfCopied("removable-residue")
     const held = await holdOpen("projects/stuck-residue/assets/stuck.png")
@@ -284,8 +284,8 @@ describe("with editor.yaml missing or unreadable", () => {
   it("still lists a consistent set: residue swept, nothing valid removed", async () => {
     // The file is defined as losable, so recovery has to degrade to what enumeration alone can
     // prove - and what it can prove is that a directory with no manifest is not a project.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await halfCopied("residue")
     await writeFile(await storeRoot(SCRATCH), "editor.yaml", "pendingRename: [unclosed\n")
 
@@ -302,8 +302,8 @@ describe("when recovery runs", () => {
     // sweep runs. What can is a rename that committed and did not finish: both directories are
     // valid, listed projects at that moment, and recovery removes one of them. Drawn after the walk,
     // the picker would offer the author a row that no longer exists by the time they click it.
-    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
-    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject(FROM, { manifestText: manifestNaming(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestNaming(TO), scriptText: SCRIPT })
     await recordPendingRename({ from: FROM, to: TO })
 
     await renderPicker()

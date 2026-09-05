@@ -96,6 +96,21 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
 export const noticeDialog = (title: string, body: string[]): Promise<boolean> =>
   openDialog({ title, body, confirmLabel: "Close", dismissOnly: true })
 
+// Destroying a project, which two dialogs ask about in the same breath: deleting one, and renaming
+// onto one. They differ in what is being destroyed and why, so the caller supplies that; what they
+// share is the sentence about it being gone for good, which is a fact about **this tranche** rather
+// than about either dialog - there is no export yet, so nothing outside the browser has a copy.
+// When export lands, that sentence changes here rather than in two places that had drifted.
+//
+// In `src/chrome/` for the reason the surface itself is: one host is the picker with no editor
+// mounted, the other is inside one.
+export const confirmDestroyingProject = (title: string, what: string, confirmLabel: string): Promise<boolean> =>
+  confirmDialog(
+    title,
+    [what, "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy."],
+    confirmLabel
+  )
+
 // The common case: a question with no fields. Destructive by default, because that is what a
 // confirmation is nearly always for here - deleting a project, overwriting one.
 export const confirmDialog = (

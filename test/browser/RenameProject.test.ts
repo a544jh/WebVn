@@ -10,6 +10,7 @@ import {
   renameProject,
   writeEditorState,
 } from "../../src/storage/projectStore"
+import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep, textBoxText } from "../helpers/vnHarness"
 
@@ -23,11 +24,10 @@ const SCRATCH = "test-scratch-rename"
 const FROM = "old-name"
 const TO = "new-name"
 
-const manifestFor = (id: string): string => `formatVersion: 1\nid: ${id}\ntitle: A Story\n`
 const SCRIPT = "story:\n  - A line\n  - Another line\n  - A third line\n  - A fourth line\n"
 
 const makeProject = async (id: string): Promise<void> => {
-  await createProject(id, { manifestText: manifestFor(id), scriptText: SCRIPT })
+  await createProject(id, { manifestText: manifestNaming(id, "A Story"), scriptText: SCRIPT })
   await writeFile(await storeRoot(SCRATCH), `projects/${id}/assets/backgrounds/a.png`, new Blob(["pretend-png"]))
 }
 
@@ -41,7 +41,7 @@ beforeEach(async () => {
 
 describe("the store's half of a rename", () => {
   it("leaves exactly one project, under the new directory, with everything intact", async () => {
-    await renameProject(FROM, TO, manifestFor(TO))
+    await renameProject(FROM, TO, manifestNaming(TO, "A Story"))
 
     expect(await directories()).toEqual([TO])
     const files = await readProject(TO)
@@ -57,7 +57,7 @@ describe("the store's half of a rename", () => {
     const markers: Array<string | undefined> = []
     const watch = setInterval(() => void readEditorState().then((s) => markers.push(s.pendingRename?.to)), 1)
 
-    await renameProject(FROM, TO, manifestFor(TO))
+    await renameProject(FROM, TO, manifestNaming(TO, "A Story"))
     clearInterval(watch)
     await sleep(30)
 
@@ -92,7 +92,7 @@ describe("the store's half of a rename", () => {
       )
     }, 3)
 
-    await renameProject(FROM, TO, manifestFor(TO))
+    await renameProject(FROM, TO, manifestNaming(TO, "A Story"))
     clearInterval(watch)
     await sleep(40)
 
@@ -110,7 +110,7 @@ describe("the store's half of a rename", () => {
       lastOpened: { [FROM]: "2026-02-02T00:00:00.000Z" },
     })
 
-    await renameProject(FROM, TO, manifestFor(TO))
+    await renameProject(FROM, TO, manifestNaming(TO, "A Story"))
 
     const { created, lastOpened } = await readEditorState()
     expect(created).toEqual({ [TO]: "2026-01-01T00:00:00.000Z" })
@@ -121,7 +121,7 @@ describe("the store's half of a rename", () => {
     await makeProject(TO)
     await writeFile(await storeRoot(SCRATCH), `projects/${TO}/assets/backgrounds/gone.png`, new Blob(["doomed"]))
 
-    await renameProject(FROM, TO, manifestFor(TO))
+    await renameProject(FROM, TO, manifestNaming(TO, "A Story"))
 
     expect(await directories()).toEqual([TO])
     // The overwritten project's own files are gone rather than merged with the incoming ones.
@@ -176,7 +176,7 @@ const editIdAndBlur = async (id: string): Promise<void> => {
   const cm = (elements.vnEditorDiv.querySelector(".CodeMirror") as unknown as { CodeMirror: CodeMirror.Editor })
     .CodeMirror
   ;(elements.vnEditorDiv.querySelector('.vn-editor-tab[data-vn-buffer="manifest"]') as HTMLButtonElement).click()
-  cm.getDoc().setValue(manifestFor(id))
+  cm.getDoc().setValue(manifestNaming(id, "A Story"))
   cm.focus()
   cm.getInputField().blur()
   await sleep(200)

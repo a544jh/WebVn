@@ -45,8 +45,7 @@ export class AppShell {
   // The picker is re-created every time it is shown, and comes down when a project goes up. Nothing
   // re-uses one: it holds a walk of a store that anything may have changed since.
   public async showPicker(): Promise<void> {
-    this.elements.sessionDiv.hidden = true
-    this.elements.pickerDiv.hidden = false
+    this.show("picker")
     this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject)
     await this.picker.render()
   }
@@ -65,8 +64,7 @@ export class AppShell {
     if (booted.kind === "refused") {
       // Back to the list, which is a place the author can stay. The picker was never stopped, so it
       // is still standing behind this and only has to be shown again.
-      this.elements.sessionDiv.hidden = true
-      this.elements.pickerDiv.hidden = false
+      this.show("picker")
       return booted.reason
     }
 
@@ -213,8 +211,14 @@ export class AppShell {
   // Measured 2026-09-05, by shipping it: the picker's first version booted and *then* revealed, and
   // the whole stage came up blank. Do not fold these two lines back into the success path below.
   private reveal(): void {
-    this.elements.pickerDiv.hidden = true
-    this.elements.sessionDiv.hidden = false
+    this.show("session")
+  }
+
+  // The swap itself, in the one place, so the two views cannot come to disagree about which of them
+  // is up - which they can when each caller spells both halves for itself.
+  private show(view: "picker" | "session"): void {
+    this.elements.pickerDiv.hidden = view !== "picker"
+    this.elements.sessionDiv.hidden = view !== "session"
   }
 }
 

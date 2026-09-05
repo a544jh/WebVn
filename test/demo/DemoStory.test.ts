@@ -9,6 +9,7 @@ import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { audioFilePath, backgroundFilePath, spriteFilePath } from "../../src/domRenderer/assetPaths"
 import {
   boxText,
+  clearSaves,
   createVnRoot,
   decisionItems,
   liveSprites,
@@ -257,6 +258,11 @@ beforeEach(() => {
   }
 
   harnessRoot = createVnRoot({ actions: true })
+  // This suite's own id. `createVnRoot` clears `TEST_MANIFEST`'s, which is the id a test that does
+  // not care uses - the demo has one of its own, and the seen-commands test below asserts a clean
+  // slate. It used to come free from a blanket `localStorage.clear()`, which took out the saves of
+  // whatever suite was running beside it.
+  clearSaves(demoManifest.id)
 })
 
 afterEach(() => {

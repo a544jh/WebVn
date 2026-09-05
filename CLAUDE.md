@@ -326,7 +326,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   storer, tear the renderer down, empty the editor's root, release the lock — the thing that built
   the session takes it down. `DomRenderer.teardown()` restores the vn root to the markup it was
   handed rather than emptying it, because the action bar is page markup the renderer only queries;
-  emptying it would leave the next session without one. `test/browser/CloseProject.test.ts` covers
+  emptying it would leave the next session without one. It also tears down the **two sub-renderers
+  that own something outside the root**: `AudioRenderer` plays through detached `<audio>` clones that
+  never enter the document (so a looping track survived every other kind of teardown — it shipped
+  that way and played over the picker), and `BackgroundRenderer` reschedules `requestAnimationFrame`
+  while a transition or pan has frames left. `test/browser/CloseProject.test.ts` covers
   the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.

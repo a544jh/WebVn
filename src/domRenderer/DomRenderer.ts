@@ -402,6 +402,12 @@ export class DomRenderer implements Renderer {
     }
     this.disableAutoplay()
 
+    // The two sub-renderers that own something outside this root: audio plays from detached
+    // elements the loaders hand out, and the background keeps asking for frames. Everything else a
+    // sub-renderer made is inside the root and goes away with the markup below.
+    this.audioRenderer.teardown()
+    this.backgroundRenderer.teardown()
+
     // Restored rather than emptied: the action bar is markup this renderer was handed rather than
     // markup it made, and the next renderer over this element re-queries it.
     this.root.innerHTML = this.initialHtml

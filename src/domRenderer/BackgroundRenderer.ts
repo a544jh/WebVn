@@ -17,6 +17,13 @@ export class BackgroundRenderer {
   private currentRenderable: Renderable
   private needMoreFrames: boolean
 
+  // Stops the animation loop below, which reschedules itself through `requestAnimationFrame` for as
+  // long as a transition or a pan has frames left. After a teardown the canvas it draws into is
+  // detached, so the frames go nowhere - but they keep being asked for.
+  public teardown(): void {
+    this.needMoreFrames = false
+  }
+
   constructor(vnRoot: HTMLDivElement, private renderer: DomRenderer, private assetLoader: ImageAssetLoaderSrc) {
     this.sceneWidth = vnRoot.clientWidth
     this.sceneHeight = vnRoot.clientHeight

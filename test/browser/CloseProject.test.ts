@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
 import { createProject, readProject } from "../../src/storage/projectStore"
 import { clearOpfsStore } from "../helpers/opfs"
@@ -29,6 +29,23 @@ const manifestFor = (id: string): string => `formatVersion: 1\nid: ${id}\ntitle:
 
 const SCRIPT = "story:\n  - First line\n  - Second line\n"
 
+// A project with music, for the teardown that has to silence it.
+const MUSICAL_MANIFEST = `formatVersion: 1
+id: ${"close-test-a"}
+title: With Music
+audioAssets:
+  theme: bgm/theme.ogg
+`
+
+// The music starts on the *second* command, so the boot's own run to the first stop does not reach
+// it - the asset is injected in between, since nothing here has a real file to decode.
+const MUSICAL_SCRIPT = `story:
+  - Before the music
+  - bgm:
+      audio: theme
+  - Playing
+`
+
 const heldLockNames = async (): Promise<string[]> =>
   ((await navigator.locks.query()).held ?? []).map((info) => info.name ?? "")
 
@@ -50,10 +67,38 @@ const open = async (directory: string): Promise<OpenProject> => {
   const firstStop = nextStop(booted.renderer, booted.player)
   await booted.openProject()
   await firstStop
-  return { ...booted, root, editorRoot }
+  opened = { ...booted, root, editorRoot }
+  return opened
 }
 
+// Chromium's autoplay policy rejects play() without a user gesture, and AudioRenderer does not catch
+// that - so it is stubbed, which also gives a log of what was started and what was stopped.
+let played: HTMLMediaElement[]
+let paused: HTMLMediaElement[]
+const realPlay = HTMLMediaElement.prototype.play
+const realPause = HTMLMediaElement.prototype.pause
+
+// Whatever a test left open, so one failure cannot hold a lock and refuse every boot after it.
+let opened: OpenProject | null = null
+
+afterEach(async () => {
+  HTMLMediaElement.prototype.play = realPlay
+  HTMLMediaElement.prototype.pause = realPause
+  await opened?.close()
+  opened = null
+})
+
 beforeEach(async () => {
+  played = []
+  paused = []
+  HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+    played.push(this)
+    return Promise.resolve()
+  }
+  HTMLMediaElement.prototype.pause = function (this: HTMLMediaElement) {
+    paused.push(this)
+  }
+
   // A previous suite's boot still holds its lock - a real tab releases by going away, and a test
   // file is one tab for its whole run.
   await releaseStoredEditorLock()
@@ -67,6 +112,28 @@ beforeEach(async () => {
 })
 
 describe("closing a project", () => {
+  it("stops the music", async () => {
+    // Audio is the one part of a session that does not live in the vn root: the loaders hand out
+    // detached `<audio>` clones, which play perfectly well without ever being in the document. So
+    // restoring the root's markup - which is what puts every other rendered thing away - leaves a
+    // looping track playing over whatever replaced the project.
+    await createProject(A, { manifestText: MUSICAL_MANIFEST, scriptText: MUSICAL_SCRIPT })
+    const booted = await open(A)
+    // Injected rather than loaded: playback is stubbed, so this never needs to decode.
+    const loader = booted.renderer["audioLoader"] as unknown as { assets: Record<string, HTMLAudioElement> }
+    loader.assets["assets/audio/bgm/theme.ogg"] = new Audio()
+
+    await advanceVn(booted)
+    expect(played).toHaveLength(1)
+    expect(paused).toHaveLength(0)
+
+    await booted.close()
+
+    // Everything this session started is stopped - and immediately, not faded: a graceful fade-out
+    // of a project the author has already left is a second and a half of a story that is gone.
+    expect(paused).toEqual(played)
+  })
+
   it("releases the lock, so the same project can be opened again", async () => {
     const booted = await open(A)
     expect(await heldLockNames()).toContain(`vn-project-${A}`)

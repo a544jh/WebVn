@@ -30,6 +30,14 @@ below remounts in the same page.
   `setInterval` and skip mode a self-rescheduling `setTimeout`. A superseded renderer otherwise
   answers the keyboard and advances a story nobody is looking at, into elements that are no longer
   on screen.
+  - **And the two sub-renderers that own something outside the root.** Added 2026-09-05, after Back
+    to projects shipped and the music kept playing over the picker. `AudioRenderer` plays through
+    detached `<audio>` clones the loaders hand out - they never enter the document, so nothing about
+    putting the vn's DOM away stops one, and a looping track never stops itself. `BackgroundRenderer`
+    reschedules a `requestAnimationFrame` for as long as a transition or a pan has frames left, into
+    a canvas that is no longer on screen. Both now have a `teardown()`; the audio one silences
+    immediately rather than fading, because a graceful fade-out of a project the author has already
+    left is a second and a half of a story that is gone.
 - **The lock.** `ProjectLock.release` exists and nothing in the app calls it - the comment says it is
   there for tests, because there was no switching. This is its first real caller, and that comment
   stops being true.
@@ -53,6 +61,8 @@ directory.
 - [ ] After close, `focusout`, `visibilitychange` and `pagehide` write nothing
 - [ ] After close, a keypress does not advance the story, and any autoplay interval or skip-mode
       timer is cancelled
+- [ ] After close, nothing this session started is still playing, and no animation frame is still
+      being asked for
 - [ ] After close, a second boot on the same directory takes the lock rather than being refused
 - [ ] The measured loss is gone: boot A, type, close, boot B, boot A again, and A opens with the
       newest text rather than the stale storer's
@@ -87,3 +97,19 @@ second session with no Back, Menu, Auto or Skip - which fails "a remount leaves 
 the criterion did not intend. `DomRenderer` captures `innerHTML` at construction and puts it back, so
 the element is left as it was found. The editor's root *is* emptied, because the editor fills it
 entirely. `test/browser/CloseProject.test.ts` pins both halves.
+
+**Audio outlived the teardown, and shipped that way.** Found 2026-09-05 by using the thing: Back to
+projects left the music playing over the picker. The teardown restores the vn root's markup, which
+puts away everything a sub-renderer *drew* - but `AudioRenderer` does not draw. It plays through
+detached `<audio>` clones the loaders hand out, which never enter the document at all, so there was
+nothing for the markup restore to reach and nothing else stopping them.
+
+Two reasons no test caught it. Nothing tore a renderer down with audio playing, because until Back to
+projects existed nothing tore one down at all; and **the demo suite stubs `HTMLMediaElement.play`**,
+so the one suite that exercises audio never has an element that is really playing to leave behind.
+`test/browser/CloseProject.test.ts` now stubs `play` *and* `pause` and asserts that everything a
+session started was stopped when it closed, which is the assertion the stub makes possible rather
+than one it prevents.
+
+`BackgroundRenderer`'s `requestAnimationFrame` chain was the same shape and was fixed alongside it -
+not a visible symptom, but a live frame loop per abandoned session, drawing into a detached canvas.

@@ -137,8 +137,16 @@ const writeNow = async (dir: FileSystemDirectoryHandle, path: string, data: Blob
   const { parent, name } = await locate(dir, path, true)
   const handle = await parent.getFileHandle(name, { create: true })
   const writable = await handle.createWritable()
-  await writable.write(data)
-  await writable.close()
+  if (typeof data === "string") {
+    await writable.write(data)
+    await writable.close()
+    return
+  }
+  // A Blob is piped rather than handed over whole, so memory stays bounded whatever the file holds -
+  // a project's assets are the large things here, and a rename copies every one of them. `pipeTo`
+  // closes the destination itself on success, which is the commit, so there is no `close()` after
+  // it: calling one would throw on an already-closed stream.
+  await data.stream().pipeTo(writable)
 }
 
 // The directory names directly under `path`. A path that is not there lists as empty rather than
@@ -171,6 +179,27 @@ async function* walkFrom(dir: FileSystemDirectoryHandle, prefix: string): AsyncG
       const file = handle as FileSystemFileHandle
       yield { path, handle: file, size: (await file.getFile()).size }
     }
+  }
+}
+
+// Every file under `from`, copied to the same relative path under `to`. One walk, and it will have
+// three callers: a rename's copy, and the export and import that tranche 3 builds on the same shape.
+//
+// `skip` is how a caller leaves a file out. A rename uses it for `manifest.yaml`, which it writes
+// itself, last, because that single write is the commit point for the whole copy - so the
+// destination must not bear one until everything else is there.
+//
+// Each file goes through `writeFile`, so it is streamed and it is serialized per path like every
+// other write, rather than being a second way to put bytes on disk.
+export const copyTree = async (
+  dir: FileSystemDirectoryHandle,
+  from: string,
+  to: string,
+  skip: (path: string) => boolean = () => false
+): Promise<void> => {
+  for await (const file of walk(dir, from)) {
+    if (skip(file.path)) continue
+    await writeFile(dir, `${to}/${file.path}`, await file.handle.getFile())
   }
 }
 

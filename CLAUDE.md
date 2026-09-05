@@ -375,6 +375,19 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   point self-boots on import and looks its elements up by id, so no suite can reach it — put
   stateful logic there and it ships untested. Every other browser suite mounts through
   `createVnRoot`, straight onto a visible body, so none of them can see a hidden-mount bug either.
+- **Renaming is the directory following the manifest's id, and never the reverse.** The trigger is
+  manifest adoption: `VnEditor.onManifestAdoptedCallbacks` reports, `AppShell.rename` compares the id
+  to the directory and acts — storage stays out of `src/editor/`. Two orderings matter. The store's
+  (`renameProject`) is overwrite-delete → marker → copy everything but the manifest → **write the
+  manifest, which is the commit point** → delete the source → clear the marker and carry
+  `created`/`lastOpened` across. The session's is ask → check room → ask about an overwrite → take
+  the destination lock → **close** → move → reopen: the lock before the close so a refusal never
+  strands the author, and the close before the copy so a live storer cannot write into the tree
+  mid-copy. `bootEditor` takes an already-held lock for exactly this caller.
+- **`opfs.ts`'s `writeFile` streams a Blob** (`blob.stream().pipeTo(writable)`; `pipeTo` closes the
+  stream itself, so no `close()` after). `copyTree` is the one recursive copy — a rename's today,
+  export and import's later — and it goes through `writeFile`, so it is serialized per path like
+  every other write rather than being a second way to put bytes on disk.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
   `persisted()`, re-read on every render.

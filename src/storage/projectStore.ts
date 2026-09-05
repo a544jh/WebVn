@@ -1,6 +1,6 @@
 import { parse, stringify } from "yaml"
 import { parseManifest, validateProjectId } from "../yamlParser/parseManifest"
-import { listDirectories, opfsRoot, readBlob, readText, removeRecursive, writeFile } from "./opfs"
+import { copyTree, listDirectories, opfsRoot, readBlob, readText, removeRecursive, walk, writeFile } from "./opfs"
 
 // Project semantics over the OPFS primitives: where a project's files live, what counts as a
 // project, and how one is read and written. design-docs/PROJECT_STORAGE.md, "Layout" and "Multiple
@@ -93,6 +93,16 @@ export interface EditorState {
   // questions *about* what that walk found. A project missing from either map is a project this file
   // has nothing to say about, not a project that does not exist.
   readonly created?: Record<string, string>
+  // A rename in flight. **One slot, not a field per project**: one project is open at a time under
+  // its lock, so two renames cannot overlap, and "is a rename in flight" is one check rather than a
+  // scan. Written before the copy and cleared after the source is gone; ticket 05's recovery is what
+  // reads it.
+  readonly pendingRename?: PendingRename
+}
+
+export interface PendingRename {
+  readonly from: string
+  readonly to: string
 }
 
 // The store addresses one root rather than taking a directory per call. This is the one place the
@@ -200,6 +210,52 @@ const mintedFiles = (id: string, title: string): ProjectFiles => ({
 export const deleteProject = (directory: string): Promise<void> =>
   root().then((dir) => removeRecursive(dir, `${PROJECTS}/${directory}`))
 
+// Carry a project's bookkeeping to the directory it now lives under. Without this a renamed project
+// has no recorded creation, which puts it in the undated bucket the picker sorts *first* - so
+// renaming would send a project to the top of the library.
+const moveProjectRecords = async (from: string, to: string): Promise<void> => {
+  const { lastOpened = {}, created = {}, pendingRename } = await readEditorState()
+  if (created[from] !== undefined) created[to] = created[from]
+  if (lastOpened[from] !== undefined) lastOpened[to] = lastOpened[from]
+  delete created[from]
+  delete lastOpened[from]
+  await writeEditorState({ lastOpened, created, pendingRename })
+}
+
+// **The directory follows the identity the manifest declares**, which is the only direction this
+// runs in: when the two disagree the fix is always to move the directory, never to rewrite the id to
+// match it. Rewriting a field is one line and moving a directory is not, which is exactly why the
+// cheap answer has to be refused in writing.
+//
+// The ordering is the whole of this function, and every step of it exists to make each crash state
+// recoverable by ticket 05's reconcile:
+//
+// 0. Delete the destination if the caller has confirmed an overwrite - **before** the marker, so
+//    "a directory with no manifest is garbage" holds throughout and the destructive step is up front
+//    rather than interleaved with the copy.
+// 1. Write the marker. From here on a crash leaves something a later boot can finish.
+// 2. Copy everything but the manifest.
+// 3. Write the destination's manifest. **This single atomic write is the commit point** - an OPFS
+//    write is already atomic, so nothing needs layering on top of it. Before it the destination has
+//    no manifest and is therefore garbage; after it, it is a valid project. There is no third state.
+// 4. Delete the source, then clear the marker and carry the bookkeeping across.
+//
+// The caller owns everything this cannot know: that the author agreed, that there is room, and that
+// the destination's lock is held.
+export const renameProject = async (from: string, to: string, manifestText: string): Promise<void> => {
+  const dir = await root()
+
+  await removeRecursive(dir, `${PROJECTS}/${to}`)
+  await recordPendingRename({ from, to })
+
+  await copyTree(dir, `${PROJECTS}/${from}`, `${PROJECTS}/${to}`, (path) => path === MANIFEST_FILE)
+  await writeFile(dir, projectPath(to, MANIFEST_FILE), manifestText)
+
+  await removeRecursive(dir, `${PROJECTS}/${from}`)
+  await moveProjectRecords(from, to)
+  await recordPendingRename(null)
+}
+
 // The two buffers are written separately because the editor stores them separately: one debounce
 // per buffer, and a manifest edit does not rewrite the script.
 export const writeScript = (directory: string, text: string): Promise<void> =>
@@ -231,7 +287,20 @@ export const readEditorState = async (): Promise<EditorState> => {
   // the type because a *writer* need not supply either.
   if (typeof parsed !== "object" || parsed === null) return { lastOpened: {}, created: {} }
   const record = parsed as Record<string, unknown>
-  return { lastOpened: timestamps(record.lastOpened), created: timestamps(record.created) }
+  return {
+    lastOpened: timestamps(record.lastOpened),
+    created: timestamps(record.created),
+    pendingRename: pendingRename(record.pendingRename),
+  }
+}
+
+// A marker naming anything but two strings is not a marker. It is a hint about what to look for in
+// the tree, and recovery re-verifies against the tree before acting on it, so a malformed one costs
+// nothing to discard.
+const pendingRename = (value: unknown): PendingRename | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { from, to } = value as Record<string, unknown>
+  return typeof from === "string" && typeof to === "string" ? { from, to } : undefined
 }
 
 const parseOrNull = (text: string): unknown => {
@@ -264,6 +333,23 @@ export const recordOpened = (directory: string): Promise<void> => note("lastOpen
 const note = async (field: "lastOpened" | "created", directory: string): Promise<void> => {
   const state = await readEditorState()
   await writeEditorState({ ...state, [field]: { ...state[field], [directory]: new Date().toISOString() } })
+}
+
+// The rename marker, on and off. Merged into whatever else the file holds, like every other write
+// here: the two date maps are in there and a caller that wrote the whole state would drop them.
+export const recordPendingRename = async (rename: PendingRename | null): Promise<void> => {
+  const state = await readEditorState()
+  await writeEditorState({ ...state, pendingRename: rename ?? undefined })
+}
+
+// What a project occupies, by walking it. The one call that descends into `assets/` - the picker
+// deliberately does not, which is what keeps a recursive walk off the boot path - and it is here
+// because a rename has to ask whether a second copy will fit.
+export const projectSize = async (directory: string): Promise<number> => {
+  const dir = await root()
+  let total = 0
+  for await (const file of walk(dir, `${PROJECTS}/${directory}`)) total += file.size
+  return total
 }
 
 // Forget what this file knew about a project. Called when one is deleted, and **not merely

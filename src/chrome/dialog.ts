@@ -31,6 +31,8 @@ export interface DialogOptions {
   readonly validate?: () => boolean
   // Wears the error colour, for an action that destroys something.
   readonly destructive?: boolean
+  // No Cancel button: this dialog states something rather than asking it.
+  readonly dismissOnly?: boolean
 }
 
 // Resolves true when confirmed, false when cancelled or dismissed. The element is removed either
@@ -73,7 +75,8 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
 
   // Cancel first, then Confirm, in the DOM and on screen alike: Cancel is what Enter and the first
   // tab reach, and Confirm is where the eye ends up.
-  buttons.append(cancel, confirm)
+  if (options.dismissOnly !== true) buttons.appendChild(cancel)
+  buttons.appendChild(confirm)
   dialog.appendChild(buttons)
 
   document.body.appendChild(dialog)
@@ -87,6 +90,11 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
   dialog.showModal()
   return answered
 }
+
+// Nothing to decide, so one button. A refusal that offered "Cancel" beside "Close" would be asking
+// a question it has no answer for.
+export const noticeDialog = (title: string, body: string[]): Promise<boolean> =>
+  openDialog({ title, body, confirmLabel: "Close", dismissOnly: true })
 
 // The common case: a question with no fields. Destructive by default, because that is what a
 // confirmation is nearly always for here - deleting a project, overwriting one.

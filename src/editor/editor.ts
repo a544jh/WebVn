@@ -2,6 +2,7 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { codeMirror } from "./codeMirror"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { stringify } from "yaml"
 import { declarationLocations } from "../yamlParser/parseManifest"
 import { DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
@@ -118,6 +119,15 @@ export class VnEditor {
 
   // Fires after every adoption attempt, so a host page can follow `isManifestValid`.
   public onManifestStateChangeCallbacks: Array<() => void> = []
+
+  // Fires when a manifest is actually adopted - parsed, taken as the one the project runs under, and
+  // the script reparsed against it. Separate from the callback above, which fires on every attempt
+  // including the failures.
+  //
+  // It exists so that a host can notice the *id* changing: the directory a project is filed under has
+  // to follow the identity its manifest declares, and this class does not know what directory that
+  // is. Storage stays out of src/editor/, so this reports and something else acts.
+  public onManifestAdoptedCallbacks: Array<(manifest: VnManifest) => void> = []
 
   // Fires on every edit, with the buffer that changed and its whole text. What a host page does
   // with it is its own business - storing lives outside src/editor/, the same division as the
@@ -288,6 +298,35 @@ export class VnEditor {
     // carried in on that state, so later saves go to the new key without a second call to make.
     this.player.reloadStory(state)
     this.renderer.render(false)
+
+    // Last, because a host may act on it - a changed id is a rename, which closes this whole session
+    // - and everything above has to be settled first either way.
+    this.onManifestAdoptedCallbacks.forEach((cb) => cb(manifest))
+  }
+
+  // Put the manifest's `id:` back to what it was, **touching nothing else in the buffer**. That is
+  // what declining a rename means: the author edited one field, and every other edit they made in
+  // the same sitting is still theirs.
+  //
+  // A line replacement rather than a re-serialisation of the parsed document, because round-tripping
+  // manifest.yaml through the parser eats its comments - the same reason the URL payload carries the
+  // raw buffer. The line comes from the parser's own locator, so this does not need a second opinion
+  // about where a key is declared; the value goes through the YAML serialiser, because an id may be
+  // `true` or `null` and those need quoting to read back as strings.
+  //
+  // Re-adopted afterwards, so the preview, the gutter and the save key all return with it.
+  public async revertManifestId(id: string): Promise<void> {
+    const text = this.manifestDoc.getValue()
+    const [location] = declarationLocations(text, [["id"]])
+    const lines = text.split("\n")
+    lines.splice(location.startLine - 1, location.endLine - location.startLine + 1, stringify({ id }).trimEnd())
+
+    // **Not** through `setBuffer`: that guard exists so reading a project in is not mistaken for the
+    // author typing, and this is the opposite - a real change to their document, which the storer
+    // has to hear about. Without the event the store would keep the id they just declined, and the
+    // next boot would ask them about the same rename again.
+    this.manifestDoc.setValue(lines.join("\n"))
+    await this.adoptManifest()
   }
 
   // Every programmatic write to a buffer goes through here, so that reading a project in is never

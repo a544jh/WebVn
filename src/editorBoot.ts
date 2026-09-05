@@ -82,7 +82,16 @@ export const unsupportedBrowserReason = (): string | null =>
 // and the picker took both, so it is gone rather than left with a contract that changed underneath
 // it. A rename opens a directory nothing has ever listed, which is the other reason this is a
 // parameter.
-export const bootEditor = async (elements: EditorElements, directory: string): Promise<EditorBoot> => {
+//
+// `held` is for the one caller that has already taken the lock: a rename, which must know it can
+// have the destination **before** it tears the old session down, since a refusal after that would
+// leave the author with nothing mounted and their work already put down. Everyone else passes
+// nothing and this takes the lock itself.
+export const bootEditor = async (
+  elements: EditorElements,
+  directory: string,
+  held?: ProjectLock
+): Promise<EditorBoot> => {
   const unsupported = unsupportedBrowserReason()
   if (unsupported !== null) return { kind: "refused", reason: unsupported }
 
@@ -90,7 +99,7 @@ export const bootEditor = async (elements: EditorElements, directory: string): P
   // was not there for the write it was meant to protect, and a refused tab must not have written
   // anything on its way to being refused - which is why `lastOpened` is recorded below it rather
   // than by whoever chose the directory.
-  const lock = await takeProjectLock(directory)
+  const lock = held ?? (await takeProjectLock(directory))
   if (lock === null) {
     // Not read-only mode, and not a banner over a mounted editor: read-only means an editor whose
     // stores are suppressed, which is the memory-only path this boot already refuses, arrived at

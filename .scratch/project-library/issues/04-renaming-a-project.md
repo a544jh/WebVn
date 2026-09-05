@@ -1,6 +1,6 @@
 # 04: Renaming a project
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (closing a project and opening another), 03 (new projects, and deleting one - for the
 dialog surface).
@@ -152,3 +152,39 @@ pressure the check above exists for, and leave behind a project the author did n
 - **Building the rename dialog's surface.** Ticket 03 builds it, in `src/chrome/`; this ticket is its
   second caller and the one that proves it must work inside the editor as well as over the picker.
 - **Warning harder once a project has been exported.** Also open, and there is nothing to export yet.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. The store's half is `renameProject` in
+`projectStore.ts` over `copyTree` in `opfs.ts`; the session swap is `AppShell.rename`. Covered by
+`test/browser/RenameProject.test.ts`, and driven by hand in the built app - the demo renamed, reopened
+and still painting a background out of its copied assets.
+
+**The trigger reports rather than acts.** `VnEditor` grows `onManifestAdoptedCallbacks`, which fires
+when a manifest is actually adopted rather than merely attempted; the shell compares the id to the
+directory it knows and decides. Storage stays out of `src/editor/`, which is what forced the seam,
+and it is the right one anyway: the editor has no idea what a directory is.
+
+**The two orderings, and the thing that joins them.** The store's is the ticket's - overwrite delete,
+marker, copy, manifest, source delete, clear - and the commit point is the destination's manifest
+write. The session's is: ask, check room, ask again about an overwrite, take the destination lock,
+*then* close, then move, then reopen. The lock before the close is the ticket's rule; the **close
+before the copy** is not in the ticket and is needed: closing flushes and stops the storer, and
+copying a tree a live storer is still writing into would miss whatever it wrote next.
+
+**Declining goes through the buffer, not through a reload.** `revertManifestId` replaces the one
+line the parser's own locator points at and re-adopts, so every other edit in the manifest survives.
+It deliberately does *not* use `setBuffer`: that guard exists so reading a project in is not mistaken
+for typing, and this is the opposite - a real change the storer has to hear about, or the store would
+keep the id the author just declined and the next boot would ask again.
+
+**Two tests were rewritten after they turned out to be worth nothing.** The first version of "the
+destination has no manifest until the copy is complete" asserted a tautology. It now samples two
+cheap reads over a 24-file copy and asserts the conjunction - a manifest beside a destination still
+missing its last asset - and was confirmed to fail when the manifest write is moved ahead of the
+copy.
+
+**`writeFile` now streams every Blob** (`blob.stream().pipeTo(writable)`) rather than only the copy
+doing so, which is one change for all of it: the demo seed's assets get bounded memory too, and the
+copy stays on the same serialized-per-path write everything else uses instead of being a second way
+to put bytes on disk.

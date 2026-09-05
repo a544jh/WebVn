@@ -15,6 +15,7 @@ import {
   SCENE_WIDTH,
   advanceVn,
   blurEditor,
+  nextFrame,
   editorTab,
   markedLines,
   sleep,
@@ -166,12 +167,12 @@ describe("the editor over the project store", () => {
     const started = await startEditorFromStore()
 
     expect(textBoxText(started.root)).toBe("Painted")
-    // Not on the first frame: `getAsset` hands out a `cloneNode()`, a clone re-fetches its `src`,
-    // and a `blob:` re-fetch does not complete before the unanimated first draw - where a relative
-    // path is usually served out of the HTTP memory cache in time. The rAF loop repaints and the
-    // scene corrects itself within a frame or two, so this is a white flash rather than a missing
-    // background. ROUGH_EDGES.md carries it; the fix is in the loader, not here.
-    await sleep(200)
+    // One frame late, and not for any reason to do with OPFS: the editor loads a script with
+    // `animate: false`, and that branch of BackgroundRenderer.render returns resolved while the
+    // actual draw is still queued on the next animation frame. Measured identical with a relative
+    // path, so it is not the resolver - ROUGH_EDGES.md has the mechanism. Waiting one frame rather
+    // than sleeping, because one frame is exactly what it takes.
+    await nextFrame()
     expect(paintedBackground(started.root)).toEqual(bgColor)
   })
 })

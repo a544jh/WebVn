@@ -17,8 +17,10 @@ export interface AssetResolver {
   // There is deliberately no `release` counterpart. When eviction eventually needs one, revoking
   // belongs to the *loader*, not here: the loader holds the element and knows when it drops one,
   // while a resolver hands back a URL and forgets it. A resolver that revoked would break the
-  // `cloneNode()` every `getAsset` hands out, because a clone re-fetches its `src` - which is what
-  // test/browser/objectUrlLifetime.test.ts pins.
+  // `cloneNode()` every `getAsset` hands out: a clone re-runs the load against its `src`, which
+  // normally costs nothing because the browser serves it out of its decoded-image cache, but a
+  // revoked `blob:` URL no longer resolves to anything and the clone silently never loads. That is
+  // what test/browser/objectUrlLifetime.test.ts pins, both halves of it.
   resolve(path: string): Promise<string>
 }
 

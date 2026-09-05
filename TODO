@@ -29,9 +29,10 @@ bytes come through an AssetResolver (relative paths for the player, OPFS for the
 a second tab on one project is refused by a navigator.locks lock rather than racing the first.
 That takes E and its object-URL test below, and the whole "OPFS project store" node. What
 hangs off it - the picker, rename, import, export, the nag - is tranche 2 and 3 and unchanged
-below. One finding is filed in ROUGH_EDGES.md: an image out of OPFS misses the first frame it
-is drawn on, because getAsset hands out a clone and a blob: re-fetch does not beat the first
-unanimated draw.
+below. One finding is filed in ROUGH_EDGES.md, and it turned out to predate this work: an
+unanimated background render reports finished one frame before it paints, so the editor shows a
+one-frame white flash on every script load. It was first blamed on OPFS object URLs and is not
+theirs - a clone of a loaded image is ready synchronously either way.
 
 Extracted: the storage chain's first six tickets, 2026-08-29, as .scratch/project-storage/,
 then grilled over five rounds on 2026-08-30. E and its object-URL test are two of them; the

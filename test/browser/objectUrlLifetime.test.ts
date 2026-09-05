@@ -6,13 +6,14 @@ import { ImageAssetLoaderSrc } from "../../src/assetLoaders/ImageAssetLoaderSrc"
 // design-docs/PROJECT_STORAGE.md, "Load-bearing details": object URLs must survive until story
 // teardown.
 //
-// Both loaders hand out copies rather than the element they hold, and a clone copies `src` and
-// starts its own load of it. Against a relative path that is free - the HTTP cache serves it - which
-// is why nobody has had to think about this. Against `blob:` there is no cache and no origin server:
-// the URL is a handle into a table the page owns, and once it is revoked there is nothing behind it.
-// The clone then fails to load, `SpriteRenderer.createSpriteElem`'s `if (!elem)` does not catch it
-// because `getAsset` did return an element - just an empty one - and a sprite renders as a blank box
-// with nothing thrown and nothing logged.
+// Both loaders hand out copies rather than the element they hold, and a clone copies `src` and re-runs
+// the load against it. While the URL still resolves that costs nothing whatever the scheme - the
+// browser serves the clone out of its decoded-image cache, so it comes back already `complete`, which
+// is why nobody has had to think about this. A `blob:` URL is different only in how it can *stop*
+// resolving: it is a handle into a table the page owns, and once it is revoked there is nothing
+// behind it. The clone then fails to load, `SpriteRenderer.createSpriteElem`'s `if (!elem)` does not
+// catch it because `getAsset` did return an element - just an empty one - and a sprite renders as a
+// blank box with nothing thrown and nothing logged.
 //
 // This is what backs `AssetResolver` having no `release` method, and revocation belonging to the
 // loader if eviction ever needs it. That decision is only safe while the consequence of getting it

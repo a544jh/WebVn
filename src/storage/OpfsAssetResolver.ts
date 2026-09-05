@@ -23,7 +23,7 @@ export class OpfsAssetResolver implements AssetResolver {
   public async resolve(path: string): Promise<string> {
     const blob = await readProjectFile(this.directory, path)
     // Minted once per path and never revoked. The loaders never evict, and every `getAsset` hands
-    // out a `cloneNode()` which re-fetches its `src` - so a revoked URL yields an element that
+    // out a `cloneNode()`, which re-runs the load against its `src` - so a revoked URL yields an element that
     // silently never loads, with nothing thrown and nothing logged. "We made this URL, we should
     // clean it up" is the obvious-looking change that breaks it;
     // test/browser/objectUrlLifetime.test.ts is what it trips over. If eviction ever needs

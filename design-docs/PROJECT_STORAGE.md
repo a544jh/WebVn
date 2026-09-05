@@ -625,8 +625,8 @@ Things that will break quietly if they are skipped.
   elsewhere. **Landed 2026-08-30** as `test/browser/objectUrlLifetime.test.ts`, written before anything minted
   such a URL. `OpfsAssetResolver` therefore never revokes, and `AssetResolver` has no `release` method: there
   is no teardown yet, and when eviction needs one it belongs to the loader, which holds the element and knows
-  when it drops one. What the test also turned up is in `ROUGH_EDGES.md`: a clone of a `blob:` URL does not
-  finish loading before the first unanimated draw, where a cached relative path usually does.
+  when it drops one. A clone of a loaded image is ready synchronously whether its URL is
+  `blob:` or relative - measured, after the opposite was briefly written down here.
 - **The decoded bitmap is the memory cost, not the file.** A 1920x1080 background is about 8MB decoded
   whether the file is 400KB or 4MB, and the loaders hold every registered asset decoded for the lifetime of
   the page with no eviction. Fine for the demo's two backgrounds; the ceiling to think about once an author

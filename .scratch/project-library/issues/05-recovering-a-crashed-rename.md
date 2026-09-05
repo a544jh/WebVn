@@ -135,3 +135,45 @@ sweep runs - residue can never demonstrate that ordering. What can is a rename t
 not finish: both directories are valid, listed projects at that moment, and recovery removes one. The
 test now asserts one row rather than two, and was confirmed to fail with the call moved after the
 walk.
+
+## Comments: hand verification, and what it found
+
+**Asked 2026-09-05: can this ticket even be hand-verified?** Mostly not, and the first attempt at it
+was not verification at all - it fabricated the crash state through `page.evaluate` and then looked,
+which is what `RecoverProjects.test.ts` already does, run through a browser. Worth recording so
+nobody takes that kind of check for evidence again.
+
+It *can* be done properly, and the trick is to widen the windows rather than to fabricate. A demo
+padded to 1500 files renames in phases wide enough to interrupt with a hard navigation:
+
+```
+     0ms  source only
+   496ms  marker written
+   501ms  destination appears, copy begins
+  7112ms  destination's manifest written   <- the commit
+  7355ms  source deleted                   <- a 243ms window
+  7359ms  marker cleared
+```
+
+Killing the page in the copy window and in the post-commit window are both reachable - the second by
+polling for the destination's manifest from the test runner and navigating away the moment it lands.
+Both states are then produced by the real rename code rather than written by hand.
+
+**And the post-commit interruption immediately found a bug the twelve fabricated states could not.**
+They all build a *clean* crash; a browser interrupted mid-delete is still holding the tree it was
+deleting, and Chromium throws `NoModificationAllowedError` out of `removeEntry`. That rejection
+travelled from `recoverProjects` through `ProjectPicker.render` and `AppShell.showPicker` to the
+entry point's catch, and put **"Something went wrong opening your project" on the page over a
+perfectly good project sitting on disk, unlisted**. The one moment the author most needs the list is
+the moment the store is in a state recovery cannot fix.
+
+Recovery is now wrapped so it can never stop the picker drawing, and the sweep catches per directory
+so one the browser will not let go of does not cost it the rest. A failure leaves the marker standing
+and the next render tries again - the same behaviour a refused lock already had. Re-run against the
+real interruption, it converges: first reload lists the library with the marker still up, second
+reload clears it.
+
+`Never a wrong delete` was the invariant this ticket was written around. What it did not say, and
+what only a real crash showed, is that **recovery failing must not cost the author their library
+either**.
+

@@ -406,7 +406,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   projects and a rename in flight elsewhere holds a manifest-less destination. A manifest that does
   not parse is **not** swept — that is an author's project with a typo in it. Neither is a manifest
   with no script: that is the state `createProject` passes through between its two writes, and
-  deleting on it would be a wrong delete.
+  deleting on it would be a wrong delete. **Every step is wrapped so recovery can never stop the
+  picker drawing** — a browser interrupted mid-delete still holds the tree and throws
+  `NoModificationAllowedError`, and that rejection used to reach the entry point's catch and replace
+  the whole library with "Something went wrong". A failure leaves the marker standing and the next
+  render retries.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
   `persisted()`, re-read on every render.

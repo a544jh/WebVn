@@ -205,6 +205,60 @@ describe("sweeping what is not a project", () => {
   })
 })
 
+describe("when the store will not let recovery finish", () => {
+  // Found by killing a tab inside a real rename's post-commit window, which the twelve fabricated
+  // states above cannot reach: they all build a *clean* crash, and a browser that was interrupted
+  // mid-delete is still holding the tree it was deleting. Chromium throws NoModificationAllowedError
+  // out of removeEntry then, and that rejection used to travel all the way to the entry point's
+  // catch - putting "Something went wrong opening your project" on the page over a perfectly good
+  // project sitting on disk.
+  //
+  // An open writable stream is what makes a directory unremovable, which is exactly the state an
+  // interrupted copy leaves behind.
+  const holdOpen = async (path: string): Promise<FileSystemWritableFileStream> => {
+    const root = await storeRoot(SCRATCH)
+    const parts = path.split("/")
+    let dir = root
+    for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part, { create: true })
+    const handle = await dir.getFileHandle(parts[parts.length - 1], { create: true })
+    return handle.createWritable()
+  }
+
+  it("still lists the library when the source of a committed rename cannot be removed", async () => {
+    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await recordPendingRename({ from: FROM, to: TO })
+    const held = await holdOpen(`projects/${FROM}/assets/stuck.png`)
+
+    await renderPicker()
+
+    // The tidy-up could not finish, so the marker stands and the next render will try again - but
+    // the author can see their projects, which is the whole point of the page.
+    expect(rows().sort()).toEqual([FROM, TO].sort())
+    expect((await readEditorState()).pendingRename).toEqual({ from: FROM, to: TO })
+
+    // And once the browser lets go, the next render finishes the job.
+    await held.close()
+    await renderPicker()
+    expect(rows()).toEqual([TO])
+    expect((await readEditorState()).pendingRename).toBeUndefined()
+  })
+
+  it("sweeps the residue it can when one directory will not go", async () => {
+    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await halfCopied("stuck-residue")
+    await halfCopied("removable-residue")
+    const held = await holdOpen("projects/stuck-residue/assets/stuck.png")
+
+    await renderPicker()
+
+    expect(await stillThere("removable-residue")).toBe(false)
+    expect(await stillThere("stuck-residue")).toBe(true)
+    expect(rows()).toEqual([FROM])
+    await held.close()
+  })
+})
+
 describe("with editor.yaml missing or unreadable", () => {
   it("still lists a consistent set: residue swept, nothing valid removed", async () => {
     // The file is defined as losable, so recovery has to degrade to what enumeration alone can

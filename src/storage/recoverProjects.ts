@@ -21,8 +21,25 @@ import {
 // state between renders: this is a directory listing on a path that already does one, and the cost
 // of it being wrong is an author's project.
 export const recoverProjects = async (): Promise<void> => {
-  await finishInterruptedRename()
-  await sweepResidue()
+  await attempt(finishInterruptedRename)
+  await attempt(sweepResidue)
+}
+
+// **Recovery must never stop the picker from drawing.** It is a best-effort tidy-up of a store that
+// is already inconsistent, and the list is the author's only way back to their work - so a failure
+// here leaves the marker standing and the next render tries again, exactly as a refused lock does.
+//
+// Measured 2026-09-05 by killing a tab inside a rename's post-commit window: Chromium was still
+// holding the half-deleted source and threw `NoModificationAllowedError` out of `removeEntry`. That
+// rejection travelled from here through `render` to the entry point's catch, and put "Something went
+// wrong opening your project" on the page - over a perfectly good project sitting on disk, unlisted.
+// The store being in a state recovery cannot fix is precisely when the author most needs the list.
+const attempt = async (step: () => Promise<void>): Promise<void> => {
+  try {
+    await step()
+  } catch (e) {
+    console.warn("Could not finish tidying the project store - the library is listed anyway", e)
+  }
 }
 
 // The marker is a **hint about where to look, and on its own it can never cause a delete**: every
@@ -91,6 +108,9 @@ const sweepResidue = async (): Promise<void> => {
       // No bookkeeping to forget with it: `created` is written by `createProject`, which has already
       // written a manifest by the time it gets there, so residue never has an entry.
       await deleteProject(directory)
+    } catch (e) {
+      // Per directory, so one the browser will not let go of does not cost the sweep the rest.
+      console.warn(`Could not remove ${directory}, which is not a project`, e)
     } finally {
       await lock.release()
     }

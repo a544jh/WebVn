@@ -32,10 +32,17 @@ export const settle = (): Promise<void> => sleep(50)
 // slower than it needs to be - every one of them pays its full length on every run - and a flake
 // waiting for a slow machine to be slower than the guess. This asks the question the test actually
 // has: it returns as soon as the answer is yes, and fails saying what it was still waiting for.
+// **The timeout is generous on purpose, and 4000 was not.** Unlike a sleep, this costs nothing until
+// it fires: a condition that holds in 50ms returns in 50ms whatever the limit says. So the limit is
+// only ever a bound on how long a *failure* takes to report, and setting it near the expected time
+// buys nothing while turning a loaded machine into a red build. CI proved that within an hour of
+// this being written - two rename tests timed out on a two-core runner running four browser suites
+// at once, having passed every local run. It sits under vitest's own 15s test timeout so that the
+// message names the condition rather than the test.
 export const waitFor = async (
   what: string,
   holds: () => boolean | Promise<boolean>,
-  timeoutMs = 4000
+  timeoutMs = 10000
 ): Promise<void> => {
   const deadline = Date.now() + timeoutMs
   for (;;) {

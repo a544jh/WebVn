@@ -44,8 +44,11 @@ export interface Navigation {
   // The same entry, said better: a rename, which moved the project under the author rather than
   // moving the author, and a link that named a project which would not open.
   readonly replace: (directory: string | null) => void
-  // Back and forward. Fired with what the URL says *after* the browser moved.
-  readonly onNavigate: (handler: (directory: string | null) => void) => void
+  // Back and forward. **The handler is told nothing**, on purpose: what the URL said when the
+  // browser moved is not what it will say when the shell gets round to acting on it, and a value
+  // handed over here would be the stale one a caller reached for. Ask `current()` at the moment you
+  // act.
+  readonly onNavigate: (handler: () => void) => void
 }
 
 // The real one, and the humble object of the pair: four one-line members with no branching in them,
@@ -61,5 +64,5 @@ export const browserNavigation = (): Navigation => ({
   current: () => projectInUrl(location.href),
   push: (directory) => history.pushState(null, "", urlForProject(location.href, directory)),
   replace: (directory) => history.replaceState(null, "", urlForProject(location.href, directory)),
-  onNavigate: (handler) => window.addEventListener("popstate", () => handler(projectInUrl(location.href))),
+  onNavigate: (handler) => window.addEventListener("popstate", () => handler()),
 })

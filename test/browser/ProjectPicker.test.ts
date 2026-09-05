@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { demoManifest } from "../../src/demoStory"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
-import { ProjectPicker } from "../../src/picker/ProjectPicker"
+import { ProjectPicker, RefusalNotice } from "../../src/picker/ProjectPicker"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import {
   createProject,
@@ -38,7 +38,7 @@ let opened: string[]
 
 // The picker asks a host to open a project and is told whether it worked. These tests mostly stand
 // in for that host; the round trip below is the one that uses the real boot.
-let refuseWith: string | null = null
+let refuseWith: RefusalNotice | null = null
 
 const newPicker = (): ProjectPicker =>
   new ProjectPicker(pickerRoot, async (directory) => {
@@ -277,7 +277,10 @@ describe("opening a project from the picker", () => {
 
   it("keeps the author on the list when the project is open in another tab, and says which", async () => {
     await make("a-story", "A Story")
-    refuseWith = `"a-story" is already open in another tab. Close it and reload this one.`
+    refuseWith = {
+      lead: `"a-story" is already open in another tab.`,
+      detail: "Close it there, or pick a different project.",
+    }
     await newPicker().render()
 
     rows()[0].click()
@@ -379,7 +382,7 @@ describe("picker to editor and back", () => {
     let session: BootedEditor | null = null
     const picker = new ProjectPicker(pickerRoot, async (directory) => {
       const booted = await bootEditor({ vnDiv, vnEditorDiv }, directory)
-      if (booted.kind === "refused") return booted.reason
+      if (booted.kind === "refused") return { lead: booted.reason, detail: booted.advice }
       session = booted
       const firstStop = nextStop(booted.renderer, booted.player)
       await booted.openProject()
@@ -544,7 +547,10 @@ describe("making a project", () => {
   it("creates the project but leaves the author on the picker when the lock is refused", async () => {
     // Another tab can hold projects/<id>/ if that id was just deleted and re-made, or if two tabs
     // race the same new id.
-    refuseWith = `"new-story" is already open in another tab. Close it and reload this one.`
+    refuseWith = {
+      lead: `"new-story" is already open in another tab.`,
+      detail: "Close it there, or pick a different project.",
+    }
     await newPicker().render()
     newButton()?.click()
     await settle()

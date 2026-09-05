@@ -41,6 +41,12 @@ whole of ADR 0002 as the store applies it. So the URL carries what the boot can 
 A rename is therefore a `replaceState`: the directory followed the id, and the URL follows the
 directory. Same entry, said better - a rename is not somewhere the author navigated to.
 
+It reaches **that entry and no other**, which is worth stating because the first draft of this
+section claimed more. Open a project, go back to the list, open it again: the history now holds two
+entries naming it, and a rename rewrites the current one while the older goes on naming a directory
+that is gone. Walking back to it gets the fourth refusal below and the list. `replaceState` reaches
+one entry and no API reaches the rest, so that is the ceiling rather than a gap to close.
+
 **The parameter is not validated against `ID_PATTERN`.** It does not need to be: `isProject` is the
 one question that matters, `exists` answers false for anything OPFS will not even name, and
 "there is no project called `../etc`" is a better answer than silently dropping to the picker. The
@@ -56,13 +62,39 @@ picker. The list is still ordered by `lastOpened` and still decides nothing.
 ## Back returns to the picker
 
 `pushState` on open and on Back to projects, so the browser's Back walks the views the author walked.
-A `popstate` handler puts the app where the URL now says, and writes nothing back - the URL is
-already right, and the handler is what makes it true.
+A `popstate` handler puts the app where the URL now says, and **records** nothing back - the URL
+already says where the author went, and the handler is what makes it true. It does still *write* on
+one path: a link that will not open is replaced with the bare URL, because the author did not arrive
+anywhere and the URL must stop saying they did.
 
 The cost, worth naming because it cannot be designed away: `popstate` cannot be refused or awaited,
 so the close it triggers - flush, stop the storer, tear the renderer down, release the lock - runs
 *after* the URL has already moved. The debounce is what makes that safe, exactly as it is for a tab
 close: `ProjectStoring`'s guarantee is the 2000ms interval and every flush is a bonus.
+
+### Swaps run in a queue, and read the address bar at their turn
+
+Not in the first draft of this ticket, and found by building it. Two view swaps in flight interleave:
+the older one's `showPicker` lands *after* the newer revealed the session, hiding it again under a
+renderer that has not measured itself - ticket 02's 0x0 background canvas, reached from a direction
+nothing was guarding. `AppShell.queue` chains every swap, and a queue rather than the generation
+guard `DomRenderer.render` and `ProjectPicker` use, because those two can drop a superseded pass
+where all that is lost is a paint, while a swap holds a lock and a storer and has to finish.
+
+**The rename is queued with them, dialogs included.** It is the only swap long enough for a
+`popstate` to land in the middle of, and unqueued it closed the session the rename was still holding
+- a second teardown and a second lock release - then drew the list. `RenameProject.test.ts`'s "wins a
+race with a Back pressed while it is asking" is the net, and it asserts the close count rather than
+the end state, which converges either way.
+
+**A queued swap reads the URL when its turn comes**, not when the navigation fired. Two things
+follow. A burst of back-and-forward collapses: every queued swap reads the same final URL, so the
+first finds itself already there and the rest have nothing to do - the author's project is not torn
+down for a round trip they undid. And a rename that lands while a Back waits behind it **wins**: the
+rename moves the URL to the new directory as it reopens, and the Back then reads that and finds the
+session matching. The Back is swallowed. Chosen deliberately, 2026-09-05: acting on the stale bare
+URL instead drew the picker under a URL naming the renamed project, and a swallowed Back is a smaller
+wrong than a lying URL.
 
 Second Back leaves the app, as it did before.
 
@@ -90,6 +122,12 @@ Two reasons, and `bootEditor` grows the second:
   it too. The check is `isProject`, which is the same definition `listProjects` skips a directory on,
   and it is taken **with the lock in hand**: a delete takes the lock first, so holding it is what
   makes the answer stay true between asking and reading.
+
+**A refusal carries its own advice.** `RefusedBoot` is a reason *and* an advice line, because the
+picker used to append one hard-coded sentence to every reason - which was true while the only
+refusal was the lock, and read as *"There is no project called "x". Close it there."* the moment a
+second reason existed. `OpenProject` therefore hands back the whole notice rather than a string to
+dress up at the far end.
 
 Either way the author lands on the picker with the reason in the banner it already has, and the URL
 is **replaced** with the bare one. The invariant is that the URL matches the view; a URL left naming

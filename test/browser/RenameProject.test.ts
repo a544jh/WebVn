@@ -13,7 +13,15 @@ import {
 } from "../../src/storage/projectStore"
 import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
-import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep, textBoxText, waitFor } from "../helpers/vnHarness"
+import {
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
+  releaseStoredEditorLock,
+  settle,
+  sleep,
+  textBoxText,
+  waitFor,
+} from "../helpers/vnHarness"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
 const SCRATCH = "test-scratch-rename"
@@ -140,6 +148,9 @@ let elements: {
 let shell: AppShell | null = null
 // The address bar this shell writes to, so a rename can be asked what it did with it.
 let navigation: FakeNavigation
+// How many times the shell put a project down. A close is not idempotent - it releases the lock and
+// tears the renderer down - so "once" is the assertion, not "at least once".
+let closes = 0
 
 const mountPage = (): void => {
   localStorage.clear()
@@ -160,8 +171,12 @@ const mountPage = (): void => {
 const openShell = async (directory: string): Promise<AppShell> => {
   mountPage()
   navigation = fakeNavigation()
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation })
-  await shell.showPicker()
+  closes = 0
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => closes++, navigation })
+  // `start()`, not `showPicker()`: it is what src/index.ts calls, and it is what registers the shell
+  // on the address bar. Reaching past it left `navigation.go` firing into nothing, which is a test
+  // that races an event the shell was never listening for.
+  await shell.start()
   const row = elements.pickerDiv.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
   row.click()
   // The story, not merely the session: a session is set before its buffers are filled, and a test
@@ -236,9 +251,42 @@ describe("renaming from the editor", () => {
     // A reload now finds the project where it actually is.
     expect(navigation.current()).toBe(TO)
     // Replaced, not pushed: the project moved under the author, they did not navigate. The entry
-    // overwritten is the one opening it pushed, so no history entry is left naming a directory that
-    // no longer exists - which is what Back would otherwise walk into.
+    // overwritten is the one opening it pushed, so Back goes where the author came from rather than
+    // to the old name. Only that entry: an older one naming the same project survives a rename, and
+    // walking back to it gets the boot's "there is no project called that".
     expect(navigation.pushed).toEqual([FROM])
+  })
+
+  it("wins a race with a Back pressed while it is asking", async () => {
+    // The one place two swaps genuinely overlap: a rename is long - it holds a modal - and a
+    // `popstate` can arrive in the middle of it. The queue makes the Back wait, and reading the
+    // address bar at its turn is what makes the wait harmless: by then the rename has moved the URL
+    // to the new directory, so the Back finds the session already matching and does nothing.
+    //
+    // Swallowing the Back is the deliberate half of that. The alternative - acting on the bare URL
+    // the Back put there - drew the picker under a URL naming the renamed project, which breaks the
+    // one invariant the URL work is built on.
+    const shell = await openShell(FROM)
+    await editIdAndBlur(TO)
+
+    // Back, while the dialog is still up.
+    navigation.go(null)
+    press("confirm")
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
+    await settle()
+
+    expect(shell.getSession()?.directory).toBe(TO)
+    // The view and the address bar agree, which is the whole point.
+    expect(navigation.current()).toBe(TO)
+    expect(elements.sessionDiv.hidden).toBe(false)
+    expect(elements.pickerDiv.hidden).toBe(true)
+
+    // The two that say the Back did not run *underneath* the rename. Unqueued, it closed the
+    // session the rename was still holding - a second teardown and a second lock release - and drew
+    // the list, and the end state converged anyway, which is why asserting only the end state was
+    // not a test of anything.
+    expect(closes).toBe(1)
+    expect(elements.pickerDiv.children.length).toBe(0)
   })
 
   it("reverts the id alone when the author declines, keeping every other edit", async () => {

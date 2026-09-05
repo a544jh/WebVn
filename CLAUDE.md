@@ -395,7 +395,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the generation guard `DomRenderer.render` and `ProjectPicker` use for their version of this: those
   two can drop a superseded pass because painting is all it would have done, while a swap holds a
   lock and a storer and has to finish. A rename is queued too, dialogs included, so a `popstate`
-  cannot close the session it is about to move.
+  cannot close the session it is about to move — unqueued it closed that session twice and drew the
+  list, which is what `RenameProject.test.ts`'s "wins a race with a Back" pins. **A queued swap reads
+  the URL at its turn**, not when the navigation fired: a back-and-forward burst collapses instead of
+  tearing the project down, and a rename landing while a Back waits behind it wins, the Back being
+  swallowed rather than left drawing the picker under a URL naming the renamed project.
 - **That swap lives outside `src/index.ts` for the same reason `editorBoot.ts` does.** The entry
   point self-boots on import and looks its elements up by id, so no suite can reach it — put
   stateful logic there and it ships untested. Every other browser suite mounts through
@@ -406,15 +410,18 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   whose manifest does not parse still has. A bare URL is still the picker, so ticket 02's "a cold
   boot always enters the picker" stands — `lastOpened` deciding is the app guessing, a URL deciding
   is the author having said. Three ways a directory arrives and one routine for two of them: the
-  first load and every back/forward go through `goTo`, which **writes nothing back** to the URL,
-  while `openProject` and `backToProjects` are the author's own gestures and push *after* doing the
-  work. That split is what stops a `popstate` pushing an entry for the move it is reacting to. A
-  rename **replaces** rather than pushes, overwriting the entry that named the old directory, so no
-  history entry is left pointing at a directory that no longer exists. A URL naming a project that
-  will not open lands on the picker with the reason in its banner — the one refusal `ProjectPicker`
-  is handed rather than raises — and the URL is replaced with the bare one, because the invariant
-  worth keeping is that the URL matches the view. `AppShellOptions.navigation` is **required**, not
-  defaulted to `browserNavigation()`: the browser suites run in a page whose URL is vitest's.
+  first load and every back/forward go through `goTo`, which **records nothing back** to the URL
+  (it does replace it with the bare one when the link will not open), while `openProject` and
+  `backToProjects` are the author's own gestures and push *after* doing the work. That split is what
+  stops a `popstate` pushing an entry for the move it is reacting to. A rename **replaces** rather
+  than pushes, overwriting the entry that named the old directory — that entry and no other, so an
+  older entry naming the same project survives a rename and walks back into the boot's fourth
+  refusal. A URL naming a project that will not open lands on the picker with the reason in its
+  banner and the URL replaced with the bare one, because the invariant worth keeping is that the URL
+  matches the view; the refusal carries its own **advice** line alongside its reason, since the
+  picker appending one hard-coded sentence to every reason read as "There is no project called "x".
+  Close it there." the moment a second reason existed. `AppShellOptions.navigation` is **required**,
+  not defaulted to `browserNavigation()`: the browser suites run in a page whose URL is vitest's.
   `.scratch/project-library/issues/06-the-open-project-in-the-url.md` has the format comparison.
 - **Renaming is the directory following the manifest's id, and never the reverse.** The trigger is
   manifest adoption: `VnEditor.onManifestAdoptedCallbacks` reports, `AppShell.rename` compares the id

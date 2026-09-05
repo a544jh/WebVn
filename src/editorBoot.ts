@@ -24,7 +24,13 @@ export type EditorBoot = BootedEditor | RefusedBoot
 
 export interface RefusedBoot {
   readonly kind: "refused"
+  // The news: what stopped this project opening, and nothing else in it.
   readonly reason: string
+  // What to do about it. **It travels with the reason** because it is reason-specific, and a surface
+  // that supplied its own could only ever have one line for every reason - which the picker did,
+  // appending "Close it there" under "there is no project called that" the moment a second reason
+  // existed.
+  readonly advice: string
 }
 
 export interface BootedEditor {
@@ -69,10 +75,11 @@ export interface EditorElements {
 //
 // Exported because the picker renders *before* any boot and has to refuse the same browsers on the
 // same terms. One message, one place: a second copy would be the one that goes stale.
+const UNSUPPORTED_REASON = "This browser cannot store projects, so the editor will not load."
+const UNSUPPORTED_ADVICE = "Try a recent Chrome or Edge."
+
 export const unsupportedBrowserReason = (): string | null =>
-  isSupported() && areLocksSupported()
-    ? null
-    : "This browser cannot store projects, so the editor will not load. Try a recent Chrome or Edge."
+  isSupported() && areLocksSupported() ? null : `${UNSUPPORTED_REASON} ${UNSUPPORTED_ADVICE}`
 
 // Resolves once everything is built and wired. The story is not on screen until the returned
 // `openProject` is called.
@@ -92,8 +99,9 @@ export const bootEditor = async (
   directory: string,
   held?: ProjectLock
 ): Promise<EditorBoot> => {
-  const unsupported = unsupportedBrowserReason()
-  if (unsupported !== null) return { kind: "refused", reason: unsupported }
+  if (unsupportedBrowserReason() !== null) {
+    return { kind: "refused", reason: UNSUPPORTED_REASON, advice: UNSUPPORTED_ADVICE }
+  }
 
   // Ordering: the lock before anything is written. A lock taken after the first store is a lock that
   // was not there for the write it was meant to protect, and a refused tab must not have written
@@ -106,7 +114,10 @@ export const bootEditor = async (
     // from a different direction.
     return {
       kind: "refused",
-      reason: `"${directory}" is already open in another tab. Close it and reload this one.`,
+      reason: `"${directory}" is already open in another tab.`,
+      // Not "close it and reload this one", which is what this said when a boot was the whole app
+      // and there was nowhere else to be. There is a list to go back to now.
+      advice: "Close it there, or pick a different project.",
     }
   }
   // **A directory that is not a project**, which is what a bookmark to a deleted one names, and what
@@ -120,7 +131,11 @@ export const bootEditor = async (
   // out, unless it was handed in - a rename's destination lock is the caller's to release.
   if (!(await isProject(directory))) {
     if (held === undefined) await lock.release()
-    return { kind: "refused", reason: `There is no project called "${directory}".` }
+    return {
+      kind: "refused",
+      reason: `There is no project called "${directory}".`,
+      advice: "Pick a project from the list.",
+    }
   }
   // Here rather than in the picker, so the one other caller - a rename, which reopens under a
   // directory the picker never showed - records what it opened without having to remember to.

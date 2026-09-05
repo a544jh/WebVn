@@ -121,7 +121,7 @@ describe("swapping between the picker and a project", () => {
     // and never paints, and the scene size sprites and freeform text are positioned against is zero.
     // Nothing throws and nothing is logged - it is only visible on screen.
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
 
     pickerRows()[0].click()
     await waitFor("the story to be loaded", () => storyLoaded(shell))
@@ -133,7 +133,7 @@ describe("swapping between the picker and a project", () => {
   it("paints the background it was given", async () => {
     // The same thing said end to end, because a canvas of the right size is not yet a painted one.
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
 
     pickerRows()[0].click()
     // Waiting for the canvas to stop being blank rather than for a length of time. An unanimated
@@ -152,7 +152,7 @@ describe("swapping between the picker and a project", () => {
 
   it("lays the stage out again on a second open, not only the first", async () => {
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
     pickerRows()[0].click()
     await waitFor("the story to be loaded", () => storyLoaded(shell))
 
@@ -166,7 +166,7 @@ describe("swapping between the picker and a project", () => {
 
   it("shows the session while a project is open and the picker when it is not", async () => {
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
     expect(elements.pickerDiv.hidden).toBe(false)
     expect(elements.sessionDiv.hidden).toBe(true)
 
@@ -187,7 +187,7 @@ describe("swapping between the picker and a project", () => {
     if (held === null) throw new Error("the lock was already held before the test started")
 
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
     pickerRows()[0].click()
     // The banner, not `pickerDiv.hidden`: the picker is already showing when the click lands, and
     // the session is only revealed for the instant the boot takes to be refused - so that flag is
@@ -203,7 +203,7 @@ describe("swapping between the picker and a project", () => {
 
   it("does nothing on a Back to projects with no project open", async () => {
     const shell = newShell()
-    await shell.showPicker()
+    await shell.start()
 
     await shell.backToProjects()
     await settle()
@@ -301,30 +301,26 @@ describe("the open project in the URL", () => {
     expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
   })
 
-  it("swaps one view at a time when back and forward arrive together", async () => {
-    // Held Back, or Back and Forward in one gesture. Both navigations are made without waiting, so
-    // the second starts while the first is still closing - and without the shell's queue the first
-    // one's `showPicker` lands after the second revealed the session, hiding it again underneath a
-    // renderer that has not measured itself. The symptom is this suite's original bug: a background
-    // canvas of zero width, nothing thrown and nothing logged.
+  it("collapses a back-and-forward burst instead of closing and reopening", async () => {
+    // Held Back, or Back and Forward in one gesture. Each queued swap reads the address bar when
+    // its turn comes rather than what it said when it fired, so both of these read the same final
+    // URL: the first finds the session already matches and the second has nothing left to do. The
+    // author's project is never torn down for a round trip they undid before it started.
     const shell = newShell()
     await shell.start()
     pickerRows()[0].click()
     await waitFor("the story to be loaded", () => storyLoaded(shell))
-
-    // The session that is open now, so the wait below cannot be satisfied by it: both swaps are
-    // queued rather than run, so every "is the story loaded" question is still true for a moment
-    // after they are asked for.
-    const first = shell.getSession()
+    const before = shell.getSession()
 
     navigation.go(null)
     navigation.go(DIRECTORY)
-    await waitFor("the project to be opened a second time", () => shell.getSession() !== first)
-    await waitFor("the story to be loaded again", () => storyLoaded(shell))
+    await settle()
 
-    expect(shell.getSession()?.directory).toBe(DIRECTORY)
+    // The same session, not a rebuilt one - and the stage it was already showing.
+    expect(shell.getSession()).toBe(before)
     expect(elements.sessionDiv.hidden).toBe(false)
     expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
+    expect(navigation.current()).toBe(DIRECTORY)
   })
 
   it("says so and clears the URL when the link names no project", async () => {

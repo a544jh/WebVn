@@ -90,13 +90,14 @@ export class AppShell {
   // app guessing, while a URL deciding is the author having said so in the one place a browser lets
   // them say it. A bare URL is still the front door.
   public async start(): Promise<void> {
-    this.navigation.onNavigate((directory) => {
+    this.navigation.onNavigate(() => {
       // The picker is the honest place to land when a swap fails partway, which is what the rename's
-      // own catch already decided. A refused boot is not this: that is a returned reason, and `goTo`
+      // own catch already decided - and it is queued, because a swap may still be running behind
+      // the one that threw. A refused boot is not this: that is a returned notice, and `navigateTo`
       // shows it on the picker itself.
-      void this.goTo(directory).catch(async (e) => {
+      void this.goTo().catch((e) => {
         console.error("The navigation failed partway", e)
-        await this.showPicker()
+        void this.queue(() => this.fallBackToPicker())
       })
     })
     const directory = this.navigation.current()
@@ -105,42 +106,70 @@ export class AppShell {
     // anyway. Without it, a rename crashed mid-flight plus a bookmark to the old directory is an
     // author editing a tree that the next picker render will finish removing.
     if (directory !== null) await recoverProjects()
-    await this.goTo(directory)
+    await this.goTo()
   }
 
   // Where the URL says the author is, made true: the first load, and every back and forward after
-  // it. **It writes nothing back** - the URL is already right, and this is the half that catches up
-  // with it. That is the whole reason the author's own two gestures below are separate methods: a
-  // push from in here would mint an entry for the navigation it is reacting to.
-  private goTo(directory: string | null): Promise<void> {
-    return this.queue(() => this.navigateTo(directory))
+  // it. **It records nothing** - the URL already says where the author went, and this is the half
+  // that catches up with it. That is the whole reason the author's own two gestures below are
+  // separate methods: a push from in here would mint an entry for the navigation it is reacting to.
+  //
+  // Not the same as writing nothing: a link that will not open is *replaced* with the bare URL by
+  // `fallBackToPicker` below, because the author did not arrive anywhere and the URL has to stop
+  // saying they did.
+  private goTo(): Promise<void> {
+    return this.queue(() => this.navigateTo(this.navigation.current()))
   }
 
-  // The body of the above, run when its turn comes. Everything it reads about what is open is read
-  // then, not when the navigation arrived.
+  // The body of the above, run when its turn comes - and handed the address bar **as it reads then**,
+  // not as it read when the navigation fired. Two things fall out of that, and the second is the
+  // reason for it:
+  //
+  // - A burst of back-forward-back collapses. Each queued swap reads the same final URL, so the
+  //   first does the work and the rest find themselves already there.
+  // - **A rename that lands while a Back is queued behind it wins.** The rename rewrites the URL to
+  //   the new directory as it reopens; the Back, when its turn comes, reads that and finds the
+  //   session already matches. So the Back is swallowed rather than tearing down a project whose
+  //   URL now names it. Reading the stale directory instead left the picker drawn under a URL
+  //   naming the renamed project, which is the invariant below broken by the one path that could
+  //   still break it. Chosen deliberately: a swallowed Back is a smaller wrong than a lying URL.
   private async navigateTo(directory: string | null): Promise<void> {
     if (this.session !== null && this.session.directory === directory) return
     // Before anything is opened, and before the picker is drawn: whatever was open is not where the
     // URL says the author is. `popstate` cannot be refused or awaited, so this close runs after the
     // URL has already moved - which is safe for the same reason a tab close is, the storer's
     // debounce being the guarantee and every flush a bonus.
-    await this.leave()
+    await this.closeSession()
     if (directory === null) return await this.showPicker()
 
-    const reason = await this.enter(directory)
-    if (reason === null) return
-    // A link to a project that is not there, or is open elsewhere. The URL is **replaced** with the
-    // bare one rather than left naming a project the author is not in: the invariant worth keeping
-    // is that the URL matches the view, and a URL that lied would make back and forward describe a
-    // history that never happened. The cost is real and is the honest half of the trade - closing
-    // the other tab and reloading gives the picker rather than the project.
+    const refusal = await this.openSession(directory)
+    if (refusal === null) return
+    // A link to a project that is not there, or is open elsewhere. The refusal says both halves of
+    // what to tell the author; this only has to put them where they can act on it.
+    await this.fallBackToPicker(refusal)
+  }
+
+  // **The way back to the list when something did not work, and the only one.** The URL is replaced
+  // with the bare one rather than left naming a project the author is not in: the invariant worth
+  // keeping is that the URL matches the view, and a URL that lied would make back and forward
+  // describe a history that never happened. The cost is real and is the honest half of the trade -
+  // closing the other tab and reloading gives the picker rather than the project.
+  //
+  // One function because there were four of these and one of them had forgotten the `replace`,
+  // which is precisely the failure a spelled-out pair invites.
+  private fallBackToPicker(refusal: RefusalNotice | null = null): Promise<void> {
     this.navigation.replace(null)
-    await this.showPicker({ lead: reason, detail: "Pick a project from the list." })
+    return this.showPicker(refusal)
   }
 
   // The picker is re-created every time it is shown, and comes down when a project goes up. Nothing
   // re-uses one: it holds a walk of a store that anything may have changed since.
-  public async showPicker(refusal: RefusalNotice | null = null): Promise<void> {
+  //
+  // Private, because drawing the list is no longer the whole of arriving at it: `start` registers
+  // the shell on the address bar and `fallBackToPicker` clears the URL, and a caller reaching past
+  // both got a picker that no browser Back could reach. A test that wants the front door calls
+  // `start()`, which is what src/index.ts calls.
+  private async showPicker(refusal: RefusalNotice | null = null): Promise<void> {
     this.show("picker")
     this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, refusal)
     await this.picker.render()
@@ -150,9 +179,9 @@ export class AppShell {
   // comes back here. **After the open and only on success**: a refusal leaves the URL saying what it
   // already said, which is the picker they are still looking at.
   public openProject: OpenProject = async (directory) => {
-    const reason = await this.queue(() => this.enter(directory))
-    if (reason === null) this.navigation.push(directory)
-    return reason
+    const refusal = await this.queue(() => this.openSession(directory))
+    if (refusal === null) this.navigation.push(directory)
+    return refusal
   }
 
   // Opening is a full boot through the same path a cold start would take, so the player, the
@@ -162,7 +191,7 @@ export class AppShell {
   // Resolves with a reason when the project could not be opened, which the picker shows while
   // leaving the author on the list. From the front door there is nothing to be stranded from:
   // whatever was open was released on the way out.
-  private async enter(directory: string): Promise<string | null> {
+  private async openSession(directory: string): Promise<RefusalNotice | null> {
     this.reveal()
 
     const booted = await bootEditor(this.elements, directory)
@@ -170,7 +199,8 @@ export class AppShell {
       // Back to the list, which is a place the author can stay. The picker was never stopped, so it
       // is still standing behind this and only has to be shown again.
       this.show("picker")
-      return booted.reason
+      // The boot's two halves become the banner's two: the news, then what to do about it.
+      return { lead: booted.reason, detail: booted.advice }
     }
 
     this.picker?.stop()
@@ -198,11 +228,14 @@ export class AppShell {
       // asking would otherwise close the session this is about to move, and then move a tree with a
       // torn session still pointing into it. Waiting is not a cost the author can feel: what is on
       // screen at that moment is a modal.
-      void this.queue(() => this.rename(booted, manifest.id)).catch(async (e) => {
+      void this.queue(() => this.rename(booted, manifest.id)).catch((e) => {
         console.error("The rename failed partway", e)
-        this.session = null
-        this.navigation.replace(null)
-        await this.showPicker()
+        // Queued in its own right: the failed rename's turn is over, and something may already be
+        // waiting behind it.
+        void this.queue(() => {
+          this.session = null
+          return this.fallBackToPicker()
+        })
       })
     })
     this.options.onOpen(booted)
@@ -217,17 +250,19 @@ export class AppShell {
     // then is what there is to close.
     const left = await this.queue(async () => {
       if (this.session === null) return false
-      await this.leave()
+      await this.closeSession()
       await this.showPicker()
       return true
     })
     if (left) this.navigation.push(null)
   }
 
-  // Putting the open project down: flush what is pending, stop the storer, tear the renderer down
-  // and release the lock. Two callers - the button above, and `goTo` when the URL moved off this
-  // project - so it is separate from the drawing and the recording that each of them does next.
-  private async leave(): Promise<void> {
+  // Closing the open project, in CONTEXT.md's sense of the word: flush what is pending, stop the
+  // storer, tear the renderer down and release the lock. Two callers - the button above, and
+  // `navigateTo` when the URL moved off this project - so it is separate from the drawing and the
+  // recording that each of them does next. Named for the glossary rather than as the other half of
+  // an `enter`/`leave` pair: this project has a word for it already.
+  private async closeSession(): Promise<void> {
     const closing = this.session
     if (closing === null) return
     this.session = null
@@ -315,15 +350,19 @@ export class AppShell {
       // Unreachable in practice - the lock is in hand and the tree is there - but a boot has a
       // refusal in its type and swallowing one would leave a blank page with no explanation.
       await lock.release()
-      this.navigation.replace(null)
-      await this.showPicker()
+      await this.fallBackToPicker()
       return
     }
     await this.take(booted)
     // **Replaced, not pushed**: the project moved under the author, they did not navigate. The entry
-    // being overwritten is the one that opening this project pushed, which named the old directory -
-    // so a rename leaves no history entry pointing at a directory that no longer exists, and Back
-    // still goes wherever the author came from.
+    // being overwritten is the one that opening this project pushed, which named the old directory,
+    // so Back still goes wherever the author came from rather than to the project's old name.
+    //
+    // It clears *that* entry and no other. Open a project, go back to the list, open it again, and
+    // the history holds two entries naming it; a rename rewrites the current one and the older one
+    // goes on naming a directory that is gone. Walking back to it gets the boot's fourth refusal
+    // and the list, which is the reason that refusal is worth having - `replaceState` reaches one
+    // entry and there is no API that reaches the rest.
     this.navigation.replace(directory)
 
     // After the load, not instead of it: the story has to be built before a path through it can be

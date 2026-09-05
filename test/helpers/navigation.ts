@@ -14,13 +14,14 @@ export interface FakeNavigation extends Navigation {
   readonly pushed: (string | null)[]
   // The browser walking its history - back or forward - which is the one thing the app does not do
   // to itself. Sets the URL and then tells the shell, in that order, because that is the order the
-  // real `popstate` arrives in.
+  // real `popstate` arrives in - and because the shell reads the URL rather than being handed it,
+  // that order is the whole of what the shell sees.
   readonly go: (directory: string | null) => void
 }
 
 export const fakeNavigation = (initial: string | null = null): FakeNavigation => {
   let current = initial
-  let handler: ((directory: string | null) => void) | null = null
+  let handler: (() => void) | null = null
   const pushed: (string | null)[] = []
 
   return {
@@ -38,7 +39,7 @@ export const fakeNavigation = (initial: string | null = null): FakeNavigation =>
     pushed,
     go: (directory) => {
       current = directory
-      handler?.(directory)
+      handler?.()
     },
   }
 }

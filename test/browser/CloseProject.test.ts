@@ -229,6 +229,25 @@ describe("closing a project", () => {
     expect(booted.player.state.commandIndex).toBe(index)
   })
 
+  it("paints nothing once it is closed, however late the caller arrives", async () => {
+    // The net under every late continuation. A session is closed by a click that can land in the
+    // middle of an asset load, and `loadScript` awaits that load before handing the story to
+    // `loadStory` - so the story would otherwise be painted into a root the next session is about
+    // to be given. Asserted through the two doors something outside the renderer can still reach.
+    const booted = await open(A)
+    expect(textBoxText(root)).toBe("First line")
+
+    await booted.close()
+    const before = root.innerHTML
+
+    booted.renderer.render(true)
+    booted.renderer.loadStory(booted.player.state, true)
+    await settle()
+
+    expect(root.innerHTML).toBe(before)
+    expect(textBoxText(root)).toBe(null)
+  })
+
   it("leaves one editor and one vn when the same elements are remounted", async () => {
     const first = await open(A)
     await first.close()

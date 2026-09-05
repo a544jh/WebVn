@@ -55,6 +55,17 @@ export class DomRenderer implements Renderer {
   // one; this is about the one already scheduled.
   private skipTimer: number | null = null
 
+  // The settle-and-measure that follows a fullscreen request, for the same reason: half a second is
+  // long enough to leave a project in, and `setScale` writes a transform onto a root this renderer
+  // shares with whatever comes next.
+  private scaleTimer: number | null = null
+
+  // **A torn-down renderer does nothing.** The net under every late continuation rather than a guard
+  // per hazard: a session is closed by a click that can land in the middle of an asset load, and the
+  // `loadStory` waiting behind that load would otherwise paint a story into a root the next session
+  // is about to be given. Checked wherever something outside this class can still reach in.
+  private torn = false
+
   private committedState: VnPlayerState | null
 
   private SKIP_DELAY = 50
@@ -223,11 +234,13 @@ export class DomRenderer implements Renderer {
   // is not immediately followed by a render leaves the old pass free to auto-advance the new story
   // instead, and it will step commands nobody asked it to.
   public loadStory(state: VnPlayerState, animate: boolean): void {
+    if (this.torn) return
     this.player.loadState(state)
     this.render(animate)
   }
 
   public render(animate: boolean): void {
+    if (this.torn) return
     // A new render supersedes any render still waiting on animations. Its completion
     // callback below must then do nothing: sub-renderer promises can resolve long after
     // (e.g. a sprite's transitionend), and acting on them would mark the renderer
@@ -365,7 +378,9 @@ export class DomRenderer implements Renderer {
   }
 
   public enableAutoplay(): void {
-    document.querySelector(".vn-action-auto")?.classList.add("vn-actionstate-enabled")
+    // Scoped to this renderer's own root. Page-wide was survivable while one vn was all a page could
+    // hold; it is simply wrong now that a session and a picker share one.
+    this.root.querySelector(".vn-action-auto")?.classList.add("vn-actionstate-enabled")
     this.autoplayInterval = window.setInterval(() => {
       this.advance()
     }, 7000)
@@ -374,7 +389,7 @@ export class DomRenderer implements Renderer {
 
   public disableAutoplay(): void {
     if (this.autoplayInterval) {
-      document.querySelector(".vn-action-auto")?.classList.remove("vn-actionstate-enabled")
+      this.root.querySelector(".vn-action-auto")?.classList.remove("vn-actionstate-enabled")
       window.clearInterval(this.autoplayInterval)
       this.autoplayInterval = null
     }
@@ -392,6 +407,7 @@ export class DomRenderer implements Renderer {
   // One-way. There is no matching `start()` - the session this belonged to is gone, and the next one
   // constructs a renderer of its own.
   public teardown(): void {
+    this.torn = true
     this.renderGeneration++
     this.listeners.abort()
 
@@ -401,6 +417,10 @@ export class DomRenderer implements Renderer {
       this.skipTimer = null
     }
     this.disableAutoplay()
+    if (this.scaleTimer !== null) {
+      window.clearTimeout(this.scaleTimer)
+      this.scaleTimer = null
+    }
 
     // The two sub-renderers that own something outside this root: audio plays from detached
     // elements the loaders hand out, and the background keeps asking for frames. Everything else a
@@ -556,13 +576,14 @@ export class DomRenderer implements Renderer {
       // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
       // do about that, and the scaling below still works, so swallow it.
       screen.orientation.lock("landscape").catch(() => undefined)
-      window.setTimeout(() => this.setScale(), 500)
+      this.scaleTimer = window.setTimeout(() => this.setScale(), 500)
     }) // hackety hack to let mobile ui settle..
   }
 
   // Fits the scene into the container it was given, letterboxing whichever axis is left over. The
   // scene has a fixed size in css pixels, so going fullscreen is a scale rather than a relayout.
   private setScale(): void {
+    if (this.torn) return
     const containerWidth = this.container.clientWidth // width of screen in css pixels
     const vnWidth = this.root.clientWidth
     const containerHeight = this.container.clientHeight

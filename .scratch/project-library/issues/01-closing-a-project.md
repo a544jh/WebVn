@@ -113,3 +113,45 @@ than one it prevents.
 
 `BackgroundRenderer`'s `requestAnimationFrame` chain was the same shape and was fixed alongside it -
 not a visible symptom, but a live frame loop per abandoned session, drawing into a detached canvas.
+
+## Comments: the teardown sweep, 2026-09-05
+
+Three separate reports of something surviving `close()` - a hidden mount, then audio - prompted a
+deliberate audit of everything a session holds rather than waiting for a fourth. What it found, in
+full, so the next reader knows what was and was not looked at.
+
+**Fixed here:**
+
+- **A late caller could still paint into the root.** `VnEditor.loadScript` awaits `loadAssets` before
+  handing the story to `loadStory`, and Back to projects is clickable throughout that wait - so a
+  close landing mid-load left the story to be painted into a root the next session was about to be
+  given. `DomRenderer` now has one `torn` flag, checked in `render`, `loadStory` and `setScale`: a
+  torn-down renderer does nothing. That is the net under every late continuation rather than a guard
+  per hazard, which is what the previous three fixes each were.
+- **`enterFullscreen`'s 500ms settle timer was untracked.** It calls `setScale`, which writes a
+  transform onto the root this renderer shares with whatever comes next. Now cleared on teardown, and
+  guarded by the flag above as well. Not covered by a test: `requestFullscreen` needs user
+  activation, which is why CLAUDE.md already says fullscreen is verified by hand.
+- **The autoplay pill was toggled through a page-wide `document.querySelector`.** Survivable while one
+  vn was all a page could hold; simply wrong now that a session and a picker share one. Scoped to the
+  renderer's own root.
+
+**Found and recorded rather than fixed** - both in ROUGH_EDGES.md:
+
+- **Object URLs accumulate across sessions.** `OpfsAssetResolver` mints one per asset and never
+  revokes; within a session that is deliberate and pinned by a test, but nothing releases them when
+  the session ends, so each project switch holds another project's assets in memory for the life of
+  the page. A real leak, and a different item from the loaders' lack of eviction that this ticket
+  scoped out - that one is released with its session and this one is not.
+- **CodeMirror 5's teardown is unverified.** Emptying the root removes the wrapper and CM5 offers no
+  `destroy()`. Whether it leaves anything document-level behind was not established, and is written
+  down as unknown rather than assumed clean.
+
+**Checked and clear:** every `document`/`window` listener goes through an `AbortController`
+(`DomRenderer`, `ProjectStoring`); the skip, autoplay and store-debounce timers are cancelled; the
+background's `requestAnimationFrame` chain and both audio fade chains are flag-gated; no callback is
+pushed into anything longer-lived than the session that pushed it; the only DOM appended outside the
+two roots is a `<dialog>`, which removes itself on close and cannot be open across a view swap
+because `showModal` makes the rest of the page inert; and the module-level state in `opfs.ts`,
+`persistence.ts` and `projectStore.ts` is either self-clearing or deliberately once-per-page.
+

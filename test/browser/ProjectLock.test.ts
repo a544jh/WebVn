@@ -39,9 +39,8 @@ beforeEach(async () => {
   // is one tab for its whole run.
   await releaseStoredEditorLock()
   await clearOpfsStore(SCRATCH)
-  // One project and no editor.yaml: chooseProject falls back to the first of listProjects, so a boot
-  // that gets as far as claiming writes `lastOpened` - which is what makes "wrote nothing" testable
-  // below without needing an empty library and the demo seed.
+  // One project and no editor.yaml: a boot that gets as far as taking the lock records `lastOpened`,
+  // which is what makes "wrote nothing" testable below.
   await createProject(DIRECTORY, { manifestText: MANIFEST, scriptText: SCRIPT })
 })
 
@@ -74,7 +73,7 @@ describe("navigator.locks", () => {
 
 describe("booting a second tab on one project", () => {
   it("takes the lock, holds it afterwards, and records what it opened", async () => {
-    const booted = await bootStoredEditor()
+    const booted = await bootStoredEditor(DIRECTORY)
 
     expect(booted.kind).toBe("booted")
     expect(await heldLockNames()).toContain(`vn-project-${DIRECTORY}`)
@@ -86,14 +85,14 @@ describe("booting a second tab on one project", () => {
     // calling boot is exactly what a second tab does, minus the tab.
     await holdAsAnotherTab(DIRECTORY)
 
-    const booted = await bootStoredEditor()
+    const booted = await bootStoredEditor(DIRECTORY)
 
     expect(booted.kind).toBe("refused")
     if (booted.kind === "booted") throw new Error("unreachable")
     expect(booted.reason).toContain("another tab")
     // And it wrote nothing on its way to being refused - the previous test shows a boot that gets
-    // through writes `lastOpened` here. That is why the lock is taken before claimProject rather
-    // than after: a lock taken after the first store was not there for the write it guards.
+    // through writes `lastOpened` here. That is why the lock is taken before that record rather than
+    // after: a lock taken after the first write was not there for the write it guards.
     expect(await readEditorState()).toEqual({})
   })
 })

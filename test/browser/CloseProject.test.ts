@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
-import { createProject, readProject, writeEditorState } from "../../src/storage/projectStore"
+import { createProject, readProject } from "../../src/storage/projectStore"
 import { clearOpfsStore } from "../helpers/opfs"
 import {
   advanceVn,
@@ -44,18 +44,13 @@ interface OpenProject extends BootedEditor {
 
 // bootEditor into the elements this suite holds, rather than the harness's fresh ones: a remount
 // into the *same* elements is the thing being tested.
-const open = async (): Promise<OpenProject> => {
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot })
+const open = async (directory: string): Promise<OpenProject> => {
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
   if (booted.kind === "refused") throw new Error("the editor refused to boot: " + booted.reason)
   const firstStop = nextStop(booted.renderer, booted.player)
   await booted.openProject()
   await firstStop
   return { ...booted, root, editorRoot }
-}
-
-const openAfter = async (directory: string): Promise<OpenProject> => {
-  await writeEditorState({ lastOpened: directory })
-  return open()
 }
 
 beforeEach(async () => {
@@ -73,13 +68,13 @@ beforeEach(async () => {
 
 describe("closing a project", () => {
   it("releases the lock, so the same project can be opened again", async () => {
-    const booted = await openAfter(A)
+    const booted = await open(A)
     expect(await heldLockNames()).toContain(`vn-project-${A}`)
 
     await booted.close()
 
     expect(await heldLockNames()).not.toContain(`vn-project-${A}`)
-    const again = await open()
+    const again = await open(A)
     expect(again.directory).toBe(A)
     await again.close()
   })
@@ -87,7 +82,7 @@ describe("closing a project", () => {
   it("writes what was typed but not yet stored", async () => {
     // The flush is what makes closing lossless: an author who types and immediately leaves has not
     // waited out the debounce, and the interval's worth of typing is theirs.
-    const booted = await openAfter(A)
+    const booted = await open(A)
     typeCharacter(booted, "  - Typed and closed straight away\n")
 
     await booted.close()
@@ -96,7 +91,7 @@ describe("closing a project", () => {
   })
 
   it("stops answering the page's flush events", async () => {
-    const booted = await openAfter(A)
+    const booted = await open(A)
     await booted.close()
 
     // A stopped storer with something pending is the measured loss in miniature: its three
@@ -115,15 +110,15 @@ describe("closing a project", () => {
   it("opens a project on the newest text after switching away and back", async () => {
     // The measured loss, end to end. Boot A, type without waiting out the debounce, close, work in
     // B, and come back: A used to be reopened over text an abandoned storer wrote after the fact.
-    const a = await openAfter(A)
+    const a = await open(A)
     typeCharacter(a, "  - Typed into A\n")
     await a.close()
 
-    const b = await openAfter(B)
+    const b = await open(B)
     typeCharacter(b, "  - Typed into B\n")
     await b.close()
 
-    const again = await openAfter(A)
+    const again = await open(A)
     // Long enough for anything still listening to have had its turn.
     await sleep(100)
 
@@ -134,7 +129,7 @@ describe("closing a project", () => {
   })
 
   it("stops answering the keyboard", async () => {
-    const booted = await openAfter(A)
+    const booted = await open(A)
     await advanceVn(booted)
     expect(textBoxText(root)).toBe("Second line")
 
@@ -147,7 +142,7 @@ describe("closing a project", () => {
   })
 
   it("cancels autoplay and skip mode", async () => {
-    const booted = await openAfter(A)
+    const booted = await open(A)
     // Skip mode only runs over text already read, so walk the story and come back to the top.
     await advanceVn(booted)
     booted.renderer.undo()
@@ -168,9 +163,9 @@ describe("closing a project", () => {
   })
 
   it("leaves one editor and one vn when the same elements are remounted", async () => {
-    const first = await openAfter(A)
+    const first = await open(A)
     await first.close()
-    const second = await openAfter(A)
+    const second = await open(A)
 
     expect(editorRoot.querySelectorAll(".CodeMirror").length).toBe(1)
     expect(root.querySelectorAll("#vn-actions").length).toBe(1)
@@ -190,9 +185,9 @@ describe("closing a project", () => {
   it("leaves the action bar working after a remount", async () => {
     // The vn root is restored to the markup it was handed rather than emptied: the action bar is
     // part of the page, and a second session without one is not a whole vn.
-    const first = await openAfter(A)
+    const first = await open(A)
     await first.close()
-    const second = await openAfter(A)
+    const second = await open(A)
     await advanceVn(second)
     expect(textBoxText(root)).toBe("Second line")
     ;(root.querySelector(".vn-action-back") as HTMLElement).click()

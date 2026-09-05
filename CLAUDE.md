@@ -94,6 +94,7 @@ src/
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
+  picker/          the front door: the project library as a page, shown before any editor
   chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
@@ -315,7 +316,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   project switching remounts in place - its constructor comment has the reproduction.
 - **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
-  `chooseProject` writes nothing, the lock is taken, and only then does `claimProject` seed or record.
+  the picker's walk writes nothing, the lock is taken, and only then is `lastOpened` recorded.
 - **`editorBoot.ts` is the boot, lifted out of `src/index.ts` so tests exercise the one that ships.** It
   returns either a booted editor or a refusal — three reasons, one surface. It hands back an
   `openProject` thunk rather than opening the buffers itself, because the export gate has to be
@@ -328,8 +329,24 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
-- **The demo seed in `openProject.ts` is scaffolding**, and it dies at the picker **and** URL import
-  rather than either alone — it is doing two jobs, keeping the editor alive and making first run good.
+- **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
+  one page: `index.html` holds `#vn-picker` and `#vn-session`, `index.ts` swaps them with `hidden`,
+  and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
+  the truth, there is no index file — orders `lastOpened` first, and hands a directory to
+  `bootEditor`. It has a `stop()` and a generation guard for the same reason `ProjectStoring` has a
+  `stop()`: a superseded view that kept listening is a bug, not untidiness. Its font, icons and
+  status colours come from `src/chrome/`.
+- **`bootEditor` is *told* which directory to open.** `chooseProject`/`claimProject` are gone with
+  `openProject.ts`: their two jobs — which directory, and seed the demo if the library is empty —
+  are the author's pick and the picker's Add demo project button. A cold boot always lands on the
+  picker; `lastOpened` orders the list and no longer decides anything. `bootEditor` records it after
+  the lock, so a rename gets it free.
+- **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
+  Nothing seeds behind the author: a seed would have to run before the picker could render, when no
+  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+- **`navigator.storage.persist()` is asked on the first store**, at most once per page load
+  (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
+  `persisted()`, re-read on every render.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.

@@ -1,0 +1,108 @@
+/* The picker's own pixels. Its font, its status colours and its icons come from src/chrome/, which
+   is what the editor wears too - this file is only the layout of the front door.
+
+   The colour vocabulary is the chrome's, and it is not decoration: green means stored, orange means
+   "needs attention and the work still runs", red means "did not parse, or a write failed". Spending
+   one on selection or emphasis would cost that meaning, so nothing here does. */
+
+.vn-picker {
+  max-width: 40rem;
+  margin: 2rem auto;
+  color: #eee;
+}
+
+.vn-picker-heading {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+/* A refusal is a place the author can stay - they are on the list, looking at what they have - so it
+   is orange rather than red, and orange takes black text: it is light enough that white on it fails
+   to read. editor.css says the same thing about the store badge. */
+.vn-picker-refusal {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 3px;
+  background: var(--vn-editor-status-warning);
+  color: black;
+}
+
+.vn-picker-projects {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* One row is one button: the whole row opens the project, so there is no target to aim for. */
+.vn-picker-open {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  color: black;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vn-picker-open:hover {
+  background: #fff;
+}
+
+.vn-picker-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.vn-picker-directory {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+/* The one place red appears here, and it means what it means everywhere else in this chrome: this
+   document did not parse. The project is listed and opens anyway - the editor is where it gets
+   fixed. */
+.vn-picker-unparsed {
+  color: var(--vn-editor-status-error);
+}
+
+.vn-picker-empty {
+  margin: 0 0 1rem;
+  color: #ccc;
+}
+
+.vn-picker-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The icon takes its colour from here, which is the whole reason it is drawn with `currentColor`. */
+.vn-picker-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  color: black;
+  cursor: pointer;
+}
+
+.vn-picker-action:hover {
+  background: #fff;
+}
+
+.vn-picker-storage {
+  margin: 1.5rem 0 0;
+  font-size: 0.85rem;
+  color: #ccc;
+}

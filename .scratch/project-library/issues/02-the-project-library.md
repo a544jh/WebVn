@@ -1,6 +1,6 @@
 # 02: The project library
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (closing a project and opening another), 00 (the chrome's font and icons).
 
@@ -141,3 +141,34 @@ work, so Firefox's prompt lands on someone who is invested rather than on someon
 - **Importing the demo from a URL.** That is a URL import of the demo published in `dist/`, in
   tranche 3, and it is what finally retires `src/storage/seedDemoProject.ts`. Until then the Add demo
   project button above calls that seed directly - the demo is a local write, not an import.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. `src/picker/` holds the view; `src/index.html`
+gained `#vn-picker` and `#vn-session` and `src/index.ts` swaps them; `src/storage/openProject.ts` is
+deleted and `bootEditor` takes a directory. Covered by `test/browser/ProjectPicker.test.ts`,
+including the round trip with the real boot underneath it.
+
+Four things worth recording.
+
+**`lastOpened` orders the list by putting one row on top, and nothing else.** It is a single
+directory name, so "descending" is as much as one field can say: the row an author wants next is
+overwhelmingly the one they had last, and the rest sort by the name they are addressed under. A
+genuine recency ordering wants a timestamp *per project*, which `editor.yaml` being losable makes
+cheap - but nothing asks for it yet, and the store's own rule is that a field nothing writes is a
+field nobody can tell is dead. Written into `order()` so the next reader does not have to rediscover
+which reading was taken.
+
+**`writeEditorState({ lastOpened })` landed in `bootEditor`, not in the picker.** The ticket says it
+moves to "wherever the picker opens a project", and that is this: the boot is where the lock is
+taken, so recording after it preserves the ordering property the lock exists for, and ticket 04 -
+which reopens under a directory the picker never showed - gets it without having to remember.
+
+**One acceptance criterion is 03's by construction.** "First run shows an empty picker offering New
+project and Add demo project" cannot be met by a ticket whose Not-in-scope section says "Making or
+deleting a project. Ticket 03." The empty picker ships offering **Add demo project**, which is what
+keeps first run good on its own - the story is one click away. New project joins it in 03.
+
+**A stopped picker paints nothing, whether the render was in flight or is asked for afterwards.**
+Both happen: the host stops it the moment a project opens, and the store walk it was stopped in the
+middle of resolves later. One-way, like every other teardown here.

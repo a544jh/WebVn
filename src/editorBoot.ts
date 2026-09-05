@@ -4,10 +4,9 @@ import { loadSaveData } from "./core/save"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
-import { chooseProject, claimProject } from "./storage/openProject"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { readProject } from "./storage/projectStore"
+import { readProject, writeEditorState } from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -58,43 +57,53 @@ export interface EditorElements {
   readonly vnDivContainer?: HTMLElement
 }
 
+// A browser that cannot store gets no editor at all, rather than a memory-only one. A second boot
+// path that behaves differently and is exercised by nobody is a maintenance cost with no owner, and
+// an editor that silently cannot keep the author's work is worse than one that says so up front. The
+// blast radius is small on purpose: src/playerIndex.ts never touches OPFS, so the *player* still
+// works in any browser, and it is only authoring that needs a place to put things.
+//
+// navigator.locks needs a secure context exactly as OPFS does, so anything that can run the editor
+// can take a lock - but that is asserted here rather than assumed, and an absent LockManager refuses
+// rather than proceeding unlocked.
+//
+// Exported because the picker renders *before* any boot and has to refuse the same browsers on the
+// same terms. One message, one place: a second copy would be the one that goes stale.
+export const unsupportedBrowserReason = (): string | null =>
+  isSupported() && areLocksSupported()
+    ? null
+    : "This browser cannot store projects, so the editor will not load. Try a recent Chrome or Edge."
+
 // Resolves once everything is built and wired. The story is not on screen until the returned
 // `openProject` is called.
-export const bootEditor = async (elements: EditorElements): Promise<EditorBoot> => {
-  // A browser that cannot store gets no editor at all, rather than a memory-only one. A second boot
-  // path that behaves differently and is exercised by nobody is a maintenance cost with no owner,
-  // and an editor that silently cannot keep the author's work is worse than one that says so up
-  // front. The blast radius is small on purpose: src/playerIndex.ts never touches OPFS, so the
-  // *player* still works in any browser, and it is only authoring that needs a place to put things.
-  //
-  // navigator.locks needs a secure context exactly as OPFS does, so anything that can run the editor
-  // can take a lock - but that is asserted here rather than assumed, and an absent LockManager
-  // refuses rather than proceeding unlocked.
-  if (!isSupported() || !areLocksSupported()) {
-    return {
-      kind: "refused",
-      reason: "This browser cannot store projects, so the editor will not load. Try a recent Chrome or Edge.",
-    }
-  }
+//
+// **Told which directory to open rather than choosing one.** The picker is the front door and the
+// author's pick is what names it; `chooseProject`'s "lastOpened, else the first listed" had two jobs
+// and the picker took both, so it is gone rather than left with a contract that changed underneath
+// it. A rename opens a directory nothing has ever listed, which is the other reason this is a
+// parameter.
+export const bootEditor = async (elements: EditorElements, directory: string): Promise<EditorBoot> => {
+  const unsupported = unsupportedBrowserReason()
+  if (unsupported !== null) return { kind: "refused", reason: unsupported }
 
-  // Ordering is the whole of ticket 06: choose without writing, take the lock, and only then seed,
-  // open or store. A lock taken after the first store is a lock that was not there for the write it
-  // was meant to protect, and a refused tab must not have written anything on its way to being
-  // refused.
-  const choice = await chooseProject()
-  const lock = await takeProjectLock(choice.directory)
+  // Ordering: the lock before anything is written. A lock taken after the first store is a lock that
+  // was not there for the write it was meant to protect, and a refused tab must not have written
+  // anything on its way to being refused - which is why `lastOpened` is recorded below it rather
+  // than by whoever chose the directory.
+  const lock = await takeProjectLock(directory)
   if (lock === null) {
     // Not read-only mode, and not a banner over a mounted editor: read-only means an editor whose
     // stores are suppressed, which is the memory-only path this boot already refuses, arrived at
     // from a different direction.
     return {
       kind: "refused",
-      reason: `"${choice.directory}" is already open in another tab. Close it and reload this one.`,
+      reason: `"${directory}" is already open in another tab. Close it and reload this one.`,
     }
   }
-  await claimProject(choice)
+  // Here rather than in the picker, so the one other caller - a rename, which reopens under a
+  // directory the picker never showed - records what it opened without having to remember to.
+  await writeEditorState({ lastOpened: directory })
 
-  const directory = choice.directory
   const { manifestText, scriptText } = await readProject(directory)
 
   const [manifest, manifestErrors] = YamlParser.parseManifest(manifestText)

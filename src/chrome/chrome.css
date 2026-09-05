@@ -51,3 +51,25 @@ textarea {
   /* The playhead. No badge state to pair with - only setPositionMarker uses it. */
   --vn-editor-marker-position: blue;
 }
+
+/* The way back out of a project, in the session's upper left. It lives here rather than in
+   editor.css because it is not the editor's: it is the seam between the two views, and it is on
+   screen whenever a project is open regardless of what the editor is doing. */
+#vn-session-bar {
+  margin-bottom: 0.5rem;
+}
+
+#vn-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  cursor: pointer;
+}
+
+#vn-btn-back:hover {
+  background: #fff;
+}

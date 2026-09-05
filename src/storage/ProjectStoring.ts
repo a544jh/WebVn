@@ -1,3 +1,4 @@
+import { requestPersistence } from "./persistence"
 import { writeManifest, writeScript } from "./projectStore"
 
 // What turns the editor's keystrokes into files in the project store: a debounce, the three flushes
@@ -112,6 +113,12 @@ export class ProjectStoring {
   }
 
   private async write(batch: Map<StoredBuffer, string>): Promise<void> {
+    // The first store is the moment to ask for persistence: the author has committed work, so a
+    // prompt lands on someone who is invested rather than on someone who just arrived. Not awaited -
+    // a permission prompt must not hold up the write it was asked on behalf of - and asked at most
+    // once per page load, which requestPersistence rather than this class remembers.
+    void requestPersistence()
+
     try {
       for (const [buffer, text] of batch) {
         if (buffer === "script") await writeScript(this.directory, text)

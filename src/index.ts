@@ -8,8 +8,10 @@ import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"
 
+import { icon } from "./chrome/icons"
+import { ProjectPicker } from "./picker/picker"
 import { encodePayload, playerUrl } from "./scriptUrl"
-import { bootEditor } from "./editorBoot"
+import { BootedEditor, bootEditor, unsupportedBrowserReason } from "./editorBoot"
 
 declare global {
   interface Window {
@@ -18,9 +20,23 @@ declare global {
   }
 }
 
+const pickerDiv = document.getElementById("vn-picker") as HTMLDivElement
+const sessionDiv = document.getElementById("vn-session") as HTMLDivElement
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
+const backButton = document.getElementById("vn-btn-back") as HTMLButtonElement
+
+// One project open at a time, or none. Null is the picker being up, which is also where a cold boot
+// lands: `lastOpened` still exists and still orders the list, but it no longer decides where a boot
+// goes. The front door is the front door.
+let session: BootedEditor | null = null
+let picker: ProjectPicker | null = null
+
+// Taken off when the session is closed. The editor's own parts go away with it, but these four wire
+// into markup that outlives every session - a second boot would otherwise stack a second listener on
+// the same button, which is the entry point's version of the bug ticket 01 fixed in the storer.
+let wiring = new AbortController()
 
 boot().catch((e) => refuseToLoad("Something went wrong opening your project.", e))
 
@@ -28,14 +44,49 @@ boot().catch((e) => refuseToLoad("Something went wrong opening your project.", e
 // the wiring lives inside it, where the objects exist. src/playerIndex.ts already has that shape and
 // the same reason for it.
 async function boot(): Promise<void> {
-  const booted = await bootEditor({ vnDiv, vnEditorDiv, vnDivContainer })
-  // Three reasons, one surface: this browser cannot store, or this project is open in another tab.
-  if (booted.kind === "refused") {
-    refuseToLoad(booted.reason)
+  // Before the picker, not inside the boot: a browser that cannot store gets no authoring tool at
+  // all, and it must not be shown a list it cannot open anything from. One message, from the place
+  // that already had it.
+  const unsupported = unsupportedBrowserReason()
+  if (unsupported !== null) {
+    refuseToLoad(unsupported)
     return
   }
 
-  const { player, renderer, editor, openProject } = booted
+  backButton.prepend(icon("chevron-left"))
+  backButton.addEventListener("click", () => void backToProjects())
+
+  await showPicker()
+}
+
+// The picker is re-created every time it is shown, and comes down when a project goes up. Nothing
+// re-uses one: it holds a walk of a store that anything may have changed since.
+async function showPicker(): Promise<void> {
+  sessionDiv.hidden = true
+  pickerDiv.hidden = false
+  picker = new ProjectPicker(pickerDiv, openProject)
+  await picker.render()
+}
+
+// Opening is a full boot through the same path a cold start would take, so the player, the renderer
+// and the resolver never learn that other projects exist - they are rebuilt, on a state seeded from
+// this project's own manifest, which is what carries the save key with them.
+//
+// Resolves with a reason when the project could not be opened, which the picker shows while leaving
+// the author on the list. From the front door there is nothing to be stranded from: whatever was
+// open was released on the way out.
+async function openProject(directory: string): Promise<string | null> {
+  const booted = await bootEditor({ vnDiv, vnEditorDiv, vnDivContainer }, directory)
+  if (booted.kind === "refused") return booted.reason
+
+  picker?.stop()
+  picker = null
+  pickerDiv.hidden = true
+  sessionDiv.hidden = false
+
+  session = booted
+  wiring = new AbortController()
+  const { player, renderer, editor } = booted
   window.vnPlayer = player
   window.vnDomRenderer = renderer
 
@@ -45,7 +96,19 @@ async function boot(): Promise<void> {
   wireExportUrl(editor)
 
   // Last, so the export gate above is listening before the boot reports how the manifest fared.
-  await openProject()
+  await booted.openProject()
+  return null
+}
+
+// The way back, and the only caller of `close()` in this tranche: flush what is pending, stop the
+// storer, tear the renderer down and release the lock, then draw the list again.
+async function backToProjects(): Promise<void> {
+  const closing = session
+  if (closing === null) return
+  session = null
+  wiring.abort()
+  await closing.close()
+  await showPicker()
 }
 
 // The editor's only refusal surface, and it has two callers: a browser without OPFS, and anything
@@ -55,19 +118,25 @@ function refuseToLoad(reason: string, details?: unknown): void {
   if (details !== undefined) console.error(details)
   const message = document.createElement("p")
   message.textContent = reason
-  vnEditorDiv.appendChild(message)
+  pickerDiv.replaceChildren(message)
 }
 
 function wireJumpMode(editor: VnEditor): void {
-  document.getElementById("vn-jump-mode")?.addEventListener("change", (e) => {
-    editor.setJumpMode((e.target as HTMLInputElement).value as JumpMode)
-  })
+  document.getElementById("vn-jump-mode")?.addEventListener(
+    "change",
+    (e) => {
+      editor.setJumpMode((e.target as HTMLInputElement).value as JumpMode)
+    },
+    { signal: wiring.signal }
+  )
 }
 
 // The button is page chrome rather than part of the vn, so the wiring stays here and the
 // mechanism lives in the renderer.
 function wireFullscreen(renderer: DomRenderer): void {
-  document.getElementById("vn-btn-fullscreen")?.addEventListener("click", () => renderer.enterFullscreen())
+  document
+    .getElementById("vn-btn-fullscreen")
+    ?.addEventListener("click", () => renderer.enterFullscreen(), { signal: wiring.signal })
 }
 
 function wireExportUrl(editor: VnEditor): void {
@@ -86,7 +155,9 @@ function wireExportUrl(editor: VnEditor): void {
       exportUrlMessage.textContent = "Could not write to the clipboard - the URL is in the console instead"
     }
   }
-  exportUrlButton.addEventListener("click", () => void exportUrl())
+  exportUrlButton.addEventListener("click", () => void exportUrl(), { signal: wiring.signal })
+  // A message from the project just closed is not this one's news.
+  exportUrlMessage.textContent = ""
 
   // A payload whose manifest does not parse is one the player refuses, so the link would be dead
   // rather than degraded - and whoever finds out is the person it was sent to. Following canSave's
@@ -106,6 +177,9 @@ const STEP_CLASS: Record<PathStep["kind"], string> = {
 
 function wireDebugPanel(player: VnPlayer, renderer: DomRenderer): void {
   const vnVarsDiv = document.getElementById("vn-variables")
+  // The panel is rebuilt per session rather than added to: this markup outlives the session it
+  // describes, and a second boot would otherwise draw a second panel under the first.
+  vnVarsDiv?.replaceChildren()
   const varHeader = document.createElement("h4")
   varHeader.innerText = "Variables"
   vnVarsDiv?.appendChild(varHeader)

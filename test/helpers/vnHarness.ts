@@ -208,20 +208,22 @@ export const releaseStoredEditorLock = async (): Promise<void> => {
   if (lock !== null) await lock.release()
 }
 
-export const startEditorFromStore = async (): Promise<StartedStoredEditor> => {
-  const booted = await bootStoredEditor()
+export const startEditorFromStore = async (directory: string): Promise<StartedStoredEditor> => {
+  const booted = await bootStoredEditor(directory)
   if (booted.kind === "refused") throw new Error("the editor refused to boot: " + booted.reason)
   return booted
 }
 
-// The same boot, handed back whichever way it went, for the tests that are about the refusal.
-export const bootStoredEditor = async (): Promise<StartedStoredEditor | RefusedBoot> => {
+// The same boot, handed back whichever way it went, for the tests that are about the refusal. The
+// directory is named rather than chosen: since the picker became the front door, `bootEditor` is
+// told which project to open and nothing in the boot path decides for it.
+export const bootStoredEditor = async (directory: string): Promise<StartedStoredEditor | RefusedBoot> => {
   await releaseStoredEditorLock()
 
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
 
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot })
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
   if (booted.kind === "refused") return booted
   heldLock = booted.lock
 
@@ -246,9 +248,16 @@ export const bootStoredEditor = async (): Promise<StartedStoredEditor | RefusedB
 export const storeStateOf = (editorRoot: HTMLDivElement): string | undefined =>
   (editorRoot.querySelector(".vn-editor-store-state") as HTMLSpanElement | null)?.dataset.vnStoreState
 
+// What the gestures below actually need. Narrower than StartedEditor on purpose: a suite that wired
+// its own boot - the picker's round trip does - holds the editor's root without holding the shape
+// startEditor returns.
+export interface EditorRoot {
+  editorRoot: HTMLDivElement
+}
+
 // Typing one character, which is what arms the debounce. `setValue` would too, but this is the
 // gesture the debounce exists for.
-export const typeCharacter = (started: StartedEditor, text: string): void => {
+export const typeCharacter = (started: EditorRoot, text: string): void => {
   const doc = codeMirrorOf(started.editorRoot).getDoc()
   doc.replaceRange(text, { line: doc.lastLine(), ch: 0 })
 }
@@ -264,13 +273,13 @@ const codeMirrorOf = (editorRoot: HTMLDivElement): CodeMirror.Editor =>
   (editorRoot.querySelector(".CodeMirror") as unknown as { CodeMirror: CodeMirror.Editor }).CodeMirror
 
 // Types into the manifest buffer, the way switching tabs and editing does.
-export const typeManifest = (started: StartedEditor, text: string): void => {
+export const typeManifest = (started: EditorRoot, text: string): void => {
   editorTab(started.editorRoot, "manifest").click()
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
 
 // The same for the script buffer, which is the one the editor opens on.
-export const typeScript = (started: StartedEditor, text: string): void => {
+export const typeScript = (started: EditorRoot, text: string): void => {
   editorTab(started.editorRoot, "script").click()
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
@@ -278,13 +287,13 @@ export const typeScript = (started: StartedEditor, text: string): void => {
 // Clicking a line's gutter, which is how an author moves the playhead. Fired through CodeMirror's
 // own event bus rather than as a DOM click: the handler is registered with `cm.on`, and reaching it
 // with a real click would mean placing one over a gutter column measured at runtime.
-export const clickGutter = (started: StartedEditor, line: number): void => {
+export const clickGutter = (started: EditorRoot, line: number): void => {
   const cm = codeMirrorOf(started.editorRoot)
   CodeMirror.signal(cm, "gutterClick", cm, line - 1) // codemirror lines are zero based
 }
 
 // Leaving the editor, which is what adopts a manifest.
-export const blurEditor = async (started: StartedEditor): Promise<void> => {
+export const blurEditor = async (started: EditorRoot): Promise<void> => {
   const cm = codeMirrorOf(started.editorRoot)
   cm.focus()
   cm.getInputField().blur()

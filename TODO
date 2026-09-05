@@ -52,9 +52,12 @@ because "save" is the player's.
 Landed: the whole of .scratch/project-library/ - tranche 2 - 2026-09-05. An author has a library: the
 picker is the front door, projects can be made, opened, deleted and renamed, a rename's directory
 follows the manifest's id and is recoverable from any crash state, and the editor can put a project
-down without leaving anything of it running. What is left of design-docs/PROJECT_STORAGE.md is
-import, export, the linked folder and the nag - tranche 3, which needs its own spec. Each ticket's
-Comments record what changed under it during implementation, of which there was a fair amount.
+down without leaving anything of it running. Ticket 06 followed on 2026-09-05: the open project is
+in the URL as ?project=<directory>, so a reload - and webpack-dev-server's reload-on-save - lands
+back in the project, and back and forward walk the views the author walked. What is left of
+design-docs/PROJECT_STORAGE.md is import, export, the linked folder and the nag - tranche 3, which
+needs its own spec. Each ticket's Comments record what changed under it during implementation, of
+which there was a fair amount.
 
 Extracted: tranche 2, 2026-09-05, as .scratch/project-library/ - six tickets covering the
 three nodes below that are not import or export. Teardown first, because ProjectStoring's three

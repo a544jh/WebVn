@@ -4,6 +4,7 @@ import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, settle, waitFor } f
 import { createProject } from "../../src/storage/projectStore"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import { clearOpfsStore } from "../helpers/opfs"
+import { fakeNavigation, FakeNavigation } from "../helpers/navigation"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
 const SCRATCH = "test-scratch-app-shell"
@@ -64,8 +65,13 @@ const mountPage = (): void => {
   elements = { pickerDiv, sessionDiv, vnDiv, vnEditorDiv }
 }
 
-const newShell = (): AppShell => {
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined })
+// The address bar the shell in the test is driving. A fake rather than the real one: this suite runs
+// in a page whose URL belongs to vitest, and pushing onto it would be writing into the runner's own.
+let navigation: FakeNavigation
+
+const newShell = (url: string | null = null): AppShell => {
+  navigation = fakeNavigation(url)
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation })
   return shell
 }
 
@@ -89,6 +95,8 @@ const pixel = (): number[] => {
 
 const pickerRows = (): HTMLButtonElement[] =>
   [...elements.pickerDiv.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
+
+const refusalText = (): string | null => elements.pickerDiv.querySelector(".vn-picker-refusal")?.textContent ?? null
 
 // The shell each test built, so a failing assertion cannot leave a project locked and take every
 // test after it down with it.
@@ -201,5 +209,164 @@ describe("swapping between the picker and a project", () => {
     await settle()
 
     expect(elements.pickerDiv.hidden).toBe(false)
+  })
+})
+
+// `?project=<directory>`, and the three ways a directory arrives: the first load reads it, the
+// picker writes it, and back and forward move it. The address bar itself is a fake - see
+// test/helpers/navigation.ts for why - so what is covered here is every decision the shell makes
+// about it, and not `browserNavigation`, which has none.
+describe("the open project in the URL", () => {
+  it("opens what the URL names, without the author picking it", async () => {
+    // The whole point of the ticket: a reload lands back in the project rather than at the front
+    // door. `start()` is what src/index.ts calls, so this is the boot that ships.
+    const shell = newShell(DIRECTORY)
+    await shell.start()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+
+    expect(shell.getSession()?.directory).toBe(DIRECTORY)
+    expect(elements.sessionDiv.hidden).toBe(false)
+    // The stage was laid out, which is the hazard this whole suite exists for: a boot that skips the
+    // picker still has to reveal the session before the renderer measures it.
+    expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
+  })
+
+  it("enters the picker on a bare URL, which is still the front door", async () => {
+    const shell = newShell()
+    await shell.start()
+
+    expect(shell.getSession()).toBe(null)
+    expect(elements.pickerDiv.hidden).toBe(false)
+    expect(pickerRows().length).toBe(1)
+  })
+
+  it("records the project the author opened, and the picker they went back to", async () => {
+    const shell = newShell()
+    await shell.start()
+
+    pickerRows()[0].click()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+    expect(navigation.current()).toBe(DIRECTORY)
+
+    await shell.backToProjects()
+    expect(navigation.current()).toBe(null)
+    // Two entries, so Back walks the views the author walked rather than leaving the app.
+    expect(navigation.pushed).toEqual([DIRECTORY, null])
+  })
+
+  it("puts the project down when the browser goes back to the picker", async () => {
+    const shell = newShell()
+    await shell.start()
+    pickerRows()[0].click()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+
+    navigation.go(null)
+    await waitFor("the picker", () => shell.getSession() === null && elements.pickerDiv.hidden === false)
+
+    expect(elements.sessionDiv.hidden).toBe(true)
+    // Closed, not merely hidden: the lock is the thing a second tab is waiting on, and a session
+    // that only stopped being drawn would hold it forever.
+    const lock = await takeProjectLock(DIRECTORY)
+    expect(lock).not.toBe(null)
+    await lock?.release()
+  })
+
+  it("does not push an entry for a navigation it is reacting to", async () => {
+    // The reason the author's own gestures and `goTo` are separate methods. A push from inside the
+    // popstate handler would mint an entry for the move the browser just made, and Back would need
+    // pressing twice to get anywhere.
+    const shell = newShell()
+    await shell.start()
+    pickerRows()[0].click()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+
+    navigation.go(null)
+    await waitFor("the picker", () => shell.getSession() === null)
+
+    expect(navigation.pushed).toEqual([DIRECTORY])
+  })
+
+  it("opens the project again when the browser goes forward to it", async () => {
+    const shell = newShell()
+    await shell.start()
+    pickerRows()[0].click()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+    navigation.go(null)
+    await waitFor("the picker", () => shell.getSession() === null && pickerRows().length === 1)
+
+    navigation.go(DIRECTORY)
+    await waitFor("the story to be loaded again", () => storyLoaded(shell))
+
+    expect(shell.getSession()?.directory).toBe(DIRECTORY)
+    expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
+  })
+
+  it("swaps one view at a time when back and forward arrive together", async () => {
+    // Held Back, or Back and Forward in one gesture. Both navigations are made without waiting, so
+    // the second starts while the first is still closing - and without the shell's queue the first
+    // one's `showPicker` lands after the second revealed the session, hiding it again underneath a
+    // renderer that has not measured itself. The symptom is this suite's original bug: a background
+    // canvas of zero width, nothing thrown and nothing logged.
+    const shell = newShell()
+    await shell.start()
+    pickerRows()[0].click()
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
+
+    // The session that is open now, so the wait below cannot be satisfied by it: both swaps are
+    // queued rather than run, so every "is the story loaded" question is still true for a moment
+    // after they are asked for.
+    const first = shell.getSession()
+
+    navigation.go(null)
+    navigation.go(DIRECTORY)
+    await waitFor("the project to be opened a second time", () => shell.getSession() !== first)
+    await waitFor("the story to be loaded again", () => storyLoaded(shell))
+
+    expect(shell.getSession()?.directory).toBe(DIRECTORY)
+    expect(elements.sessionDiv.hidden).toBe(false)
+    expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
+  })
+
+  it("says so and clears the URL when the link names no project", async () => {
+    // A bookmark to a project that has since been deleted. Without the boot's own check this threw
+    // out of `readProject` and the entry point said "Something went wrong opening your project".
+    const shell = newShell("a-project-that-was-deleted")
+    await shell.start()
+    await waitFor("the refusal banner", () => refusalText() !== null)
+
+    expect(refusalText()).toContain("a-project-that-was-deleted")
+    expect(shell.getSession()).toBe(null)
+    expect(elements.pickerDiv.hidden).toBe(false)
+    // Replaced with the bare URL, so the view and the address bar agree and a reload does not repeat
+    // the failure. Replaced rather than pushed: the author did not navigate anywhere.
+    expect(navigation.current()).toBe(null)
+    expect(navigation.pushed).toEqual([])
+  })
+
+  it("says so and clears the URL when the link names a project another tab holds", async () => {
+    const held = await takeProjectLock(DIRECTORY)
+    if (held === null) throw new Error("the lock was already held before the test started")
+
+    const shell = newShell(DIRECTORY)
+    await shell.start()
+    await waitFor("the refusal banner", () => refusalText() !== null)
+
+    expect(refusalText()).toContain("another tab")
+    expect(shell.getSession()).toBe(null)
+    expect(navigation.current()).toBe(null)
+    await held.release()
+  })
+
+  it("leaves a project that would not open holding nothing", async () => {
+    // The boot takes the lock before it can know whether the directory is a project at all, so a
+    // refusal on that count has to give it back - or the next tab, and the next boot in this one,
+    // waits on a lock nobody is using.
+    const shell = newShell("a-project-that-was-deleted")
+    await shell.start()
+    await waitFor("the refusal banner", () => refusalText() !== null)
+
+    const lock = await takeProjectLock("a-project-that-was-deleted")
+    expect(lock).not.toBe(null)
+    await lock?.release()
   })
 })

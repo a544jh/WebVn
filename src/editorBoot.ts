@@ -6,7 +6,7 @@ import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { readProject, recordOpened } from "./storage/projectStore"
+import { isProject, readProject, recordOpened } from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -19,7 +19,7 @@ import { YamlParser } from "./yamlParser/YamlParser"
 
 // The boot either produces an editor or refuses, and every refusal is one message with nothing
 // mounted - the surface src/playerIndex.ts's showLoadError already set for the player. There are
-// three reasons and no new UI for the two that arrived after the first.
+// four reasons and no new UI for any of the three that arrived after the first.
 export type EditorBoot = BootedEditor | RefusedBoot
 
 export interface RefusedBoot {
@@ -108,6 +108,19 @@ export const bootEditor = async (
       kind: "refused",
       reason: `"${directory}" is already open in another tab. Close it and reload this one.`,
     }
+  }
+  // **A directory that is not a project**, which is what a bookmark to a deleted one names, and what
+  // a picker row racing a delete in another tab becomes. Without this, `readProject` throws and the
+  // entry point's catch says "Something went wrong opening your project", which is true of nothing
+  // in particular. This boot already owns "here is why you cannot open this project" with one
+  // surface for every reason, so the fourth reason belongs here too.
+  //
+  // **Asked with the lock in hand**, which is what makes the answer stay true long enough to act on:
+  // a delete takes the same lock before it removes anything. The lock is released again on the way
+  // out, unless it was handed in - a rename's destination lock is the caller's to release.
+  if (!(await isProject(directory))) {
+    if (held === undefined) await lock.release()
+    return { kind: "refused", reason: `There is no project called "${directory}".` }
   }
   // Here rather than in the picker, so the one other caller - a rename, which reopens under a
   // directory the picker never showed - records what it opened without having to remember to.

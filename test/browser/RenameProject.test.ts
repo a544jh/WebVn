@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { AppShell } from "../../src/AppShell"
+import { fakeNavigation, FakeNavigation } from "../helpers/navigation"
 import { readBlob, writeFile } from "../../src/storage/opfs"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import {
@@ -137,6 +138,8 @@ let elements: {
   vnEditorDiv: HTMLDivElement
 }
 let shell: AppShell | null = null
+// The address bar this shell writes to, so a rename can be asked what it did with it.
+let navigation: FakeNavigation
 
 const mountPage = (): void => {
   localStorage.clear()
@@ -156,7 +159,8 @@ const mountPage = (): void => {
 
 const openShell = async (directory: string): Promise<AppShell> => {
   mountPage()
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined })
+  navigation = fakeNavigation()
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation })
   await shell.showPicker()
   const row = elements.pickerDiv.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
   row.click()
@@ -219,6 +223,22 @@ describe("renaming from the editor", () => {
     expect(elements.sessionDiv.hidden).toBe(false)
     expect(await heldLocks()).toContain(`vn-project-${TO}`)
     expect(await heldLocks()).not.toContain(`vn-project-${FROM}`)
+  })
+
+  it("follows the project in the URL, replacing the entry rather than adding one", async () => {
+    const shell = await openShell(FROM)
+    expect(navigation.current()).toBe(FROM)
+
+    await editIdAndBlur(TO)
+    press("confirm")
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
+
+    // A reload now finds the project where it actually is.
+    expect(navigation.current()).toBe(TO)
+    // Replaced, not pushed: the project moved under the author, they did not navigate. The entry
+    // overwritten is the one opening it pushed, so no history entry is left naming a directory that
+    // no longer exists - which is what Back would otherwise walk into.
+    expect(navigation.pushed).toEqual([FROM])
   })
 
   it("reverts the id alone when the author declines, keeping every other edit", async () => {

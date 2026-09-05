@@ -65,14 +65,21 @@ export class ProjectPicker {
   // the same hazard, as DomRenderer.renderGeneration.
   private generation = 0
 
-  private refusal: RefusalNotice | null = null
-
   // One-way, like every other teardown here: a stopped picker paints nothing, whether the render was
   // already in flight when it was stopped or is asked for afterwards. Both happen - the host stops
   // this one the moment a project opens, and the walk it is stopped in the middle of resolves later.
   private stopped = false
 
-  constructor(private root: HTMLElement, private openProject: OpenProject) {}
+  // **Seeded with a refusal only when the host has one this picker could not have raised itself** -
+  // a URL that named a project which would not open, refused before any picker existed to say so.
+  // Every other banner it shows, it produced. A parameter rather than a setter because a picker is
+  // built fresh for each showing and rendered immediately after, so a setter could only ever be
+  // called in the one line between the two.
+  constructor(
+    private root: HTMLElement,
+    private openProject: OpenProject,
+    private refusal: RefusalNotice | null = null
+  ) {}
 
   // Walk the store and draw what it holds. Called to show the picker and again after anything that
   // changes the library.
@@ -407,7 +414,10 @@ const openedLabel = (at: Date | undefined): string => {
 
 // What could not be opened, and what to do about it. Two parts because the artboard reads that way
 // and it is right: the first sentence is the news and carries the weight, the second is the advice.
-interface RefusalNotice {
+//
+// Exported for the one refusal this picker does not raise: a URL naming a project that would not
+// open, which is refused before there is a picker to put it on.
+export interface RefusalNotice {
   readonly lead: string
   readonly detail: string
 }

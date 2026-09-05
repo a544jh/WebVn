@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { demoManifest } from "../../src/demoStory"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
-import { ProjectPicker } from "../../src/picker/picker"
+import { ProjectPicker } from "../../src/picker/ProjectPicker"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import {
   createProject,
@@ -478,6 +478,23 @@ describe("making a project", () => {
     await settle()
 
     expect(dialogProblem()).toContain("Give the project an id")
+    expect(await listProjects()).toEqual([])
+    pressCancel()
+  })
+
+  it("refuses a blank title, which would mint a manifest that does not parse", async () => {
+    // The schema has `title: z.string().min(1)`, so a blank one reaches the author as a red gutter
+    // on their brand-new project - the exact first impression minting exists to avoid, arrived at
+    // from the other side.
+    await newPicker().render()
+    newButton()?.click()
+    await settle()
+
+    typeInto(field("Id"), "hand-typed")
+    pressConfirm()
+    await settle()
+
+    expect(dialogProblem()).toContain("title")
     expect(await listProjects()).toEqual([])
     pressCancel()
   })

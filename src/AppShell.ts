@@ -2,10 +2,10 @@ import { confirmDialog, noticeDialog } from "./chrome/dialog"
 import { VnPath } from "./core/vnPath"
 import { moveSaveData, saveToLocalStorage } from "./core/save"
 import { BootedEditor, bootEditor } from "./editorBoot"
-import { OpenProject, ProjectPicker } from "./picker/picker"
+import { OpenProject, ProjectPicker } from "./picker/ProjectPicker"
 import { availableBytes } from "./storage/persistence"
 import { ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { listProjects, projectSize, renameProject } from "./storage/projectStore"
+import { listProjects, projectFolder, projectSize, renameProject } from "./storage/projectStore"
 
 // The two views, and the swap between them. One page: the picker is shown where a project's session
 // would be, and opening one never reloads.
@@ -85,7 +85,16 @@ export class AppShell {
     // the editor does not know which directory that is - so it reports every adoption and this
     // decides whether one was a rename.
     booted.editor.onManifestAdoptedCallbacks.push((manifest) => {
-      if (manifest.id !== booted.directory) void this.rename(booted, manifest.id)
+      if (manifest.id === booted.directory) return
+      // Everything past the rename's last refusal is an error rather than a choice, and by then the
+      // old session is already down - so a failure there would otherwise leave an empty page. The
+      // picker is the honest place to land: the store has been left in a state its recovery knows
+      // how to finish, and the list is what shows the author what they still have.
+      void this.rename(booted, manifest.id).catch(async (e) => {
+        console.error("The rename failed partway", e)
+        this.session = null
+        await this.showPicker()
+      })
     })
     this.options.onOpen(booted)
     await booted.openProject()
@@ -130,17 +139,19 @@ export class AppShell {
     const from = session.directory
     const revert = () => session.editor.revertManifestId(from)
 
-    const taken = (await listProjects()).some((project) => project.directory === to)
-    if (!(await confirmRename(from, to, taken))) return await revert()
+    if (!(await confirmRename(from, to))) return await revert()
 
-    // Before the overwrite delete, which is what keeps the residual "destination deleted, then the
-    // copy fails" window as small as it can be. The old tree survives until the new one is complete,
-    // so the origin has to hold both at once.
+    // Before the overwrite is even *offered*, not merely before the delete it leads to: there is no
+    // sense asking an author to destroy a project to make room for a copy that will not fit. The old
+    // tree survives until the new one is complete, so the origin has to hold both at once.
     const room = await roomToCopy(from)
     if (room !== null) {
       await refuseRename(room)
       return await revert()
     }
+
+    const taken = (await listProjects()).some((project) => project.directory === to)
+    if (taken && !(await confirmOverwrite(to))) return await revert()
 
     const lock = await takeProjectLock(to)
     if (lock === null) {
@@ -207,15 +218,14 @@ export class AppShell {
   }
 }
 
-// Names both ids, and says what a rename costs. The overwrite is a second question rather than a
-// louder version of the first: destroying a project the author did not mention is not the same
-// decision as renaming the one they are looking at, and an import that collides with an existing id
-// will ask it in the same words.
-const confirmRename = async (from: string, to: string, taken: boolean): Promise<boolean> => {
-  const renamed = await confirmDialog(
+// Names both ids, and says what a rename costs.
+const confirmRename = (from: string, to: string): Promise<boolean> =>
+  confirmDialog(
     "Rename this project?",
     [
-      `Its folder moves from projects/${from}/ to projects/${to}/, and everything in it goes along - the script, the manifest, every asset, and your saves.`,
+      `Its folder moves from ${projectFolder(from)} to ${projectFolder(
+        to
+      )}, and everything in it goes along - the script, the manifest, every asset, and your saves.`,
       // The half that cannot be fixed from here, and the reason this is worth a sentence: an id is
       // what a *published* build keys its players' saves on, in their browsers, where nothing local
       // can reach them.
@@ -224,18 +234,21 @@ const confirmRename = async (from: string, to: string, taken: boolean): Promise<
     "Rename",
     false
   )
-  if (!renamed) return false
-  if (!taken) return true
 
-  return confirmDialog(
+// A second question rather than a louder version of the first: destroying a project the author did
+// not mention is not the same decision as renaming the one they are looking at, and an import that
+// collides with an existing id will ask it in the same words.
+const confirmOverwrite = (to: string): Promise<boolean> =>
+  confirmDialog(
     `Overwrite "${to}"?`,
     [
-      `A project is already filed under projects/${to}/, and renaming onto it destroys that project - its script, its manifest, every asset and its saves.`,
+      `A project is already filed under ${projectFolder(
+        to
+      )}, and renaming onto it destroys that project - its script, its manifest, every asset and its saves.`,
       "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.",
     ],
     "Overwrite"
   )
-}
 
 // Null when there is room. The message otherwise, which says the number rather than only that it did
 // not fit - an author who is out of space can do something about it if they know how much by.

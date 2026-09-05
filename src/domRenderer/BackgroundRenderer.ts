@@ -17,10 +17,18 @@ export class BackgroundRenderer {
   private currentRenderable: Renderable
   private needMoreFrames: boolean
 
+  // Set once the session is over, and never unset. **Not `needMoreFrames = false`**, which is what
+  // this used to do and which does nothing in the only case that matters: `renderFrame` reassigns
+  // that field from the renderable on every tick, so a frame already queued at teardown overwrites
+  // the false and reschedules as if nothing had happened. A one-way flag is the difference between
+  // stopping the loop and asking it nicely.
+  private stopped = false
+
   // Stops the animation loop below, which reschedules itself through `requestAnimationFrame` for as
   // long as a transition or a pan has frames left. After a teardown the canvas it draws into is
   // detached, so the frames go nowhere - but they keep being asked for.
   public teardown(): void {
+    this.stopped = true
     this.needMoreFrames = false
   }
 
@@ -98,6 +106,7 @@ export class BackgroundRenderer {
   }
 
   private renderFrame(time: number) {
+    if (this.stopped) return
     this.lastTick = time
 
     this.rootContext.clearRect(0, 0, this.sceneWidth, this.sceneHeight)
@@ -106,7 +115,7 @@ export class BackgroundRenderer {
     } catch (e) {
       console.error(e)
     }
-    if (this.needMoreFrames) window.requestAnimationFrame(this.renderFrame.bind(this))
+    if (this.needMoreFrames && !this.stopped) window.requestAnimationFrame(this.renderFrame.bind(this))
   }
 
   private getTransition(state: Background, backgrounds: Record<string, string>): [Renderable, Renderable] {

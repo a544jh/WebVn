@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { AppShell } from "../../src/appShell"
+import { AppShell } from "../../src/AppShell"
 import { readBlob, writeFile } from "../../src/storage/opfs"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import {

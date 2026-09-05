@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { ProjectPicker } from "../../src/picker/picker"
+import { ProjectPicker } from "../../src/picker/ProjectPicker"
 import { exists, writeFile } from "../../src/storage/opfs"
 import { ProjectLock, takeProjectLock } from "../../src/storage/projectLock"
 import {
   createProject,
+  forgetProject,
   listProjects,
   readEditorState,
   readProject,
@@ -157,6 +158,26 @@ describe("a rename that was interrupted", () => {
 
     expect(await stillThere(FROM)).toBe(false)
     expect((await readEditorState()).pendingRename).toBeUndefined()
+  })
+})
+
+describe("the marker's own survival", () => {
+  it("survives a project being deleted while it stands", async () => {
+    // Recovery deliberately leaves the marker when the source it wants to delete is locked, so the
+    // next render can finish the job. A delete in that window used to wipe it: `forgetProject`
+    // spelled out the two date maps and wrote the file, dropping everything else in it - and the
+    // interrupted rename's source became a permanent duplicate rather than one soon tidied away.
+    await createProject(FROM, { manifestText: manifestFor(FROM), scriptText: SCRIPT })
+    await createProject(TO, { manifestText: manifestFor(TO), scriptText: SCRIPT })
+    await createProject("unrelated", { manifestText: manifestFor("unrelated"), scriptText: SCRIPT })
+    await recordPendingRename({ from: FROM, to: TO })
+    await holdAsAnotherTab(FROM)
+    await renderPicker()
+    expect((await readEditorState()).pendingRename).toEqual({ from: FROM, to: TO })
+
+    await forgetProject("unrelated")
+
+    expect((await readEditorState()).pendingRename).toEqual({ from: FROM, to: TO })
   })
 })
 

@@ -319,6 +319,21 @@ export class VnEditor {
     const text = this.manifestDoc.getValue()
     const [location] = declarationLocations(text, [["id"]])
     const lines = text.split("\n")
+
+    // **Only when those lines hold nothing but the declaration.** A flow-style manifest - the whole
+    // document as `{formatVersion: 1, id: a, title: b}` on one line - locates its `id` to line 1,
+    // and splicing line 1 away would take formatVersion and title with it. The locator answers
+    // "which line is this key on", which is not the same question as "may I replace that line".
+    // Nothing here writes such a manifest, but an author may, and declining a rename must not be
+    // able to destroy the document it is declining to change.
+    const first = lines[location.startLine - 1] ?? ""
+    if (!/^\s*(id|"id"|'id')\s*:/.test(first)) {
+      // Nothing safe to edit, so the buffer is left exactly as the author has it. The id still
+      // disagrees with the directory, which the next blur will ask about again - annoying, and far
+      // better than a manifest this ate.
+      console.warn("Could not revert id: - manifest.yaml does not declare it on a line of its own")
+      return
+    }
     lines.splice(location.startLine - 1, location.endLine - location.startLine + 1, stringify({ id }).trimEnd())
 
     // **Not** through `setBuffer`: that guard exists so reading a project in is not mistaken for the

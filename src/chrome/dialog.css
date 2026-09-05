@@ -65,7 +65,7 @@
 /* An id is an identifier rather than a name, so it wears the face the script does - the same rule
    the picker's rows follow for a directory name. */
 .vn-dialog-input-mono {
-  font-family: var(--vn-font);
+  font-family: var(--vn-editor-font-mono);
   font-size: 13px;
 }
 

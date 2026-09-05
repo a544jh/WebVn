@@ -45,6 +45,14 @@ textarea {
    Deliberately not in defaultTheme.css: that file is the *story's* theme and a second theme should
    be free to replace all of it without touching what the editor means by an error. */
 :root {
+  /* The chrome's own monospace, for the one thing it has to show in one: an identifier - a project
+     id, a directory name - as opposed to a name. It carries the same face as the stage's `--vn-font`
+     deliberately, and is spelled separately just as deliberately: `--vn-*` is the story's look and a
+     second theme may replace all of it, so a chrome rule reading `--vn-font` would let a theme swap
+     restyle the picker. CONTEXT.md's Token entry is the rule; this is the second namespace obeying
+     it, and the first was `--vn-editor-status-*` moving out of editor.css for the same reason. */
+  --vn-editor-font-mono: "Source Code Pro", monospace;
+
   --vn-editor-status-ok: green;
   --vn-editor-status-warning: orange;
   --vn-editor-status-error: red;

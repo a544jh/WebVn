@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { AppShell } from "../../src/appShell"
+import { AppShell } from "../../src/AppShell"
 import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, settle, sleep } from "../helpers/vnHarness"
 import { createProject } from "../../src/storage/projectStore"
 import { takeProjectLock } from "../../src/storage/projectLock"

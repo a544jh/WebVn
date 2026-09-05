@@ -147,9 +147,18 @@ full, so the next reader knows what was and was not looked at.
   `destroy()`. Whether it leaves anything document-level behind was not established, and is written
   down as unknown rather than assumed clean.
 
+**Correction, 2026-09-05, from the code review:** that sweep claimed "the background's
+`requestAnimationFrame` chain ... flag-gated" and it was not. `BackgroundRenderer.teardown` set
+`needMoreFrames = false`, but `renderFrame` reassigns that same field from the renderable on every
+tick - so a frame already queued at teardown overwrote the false and rescheduled, which is the only
+case a teardown of an animation loop is for. It has a one-way `stopped` flag now, the shape
+`AudioRenderer` already had, and a test that counts frames after a close mid-pan: eighteen before,
+none after. **The audio half of that sentence was true; the background half was a claim, not a
+check** - which is the failure mode a sweep is most prone to.
+
 **Checked and clear:** every `document`/`window` listener goes through an `AbortController`
-(`DomRenderer`, `ProjectStoring`); the skip, autoplay and store-debounce timers are cancelled; the
-background's `requestAnimationFrame` chain and both audio fade chains are flag-gated; no callback is
+(`DomRenderer`, `ProjectStoring`); the skip, autoplay and store-debounce timers are cancelled; both
+audio fade chains are flag-gated; no callback is
 pushed into anything longer-lived than the session that pushed it; the only DOM appended outside the
 two roots is a `<dialog>`, which removes itself on close and cannot be open across a view swap
 because `showModal` makes the rest of the page inert; and the module-level state in `opfs.ts`,

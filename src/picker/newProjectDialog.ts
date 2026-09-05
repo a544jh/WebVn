@@ -15,6 +15,7 @@ export interface NewProject {
 export const askForNewProject = async (isTaken: (id: string) => boolean): Promise<NewProject | null> => {
   // No note under the title: it is free text and there is nothing to warn anyone about.
   const title = dialogField("Title")
+  title.input.addEventListener("input", () => title.setProblem(null))
   // **Shown rather than hidden, deliberately.** The id names the OPFS directory, the localStorage
   // save key and the export filename; it is not cosmetic, and changing it later is a rename that
   // orphans saves made under the old one. An author who never looks at this field loses nothing, and
@@ -52,10 +53,18 @@ export const askForNewProject = async (isTaken: (id: string) => boolean): Promis
     // One rule, asked once. The slugifier is not a second copy of it - it is a *producer* whose
     // output this then judges, so a title that slugifies to something invalid is caught here rather
     // than by a second opinion.
+    // Both fields, and both marked, so an author fixing one is not sent back for the other.
     validate: () => {
+      // The manifest schema has `title: z.string().min(1)`, so a blank one mints a manifest that
+      // does not parse - the red gutter this dialog's whole minting path exists to avoid, reached
+      // from the other side. Caught here rather than left to the schema, because here is where the
+      // author can still do something about it.
+      const blankTitle = title.input.value.trim() === "" ? "Give the project a title." : null
+      title.setProblem(blankTitle)
+
       const problem = idProblem(id.input.value.trim(), isTaken)
       id.setProblem(problem)
-      return problem === null
+      return blankTitle === null && problem === null
     },
   })
 

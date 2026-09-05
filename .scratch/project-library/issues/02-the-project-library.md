@@ -39,7 +39,10 @@ a project here would undo the reason.
 
 **Nothing is marked as open, because on this page nothing is.** That criterion was written for a
 panel living inside a booted editor. The ordering carries it instead: `lastOpened` descending, so the
-row the author wants is first, and that is still the field this ticket makes do work. Enumeration is
+row the author wants is first, and that is still the field this ticket makes do work. **Superseded
+2026-09-05 - the list is ordered by a recorded creation date, oldest first, and `lastOpened` is the
+row's line rather than the sort.** See the Comments for why; this paragraph is left standing because
+the reasoning that replaced it is a reply to it. Enumeration is
 the truth about what exists, so the list is a walk of `projects/` every time it is shown - there is
 no index file, ever.
 
@@ -109,7 +112,7 @@ work, so Firefox's prompt lands on someone who is invested rather than on someon
 ## Acceptance criteria
 
 - [ ] The picker lists every project the store enumerates, with its title, ordered by `lastOpened`
-      descending
+      descending *(superseded: ordered by `created`, oldest first - see the Comments)*
 - [ ] A project whose `manifest.yaml` does not parse is listed under its directory name, and opening
       it works - the buffers hold their real text and the manifest gutter marks the problem
 - [ ] Choosing a project opens it with its own player, renderer, editor, storer and resolver, and its
@@ -118,8 +121,8 @@ work, so Firefox's prompt lands on someone who is invested rather than on someon
       before it closes and releasing the lock
 - [ ] Choosing a project that is open in another tab is refused, the author stays on the picker, and
       the page names which project and why
-- [ ] `lastOpened` names the project opened, and orders the list descending - but a cold boot lands
-      on the picker whatever it says
+- [ ] `lastOpened` names the project opened *(and is now a moment per project, shown on each row
+      rather than ordering the list)* - but a cold boot lands on the picker whatever it says
 - [ ] First run shows an empty picker offering New project and Add demo project; nothing is written
       until one is pressed
 - [ ] Add demo project writes the demo, adds its row, hides itself, and leaves the author on the

@@ -126,11 +126,11 @@
   font-size: 15px;
 }
 
-/* A directory name is an identifier rather than a name, so it wears the face the script does. This
-   is the one place the story's font appears in the chrome, and it is saying which of the two kinds
-   of word this is. */
+/* A directory name is an identifier rather than a name, so it wears a monospace face - the chrome's
+   own, not the stage's, however alike the two look. The row is saying which of the two kinds of word
+   it is showing. */
 .vn-picker-identifier {
-  font-family: var(--vn-font);
+  font-family: var(--vn-editor-font-mono);
 }
 
 /* The id under the name, and in the face an identifier wears - the same rule `.vn-picker-identifier`
@@ -138,7 +138,7 @@
    follows. Smaller than the title and no louder than the line under it: it is what the project is
    addressed by rather than what it is called. */
 .vn-picker-id {
-  font-family: var(--vn-font);
+  font-family: var(--vn-editor-font-mono);
   font-size: 12px;
   color: #555;
 }

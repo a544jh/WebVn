@@ -39,6 +39,23 @@ audioAssets:
 
 // The music starts on the *second* command, so the boot's own run to the first stop does not reach
 // it - the asset is injected in between, since nothing here has a real file to decode.
+// A background mid-pan, which is what keeps the render loop asking for frames. The line in front of
+// it matters: the editor loads a script unanimated, so a `bg` the boot walks past jumps straight to
+// its end state and asks for nothing. Reaching it by advancing renders it animated, the way clicking
+// through the preview does.
+const PANNING_SCRIPT = `story:
+  - Before the pan
+  - bg:
+      image: "#123456"
+      transition: fade
+      duration: 0
+      pan:
+        from: [0, 0, 100, 100]
+        to: [0, 0, 2000, 2000]
+        duration: 10000
+  - Panning
+`
+
 const MUSICAL_SCRIPT = `story:
   - Before the music
   - bgm:
@@ -227,6 +244,37 @@ describe("closing a project", () => {
     // Several skip ticks' worth. A cancelled timer is one that never comes back.
     await sleep(300)
     expect(booted.player.state.commandIndex).toBe(index)
+  })
+
+  it("stops asking for animation frames", async () => {
+    // `needMoreFrames = false` was not enough, and read as though it were: `renderFrame` reassigns
+    // that field from the renderable on every tick, so a frame queued at teardown overwrote the
+    // false and rescheduled as if nothing had happened - which is the only case a teardown of an
+    // animation loop is for. A pan is what keeps the loop genuinely hungry; without one the
+    // renderable reports it wants no more frames and any teardown at all looks like it worked.
+    await createProject(A, { manifestText: manifestFor(A), scriptText: PANNING_SCRIPT })
+    const booted = await open(A)
+    await advanceVn(booted)
+
+    const frames: number[] = []
+    const realRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = (cb) => {
+      frames.push(1)
+      return realRaf(cb)
+    }
+    try {
+      // The loop is running: a ten-second pan has plenty left to draw.
+      await sleep(120)
+      expect(frames.length).toBeGreaterThan(2)
+
+      await booted.close()
+      frames.length = 0
+      await sleep(300)
+
+      expect(frames).toHaveLength(0)
+    } finally {
+      window.requestAnimationFrame = realRaf
+    }
   })
 
   it("paints nothing once it is closed, however late the caller arrives", async () => {

@@ -11,7 +11,7 @@ import "codemirror/lib/codemirror.css"
 import { icon } from "./chrome/icons"
 import { encodePayload, playerUrl } from "./scriptUrl"
 import { unsupportedBrowserReason } from "./editorBoot"
-import { AppShell } from "./appShell"
+import { AppShell } from "./AppShell"
 
 declare global {
   interface Window {

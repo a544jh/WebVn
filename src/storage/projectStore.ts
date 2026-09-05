@@ -175,6 +175,12 @@ export const listProjectDirectories = async (): Promise<string[]> => listDirecto
 export const isProject = async (directory: string): Promise<boolean> =>
   exists(await root(), projectPath(directory, MANIFEST_FILE))
 
+// Where a project's files sit, for something that wants to *say* so rather than read it - the
+// delete and overwrite dialogs, which name the folder they are about to remove. Here because this
+// module is the only place that knows the `projects/<id>/` layout, and a dialog that spelled it
+// itself would go on claiming a path that had moved.
+export const projectFolder = (directory: string): string => `${PROJECTS}/${directory}/`
+
 // Addressed by directory, not by id - and the parameter is named for it. The two agree in every
 // healthy project and the whole rename ticket exists to restore them when they do not.
 export const readProject = async (directory: string): Promise<ProjectFiles> => {
@@ -391,10 +397,17 @@ export const projectSize = async (directory: string): Promise<number> => {
 // tidiness**: an entry that outlives its directory is inherited by the next project to reuse that
 // id, which would open on someone else's creation date and take their place in the list.
 export const forgetProject = async (directory: string): Promise<void> => {
-  const { lastOpened = {}, created = {} } = await readEditorState()
+  // Merged, like every other write to this file. Spelling out the two maps and leaving the rest
+  // behind is what an earlier version did, and it dropped `pendingRename` on the floor: recovery
+  // deliberately leaves that marker standing when the source it wants to delete is locked, so a
+  // delete in that window lost it for good and the interrupted rename's source became a permanent
+  // duplicate rather than one the next render tidies away.
+  const state = await readEditorState()
+  const lastOpened = { ...state.lastOpened }
+  const created = { ...state.created }
   delete lastOpened[directory]
   delete created[directory]
-  await writeEditorState({ lastOpened, created })
+  await writeEditorState({ ...state, lastOpened, created })
 }
 
 export const writeEditorState = (state: EditorState): Promise<void> =>

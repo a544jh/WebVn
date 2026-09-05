@@ -90,12 +90,12 @@ src/
   yamlParser/      YamlParser.ts (script) + parseManifest.ts (manifest.yaml) — the parser actually used
   storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
-  appShell.ts      the picker/session swap - which view is up, and the ordering that swap depends on
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
   picker/          the front door: the project library as a page, shown before any editor
+  AppShell.ts      which view is up, and the ordering that swap depends on
   chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons, the dialogs
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
@@ -335,7 +335,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
-  one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/appShell.ts` swaps them with
+  one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/AppShell.ts` swaps them with
   `hidden`, and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
   the truth, there is no index file — orders by `created`, oldest first, so the list never moves under
   the author, and hands a directory to `bootEditor`. `editor.yaml` holds `created` and `lastOpened`
@@ -356,6 +356,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
   Nothing seeds behind the author: a seed would have to run before the picker could render, when no
   lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+- **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
+  `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
+  restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is
+  the documented exception and keeps `var(--vn-font)`.
 - **The dialogs are `src/chrome/dialog.ts`, built on `<dialog>` + `showModal()`.** Not
   `window.confirm`/`window.prompt`: an id needs the schema's message beside the field it belongs to,
   and the platform supplies the backdrop, top layer, focus trap and Escape for free. `validate`
@@ -368,7 +372,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   not parse; and a title is free text where a quote or a newline would break hand-rolled quoting.
   `createProject` writes the manifest **first**, so a project being made never presents as the
   manifest-less residue a crashed rename leaves.
-- **`appShell.ts` owns the swap, and one ordering in it is load-bearing: the session is revealed
+- **`AppShell.ts` owns the swap, and one ordering in it is load-bearing: the session is revealed
   *before* `bootEditor` runs.** `BackgroundRenderer`, `SpriteRenderer` and `FreeformTextRenderer`
   each read the root's `clientWidth`/`clientHeight` in their **constructors**, and the background
   canvas is sized from what they read — so a renderer built inside a `hidden` subtree gets a 0x0

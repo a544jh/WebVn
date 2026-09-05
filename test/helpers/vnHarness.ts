@@ -312,6 +312,9 @@ export const markedLines = (editorRoot: HTMLDivElement): MarkedLine[] =>
     return {
       line: Number(lineNumber),
       message: (marker as HTMLElement).title,
-      color: (marker as HTMLElement).style.background,
+      // Computed, not the inline value: the colour is set from a CSS token, so reading the
+      // specified value would report `var(--vn-editor-status-warning)` and a test asserting a
+      // colour would be asserting a spelling. This asks what the marker actually renders.
+      color: getComputedStyle(marker).backgroundColor,
     }
   })

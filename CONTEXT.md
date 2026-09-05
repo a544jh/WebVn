@@ -228,3 +228,16 @@ the ones already recorded. The scene is built properly, and the result is a real
 **Animatable state**:
 The part of a state a renderer animates towards rather than snaps to: text, sprites, background,
 audio.
+
+### Presentation
+
+**Token**:
+A named value in the design language, declared as a CSS custom property and read back with `var()`.
+A value earns one by repeating, or by being spelled in a layer that another has to agree with -
+`--vn-surface` because seven rules and a keyframe use it, `--vn-editor-status-warning` because
+`editor.ts` paints a gutter marker the colour `editor.css` gives the store badge. A value used once
+inside one stylesheet stays a literal. Two namespaces, and they are not interchangeable: `--vn-*` is
+the story's look and a second theme may replace all of it, `--vn-editor-*` is the authoring chrome
+and survives that replacement.
+_Avoid_: variable (the script language has its own), custom property (the mechanism, not the point),
+constant, CSS var

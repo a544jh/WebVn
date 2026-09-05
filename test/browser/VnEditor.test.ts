@@ -68,7 +68,9 @@ describe("the script tab", () => {
 
     expect(tabState(vn, "script")).toBe("warning")
     // The tab is a summary of the gutter under it, not a second opinion.
-    expect(markedLines(vn.editorRoot)).toEqual([{ line: 2, message: "No actor is declared as Ghost", color: "orange" }])
+    expect(markedLines(vn.editorRoot)).toEqual([
+      { line: 2, message: "No actor is declared as Ghost", color: "rgb(255, 165, 0)" }, // orange
+    ])
 
     await adopt(
       vn,
@@ -185,7 +187,7 @@ backgrounds:
     expect(marked[0].line).toBe(manifest.split("\n").findIndex((l) => l.includes("no-such-file")) + 1)
     // Orange, not red: red is for a manifest that did not parse, which is the one that is not
     // adopted. Declaring art nobody has drawn yet is the normal authoring order.
-    expect(marked[0].color).toBe("orange")
+    expect(marked[0].color).toBe("rgb(255, 165, 0)") // orange
   })
 
   it("says unadopted, not missing-file, when a broken edit lands on top of a missing file", async () => {

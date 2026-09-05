@@ -445,12 +445,19 @@ export class VnEditor {
     const location = getCurrentLocation(this.player)
     if (location === null) return
     for (let line = location.startLine; line <= location.endLine; line++) {
-      this.scriptDoc.setGutterMarker(line - 1, "vn-position-gutter", this.makeMarker("vn-marker-position", "blue"))
+      this.scriptDoc.setGutterMarker(
+        line - 1,
+        "vn-position-gutter",
+        this.makeMarker("vn-marker-position", "var(--vn-editor-marker-position)")
+      )
     }
   }
 
   private setErrorMarker(doc: CodeMirror.Doc, error: ParserError) {
-    const color = error.level === ErrorLevel.WARNING ? "orange" : "red"
+    // The same tokens editor.css gives the store badge, so a marker and the badge cannot come to
+    // disagree about what orange means.
+    const color =
+      error.level === ErrorLevel.WARNING ? "var(--vn-editor-status-warning)" : "var(--vn-editor-status-error)"
     for (let line = error.location.startLine; line <= error.location.endLine; line++) {
       doc.setGutterMarker(line - 1, "vn-error-gutter", this.makeMarker("vn-marker-error", color, error.message))
     }

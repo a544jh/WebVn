@@ -1,3 +1,31 @@
+/* The design language, as values.
+
+   A token exists here for one of two reasons: the value is used more than once, or it is also
+   spelled in another layer (another stylesheet, or TypeScript). A value that is used once and stays
+   in this file is left as a literal - the stage's 1280x720, the nametag's heavier 3px shadow, the
+   enabled-toggle's mediumspringgreen - because naming those buys nothing and a token nobody reuses
+   is just indirection. Redefining this block is what a second theme would mean. */
+:root {
+  /* The face is fetched from Google Fonts by both html files, so the fallback is what the stage
+     wears when that fetch fails - previously the browser's default, which is not even monospaced.
+     The debug panel had named this fallback for itself and now gets it from here. */
+  --vn-font: "Source Code Pro", monospace;
+  --vn-font-size-story: 32px;
+  --vn-font-size-ui: 28px;
+
+  --vn-text-color: white;
+  /* Hard offset, no blur. Was written both as `0` and as `0px` across the six rules that had it. */
+  --vn-text-shadow: 2px 2px 0 black;
+
+  /* One panel fill for every surface that floats over the scene, and the lighter value it takes
+     under a pointer. animations.css interpolates between exactly these two. */
+  --vn-surface: rgba(0, 0, 0, 0.4);
+  --vn-surface-active: rgba(0, 0, 0, 0.2);
+
+  --vn-disabled-color: hsl(0, 0%, 30%);
+  --vn-disabled-opacity: 0.3;
+}
+
 body {
   background-color: dimgray;
   touch-action: manipulation;
@@ -17,12 +45,12 @@ body {
 }
 
 .vn-textbox-renderer {
-  font-family: "Source Code Pro";
+  font-family: var(--vn-font);
   font-weight: bold;
-  font-size: 32px;
+  font-size: var(--vn-font-size-story);
   line-height: 1;
-  text-shadow: 2px 2px 0px black;
-  color: white;
+  text-shadow: var(--vn-text-shadow);
+  color: var(--vn-text-color);
   user-select: none;
   -moz-user-select: none;
   position: absolute;
@@ -39,7 +67,7 @@ body {
   height: 0;
   border-style: solid;
   border-width: 18px 10px 0 10px;
-  border-color: white transparent transparent transparent;
+  border-color: var(--vn-text-color) transparent transparent transparent;
 
   filter: drop-shadow(2.5px 2.5px 0px black);
   z-index: 30;
@@ -53,7 +81,7 @@ body {
   height: 178px;
   padding: 5px;
   box-sizing: border-box;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--vn-surface);
   overflow: hidden;
   transition-property: transform;
   transition-duration: 150ms;
@@ -72,7 +100,7 @@ body {
   padding: 2px;
   box-sizing: border-box;
   text-shadow: 3px 3px 0px black;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--vn-surface);
   overflow: hidden;
   transition-property: transform;
   transition-duration: 150ms;
@@ -84,12 +112,12 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  font-family: "Source Code Pro";
+  font-family: var(--vn-font);
   font-weight: bold;
-  font-size: 32px;
+  font-size: var(--vn-font-size-story);
   line-height: 1;
-  text-shadow: 2px 2px 0px black;
-  color: white;
+  text-shadow: var(--vn-text-shadow);
+  color: var(--vn-text-color);
   user-select: none;
   -moz-user-select: none;
   position: absolute;
@@ -100,7 +128,7 @@ body {
 }
 
 .vn-decision-item {
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--vn-surface);
   padding: 2px 0;
   text-align: center;
   transition-property: transform;
@@ -108,7 +136,7 @@ body {
 }
 
 .vn-decision-item:hover {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: var(--vn-surface-active);
 }
 
 .vn-decision-item-blink {
@@ -149,12 +177,12 @@ body {
   bottom: 0px;
   width: 100%;
   text-transform: uppercase;
-  font-size: 28px;
+  font-size: var(--vn-font-size-ui);
   line-height: 28px;
-  font-family: "Source Code Pro";
+  font-family: var(--vn-font);
   font-weight: 600;
-  text-shadow: 2px 2px 0 black;
-  color: white;
+  text-shadow: var(--vn-text-shadow);
+  color: var(--vn-text-color);
   transition-duration: 500ms;
   user-select: none;
   -moz-user-select: none;
@@ -177,12 +205,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-evenly;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--vn-surface);
 }
 
 .vn-action:not(.vn-action-disabled):active,
 .vn-pause-menu-item:not(.vn-pause-menu-item-disabled):active {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: var(--vn-surface-active);
 }
 
 .vn-action i {
@@ -190,13 +218,13 @@ body {
 }
 
 .vn-action-disabled {
-  color: hsl(0, 0%, 30%);
-  opacity: 0.3;
+  color: var(--vn-disabled-color);
+  opacity: var(--vn-disabled-opacity);
 }
 
 .vn-pause-menu-item-disabled {
-  color: hsl(0, 0%, 30%);
-  opacity: 0.3;
+  color: var(--vn-disabled-color);
+  opacity: var(--vn-disabled-opacity);
 }
 .vn-action-back {
   position: absolute;
@@ -233,7 +261,7 @@ body {
   width: 100%;
   height: 100%;
   z-index: 100;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--vn-surface);
 }
 
 .vn-pause-menu-container {
@@ -247,15 +275,15 @@ body {
 }
 
 .vn-pause-menu-item {
-  font-size: 28px;
+  font-size: var(--vn-font-size-ui);
   line-height: 28px;
-  font-family: "Source Code Pro";
+  font-family: var(--vn-font);
   font-weight: 600;
-  text-shadow: 2px 2px 0 black;
+  text-shadow: var(--vn-text-shadow);
   user-select: none;
   -moz-user-select: none;
-  color: white;
-  background-color: rgba(0, 0, 0, 0.4);
+  color: var(--vn-text-color);
+  background-color: var(--vn-surface);
   height: 30px;
   padding: 2px 2px 2px 8px;
 }
@@ -293,14 +321,14 @@ body {
 }
 
 .vn-save-heading {
-  font-size: 32px;
+  font-size: var(--vn-font-size-story);
   line-height: 32px;
-  font-family: "Source Code Pro";
+  font-family: var(--vn-font);
   font-weight: 600;
-  text-shadow: 2px 2px 0 black;
+  text-shadow: var(--vn-text-shadow);
   user-select: none;
   -moz-user-select: none;
-  color: white;
+  color: var(--vn-text-color);
   position: absolute;
   left: 0;
   top: 0;
@@ -313,9 +341,9 @@ body {
   bottom: 12%;
   left: 5%;
   max-width: 40%;
-  font-family: "Source Code Pro";
-  color: white;
-  text-shadow: 2px 2px 0 black;
+  font-family: var(--vn-font);
+  color: var(--vn-text-color);
+  text-shadow: var(--vn-text-shadow);
   user-select: none;
   -moz-user-select: none;
 }

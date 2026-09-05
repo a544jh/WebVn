@@ -1,3 +1,21 @@
+/* The authoring chrome's status colours.
+
+   These are tokens for the second reason the theme's block gives: they are spelled in another
+   layer. editor.ts paints the gutter markers from `element.style.background`, so before this block
+   the agreement between a marker and this badge was two files independently saying "orange". The
+   tab's own #eee/#fff/#ccc are left literal - used once each, and read by nothing outside this
+   file.
+
+   Deliberately not in defaultTheme.css: that file is the *story's* theme and a second theme should
+   be free to replace all of it without touching what the editor means by an error. */
+:root {
+  --vn-editor-status-ok: green;
+  --vn-editor-status-warning: orange;
+  --vn-editor-status-error: red;
+  /* The playhead. No badge state to pair with - only setPositionMarker uses it. */
+  --vn-editor-marker-position: blue;
+}
+
 .vn-position-gutter {
   width: 1em;
 }
@@ -44,9 +62,9 @@
    is the one thing on screen that answers "is my work safe". The fill is what makes it findable
    without being looked for.
 
-   The two problem states take the same literal colours the gutter markers do (setErrorMarker's
-   "orange" and "red"), so orange means the same thing everywhere in this editor: something needs
-   your attention but the story still runs. Green is this element's own, because the gutter has no
+   The two problem states share their tokens with the gutter markers setErrorMarker paints, so
+   orange means the same thing everywhere in this editor - something needs your attention but the
+   story still runs - and now says it in one place rather than agreeing by hand. Green is this element's own, because the gutter has no
    "fine" marker to match - it says nothing when a buffer is clean. */
 .vn-editor-store-state {
   margin-left: auto;
@@ -57,18 +75,18 @@
   /* White on green and on red, black on orange: orange is light enough that white text on it fails
      to be readable, which is the whole point of the change. */
   color: white;
-  background: green;
+  background: var(--vn-editor-status-ok);
 }
 
 .vn-editor-store-state[data-vn-store-state="unstored"] {
   color: black;
-  background: orange;
+  background: var(--vn-editor-status-warning);
 }
 
 /* Quota exhaustion is a real outcome, and silently staying dirty forever is the worst version of
    it. The console carries the error itself. */
 .vn-editor-store-state[data-vn-store-state="failed"] {
   color: white;
-  background: red;
+  background: var(--vn-editor-status-error);
   font-weight: bold;
 }

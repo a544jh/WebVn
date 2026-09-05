@@ -232,9 +232,17 @@ export class AppShell {
         console.error("The rename failed partway", e)
         // Queued in its own right: the failed rename's turn is over, and something may already be
         // waiting behind it.
-        void this.queue(() => {
-          this.session = null
-          return this.fallBackToPicker()
+        //
+        // **Closed, not merely forgotten.** Whatever is open at this point is put down properly - the
+        // old session if the rename failed before it reached its own close, the new one if it failed
+        // after the reopen - because a session that is dropped keeps its lock, its storer's page
+        // listeners and its renderer. Dropping it shipped: a rename that threw before the close left
+        // the old directory "open in another tab" for the life of the page, the author's own project
+        // refusing them, and in the browser suite one failure took every later test in the file
+        // down with it.
+        void this.queue(async () => {
+          await this.closeSession()
+          await this.fallBackToPicker()
         })
       })
     })
@@ -277,10 +285,10 @@ export class AppShell {
   // Resolves once every swap queued so far has finished. **Exposed for tests**, the way
   // `BootedEditor.lock` is: a suite that clears the store between tests has to know the last one has
   // stopped moving files, and a rename's tail outlives the test that started it - the test waits for
-  // the part it asserts on, not for the copy and the delete behind it. Deleting the tree underneath
-  // one is a `NotFoundError` thrown deep inside a run that has moved on to another file, which is
-  // how this was found: `removeRecursive` logged the scratch tree going 121ms before a `projectSize`
-  // walked into the hole.
+  // the part it asserts on, not for the copy and the delete behind it. Correct ordering on its own
+  // terms, and only that: it was added chasing a `NotFoundError` out of a rename's size walk, which
+  // turned out to be Chromium's swap file rather than a tree deleted underneath - `walkFrom` in
+  // src/storage/opfs.ts has that story - so do not read a flake fixed into this.
   public settled(): Promise<void> {
     return this.swaps
   }
@@ -290,8 +298,8 @@ export class AppShell {
   // **The ordering is the whole of this method**, and it is arranged so that nothing is torn down
   // until every way of refusing has been taken:
   //
-  //   ask -> is there room -> is the destination free, or may it be overwritten -> take its lock
-  //     -> close the old session -> move the tree -> open the new one
+  //   ask -> let the storer land -> is there room -> is the destination free, or may it be
+  //     overwritten -> take its lock -> close the old session -> move the tree -> open the new one
   //
   // The lock comes before the close because a refusal after the close would leave the author with
   // nothing mounted and their work already put down. The two locks are keyed on different
@@ -310,6 +318,14 @@ export class AppShell {
     const revert = () => session.editor.revertManifestId(from)
 
     if (!(await confirmRename(from, to))) return await revert()
+
+    // **The storer first, then the size.** The blur that adopted the manifest and started this also
+    // flushed the manifest buffer to the store, and that write may still be landing: Chromium writes
+    // through a swap file beside the target, and a size walk that overlaps it can list the swap file
+    // and then be refused reading it - `walkFrom` in src/storage/opfs.ts, which was the browser
+    // suite's flake. `flush` resolves once every write the storer has queued has landed, pending or
+    // not, so what is sized below is what is on disk.
+    await session.storing.flush()
 
     // Before the overwrite is even *offered*, not merely before the delete it leads to: there is no
     // sense asking an author to destroy a project to make room for a copy that will not fit. The old
@@ -330,26 +346,37 @@ export class AppShell {
     }
 
     // Everything below here is past the last refusal, so a failure is an error rather than a choice.
-    const manifestText = session.editor.getManifestText()
-    // Where the author is in the story. A rename does not change the story, so landing them back at
-    // its first line would be the same theatre as bouncing them out to the picker - and the whole
-    // point of doing this without the picker is that nothing about their session should change.
-    const playhead = session.player.path
-    // A close flushes the *buffers* and not the player's save data, and seen commands move on every
-    // undo and decision without one - so this is written by hand, under the id the project is still
-    // filed as, for the move below to carry.
-    saveToLocalStorage(from, session.player.getGlobalSaveData())
+    // **The destination's lock is this method's until a session takes it**, which the boot in
+    // openRenamed does - so a failure before then has to give it back, or the directory it names
+    // stays "open in another tab" for the life of the page. Once a session holds it, that session's
+    // close is what releases it, and the catch in `take` closes whatever is open.
+    try {
+      const manifestText = session.editor.getManifestText()
+      // Where the author is in the story. A rename does not change the story, so landing them back
+      // at its first line would be the same theatre as bouncing them out to the picker - and the
+      // whole point of doing this without the picker is that nothing about their session should
+      // change.
+      const playhead = session.player.path
+      // A close flushes the *buffers* and not the player's save data, and seen commands move on
+      // every undo and decision without one - so this is written by hand, under the id the project
+      // is still filed as, for the move below to carry.
+      saveToLocalStorage(from, session.player.getGlobalSaveData())
 
-    this.session = null
-    this.options.onClose()
-    await session.close()
+      this.session = null
+      this.options.onClose()
+      await session.close()
 
-    await renameProject(from, to, manifestText)
-    // Before the boot, which reads the destination's saves as it seeds the player. The script is
-    // unchanged by a rename, so every saved path still replays and every seen command is still seen
-    // - there is no correctness reason to drop them, and this is the one copy that can be kept.
-    moveSaveData(from, to)
-    await this.openRenamed(to, lock, playhead)
+      await renameProject(from, to, manifestText)
+      // Before the boot, which reads the destination's saves as it seeds the player. The script is
+      // unchanged by a rename, so every saved path still replays and every seen command is still
+      // seen - there is no correctness reason to drop them, and this is the one copy that can be
+      // kept.
+      moveSaveData(from, to)
+      await this.openRenamed(to, lock, playhead)
+    } catch (e) {
+      if (this.session?.lock !== lock) await lock.release()
+      throw e
+    }
   }
 
   // The other half of the swap, and the reason `bootEditor` takes a lock it did not open: this one

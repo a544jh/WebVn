@@ -170,6 +170,21 @@ export async function* walk(dir: FileSystemDirectoryHandle, path = ""): AsyncGen
   yield* walkFrom(start, "")
 }
 
+// A listing is a snapshot, and an entry can be gone by the time it is read. **Chromium's own swap
+// file is the one that is.** `createWritable` writes to `<name>.crswap` beside the target and
+// renames it over the target on close, and that swap file is enumerable while the write is open -
+// measured 2026-09-06, and it sorts *before* its target in the descending order Chromium lists in.
+// So a walk that overlaps a write in the same directory can list the swap file and then have its
+// `getFile()` refused with NotFoundError once the write lands. That was the rename suite's flake:
+// the blur that starts a rename also flushes the manifest, and the size walk behind a quick confirm
+// sometimes caught the swap file - a window about a millisecond wide, which twenty parallel test
+// files hammering OPFS stretched into one run in eleven. An entry that vanished between the listing
+// and the read was never part of the tree's contents, so it is skipped rather than thrown on;
+// anything else is still the caller's to see.
+//
+// What this does *not* do is hide a swap file that is still open when the walk reads it - that one
+// reads fine and is yielded as if it were the author's. A walk has to run over a tree nothing is
+// writing into; the rename waits for its storer before sizing for exactly this reason.
 async function* walkFrom(dir: FileSystemDirectoryHandle, prefix: string): AsyncGenerator<WalkedFile> {
   for await (const [name, handle] of dir.entries()) {
     const path = prefix === "" ? name : `${prefix}/${name}`
@@ -177,7 +192,12 @@ async function* walkFrom(dir: FileSystemDirectoryHandle, prefix: string): AsyncG
       yield* walkFrom(handle as FileSystemDirectoryHandle, path)
     } else {
       const file = handle as FileSystemFileHandle
-      yield { path, handle: file, size: (await file.getFile()).size }
+      const contents = await file.getFile().catch((e: unknown) => {
+        if (isNotFound(e)) return null
+        throw e
+      })
+      if (contents === null) continue
+      yield { path, handle: file, size: contents.size }
     }
   }
 }

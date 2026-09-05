@@ -114,8 +114,9 @@ beforeEach(async () => {
 afterEach(async () => {
   // **Before the close, and before the next `beforeEach` clears the store.** A rename keeps working
   // after the test that started it returns - the test waits for the part it asserts on, and the copy
-  // and the delete come after - so without this the next test wipes the scratch tree out from under
-  // it and the rename dies of `NotFoundError`, failing whatever else was running at the time.
+  // and the delete come after - so the tree is not cleared out from under work still moving files
+  // in it. Correct ordering on its own terms, not a fix for anything: see the same note in
+  // RenameProject.test.ts.
   await shell?.settled()
   await shell?.getSession()?.close()
   shell = null

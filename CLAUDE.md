@@ -558,7 +558,14 @@ If you're tempted to import from any of these, don't.
   talks to OPFS, `src/storage/projectStore.ts` is the only place that knows the `projects/<id>/` layout, and
   `src/domRenderer/assetPaths.ts` is the only place that builds an `assets/` path. The browser suites share
   one origin and run their files in parallel, so a test that writes into OPFS needs `test/helpers/opfs.ts`'s
-  scratch directory rather than the root.
+  scratch directory rather than the root. **A scratch directory is not enough on its own: the project
+  directory *names* must be unique across browser suites too.** `navigator.locks` is origin-wide and knows
+  nothing about scratch roots, so two suites using the same directory name contend for one
+  `vn-project-<directory>` lock even though their files are nowhere near each other. `RecoverProjects` and
+  `RenameProject` both used `old-name`/`new-name`, and both take locks on exactly those directories - a boot
+  refused as "already open in another tab", then every later test in the file timing out. It reproduced
+  roughly one run in three, only with the whole browser project running, and never with either suite alone.
+  Name a suite's directories after the suite.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
 - **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startEditor(manifestText, script)` mounts player, renderer and editor over one root (with `typeManifest`/`blurEditor` to drive an adoption), `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 

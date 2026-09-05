@@ -25,8 +25,8 @@ const SCRATCH = "test-scratch-recover"
 // This is what makes the rename's blur trigger safe rather than merely convenient: blur never fires
 // on a tab close, so it is the other half of the mechanism rather than a backstop for a rare crash.
 
-const FROM = "old-name"
-const TO = "new-name"
+const FROM = "recover-old-name"
+const TO = "recover-new-name"
 
 const SCRIPT = "story:\n  - A line\n"
 

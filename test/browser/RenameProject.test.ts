@@ -30,8 +30,8 @@ const SCRATCH = "test-scratch-rename"
 // ordering exists so every crash state is recoverable, and the session swap around it, whose
 // ordering exists so nothing is torn down until every way of refusing has been taken.
 
-const FROM = "old-name"
-const TO = "new-name"
+const FROM = "rename-old-name"
+const TO = "rename-new-name"
 
 const SCRIPT = "story:\n  - A line\n  - Another line\n  - A third line\n  - A fourth line\n"
 

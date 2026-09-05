@@ -181,13 +181,25 @@ const openShell = async (directory: string): Promise<AppShell> => {
   // on the address bar. Reaching past it left `navigation.go` firing into nothing, which is a test
   // that races an event the shell was never listening for.
   await shell.start()
+  await pickRow(directory)
+  return shell
+}
+
+// A row on the list, chosen. Its own step because a rename that fails lands the author back on the
+// list, and what a test wants to know then is that the project can be picked up again.
+const pickRow = async (directory: string): Promise<void> => {
   const row = elements.pickerDiv.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
   row.click()
   // The story, not merely the session: a session is set before its buffers are filled, and a test
   // that advances from here would lose its first click to a story that had not arrived.
   await waitFor("the story to be loaded", () => (shell?.getSession()?.player.state.commandIndex ?? 0) > 0)
-  return shell
 }
+
+const pickerRows = (): HTMLButtonElement[] =>
+  [...elements.pickerDiv.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
+
+// The list, drawn: where a rename that failed leaves the author.
+const backOnTheList = (): boolean => !elements.pickerDiv.hidden && pickerRows().length > 0
 
 const dialog = (): HTMLDialogElement | null => document.querySelector("dialog.vn-dialog")
 const dialogTitle = (): string => dialog()?.querySelector(".vn-dialog-title")?.textContent ?? ""
@@ -210,8 +222,10 @@ const editIdAndBlur = async (id: string): Promise<void> => {
 afterEach(async () => {
   // **Before the close, and before the next `beforeEach` clears the store.** A rename keeps working
   // after the test that started it returns - the test waits for the part it asserts on, and the copy
-  // and the delete come after - so without this the next test wipes the scratch tree out from under
-  // it and the rename dies of `NotFoundError`, failing whatever else was running at the time.
+  // and the delete come after - so the tree is not cleared out from under work still moving files
+  // in it. Correct ordering on its own terms, not a fix for anything: it was added chasing a
+  // `NotFoundError` out of the size walk that turned out to be Chromium's swap file (`walkFrom` in
+  // src/storage/opfs.ts), and it did not move that rate.
   await shell?.settled()
   await shell?.getSession()?.close()
   shell = null
@@ -369,6 +383,97 @@ describe("renaming from the editor", () => {
     expect(shell.getSession()?.editor.getManifestText()).toContain(`id: ${FROM}`)
   })
 
+  it("sizes the project only after the storer has landed the buffer that started it", async () => {
+    // The blur that adopts the edited manifest and starts this also flushes that buffer to the
+    // store, and Chromium writes through a swap file beside the target. A size walk overlapping that
+    // write can list the swap file and then be refused reading it - this suite's flake, roughly one
+    // run in eleven under parallel files - so the rename waits for the storer first. The storer's
+    // flush is slowed here so the two orderings can be told apart: without the wait, the refusal
+    // arrives before the write has landed.
+    const shell = await openShell(FROM)
+    const storing = shell.getSession()?.storing
+    if (storing === undefined) throw new Error("no project is open")
+    let landed = false
+    const flush = storing.flush.bind(storing)
+    storing.flush = () =>
+      flush()
+        .then(() => sleep(150))
+        .then(() => void (landed = true))
+
+    let landedBeforeTheRefusal = false
+    await withEstimate({ quota: 1000, usage: 900 }, async () => {
+      await editIdAndBlur(TO)
+      press("confirm")
+      await waitFor("the refusal", () => dialogTitle() === "The project was not renamed")
+      // Read now and asserted after the dialog is dismissed, so a failure here does not leave a
+      // modal up for `settled()` to wait on in afterEach.
+      landedBeforeTheRefusal = landed
+      press("confirm")
+      await waitFor("the dialog to close", () => dialog() === null)
+    })
+    expect(landedBeforeTheRefusal).toBe(true)
+  })
+
+  it("puts the project down and lands on the list when it fails before the move", async () => {
+    // A rename that threw before reaching its own close used to null the session and draw the list
+    // over it, leaving the old directory locked for the life of the page - "already open in another
+    // tab", for the author's own project. In this suite that was one failure taking every later
+    // test in the file with it. The failure injected is the room check throwing, which is one call
+    // away from where the real one came from.
+    const shell = await openShell(FROM)
+    await withEstimate(
+      () => {
+        throw new Error("the room check broke")
+      },
+      async () => {
+        await editIdAndBlur(TO)
+        press("confirm")
+        await waitFor("the list", backOnTheList)
+      }
+    )
+
+    expect(shell.getSession()).toBe(null)
+    expect(closes).toBe(1)
+    expect(await heldLocks()).not.toContain(`vn-project-${FROM}`)
+    // The URL matches the view, which is the invariant the fall-back exists to keep.
+    expect(navigation.current()).toBe(null)
+    expect(await directories()).toEqual([FROM])
+
+    // And the project can be picked up again, which is the whole point of putting it down.
+    await pickRow(FROM)
+    expect(shell.getSession()?.directory).toBe(FROM)
+  })
+
+  it("gives the destination's lock back when it fails after the old session is down", async () => {
+    // Past the last refusal the destination's lock is held and the old session is closed, so a
+    // failure in the move has two things to put right: the lock, or the destination stays "open in
+    // another tab" until the page is reloaded, and the author, who has nothing mounted. The failure
+    // here is a real one: a file held open inside the destination makes it unremovable, so the
+    // overwrite the move starts with is refused by the browser.
+    await makeProject(TO)
+    const held = await holdOpen(`projects/${TO}/assets/backgrounds/stuck.png`)
+    try {
+      const shell = await openShell(FROM)
+      await editIdAndBlur(TO)
+      press("confirm")
+      await waitFor("the overwrite question", () => dialogTitle() === `Overwrite "${TO}"?`)
+      press("confirm")
+      await waitFor("the list", backOnTheList)
+
+      expect(shell.getSession()).toBe(null)
+      expect(closes).toBe(1)
+      expect(await heldLocks()).not.toContain(`vn-project-${TO}`)
+      expect(await heldLocks()).not.toContain(`vn-project-${FROM}`)
+      // The source was never touched: the overwrite is the move's first step, and it is what failed.
+      expect((await readProject(FROM)).scriptText).toBe(SCRIPT)
+
+      await pickRow(FROM)
+      expect(shell.getSession()?.directory).toBe(FROM)
+    } finally {
+      await held.close()
+    }
+  })
+
   it("leaves the author where they were in the story", async () => {
     // A rename changes nothing about the story, so landing back at its first line would be the same
     // theatre as bouncing the author out to the picker - which this deliberately does not do.
@@ -472,15 +577,31 @@ const heldLocks = async (): Promise<string[]> =>
 
 // The browser's own answer about how much room is left, stood in for. There is no seam to inject
 // here on purpose - `availableBytes` asks `navigator.storage` directly, the way `isSupported` and
-// the lock do - so the test replaces the API for the length of one call.
-const withEstimate = async (estimate: StorageEstimate, run: () => Promise<void>): Promise<void> => {
+// the lock do - so the test replaces the API for the length of one call. Given a function rather
+// than an answer, that is what the browser is made to do - including throw.
+const withEstimate = async (
+  estimate: StorageEstimate | (() => Promise<StorageEstimate>),
+  run: () => Promise<void>
+): Promise<void> => {
   const real = navigator.storage.estimate.bind(navigator.storage)
-  navigator.storage.estimate = () => Promise.resolve(estimate)
+  navigator.storage.estimate = typeof estimate === "function" ? estimate : () => Promise.resolve(estimate)
   try {
     await run()
   } finally {
     navigator.storage.estimate = real
   }
+}
+
+// A file inside a project held open, which is what makes its directory unremovable - Chromium
+// refuses a recursive remove over an open writable with NoModificationAllowedError. The recovery
+// suite uses the same to hold a crashed rename's tree still.
+const holdOpen = async (path: string): Promise<FileSystemWritableFileStream> => {
+  const root = await storeRoot(SCRATCH)
+  const parts = path.split("/")
+  let dir = root
+  for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part, { create: true })
+  const handle = await dir.getFileHandle(parts[parts.length - 1], { create: true })
+  return handle.createWritable()
 }
 
 // One click's worth of story at a time, waiting for each render to come to rest - a fixed sleep is

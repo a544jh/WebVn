@@ -1,6 +1,6 @@
 # 01: The rename suite flakes when the browser files run in parallel
 
-Status: ready-for-human
+Status: done
 
 Blocked by: nothing.
 
@@ -133,3 +133,37 @@ browser files, so most of the cost.
 Found 2026-09-05 while getting CI green for the `?project=` work (PR #42), which is where the two
 fixes and `settled()` landed. The hunt ran to eight probes; the three causes above were each wrong
 before they were right, so the "ruled out" list is the most valuable part of this file.
+
+2026-09-06 - **found, and fixed.** Read from the source before any probe was run, then confirmed
+with three deterministic ones of under a second each. It is two bugs, and neither needs a second
+suite to exist.
+
+- **The `NotFoundError` is Chromium's swap file, not a delete.** `createWritable` writes to
+  `<name>.crswap` beside the target and renames it over the target on close. That swap file is
+  enumerable while the write is open, and it sorts *before* its target in the descending order
+  Chromium lists in. The one `blur()` in `editIdAndBlur` starts both sides of the race: CodeMirror's
+  blur adopts the manifest and queues the rename, and the bubbling `focusout` makes the storer flush
+  the dirty manifest into `projects/rename-old-name/`. The test confirms within tens of
+  milliseconds and `roomProblem` walks that same directory. If the walk's listing catches the swap
+  file and the close lands before `getFile()` on it, the walk throws. Logging deletes could never
+  find this because no delete is involved; the 121ms is just how long the next test took to reach
+  its confirm, and "a file inside it vanished between enumeration and read" was the whole answer.
+  Measured: listed while open (`manifest.yaml.crswap` before `manifest.yaml`), `NotFoundError` on
+  its handle after close, and the real `walk` throwing in 5 of 120 runs when the close was placed
+  1 to 1.75ms after the walk started. Alone, the write is long done before the confirm; twenty
+  iframes hammering OPFS stretch IPC latency into the window. So parallel files matter, but as
+  load, not as a collision - and the 6/6 and 3/3 clean runs were about a 43% chance of luck at a 9%
+  base rate anyway.
+- **The cascade is the rename's failure path.** `AppShell.rename`'s catch nulled the session and
+  drew the picker without closing it, so a failure before the close leaked the old directory's
+  lock, every later boot of it was refused as "already open in another tab", and "the story to be
+  loaded" timed out. In production that is an author locked out of their own project until reload.
+
+Fixed in three places, each pinned: `walkFrom` skips an entry that vanished between listing and
+read (any other refusal still propagates); the rename awaits `storing.flush()` before sizing, so
+the walk runs over a tree nothing is writing into; and the failure path closes whatever is open
+through `closeSession()` and releases the destination lock if no session took it. The `settled()`
+drains in both shell suites stay, as correct ordering, with their comments corrected - they never
+fixed anything. The three loose ends stand as edges but are not this: the transient `exists()`
+false would surface as a missing row or a refused boot, the debounce is cleared by the blur flush,
+and the picker's "Could not seed" lines are a relative fetch from vitest's iframe URL.

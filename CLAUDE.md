@@ -301,6 +301,12 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   that the walk, the listing and an export all picked up. Read `writeNow`'s comment before adding one
   back. Writes are still **serialized per path**, which is a separate concern: it makes the *last
   queued* write win, which is what a debounced store wants. `isSupported()` gates the whole editor.
+  **`walk` skips an entry that vanished between its listing and its read.** Chromium's `createWritable`
+  writes through a `<name>.crswap` beside the target, and that swap file is enumerable while the write
+  is open, sorting before its target - so a walk overlapping a write in the same directory can list it
+  and then be refused `NotFoundError` reading it. That was the rename suite's one-in-eleven flake
+  (`.scratch/browser-suite-isolation/`). A swap file still open when it is read is *not* hidden, so a
+  walk still has to run over a tree nothing is writing into.
 - **`projectStore.ts` is `projects/<id>/{manifest.yaml,script.yaml,assets/}` plus `editor.yaml`.** Two
   truths that are easy to conflate: **enumeration** is the truth about what exists (`listProjects` walks
   the directory; there is no index file, ever), and **the manifest** is the truth about what a project
@@ -428,10 +434,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   to the directory and acts — storage stays out of `src/editor/`. Two orderings matter. The store's
   (`renameProject`) is overwrite-delete → marker → copy everything but the manifest → **write the
   manifest, which is the commit point** → delete the source → clear the marker and carry
-  `created`/`lastOpened` across. The session's is ask → check room → ask about an overwrite → take
-  the destination lock → **close** → move → reopen: the lock before the close so a refusal never
-  strands the author, and the close before the copy so a live storer cannot write into the tree
-  mid-copy. `bootEditor` takes an already-held lock for exactly this caller.
+  `created`/`lastOpened` across. The session's is ask → **let the storer land** → check room → ask
+  about an overwrite → take the destination lock → **close** → move → reopen: the storer before the
+  size because the blur that started the rename also flushed the manifest and the size walk must not
+  overlap that write (see `walk` above), the lock before the close so a refusal never strands the
+  author, and the close before the copy so a live storer cannot write into the tree mid-copy.
+  `bootEditor` takes an already-held lock for exactly this caller. **A rename that fails past the
+  last refusal closes whatever is open and gives the destination lock back** before falling back to
+  the picker; it used to null the session and leave the old directory locked for the life of the
+  page, which is what turned one failing rename test into a whole failing file.
   The session is carried across, not just the files: `VnPlayer.restorePath` replays the old path
   against the rebuilt player (a rename does not touch the script, so it replays whole), and the
   session's global save is written by hand under the old id before the move — a close flushes the

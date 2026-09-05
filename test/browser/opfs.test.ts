@@ -91,6 +91,36 @@ describe("opfs", () => {
     expect(await paths(dir, "assets")).toEqual(["backgrounds/a.png", "sprites/A1/idle.png"])
   })
 
+  it("skips an entry that vanished between the listing and the read, and throws on anything else", async () => {
+    // A listing is a snapshot. Chromium's own swap file is what makes that matter: `createWritable`
+    // writes `<name>.crswap` beside the target and renames it over the target on close, and the
+    // swap file is enumerable while the write is open - so a walk overlapping a write can list it
+    // and then be refused NotFoundError reading it. Measured 2026-09-06; the window is about a
+    // millisecond wide and not reachable on purpose through the API, so the vanishing entry is
+    // stood in for here. Any other refusal is still the caller's to see.
+    await writeFile(dir, "real.txt", "kept")
+    const real = await dir.getFileHandle("real.txt")
+    const ghost = (name: string, error: DOMException): FileSystemFileHandle =>
+      ({ kind: "file", name, getFile: () => Promise.reject(error) } as unknown as FileSystemFileHandle)
+    const listing = (entries: Array<[string, FileSystemHandle]>): FileSystemDirectoryHandle =>
+      ({
+        kind: "directory",
+        entries: async function* () {
+          yield* entries
+        },
+      } as unknown as FileSystemDirectoryHandle)
+
+    const gone = new DOMException("gone", "NotFoundError")
+    const swapped = listing([
+      ["real.txt.crswap", ghost("real.txt.crswap", gone)],
+      ["real.txt", real],
+    ])
+    expect(await paths(swapped)).toEqual(["real.txt"])
+
+    const refused = new DOMException("refused", "NotAllowedError")
+    await expect(paths(listing([["locked.txt", ghost("locked.txt", refused)]]))).rejects.toThrow("refused")
+  })
+
   it("carries each file's size, which is the only place a per-project figure can come from", async () => {
     // navigator.storage.estimate() is origin-wide, so the library UI's per-project number has
     // nowhere else to come from - and getFile().size is already in hand during the walk.

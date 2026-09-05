@@ -19,11 +19,20 @@ import "./picker.css"
 //
 // Enumeration is the truth about what exists, so the list is a walk of projects/ every time it is
 // shown. There is no index file, ever, and nothing here caches one.
+//
+// The layout is the design canvas's, which `design.md` names as the pixels: a header, one panel
+// holding a title strip with the two actions in it, and the rows inside that panel.
 
 // What the host does when a row is chosen. Resolves with a reason the project could not be opened -
 // another tab holds it - or null when it was, in which case this picker is already down. Refusing is
 // a place the author can stay: they are on the list, looking at what they have.
 export type OpenProject = (directory: string) => Promise<string | null>
+
+// A row's own line, and what the ordering is by. Undefined for a project nobody has opened yet - one
+// just created in another tab, or a demo just added - which is a thing to say rather than a zero.
+interface ListedProject extends ProjectSummary {
+  readonly openedAt: Date | undefined
+}
 
 export class ProjectPicker {
   // Everything this view listens to, so `stop()` takes it all off at once.
@@ -44,7 +53,7 @@ export class ProjectPicker {
   // the same hazard, as DomRenderer.renderGeneration.
   private generation = 0
 
-  private refusal: string | null = null
+  private refusal: RefusalNotice | null = null
 
   // One-way, like every other teardown here: a stopped picker paints nothing, whether the render was
   // already in flight when it was stopped or is asked for afterwards. Both happen - the host stops
@@ -61,11 +70,9 @@ export class ProjectPicker {
     const [projects, editorState, persisted] = await Promise.all([listProjects(), readEditorState(), isPersisted()])
     if (generation !== this.generation) return
 
-    this.root.replaceChildren(this.draw(order(projects, editorState.lastOpened), persisted))
+    this.root.replaceChildren(this.draw(order(projects, editorState.lastOpened ?? {}), persisted))
   }
 
-  // One-way, like every other teardown in this app: the session this belonged to is gone and the
-  // next visit constructs a picker of its own.
   public stop(): void {
     this.stopped = true
     this.generation++
@@ -73,35 +80,65 @@ export class ProjectPicker {
     this.root.replaceChildren()
   }
 
-  private draw(projects: ProjectSummary[], persisted: boolean): HTMLElement {
+  private draw(projects: ListedProject[], persisted: boolean): HTMLElement {
     const page = document.createElement("div")
     page.classList.add("vn-picker")
 
-    const heading = document.createElement("h1")
-    heading.classList.add("vn-picker-heading")
-    heading.textContent = "Your projects"
-    page.appendChild(heading)
+    page.appendChild(header())
 
-    if (this.refusal !== null) page.appendChild(banner(this.refusal))
+    const panel = document.createElement("div")
+    panel.classList.add("vn-picker-panel")
+    panel.appendChild(this.drawPanelBar(projects))
+    // Inside the panel and under its title strip, because it is news about this list rather than
+    // about the page - the artboard puts it there and it is right: the row it names is under it.
+    if (this.refusal !== null) panel.appendChild(banner(this.refusal))
+    panel.appendChild(this.drawList(projects))
+    page.appendChild(panel)
 
-    page.appendChild(projects.length === 0 ? emptyLibrary() : this.drawList(projects))
-    page.appendChild(this.drawActions(projects))
     page.appendChild(storageLine(persisted))
     return page
   }
 
-  private drawList(projects: ProjectSummary[]): HTMLElement {
+  // The panel's title strip: what this is, then the two things you can do to it.
+  private drawPanelBar(projects: ListedProject[]): HTMLElement {
+    const bar = document.createElement("div")
+    bar.classList.add("vn-picker-bar")
+
+    const caption = document.createElement("span")
+    caption.classList.add("vn-picker-caption")
+    caption.textContent = "Projects"
+    bar.appendChild(caption)
+
+    // Shown only while the demo is absent. Its id is fixed, so a second press would collide with an
+    // existing directory - hiding the button once the demo is listed is both the collision fix and
+    // the honest signal. An author who deletes the demo gets the button back, which is correct: they
+    // can have it again. No icon: it is a one-off, and the plus belongs to the action that repeats.
+    if (!projects.some((project) => project.directory === demoManifest.id)) {
+      bar.appendChild(this.action("vn-picker-demo", null, "Add demo project", () => void this.addDemo()))
+    }
+    bar.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
+    return bar
+  }
+
+  private drawList(projects: ListedProject[]): HTMLElement {
     const list = document.createElement("ul")
     list.classList.add("vn-picker-projects")
+    if (projects.length === 0) {
+      list.appendChild(emptyLibrary())
+      return list
+    }
     for (const project of projects) list.appendChild(this.drawRow(project))
     return list
   }
 
-  // Title where the manifest parses, the directory name where it does not. **A project whose
-  // manifest does not parse is listed**: it is an author's project with a typo in it, and this is
-  // the one place they would go to open it and fix it - which is why ProjectSummary carries a
-  // nullable id rather than the store returning a list of ids.
-  private drawRow(project: ProjectSummary): HTMLElement {
+  // Up to three lines: what it is called, what is wrong with it, and when it was last opened.
+  //
+  // Title where the manifest parses, the directory name where it does not - **in the story's
+  // monospace face**, because at that point it is an identifier rather than a name, and the row is
+  // saying so. **A project whose manifest does not parse is listed**: it is an author's project with
+  // a typo in it, and this is the one place they would go to open it and fix it, which is why
+  // ProjectSummary carries a nullable id rather than the store returning a list of ids.
+  private drawRow(project: ListedProject): HTMLElement {
     const row = document.createElement("li")
     row.classList.add("vn-picker-project")
 
@@ -110,19 +147,23 @@ export class ProjectPicker {
     open.classList.add("vn-picker-open")
     open.dataset.vnProject = project.directory
 
-    const title = document.createElement("span")
-    title.classList.add("vn-picker-title")
-    title.textContent = project.title ?? project.directory
-    open.appendChild(title)
+    const name = document.createElement("span")
+    name.classList.add("vn-picker-title")
+    name.textContent = project.title ?? project.directory
+    if (project.title === null) name.classList.add("vn-picker-identifier")
+    open.appendChild(name)
 
-    const subtitle = document.createElement("span")
-    subtitle.classList.add("vn-picker-directory")
-    // The directory is what a project is addressed by, so it is worth showing beside a title that is
-    // free text - two projects may be called the same thing and only one can be `my-story`. When the
-    // manifest does not parse there is no title to sit above, and saying so is the honest subtitle.
-    subtitle.textContent = project.title === null ? "manifest.yaml does not parse" : project.directory
-    if (project.title === null) subtitle.classList.add("vn-picker-unparsed")
-    open.appendChild(subtitle)
+    if (project.title === null) {
+      const problem = document.createElement("span")
+      problem.classList.add("vn-picker-unparsed")
+      problem.textContent = "manifest.yaml does not parse - opens anyway, marked in the gutter"
+      open.appendChild(problem)
+    }
+
+    const opened = document.createElement("span")
+    opened.classList.add("vn-picker-opened")
+    opened.textContent = openedLabel(project.openedAt)
+    open.appendChild(opened)
 
     open.addEventListener("click", () => void this.choose(project.directory), { signal: this.listeners.signal })
     row.appendChild(open)
@@ -135,48 +176,34 @@ export class ProjectPicker {
     // the label a screen reader looks for.
     remove.setAttribute("aria-label", `Delete ${project.title ?? project.directory}`)
     remove.title = "Delete this project"
-    remove.appendChild(icon("trash-2"))
+    remove.appendChild(icon("trash-2", 15))
     remove.addEventListener("click", () => void this.remove(project), { signal: this.listeners.signal })
     row.appendChild(remove)
 
     return row
   }
 
-  private drawActions(projects: ProjectSummary[]): HTMLElement {
-    const actions = document.createElement("div")
-    actions.classList.add("vn-picker-actions")
-
-    actions.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
-
-    // Shown only while the demo is absent. Its id is fixed, so a second press would collide with an
-    // existing directory - hiding the button once the demo is listed is both the collision fix and
-    // the honest signal. An author who deletes the demo gets the button back, which is correct: they
-    // can have it again.
-    if (!projects.some((project) => project.directory === demoManifest.id)) {
-      actions.appendChild(this.action("vn-picker-demo", "plus", "Add demo project", () => void this.addDemo()))
-    }
-    return actions
-  }
-
-  private action(className: string, name: "plus" | "trash-2", label: string, onClick: () => void): HTMLButtonElement {
+  private action(className: string, name: "plus" | null, label: string, onClick: () => void): HTMLButtonElement {
     const button = document.createElement("button")
     button.type = "button"
     button.classList.add("vn-picker-action", className)
-    button.appendChild(icon(name))
+    if (name !== null) button.appendChild(icon(name, 14))
     button.appendChild(document.createTextNode(label))
     button.addEventListener("click", onClick, { signal: this.listeners.signal })
     return button
   }
 
-  // Order, then: choose, take the lock, boot, write `lastOpened`. A refusal at the lock changes
-  // nothing and says so on the page - from the front door there is nothing to be stranded from,
-  // because the previous project was released on the way out.
+  // Order, then: choose, take the lock, boot, record when. A refusal at the lock changes nothing and
+  // says so on the page - from the front door there is nothing to be stranded from, because the
+  // previous project was released on the way out.
   private async choose(directory: string): Promise<void> {
-    this.refusal = await this.openProject(directory)
+    const reason = await this.openProject(directory)
     // Null means the project opened, which means this picker is already down: rendering over the
     // editor that replaced it is exactly what the generation guard above is for, and `stop()` has
     // bumped it.
-    if (this.refusal !== null) await this.render()
+    if (reason === null) return
+    this.refusal = { lead: reason, detail: "Close it there, or pick a different project." }
+    await this.render()
   }
 
   // It writes under the demo directory's lock, like any other write, and **leaves the author on the
@@ -185,7 +212,10 @@ export class ProjectPicker {
   private async addDemo(): Promise<void> {
     const lock = await takeProjectLock(demoManifest.id)
     if (lock === null) {
-      this.refusal = `"${demoManifest.id}" is open in another tab, so the demo cannot be written now.`
+      this.refusal = {
+        lead: `${demoManifest.title} is open in another tab.`,
+        detail: "The demo was not written. Close it there and try again.",
+      }
       await this.render()
       return
     }
@@ -217,14 +247,16 @@ export class ProjectPicker {
     if (chosen === null) return
 
     if ((await taken()).has(chosen.id)) {
-      this.refusal = `"${chosen.id}" already names a project, so nothing was created.`
+      this.refusal = { lead: `"${chosen.id}" already names a project.`, detail: "Nothing was created." }
       await this.render()
       return
     }
 
     await mintProject(chosen.id, chosen.title)
-    this.refusal = await this.openProject(chosen.id)
-    if (this.refusal !== null) await this.render()
+    const reason = await this.openProject(chosen.id)
+    if (reason === null) return
+    this.refusal = { lead: reason, detail: `"${chosen.id}" was created, but not opened.` }
+    await this.render()
   }
 
   // Ask first, and say the project cannot be recovered - which is plainly true right now, because
@@ -238,7 +270,7 @@ export class ProjectPicker {
   //
   // The author stays on the picker afterwards. Auto-opening something because you deleted something
   // else is not a thing to want, and from the front door there is nothing to land in.
-  private async remove(project: ProjectSummary): Promise<void> {
+  private async remove(project: ListedProject): Promise<void> {
     const name = project.title ?? project.directory
     const confirmed = await confirmDialog(
       `Delete "${name}"?`,
@@ -252,7 +284,7 @@ export class ProjectPicker {
 
     const lock = await takeProjectLock(project.directory)
     if (lock === null) {
-      this.refusal = `"${project.directory}" is open in another tab, so it was not deleted.`
+      this.refusal = { lead: `${name} is open in another tab.`, detail: "It was not deleted." }
       await this.render()
       return
     }
@@ -266,41 +298,95 @@ export class ProjectPicker {
   }
 }
 
-// `lastOpened` first, and the rest by the name they are addressed under. One field can only put one
-// row on top, which is what it is for: the project an author wants next is overwhelmingly the one
-// they had last, and every other row is found by reading. A genuine recency ordering wants a
-// timestamp per project rather than a single name - editor.yaml is defined as losable, so that is
-// cheap when something asks for it, and nothing does yet.
-const order = (projects: ProjectSummary[], lastOpened: string | undefined): ProjectSummary[] =>
-  [...projects].sort((a, b) => {
-    if (a.directory === lastOpened) return -1
-    if (b.directory === lastOpened) return 1
-    return a.directory.localeCompare(b.directory)
-  })
+const header = (): HTMLElement => {
+  const elem = document.createElement("div")
+  elem.classList.add("vn-picker-header")
+
+  const name = document.createElement("span")
+  name.classList.add("vn-picker-app")
+  name.textContent = "WebVn"
+  elem.appendChild(name)
+
+  const what = document.createElement("span")
+  what.classList.add("vn-picker-subtitle")
+  what.textContent = "pick a project to open"
+  elem.appendChild(what)
+  return elem
+}
+
+// Most recently opened first, then whatever has never been opened, then by the name a project is
+// addressed under so the order is stable. **A moment per project rather than one name**: the rows
+// each say when they were last opened, and one name can only speak for one of them.
+const order = (projects: ProjectSummary[], lastOpened: Record<string, string>): ListedProject[] =>
+  projects
+    .map((project) => ({ ...project, openedAt: parseDate(lastOpened[project.directory]) }))
+    .sort((a, b) => {
+      if (a.openedAt !== undefined && b.openedAt !== undefined) return b.openedAt.getTime() - a.openedAt.getTime()
+      if (a.openedAt !== undefined) return -1
+      if (b.openedAt !== undefined) return 1
+      return a.directory.localeCompare(b.directory)
+    })
+
+// editor.yaml is a hint, so anything unreadable in it reads as absent rather than as a date of zero.
+const parseDate = (at: string | undefined): Date | undefined => {
+  if (at === undefined) return undefined
+  const date = new Date(at)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+// "opened just now", "opened yesterday", "opened 5 days ago". Through Intl rather than a table of
+// plurals, which is a table that only works in English.
+const openedLabel = (at: Date | undefined): string => {
+  if (at === undefined) return "not opened yet"
+  const elapsed = Date.now() - at.getTime()
+  if (elapsed < MINUTE) return "opened just now"
+
+  const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+  if (elapsed < HOUR) return `opened ${relative.format(-Math.round(elapsed / MINUTE), "minute")}`
+  if (elapsed < DAY) return `opened ${relative.format(-Math.round(elapsed / HOUR), "hour")}`
+  return `opened ${relative.format(-Math.round(elapsed / DAY), "day")}`
+}
+
+// What could not be opened, and what to do about it. Two parts because the artboard reads that way
+// and it is right: the first sentence is the news and carries the weight, the second is the advice.
+interface RefusalNotice {
+  readonly lead: string
+  readonly detail: string
+}
 
 // Orange, because the work still runs: the author is on the list, looking at what they have, and
-// nothing was lost. Red is for a write that failed or a document that did not parse.
-const banner = (message: string): HTMLElement => {
+// nothing was lost. Red is for a write that failed or a document that did not parse. Orange takes
+// black text - it is light enough that white on it fails to read, which editor.css says outright.
+const banner = (notice: RefusalNotice): HTMLElement => {
   const elem = document.createElement("p")
   elem.classList.add("vn-picker-refusal")
   elem.setAttribute("role", "status")
-  elem.textContent = message
+
+  const lead = document.createElement("span")
+  lead.classList.add("vn-picker-refusal-lead")
+  lead.textContent = notice.lead
+  elem.append(lead, ` ${notice.detail}`)
   return elem
 }
 
 // An empty picker offering the demo by name is not an empty project: the story is one obvious click
-// away, and the author can tell it happened.
+// away, and the author can tell it happened. Both actions are in the bar above this, so the empty
+// state says what is true and no more.
 const emptyLibrary = (): HTMLElement => {
-  const elem = document.createElement("p")
+  const elem = document.createElement("li")
   elem.classList.add("vn-picker-empty")
-  elem.textContent = "No projects yet. Start one, or add the demo to read how this works."
+  elem.textContent = "No projects yet."
   return elem
 }
 
 // What the browser has actually promised, re-read on every render rather than assumed. First run
-// honestly says "not kept" until the author has entered a project and typed - that is when the store
-// asks, because a permission prompt should land on someone who is invested rather than on someone
-// who just arrived.
+// honestly says so until the author has entered a project and typed - that is when the store asks,
+// because a permission prompt should land on someone who is invested rather than on someone who just
+// arrived. Under the panel and muted: it is a standing fact about the browser, not about the list.
 const storageLine = (persisted: boolean): HTMLElement => {
   const elem = document.createElement("p")
   elem.classList.add("vn-picker-storage")

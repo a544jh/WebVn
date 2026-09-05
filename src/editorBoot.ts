@@ -6,7 +6,7 @@ import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { readProject, writeEditorState } from "./storage/projectStore"
+import { readProject, recordOpened } from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -102,7 +102,7 @@ export const bootEditor = async (elements: EditorElements, directory: string): P
   }
   // Here rather than in the picker, so the one other caller - a rename, which reopens under a
   // directory the picker never showed - records what it opened without having to remember to.
-  await writeEditorState({ lastOpened: directory })
+  await recordOpened(directory)
 
   const { manifestText, scriptText } = await readProject(directory)
 

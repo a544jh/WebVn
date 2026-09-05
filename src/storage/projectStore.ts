@@ -75,7 +75,12 @@ export interface ProjectFiles {
 // Keep this type open for the fields tranche 2 adds - `pendingRename` above all - but do not add
 // them speculatively: a field nothing writes is a field nobody can tell is dead.
 export interface EditorState {
-  readonly lastOpened?: string
+  // **When each project was last opened, ISO 8601, keyed by directory.** A map rather than one
+  // name, because the picker draws "opened 2 days ago" against every row and one name can only
+  // speak for one of them. A single `lastOpened: <directory>` was what tranche 1 wrote, when there
+  // was one project and the field had nothing to decide; the read below discards that shape rather
+  // than migrating it, which is exactly what this file being defined as losable is for.
+  readonly lastOpened?: Record<string, string>
 }
 
 // The store addresses one root rather than taking a directory per call. This is the one place the
@@ -213,7 +218,22 @@ export const readEditorState = async (): Promise<EditorState> => {
   }
   if (typeof parsed !== "object" || parsed === null) return {}
   const lastOpened = (parsed as Record<string, unknown>).lastOpened
-  return typeof lastOpened === "string" ? { lastOpened } : {}
+  if (typeof lastOpened !== "object" || lastOpened === null) return {}
+  // Entry by entry, so one unreadable value does not cost the rest. A directory that is no longer
+  // there is left in - enumeration is the truth about what exists, and this only ever orders what
+  // enumeration found.
+  const opened: Record<string, string> = {}
+  for (const [directory, at] of Object.entries(lastOpened as Record<string, unknown>)) {
+    if (typeof at === "string") opened[directory] = at
+  }
+  return { lastOpened: opened }
+}
+
+// Note the *moment* a project was opened, merging rather than replacing: this file will hold a
+// rename marker beside this field, and a caller that wrote the whole state would drop it.
+export const recordOpened = async (directory: string): Promise<void> => {
+  const state = await readEditorState()
+  await writeEditorState({ ...state, lastOpened: { ...state.lastOpened, [directory]: new Date().toISOString() } })
 }
 
 export const writeEditorState = (state: EditorState): Promise<void> =>

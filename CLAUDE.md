@@ -332,8 +332,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
   one page: `index.html` holds `#vn-picker` and `#vn-session`, `index.ts` swaps them with `hidden`,
   and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
-  the truth, there is no index file — orders `lastOpened` first, and hands a directory to
-  `bootEditor`. It has a `stop()` and a generation guard for the same reason `ProjectStoring` has a
+  the truth, there is no index file — orders by `lastOpened` (a **moment per project**, keyed by
+  directory: every row says when it was last opened), and hands a directory to `bootEditor`. Its
+  layout comes from the design canvas `.scratch/project-library/design.md` links, which is binding
+  for pixels — read it before changing what the picker or the dialogs look like. It has a `stop()` and a generation guard for the same reason `ProjectStoring` has a
   `stop()`: a superseded view that kept listening is a bug, not untidiness. Its font, icons and
   status colours come from `src/chrome/`.
 - **`bootEditor` is *told* which directory to open.** `chooseProject`/`claimProject` are gone with

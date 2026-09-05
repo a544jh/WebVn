@@ -26,6 +26,7 @@ const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivEle
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
 const backButton = document.getElementById("vn-btn-back") as HTMLButtonElement
+const sessionTitle = document.getElementById("vn-session-title") as HTMLSpanElement
 
 // One project open at a time, or none. Null is the picker being up, which is also where a cold boot
 // lands: `lastOpened` still exists and still orders the list, but it no longer decides where a boot
@@ -87,6 +88,9 @@ async function openProject(directory: string): Promise<string | null> {
   session = booted
   wiring = new AbortController()
   const { player, renderer, editor } = booted
+  // The title the manifest declared, beside the way back out. Nothing else on this page says which
+  // project is open - the picker knew, and the editor did not.
+  sessionTitle.textContent = player.state.title
   window.vnPlayer = player
   window.vnDomRenderer = renderer
 

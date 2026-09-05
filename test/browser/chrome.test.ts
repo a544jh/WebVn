@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { confirmDialog, openDialog } from "../../src/chrome/dialog"
+import { confirmDialog, dialogField, openDialog } from "../../src/chrome/dialog"
 import { icon } from "../../src/chrome/icons"
 
 // The authoring chrome's own vocabulary: the face it renders in, the status colours it means things
@@ -98,24 +98,37 @@ describe("the dialog surface", () => {
   })
 
   it("keeps a refused confirm on screen, with what was typed still in it", async () => {
-    const content = document.createElement("input")
-    content.value = "half typed"
-    let refuse = "Not yet."
-    const answered = openDialog({
-      title: "Name it",
-      content,
-      validate: () => (refuse === "" ? null : refuse),
-    })
+    const field = dialogField("Id", "Names its folder.")
+    field.input.value = "half typed"
+    let allow = false
+    const answered = openDialog({ title: "Name it", content: field.row, validate: () => allow })
 
     const confirm = dialogEl().querySelector(".vn-dialog-confirm") as HTMLButtonElement
     confirm.click()
     expect(dialogEl()).not.toBe(null)
-    expect((dialogEl().querySelector(".vn-dialog-problem") as HTMLElement).textContent).toBe("Not yet.")
     expect((dialogEl().querySelector("input") as HTMLInputElement).value).toBe("half typed")
 
-    // And the message describes this attempt rather than the last one.
-    refuse = ""
+    allow = true
     confirm.click()
     expect(await answered).toBe(true)
+  })
+
+  it("puts a field's problem on the field, and takes it back off", () => {
+    // The argument against window.prompt, stated as a method: a message about an id has nowhere
+    // useful to go if it is not beside the id.
+    const field = dialogField("Id", "Names its folder.")
+    const note = field.row.querySelector(".vn-dialog-hint") as HTMLElement
+    expect(note.textContent).toBe("Names its folder.")
+
+    field.setProblem("A project with this id already exists.")
+    expect(note.textContent).toBe("A project with this id already exists.")
+    expect(note.classList.contains("vn-dialog-hint-problem")).toBe(true)
+    expect(field.input.classList.contains("vn-dialog-input-problem")).toBe(true)
+
+    // A field says either what it is for or what is wrong with it, never both - so clearing the
+    // problem gives the hint back rather than leaving an empty line where it was.
+    field.setProblem(null)
+    expect(note.textContent).toBe("Names its folder.")
+    expect(field.input.classList.contains("vn-dialog-input-problem")).toBe(false)
   })
 })

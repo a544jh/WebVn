@@ -2,13 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { demoManifest } from "../../src/demoStory"
 import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
 import { STORE_DEBOUNCE_MS } from "../../src/storage/ProjectStoring"
-import {
-  createProject,
-  listProjects,
-  readProject,
-  writeEditorState,
-  writeProjectFile,
-} from "../../src/storage/projectStore"
+import { createProject, listProjects, readProject, writeProjectFile } from "../../src/storage/projectStore"
 import { seedDemoProject } from "../../src/storage/seedDemoProject"
 import { clearOpfsStore } from "../helpers/opfs"
 import {
@@ -50,7 +44,6 @@ const pastDebounce = (): Promise<void> => sleep(STORE_DEBOUNCE_MS + 300)
 
 const storeMyStory = async (manifestText = MANIFEST, scriptText = SCRIPT): Promise<void> => {
   await createProject("my-story", { manifestText, scriptText })
-  await writeEditorState({ lastOpened: "my-story" })
 }
 
 beforeEach(async () => {

@@ -3,7 +3,13 @@ import { demoManifest } from "../../src/demoStory"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
 import { ProjectPicker } from "../../src/picker/picker"
 import { takeProjectLock } from "../../src/storage/projectLock"
-import { createProject, listProjects, readEditorState, readProject } from "../../src/storage/projectStore"
+import {
+  createProject,
+  listProjects,
+  readEditorState,
+  readProject,
+  writeEditorState,
+} from "../../src/storage/projectStore"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { createVnRoot, nextStop, releaseStoredEditorLock, settle, sleep, typeCharacter } from "../helpers/vnHarness"
 import { writeFile } from "../../src/storage/opfs"
@@ -44,6 +50,11 @@ const demoButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn
 
 const refusalText = (): string | null => pickerRoot.querySelector(".vn-picker-refusal")?.textContent ?? null
 
+const openedLabels = (): string[] =>
+  [...pickerRoot.querySelectorAll(".vn-picker-opened")].map((elem) => elem.textContent ?? "")
+
+const daysAgo = (days: number): string => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+
 const newButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn-picker-new")
 
 const deleteButton = (directory: string): HTMLButtonElement =>
@@ -56,10 +67,10 @@ const dialog = (): HTMLDialogElement | null => document.querySelector("dialog.vn
 const dialogText = (): string =>
   [...(dialog()?.querySelectorAll(".vn-dialog-title, .vn-dialog-body") ?? [])].map((elem) => elem.textContent).join(" ")
 
-const dialogProblem = (): string | null => {
-  const problem = dialog()?.querySelector(".vn-dialog-problem") as HTMLElement | undefined
-  return problem === undefined || problem.hidden ? null : problem.textContent
-}
+// A field's own note, once it is wearing a problem rather than its hint. On the field it belongs to,
+// which is the whole argument against window.prompt.
+const dialogProblem = (): string | null =>
+  (dialog()?.querySelector(".vn-dialog-hint-problem") as HTMLElement | null)?.textContent ?? null
 
 const field = (label: string): HTMLInputElement => {
   const row = [...(dialog()?.querySelectorAll(".vn-dialog-field") ?? [])].find(
@@ -100,19 +111,44 @@ describe("the picker's list", () => {
     expect(rowTitles()).toEqual(["A Story", "B Story"])
   })
 
-  it("puts the last opened project first", async () => {
+  it("orders by when each project was last opened, most recent first", async () => {
     await make("a-story", "A Story")
     await make("b-story", "B Story")
     await make("c-story", "C Story")
+    // A moment per project rather than one name: every row says when it was last opened, and one
+    // name could only ever speak for the top one.
+    await writeEditorState({
+      lastOpened: { "a-story": daysAgo(5), "b-story": daysAgo(0.5), "c-story": daysAgo(2) },
+    })
+
+    await newPicker().render()
+
+    expect(rowDirectories()).toEqual(["b-story", "c-story", "a-story"])
+  })
+
+  it("says when each project was last opened, and says so when one never has been", async () => {
+    await make("opened-story", "Opened")
+    await make("fresh-story", "Fresh")
+    await writeEditorState({ lastOpened: { "opened-story": daysAgo(2) } })
+
+    await newPicker().render()
+
+    expect(openedLabels()).toEqual(["opened 2 days ago", "not opened yet"])
+  })
+
+  it("records the moment a project is opened, so the next visit lists it first", async () => {
     // Written by the boot, not by the picker - but the picker is what it is for.
-    const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "c-story")
+    await make("a-story", "A Story")
+    await make("z-story", "Z Story")
+    const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "z-story")
     if (booted.kind === "refused") throw new Error(booted.reason)
     await booted.close()
     document.body.appendChild(pickerRoot)
 
     await newPicker().render()
 
-    expect(rowDirectories()).toEqual(["c-story", "a-story", "b-story"])
+    expect(rowDirectories()).toEqual(["z-story", "a-story"])
+    expect(openedLabels()[0]).toBe("opened just now")
   })
 
   it("lists a project whose manifest does not parse, under its directory name", async () => {
@@ -124,9 +160,23 @@ describe("the picker's list", () => {
 
     expect(rowTitles()).toEqual(["broken-story"])
     expect(pickerRoot.querySelector(".vn-picker-unparsed")?.textContent).toContain("does not parse")
+    // A directory name is an identifier rather than a name, so the row says which kind of word it is
+    // by wearing the face the script does.
+    expect(pickerRoot.querySelector(".vn-picker-title")?.classList.contains("vn-picker-identifier")).toBe(true)
     rows()[0].click()
     await settle()
     expect(opened).toEqual(["broken-story"])
+  })
+
+  it("puts both actions in the panel's own bar, above the rows", async () => {
+    await make("a-story", "A Story")
+
+    await newPicker().render()
+
+    const bar = pickerRoot.querySelector(".vn-picker-bar") as HTMLElement
+    expect(bar.querySelector(".vn-picker-caption")?.textContent).toBe("Projects")
+    expect(bar.contains(newButton())).toBe(true)
+    expect(bar.contains(demoButton())).toBe(true)
   })
 
   it("walks the store again on every render rather than remembering what it found", async () => {
@@ -164,6 +214,10 @@ describe("opening a project from the picker", () => {
 
     expect(refusalText()).toContain("a-story")
     expect(refusalText()).toContain("another tab")
+    // Inside the panel and above the rows, because it is news about this list - the row it names is
+    // directly under it.
+    const panel = pickerRoot.querySelector(".vn-picker-panel") as HTMLElement
+    expect(panel.contains(pickerRoot.querySelector(".vn-picker-refusal"))).toBe(true)
     // Still a place they can stay: the list is under the banner, and nothing was lost.
     expect(rowTitles()).toEqual(["A Story"])
   })
@@ -274,7 +328,7 @@ describe("picker to editor and back", () => {
     await booted.close()
 
     expect((await readProject("b-story")).scriptText).toContain("Typed before going back")
-    expect((await readEditorState()).lastOpened).toBe("b-story")
+    expect(Object.keys((await readEditorState()).lastOpened ?? {})).toEqual(["b-story"])
     // The lock is let go on the way out, so the same project can be opened again.
     const again = await takeProjectLock("b-story")
     expect(again).not.toBe(null)
@@ -374,6 +428,8 @@ describe("making a project", () => {
     // The one rule, from the one place that states it - not a second copy that can drift from the
     // directory name, the export filename and the save key it also has to hold for.
     expect(dialogProblem()).toContain("a-z")
+    // And the field itself is marked, so which one is wrong reads before the sentence does.
+    expect(field("Id").classList.contains("vn-dialog-input-problem")).toBe(true)
     expect(await listProjects()).toEqual([])
     pressCancel()
   })
@@ -389,7 +445,7 @@ describe("making a project", () => {
     pressConfirm()
     await settle()
 
-    expect(dialogProblem()).toContain("already names a project")
+    expect(dialogProblem()).toBe("A project with this id already exists.")
     expect((await readProject("taken-story")).manifestText).toContain("Taken")
     pressCancel()
   })

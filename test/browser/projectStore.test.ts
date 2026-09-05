@@ -4,6 +4,7 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 import {
   createProject,
   mintProject,
+  recordOpened,
   deleteProject,
   listProjects,
   readEditorState,
@@ -144,9 +145,20 @@ describe("the project store", () => {
   })
 
   it("round-trips the editor's own bookkeeping", async () => {
-    await writeEditorState({ lastOpened: "my-story" })
+    await writeEditorState({ lastOpened: { "my-story": "2026-09-05T10:00:00.000Z" } })
 
-    expect(await readEditorState()).toEqual({ lastOpened: "my-story" })
+    expect(await readEditorState()).toEqual({ lastOpened: { "my-story": "2026-09-05T10:00:00.000Z" } })
+  })
+
+  it("notes when a project was opened, without dropping what it already knew", async () => {
+    // The picker draws "opened 2 days ago" against every row, so this is a moment per project - and
+    // a merge rather than a replace, because a rename marker is about to live in this file too.
+    await recordOpened("my-story")
+    await recordOpened("other-story")
+
+    const { lastOpened } = await readEditorState()
+    expect(Object.keys(lastOpened ?? {}).sort()).toEqual(["my-story", "other-story"])
+    expect(new Date(lastOpened?.["my-story"] ?? "").getTime()).toBeLessThanOrEqual(Date.now())
   })
 
   it("reads a missing or unparseable editor.yaml as empty rather than throwing", async () => {
@@ -162,9 +174,28 @@ describe("the project store", () => {
     expect(await readEditorState()).toEqual({})
   })
 
+  it("discards the shape tranche 1 wrote rather than migrating it", async () => {
+    // `lastOpened: <directory>` was one name, from when there was one project and the field had
+    // nothing to decide. Reading it as empty *is* the migration - see EditorState for why this file
+    // gets no schema version.
+    await writeFile(await storeRoot(SCRATCH), "editor.yaml", "lastOpened: my-story\n")
+
+    expect(await readEditorState()).toEqual({})
+  })
+
+  it("keeps one unreadable entry from costing the rest", async () => {
+    await writeFile(
+      await storeRoot(SCRATCH),
+      "editor.yaml",
+      "lastOpened:\n  good: 2026-09-05T10:00:00.000Z\n  bad: 7\n"
+    )
+
+    expect(await readEditorState()).toEqual({ lastOpened: { good: "2026-09-05T10:00:00.000Z" } })
+  })
+
   it("keeps editor.yaml outside projects/, so it cannot travel in an export", async () => {
     await createProject("my-story", { manifestText: MANIFEST, scriptText: SCRIPT })
-    await writeEditorState({ lastOpened: "my-story" })
+    await recordOpened("my-story")
 
     expect(await listProjects()).toEqual([{ directory: "my-story", id: "my-story", title: "My Story" }])
     expect(await readText(await storeRoot(SCRATCH), "editor.yaml")).toContain("lastOpened")

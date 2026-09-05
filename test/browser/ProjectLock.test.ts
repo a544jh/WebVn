@@ -77,7 +77,7 @@ describe("booting a second tab on one project", () => {
 
     expect(booted.kind).toBe("booted")
     expect(await heldLockNames()).toContain(`vn-project-${DIRECTORY}`)
-    expect(await readEditorState()).toEqual({ lastOpened: DIRECTORY })
+    expect(Object.keys((await readEditorState()).lastOpened ?? {})).toEqual([DIRECTORY])
   })
 
   it("refuses cleanly when the lock cannot be taken, mounting nothing and writing nothing", async () => {

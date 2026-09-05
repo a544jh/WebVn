@@ -1,133 +1,193 @@
-/* The picker's own pixels. Its font, its status colours and its icons come from src/chrome/, which
-   is what the editor wears too - this file is only the layout of the front door.
+/* The picker's own pixels, from the design canvas `design.md` names as the drawings: a header, one
+   panel holding a title strip with the two actions in it, and the rows inside that panel.
 
-   The colour vocabulary is the chrome's, and it is not decoration: green means stored, orange means
-   "needs attention and the work still runs", red means "did not parse, or a write failed". Spending
-   one on selection or emphasis would cost that meaning, so nothing here does. */
+   Its font, its status colours and its icons come from src/chrome/. The colour vocabulary is the
+   chrome's and it is not decoration: green means stored, orange means "needs attention and the work
+   still runs", red means "did not parse, or a write failed". Spending one on selection or emphasis
+   would cost that meaning, so nothing here does - and the page is otherwise the #eee/#fff/#ccc the
+   editor's tab bar already speaks in. */
 
 .vn-picker {
-  max-width: 40rem;
-  margin: 2rem auto;
-  color: #eee;
-}
-
-.vn-picker-heading {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0 0 1rem;
-}
-
-/* A refusal is a place the author can stay - they are on the list, looking at what they have - so it
-   is orange rather than red, and orange takes black text: it is light enough that white on it fails
-   to read. editor.css says the same thing about the store badge. */
-.vn-picker-refusal {
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 3px;
-  background: var(--vn-editor-status-warning);
-  color: black;
-}
-
-.vn-picker-projects {
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0;
+  width: 720px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 56px 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 18px;
+  box-sizing: border-box;
 }
 
-/* A row is the project's own button plus its delete, side by side. Two buttons rather than one with
-   something inside it: a button cannot contain a button. */
-.vn-picker-project {
+/* The one place the page speaks over the dimgray body, so the two are light on it. Baseline-aligned
+   rather than centred, so the name and the instruction sit on one line. */
+.vn-picker-header {
   display: flex;
-  gap: 2px;
+  align-items: baseline;
+  gap: 12px;
 }
 
-/* Opening is the whole row bar the trash, so there is barely a target to aim for. */
-.vn-picker-open {
-  flex: 1;
+.vn-picker-app {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.vn-picker-subtitle {
+  font-size: 14px;
+  color: #ddd;
+}
+
+/* One panel, so the library reads as a thing rather than as a page of loose rows. */
+.vn-picker-panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
   background: #eee;
-  color: black;
-  text-align: left;
-  cursor: pointer;
+  border: 1px solid #ccc;
 }
 
-.vn-picker-open:hover {
-  background: #fff;
-}
-
-.vn-picker-title {
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-
-.vn-picker-directory {
-  font-size: 0.85rem;
-  color: #555;
-}
-
-/* The one place red appears here, and it means what it means everywhere else in this chrome: this
-   document did not parse. The project is listed and opens anyway - the editor is where it gets
-   fixed. */
-.vn-picker-unparsed {
-  color: var(--vn-editor-status-error);
-}
-
-/* Muted until it is reached for, because destroying a project should not be the brightest thing in
-   the row. The icon takes this colour, which is what `currentColor` is for. */
-.vn-picker-delete {
+/* What this is, then what you can do to it. The caption grows, so the actions sit at the far edge -
+   the same shape the editor's tab bar uses for its store indicator. */
+.vn-picker-bar {
   display: flex;
   align-items: center;
-  padding: 0 0.6rem;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  background: #eee;
-  color: #555;
-  cursor: pointer;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #ccc;
 }
 
-.vn-picker-delete:hover {
-  background: #fff;
-  color: var(--vn-editor-status-error);
-}
-
-.vn-picker-empty {
-  margin: 0 0 1rem;
-  color: #ccc;
-}
-
-.vn-picker-actions {
-  display: flex;
-  gap: 0.5rem;
+.vn-picker-caption {
+  flex-grow: 1;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /* The icon takes its colour from here, which is the whole reason it is drawn with `currentColor`. */
 .vn-picker-action {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.75rem;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1;
   border: 1px solid #ccc;
   border-radius: 3px;
-  background: #eee;
+  background: #fff;
   color: black;
   cursor: pointer;
 }
 
 .vn-picker-action:hover {
+  background: #eee;
+}
+
+.vn-picker-projects {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A row is the project's own button plus its delete, side by side. Two buttons rather than one with
+   something inside it: a button cannot contain a button. */
+.vn-picker-project {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 10px 12px;
   background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+.vn-picker-project:hover {
+  background: #fafafa;
+}
+
+/* Opening is the whole row bar the trash, so there is barely a target to aim for. The row draws the
+   border and the fill, so the button itself is only a stack of lines. */
+.vn-picker-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vn-picker-title {
+  font-size: 15px;
+}
+
+/* A directory name is an identifier rather than a name, so it wears the face the script does. This
+   is the one place the story's font appears in the chrome, and it is saying which of the two kinds
+   of word this is. */
+.vn-picker-identifier {
+  font-family: var(--vn-font);
+}
+
+/* Red means what it means everywhere else in this chrome: this document did not parse. The project
+   is listed and opens anyway - the editor is where it gets fixed, and the row says so. */
+.vn-picker-unparsed {
+  font-size: 12px;
+  color: var(--vn-editor-status-error);
+}
+
+.vn-picker-opened {
+  font-size: 12px;
+  color: #555;
+}
+
+/* Muted until it is reached for, because destroying a project should not be the brightest thing in
+   the row. No border and no fill: the row is the surface, and this is an icon on it. */
+.vn-picker-delete {
+  display: flex;
+  align-items: flex-start;
+  padding: 1px 0 0;
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+}
+
+.vn-picker-delete:hover {
+  color: var(--vn-editor-status-error);
+}
+
+.vn-picker-empty {
+  padding: 26px 8px 28px;
+  display: flex;
+  justify-content: center;
+  font-size: 13px;
+  color: #555;
+}
+
+/* Inside the panel, under its title strip and above the rows, because it is news about this list
+   rather than about the page - the row it names is directly under it. Orange takes black text:
+   editor.css says outright that orange is light enough for white on it to fail. */
+.vn-picker-refusal {
+  margin: 8px 8px 0;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--vn-editor-status-warning);
+  color: black;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.vn-picker-refusal-lead {
+  font-weight: 600;
 }
 
 .vn-picker-storage {
-  margin: 1.5rem 0 0;
-  font-size: 0.85rem;
-  color: #ccc;
+  margin: 0;
+  font-size: 12px;
+  color: #ddd;
 }

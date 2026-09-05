@@ -4,10 +4,16 @@ Settled 2026-09-05, ahead of ticket 02. The drawings live on a design canvas:
 
 <https://claude.ai/code/artifact/c6d9544c-a7dd-49b4-b778-9e22a0e80f71>
 
-Five artboards - the picker populated, with a project whose manifest does not parse, with a switch
-refused, empty, and the editor carrying its return button. **That canvas is editable and is not in
-this repo**, so it is the pixels and this file is the reasoning. Where the two disagree, the canvas
-is newer and this file is wrong; say so rather than quietly following either.
+Seven artboards as of 2026-09-05 - the picker populated, with a project whose manifest does not
+parse, with a switch refused, empty, the new-project dialog, that dialog refusing a taken id, and the
+editor carrying its return button. (This file said five; the last two arrived later, which is the
+rule below working exactly as written.) **That canvas is editable and is not in this repo**, so it is
+the pixels and this file is the reasoning. Where the two disagree, the canvas is newer and this file
+is wrong; say so rather than quietly following either.
+
+**Read it before building anything it draws.** Tickets 02 and 03 were first built from the prose on
+this page alone and had to be redone against the drawings - see 02's comments. The prose does not
+contain the layout and was never trying to.
 
 ## The picker is its own page, before the editor boots
 
@@ -18,7 +24,8 @@ left. Three things follow, and they are why this is written down rather than lef
 **Nothing is open, so nothing can be marked as open.** 02's "the open project is marked" was written
 for a panel living inside a booted editor. On a pre-boot page the honest ordering is `lastOpened`
 descending, which is the same field the ticket already makes do work - the row the author wants is
-simply first.
+simply first. Note what the canvas settled about that field and this file did not: every row carries
+its own "opened 2 days ago", so `lastOpened` is a **moment per project**, not one directory name.
 
 **The lock-ordering cross-edge mostly dissolves.** "Take the new lock before closing the old" exists
 because a switch happens *while holding a project*, and a refusal mid-switch would leave the author

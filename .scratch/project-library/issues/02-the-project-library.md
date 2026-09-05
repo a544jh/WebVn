@@ -151,13 +151,15 @@ including the round trip with the real boot underneath it.
 
 Four things worth recording.
 
-**`lastOpened` orders the list by putting one row on top, and nothing else.** It is a single
-directory name, so "descending" is as much as one field can say: the row an author wants next is
-overwhelmingly the one they had last, and the rest sort by the name they are addressed under. A
-genuine recency ordering wants a timestamp *per project*, which `editor.yaml` being losable makes
-cheap - but nothing asks for it yet, and the store's own rule is that a field nothing writes is a
-field nobody can tell is dead. Written into `order()` so the next reader does not have to rediscover
-which reading was taken.
+**`lastOpened` is a moment per project, keyed by directory.** Corrected 2026-09-05 after reading the
+canvas, which this ticket's paragraph on ordering had not been checked against: its rows each carry
+"opened just now" / "opened 2 days ago" / "opened 5 days ago", and one directory name cannot say
+that for three rows. The first attempt here kept the single name and put one row on top, on the
+reasoning that a field nothing writes is a field nobody can tell is dead - which is a good rule and
+was applied to the wrong question, because the canvas *does* write it. `EditorState.lastOpened` is
+now `Record<string, string>` of ISO timestamps, `recordOpened` merges rather than replaces (a rename
+marker is about to share that file), and the tranche 1 shape is discarded on read rather than
+migrated, which is what `editor.yaml` being defined as losable is for.
 
 **`writeEditorState({ lastOpened })` landed in `bootEditor`, not in the picker.** The ticket says it
 moves to "wherever the picker opens a project", and that is this: the boot is where the lock is
@@ -172,3 +174,11 @@ keeps first run good on its own - the story is one click away. New project joins
 **A stopped picker paints nothing, whether the render was in flight or is asked for afterwards.**
 Both happen: the host stops it the moment a project opens, and the store walk it was stopped in the
 middle of resolves later. One-way, like every other teardown here.
+
+**The layout is the canvas's, and it was built from `design.md`'s prose first.** That was a mistake
+worth recording: `design.md` says outright that the canvas is the pixels and that where the two
+disagree the canvas is newer. The first implementation of this ticket invented a layout from the
+reasoning alone and got the header, the panel, the placement of both actions, the row's third line
+and the refusal banner's home all differently. Corrected in the same branch. **Read the canvas before
+building anything it draws** - it had also grown two artboards nobody had mentioned, `NewProject` and
+`NewProjectTaken`, which are ticket 03's.

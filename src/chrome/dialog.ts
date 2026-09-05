@@ -24,10 +24,11 @@ export interface DialogOptions {
   readonly content?: HTMLElement
   readonly confirmLabel?: string
   readonly cancelLabel?: string
-  // Called when Confirm is pressed. Return a message to refuse - it is shown and the dialog stays
-  // up, with what the author typed still in it - or null to accept. Nothing else can veto a confirm,
-  // so validation lives in one place per dialog.
-  readonly validate?: () => string | null
+  // Called when Confirm is pressed. Return false to refuse: the dialog stays up with what the author
+  // typed still in it, and **saying why is the caller's**, against the field it belongs to - which
+  // is the whole reason this is not `window.prompt`. Nothing else can veto a confirm, so validation
+  // lives in one place per dialog.
+  readonly validate?: () => boolean
   // Wears the error colour, for an action that destroys something.
   readonly destructive?: boolean
 }
@@ -52,14 +53,6 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
 
   if (options.content !== undefined) dialog.appendChild(options.content)
 
-  // Empty until a validate refuses, and cleared on the next attempt, so it never describes the
-  // previous try. `role="alert"` because it appears after the author has acted.
-  const problem = document.createElement("p")
-  problem.classList.add("vn-dialog-problem")
-  problem.setAttribute("role", "alert")
-  problem.hidden = true
-  dialog.appendChild(problem)
-
   const buttons = document.createElement("div")
   buttons.classList.add("vn-dialog-buttons")
 
@@ -75,14 +68,11 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
   if (options.destructive === true) confirm.classList.add("vn-dialog-destructive")
   confirm.textContent = options.confirmLabel ?? "OK"
   confirm.addEventListener("click", () => {
-    const refused = options.validate?.() ?? null
-    problem.textContent = refused ?? ""
-    problem.hidden = refused === null
-    if (refused === null) dialog.close("confirm")
+    if (options.validate?.() ?? true) dialog.close("confirm")
   })
 
-  // Cancel first in the DOM so the confirm is not what Enter reaches by accident, and second on
-  // screen: CSS orders the row, which is what keeps the tab order and the layout independent.
+  // Cancel first, then Confirm, in the DOM and on screen alike: Cancel is what Enter and the first
+  // tab reach, and Confirm is where the eye ends up.
   buttons.append(cancel, confirm)
   dialog.appendChild(buttons)
 
@@ -107,11 +97,15 @@ export const confirmDialog = (
   destructive = true
 ): Promise<boolean> => openDialog({ title, body, confirmLabel, destructive })
 
-// One labelled text field with its own hint, which is the shape both fields of the new-project
-// dialog take. Returned rather than appended, so a caller lays its own form out.
+// One labelled text field with its own note underneath, which is the shape both fields of the
+// new-project dialog take. Returned rather than appended, so a caller lays its own form out.
 export interface DialogField {
   readonly row: HTMLElement
   readonly input: HTMLInputElement
+  // Marks the field and replaces its note with the reason, or clears both. **Beside the field it
+  // belongs to** - a validation message about an id has nowhere useful to go if it is not there,
+  // which is the argument against `window.prompt` stated as a method.
+  setProblem(message: string | null): void
 }
 
 export const dialogField = (label: string, hint?: string): DialogField => {
@@ -128,12 +122,25 @@ export const dialogField = (label: string, hint?: string): DialogField => {
   input.classList.add("vn-dialog-input")
   row.appendChild(input)
 
-  if (hint !== undefined) {
-    const note = document.createElement("span")
-    note.classList.add("vn-dialog-hint")
-    note.textContent = hint
-    row.appendChild(note)
-  }
+  // One element for both, because a field says either what it is for or what is wrong with it, and
+  // never both at once: the problem is the more urgent answer to the same question.
+  const note = document.createElement("span")
+  note.classList.add("vn-dialog-hint")
+  note.textContent = hint ?? ""
+  note.hidden = hint === undefined
+  row.appendChild(note)
 
-  return { row, input }
+  return {
+    row,
+    input,
+    setProblem: (message) => {
+      input.classList.toggle("vn-dialog-input-problem", message !== null)
+      note.classList.toggle("vn-dialog-hint-problem", message !== null)
+      note.textContent = message ?? hint ?? ""
+      note.hidden = note.textContent === ""
+      // Only once it is wrong, so a screen reader is not read the hint as an alert on every open.
+      if (message === null) note.removeAttribute("role")
+      else note.setAttribute("role", "alert")
+    },
+  }
 }

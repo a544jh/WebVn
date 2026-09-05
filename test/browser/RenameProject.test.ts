@@ -188,14 +188,17 @@ afterEach(async () => {
 })
 
 describe("renaming from the editor", () => {
-  it("asks, naming both ids and saying that saves are orphaned", async () => {
+  it("asks, naming both directories and what a published build's players lose", async () => {
     await openShell(FROM)
     await editIdAndBlur(TO)
 
     expect(dialogTitle()).toBe("Rename this project?")
     expect(dialogText()).toContain(`projects/${FROM}/`)
     expect(dialogText()).toContain(`projects/${TO}/`)
-    expect(dialogText()).toContain("Saves are filed under the id")
+    // The author's own saves travel; the ones in other people's browsers, under a build already
+    // published as `from`, are the half nothing local can reach.
+    expect(dialogText()).toContain("your saves")
+    expect(dialogText()).toContain("will not find their saves")
     press("cancel")
     await sleep(200)
   })
@@ -281,6 +284,46 @@ describe("renaming from the editor", () => {
     expect(await directories()).toEqual([FROM])
     expect(shell.getSession()?.directory).toBe(FROM)
     expect(shell.getSession()?.editor.getManifestText()).toContain(`id: ${FROM}`)
+  })
+
+  it("takes the author's saves with the project", async () => {
+    const shell = await openShell(FROM)
+    localStorage.setItem(
+      `vn-save-${FROM}`,
+      JSON.stringify({ seenCommands: [[0, 1]], saves: [{ timestamp: 1, path: [2] }] })
+    )
+
+    await editIdAndBlur(TO)
+    press("confirm")
+    await sleep(900)
+
+    expect(localStorage.getItem(`vn-save-${FROM}`)).toBe(null)
+    expect(JSON.parse(localStorage.getItem(`vn-save-${TO}`) ?? "null")?.saves).toEqual([{ timestamp: 1, path: [2] }])
+    expect(shell.getSession()?.player.saves).toEqual([{ timestamp: 1, path: [2] }])
+  })
+
+  it("destroys the overwritten project's saves rather than handing them to the renamed one", async () => {
+    // The sharp edge. Save data is keyed `vn-save-<id>`, so without this the project that arrives at
+    // the destination inherits the save slots and seen-command set of the project that was just
+    // deleted - paths through a story it does not have. ROUGH_EDGES.md has what that costs: replay
+    // throws loudly on a path that does not match, and SaveLoadMenu has no try/catch, so Load is
+    // simply a dead button.
+    await makeProject(TO)
+    const shell = await openShell(FROM)
+    localStorage.setItem(
+      `vn-save-${TO}`,
+      JSON.stringify({ seenCommands: [[0, 99]], saves: [{ timestamp: 9, path: [9] }] })
+    )
+
+    await editIdAndBlur(TO)
+    press("confirm")
+    await sleep(200)
+    press("confirm")
+    await sleep(900)
+
+    // The renamed project had no saves of its own, so the destination must be left with none either.
+    expect(localStorage.getItem(`vn-save-${TO}`)).toBe(null)
+    expect(shell.getSession()?.player.saves).toEqual([])
   })
 
   it("asks a second question before overwriting, and declining it leaves both projects", async () => {

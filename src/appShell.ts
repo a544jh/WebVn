@@ -1,4 +1,5 @@
 import { confirmDialog, noticeDialog } from "./chrome/dialog"
+import { moveSaveData } from "./core/save"
 import { BootedEditor, bootEditor } from "./editorBoot"
 import { OpenProject, ProjectPicker } from "./picker/picker"
 import { availableBytes } from "./storage/persistence"
@@ -153,6 +154,10 @@ export class AppShell {
     await session.close()
 
     await renameProject(from, to, manifestText)
+    // Before the boot, which reads the destination's saves as it seeds the player. The script is
+    // unchanged by a rename, so every saved path still replays and every seen command is still seen
+    // - there is no correctness reason to drop them, and this is the one copy that can be kept.
+    moveSaveData(from, to)
     await this.openRenamed(to, lock)
   }
 
@@ -194,10 +199,11 @@ const confirmRename = async (from: string, to: string, taken: boolean): Promise<
   const renamed = await confirmDialog(
     "Rename this project?",
     [
-      `Its folder moves from projects/${from}/ to projects/${to}/, and everything in it goes along.`,
-      // Not an oversight to paper over: nothing local can reach the saves of people playing an
-      // already-published build, so a rename and a save-break are the same gesture regardless.
-      `Saves are filed under the id, so any made under "${from}" will no longer be found. Nothing else is lost.`,
+      `Its folder moves from projects/${from}/ to projects/${to}/, and everything in it goes along - the script, the manifest, every asset, and your saves.`,
+      // The half that cannot be fixed from here, and the reason this is worth a sentence: an id is
+      // what a *published* build keys its players' saves on, in their browsers, where nothing local
+      // can reach them.
+      `Anyone already playing a build published under "${from}" will not find their saves after you republish.`,
     ],
     "Rename",
     false
@@ -208,7 +214,7 @@ const confirmRename = async (from: string, to: string, taken: boolean): Promise<
   return confirmDialog(
     `Overwrite "${to}"?`,
     [
-      `A project is already filed under projects/${to}/, and renaming onto it destroys that project - its script, its manifest and every asset.`,
+      `A project is already filed under projects/${to}/, and renaming onto it destroys that project - its script, its manifest, every asset and its saves.`,
       "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.",
     ],
     "Overwrite"

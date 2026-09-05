@@ -1,5 +1,6 @@
 import { confirmDialog } from "../chrome/dialog"
 import { icon } from "../chrome/icons"
+import { deleteSaveData } from "../core/save"
 import { demoManifest } from "../demoStory"
 import { isPersisted } from "../storage/persistence"
 import { takeProjectLock } from "../storage/projectLock"
@@ -301,10 +302,14 @@ export class ProjectPicker {
     try {
       this.refusal = null
       await deleteProject(project.directory)
-      // The bookkeeping goes with the tree. An entry that outlives its directory would be inherited
-      // by the next project to reuse the id, which would then open on someone else's creation date
-      // and take their place in the list.
+      // The bookkeeping goes with the tree, in both places it lives. An entry that outlives its
+      // directory is inherited by the next project to reuse the id: from `editor.yaml` that means
+      // someone else's creation date and place in the list, and from localStorage it means someone
+      // else's save slots, whose paths describe a story the new project does not have.
       await forgetProject(project.directory)
+      // Keyed by the manifest's id rather than the directory, which is what the save key actually
+      // is. A project whose manifest does not parse has declared no id and so has no saves to drop.
+      if (project.id !== null) deleteSaveData(project.id)
     } finally {
       await lock.release()
     }

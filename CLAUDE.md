@@ -396,6 +396,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
 - Save slots are `{ timestamp, path: number[] }` where `path` is `[...decisions, remainingAdvances]`.
 - Persisted via `saveToLocalStorage(id, data)` under key `vn-save-<id>`, where `id` is the manifest's.
+- **An id is reusable, so anything that changes or destroys one has to move or drop its saves.** A
+  save left under a freed id is inherited by the next project to claim it, and its paths describe a
+  story that project does not have — replay throws and `SaveLoadMenu` has no `try`/`catch`, so Load
+  becomes a dead button. `moveSaveData(from, to)` carries them on a rename and **clears `to` when
+  `from` has none**, which is what stops a renamed-onto project adopting the saves of the project it
+  destroyed; `deleteSaveData(id)` is delete's half, keyed on the manifest's id rather than the
+  directory.
   The two-level prefix is `design-docs/PROJECT_STORAGE.md`'s: localStorage is origin-wide, so an
   author-chosen id needs a keyspace separate from the app's own, and it leaves `vn-editor-*` free.
   The key comes off the state - `seedState` copies the manifest's `id` and `title` in, so a reload

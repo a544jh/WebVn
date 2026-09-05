@@ -108,10 +108,21 @@ and the step that clears it must not take the maps with it.
 
 ## Saves are orphaned, deliberately
 
-The player's save key is `vn-save-<id>`, so a rename orphans the old one and nothing migrates it. Say
-so in the dialog. This is not an oversight to paper over: nothing local can reach the saves of people
-playing an already-published build, so the orphaning is unavoidable there regardless, and a rename
-and a save-break are the same gesture on purpose.
+**Amended 2026-09-05, during implementation: the author's own saves are migrated after all.** What
+this section got right is the half it cannot reach - a build already published under the old id keys
+its players' saves in *their* browsers, and no rename here can follow them. What it got wrong is
+concluding from that to discarding the one copy that *can* be kept. Those are two different saves,
+and only one of them is a forced loss.
+
+There is no correctness argument for dropping the author's: a rename does not touch the script, so
+every saved path still replays and every seen command is still seen. `moveSaveData(from, to)` carries
+them, and the dialog says both things - your saves travel, and anyone playing a published build will
+not find theirs.
+
+The original text is kept above because the reasoning it contains about *published* saves is still
+the reasoning, and it is the sentence the dialog was written from.
+
+The paragraph below stands unchanged.
 
 There is no "keep the old id as a copy" option. Duplicating a project is its own action in the
 library, not a checkbox here: it would double the storage cost of a rename under exactly the quota
@@ -119,8 +130,8 @@ pressure the check above exists for, and leave behind a project the author did n
 
 ## Acceptance criteria
 
-- [ ] Editing `id:` and blurring raises the dialog, naming both ids and saying that saves under the
-      old one are orphaned
+- [ ] Editing `id:` and blurring raises the dialog, naming both ids and saying what happens to saves
+      - the author's travel, a published build's players' do not
 - [ ] Confirming leaves exactly one project, under the new directory, with the script, the manifest
       and every asset intact
 - [ ] The editor reopens on the renamed project, with the storer, the resolver and the lock all
@@ -137,6 +148,9 @@ pressure the check above exists for, and leave behind a project the author did n
 - [ ] The destination has no `manifest.yaml` until the copy is otherwise complete - asserted, since
       every recovery state in ticket 05 turns on it
 - [ ] `pendingRename` is written before the copy and cleared after the delete
+- [ ] The author's saves are found under the new id, and nothing is left under the old one
+- [ ] An overwrite destroys the overwritten project's saves rather than leaving them for the project
+      that arrives in its place
 - [ ] The renamed project keeps its place in the picker's order - its `created` entry moves to the
       new directory and the old one is forgotten, and `lastOpened` goes with it
 - [ ] The copy is one recursive helper over the existing walk, streaming per file
@@ -188,3 +202,23 @@ copy.
 doing so, which is one change for all of it: the demo seed's assets get bounded memory too, and the
 copy stays on the same serialized-per-path write everything else uses instead of being a second way
 to put bytes on disk.
+
+**Saves: one decision reversed and one bug found**, both after the ticket was first marked done and
+both raised by review rather than by a test.
+
+The reversal is above - the author's saves migrate, because "we cannot reach a published build's
+players' saves" does not argue for discarding the one copy we can keep, and a rename leaves the
+script untouched so every saved path still replays.
+
+The bug was sharper and is the reason `moveSaveData` clears its destination when the source has
+nothing. Renaming **onto** an existing project destroys it, but its saves live in localStorage rather
+than in the tree, so they survived the delete and the arriving project inherited them - save slots
+and a seen-command set describing a story it does not have. `ROUGH_EDGES.md` already records what
+that costs: replay throws loudly on a path that does not match, and `SaveLoadMenu` calls
+`loadFromSlot` with no `try`/`catch`, so Load becomes a dead button with no message.
+
+The same class of leak was in **delete**, which had been fixed for `editor.yaml` (`forgetProject`)
+and not for localStorage: a project created under a reused id inherited its predecessor's saves.
+Fixed in ticket 03's delete, keyed on the manifest's id rather than the directory, because that is
+what the save key actually is - and skipped entirely for a project whose manifest does not parse,
+which has declared no id and therefore has no saves.

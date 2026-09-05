@@ -559,6 +559,21 @@ describe("deleting a project", () => {
     expect(opened).toEqual([])
   })
 
+  it("drops the project's saves with it, so a reused id inherits nothing", async () => {
+    // The same rule as the creation date: an id is reusable, and a save left behind under one is a
+    // save the next project to claim that id opens on - paths through a story it does not have.
+    await make("doomed", "Doomed")
+    localStorage.setItem("vn-save-doomed", JSON.stringify({ seenCommands: [[0, 5]], saves: [] }))
+    await newPicker().render()
+
+    deleteButton("doomed").click()
+    await settle()
+    pressConfirm()
+    await sleep(200)
+
+    expect(localStorage.getItem("vn-save-doomed")).toBe(null)
+  })
+
   it("removes nothing when the confirmation is declined", async () => {
     await make("doomed", "Doomed")
     await newPicker().render()

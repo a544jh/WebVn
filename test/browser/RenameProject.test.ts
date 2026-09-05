@@ -12,7 +12,7 @@ import {
 } from "../../src/storage/projectStore"
 import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
-import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep, textBoxText } from "../helpers/vnHarness"
+import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, sleep, textBoxText, waitFor } from "../helpers/vnHarness"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
 const SCRATCH = "test-scratch-rename"
@@ -160,7 +160,9 @@ const openShell = async (directory: string): Promise<AppShell> => {
   await shell.showPicker()
   const row = elements.pickerDiv.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
   row.click()
-  await sleep(400)
+  // The story, not merely the session: a session is set before its buffers are filled, and a test
+  // that advances from here would lose its first click to a story that had not arrived.
+  await waitFor("the story to be loaded", () => (shell?.getSession()?.player.state.commandIndex ?? 0) > 0)
   return shell
 }
 
@@ -179,7 +181,7 @@ const editIdAndBlur = async (id: string): Promise<void> => {
   cm.getDoc().setValue(manifestNaming(id, "A Story"))
   cm.focus()
   cm.getInputField().blur()
-  await sleep(200)
+  await waitFor("the rename dialog", () => dialog() !== null)
 }
 
 afterEach(async () => {
@@ -200,14 +202,14 @@ describe("renaming from the editor", () => {
     expect(dialogText()).toContain("your saves")
     expect(dialogText()).toContain("will not find their saves")
     press("cancel")
-    await sleep(200)
+    await waitFor("the dialog to close", () => dialog() === null)
   })
 
   it("moves the project and reopens on it, without passing through the picker", async () => {
     const shell = await openShell(FROM)
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(900)
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
 
     expect(await directories()).toEqual([TO])
     expect(shell.getSession()?.directory).toBe(TO)
@@ -227,10 +229,12 @@ describe("renaming from the editor", () => {
     cm.getDoc().setValue(`formatVersion: 1\nid: ${TO}\ntitle: A Renamed Title\nbackgrounds:\n  sky: sky.png\n`)
     cm.focus()
     cm.getInputField().blur()
-    await sleep(200)
+    await waitFor("the rename dialog", () => dialog() !== null)
 
     press("cancel")
-    await sleep(400)
+    await waitFor("the id to be put back", () =>
+      (shell.getSession()?.editor.getManifestText() ?? "").includes(`id: ${FROM}`)
+    )
 
     expect(await directories()).toEqual([FROM])
     const text = shell.getSession()?.editor.getManifestText() ?? ""
@@ -248,14 +252,16 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(200)
-    press("confirm") // the overwrite question, since the destination exists
-    await sleep(400)
+    await waitFor("the overwrite question", () => dialogTitle() === `Overwrite "${TO}"?`)
+    press("confirm")
+    await waitFor("the refusal", () => dialogTitle() === "The project was not renamed")
 
     expect(dialogTitle()).toBe("The project was not renamed")
     expect(dialogText()).toContain("another tab")
     press("confirm")
-    await sleep(300)
+    await waitFor("the id to be put back", () =>
+      (shell.getSession()?.editor.getManifestText() ?? "").includes(`id: ${FROM}`)
+    )
 
     // Left in the project they were editing, still able to type.
     expect(shell.getSession()?.directory).toBe(FROM)
@@ -272,13 +278,13 @@ describe("renaming from the editor", () => {
     await withEstimate({ quota: 1000, usage: 900 }, async () => {
       await editIdAndBlur(TO)
       press("confirm")
-      await sleep(400)
+      await waitFor("the refusal", () => dialogTitle() === "The project was not renamed")
 
       expect(dialogTitle()).toBe("The project was not renamed")
       expect(dialogText()).toContain("free")
       expect(dialogText()).toContain("Nothing has been changed")
       press("confirm")
-      await sleep(300)
+      await waitFor("the dialog to close", () => dialog() === null)
     })
 
     expect(await directories()).toEqual([FROM])
@@ -296,7 +302,7 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(1200)
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
 
     expect(shell.getSession()?.directory).toBe(TO)
     expect(shell.getSession()?.player.state.commandIndex).toBe(before)
@@ -316,7 +322,7 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(1200)
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
 
     expect(shell.getSession()?.player.state.seenCommands.toJSON()).toEqual(seen)
   })
@@ -331,7 +337,7 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(1200)
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
 
     expect(localStorage.getItem(`vn-save-${FROM}`)).toBe(null)
     expect(shell.getSession()?.player.saves).toEqual([saved])
@@ -353,9 +359,9 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(200)
+    await waitFor("the overwrite question", () => dialogTitle() === `Overwrite "${TO}"?`)
     press("confirm")
-    await sleep(1200)
+    await waitFor("the session to reopen renamed", () => shell.getSession()?.directory === TO)
 
     // What is under the destination's key afterwards is the renamed project's own - here, nothing
     // saved at all - and not one slot of the project that was destroyed.
@@ -370,12 +376,14 @@ describe("renaming from the editor", () => {
 
     await editIdAndBlur(TO)
     press("confirm")
-    await sleep(200)
+    await waitFor("the overwrite question", () => dialogTitle() === `Overwrite "${TO}"?`)
 
     expect(dialogTitle()).toBe(`Overwrite "${TO}"?`)
     expect(dialogText()).toContain("cannot be recovered")
     press("cancel")
-    await sleep(400)
+    await waitFor("the id to be put back", () =>
+      (shell.getSession()?.editor.getManifestText() ?? "").includes(`id: ${FROM}`)
+    )
 
     expect(await directories()).toEqual([FROM, TO].sort())
     expect(shell.getSession()?.directory).toBe(FROM)

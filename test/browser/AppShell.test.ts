@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { AppShell } from "../../src/AppShell"
-import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, settle, sleep } from "../helpers/vnHarness"
+import { SCENE_HEIGHT, SCENE_WIDTH, releaseStoredEditorLock, settle, waitFor } from "../helpers/vnHarness"
 import { createProject } from "../../src/storage/projectStore"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import { clearOpfsStore } from "../helpers/opfs"
@@ -69,8 +69,23 @@ const newShell = (): AppShell => {
   return shell
 }
 
-const backgroundCanvas = (): HTMLCanvasElement =>
-  elements.vnDiv.querySelector("#vn-background-renderer") as HTMLCanvasElement
+const backgroundCanvas = (): HTMLCanvasElement | null => elements.vnDiv.querySelector("#vn-background-renderer")
+
+// A session is set on the shell *before* its buffers are filled, so "getSession() !== null" is not
+// the same question as "the project is open" - a test that advances the story or reads the stage has
+// to wait for the story itself.
+const storyLoaded = (shell: AppShell): boolean => (shell.getSession()?.player.state.commandIndex ?? 0) > 0
+
+// The centre pixel as RGBA. **Alpha is the one that says whether anything was drawn**: an untouched
+// canvas reads as fully transparent [0,0,0,0], which is not white and is easy to mistake for a
+// painted black.
+const pixel = (): number[] => {
+  const canvas = backgroundCanvas()
+  if (canvas === null) return [0, 0, 0, 0]
+  const ctx = canvas.getContext("2d")
+  if (ctx === null) throw new Error("no 2d context")
+  return [...ctx.getImageData(SCENE_WIDTH / 2, SCENE_HEIGHT / 2, 1, 1).data]
+}
 
 const pickerRows = (): HTMLButtonElement[] =>
   [...elements.pickerDiv.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
@@ -101,10 +116,10 @@ describe("swapping between the picker and a project", () => {
     await shell.showPicker()
 
     pickerRows()[0].click()
-    await sleep(400)
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
 
-    expect(backgroundCanvas().width).toBe(SCENE_WIDTH)
-    expect(backgroundCanvas().height).toBe(SCENE_HEIGHT)
+    expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
+    expect(backgroundCanvas()?.height).toBe(SCENE_HEIGHT)
   })
 
   it("paints the background it was given", async () => {
@@ -113,26 +128,32 @@ describe("swapping between the picker and a project", () => {
     await shell.showPicker()
 
     pickerRows()[0].click()
-    await sleep(400)
+    // Waiting for the canvas to stop being blank rather than for a length of time. An unanimated
+    // background render reports finished before it paints - ROUGH_EDGES.md has that, and it is not
+    // this suite's - so there is no earlier signal to take. Not circular: this waits for *any* paint
+    // and then asserts which colour, so a background painted wrong still fails.
+    // Waiting for the colour itself, because there is no honest signal that arrives before it: an
+    // unanimated background render reports finished before it paints (ROUGH_EDGES.md, and not this
+    // suite's), an untouched canvas reads transparent, and a canvas mid-render reads white. A wrong
+    // colour still fails - as a timeout naming the one it wanted - and the assertion below is what
+    // says so when it is right.
+    await waitFor("the background to be painted #123456", () => pixel().join() === [0x12, 0x34, 0x56, 255].join())
 
-    const ctx = backgroundCanvas().getContext("2d")
-    if (ctx === null) throw new Error("no 2d context")
-    const painted = [...ctx.getImageData(SCENE_WIDTH / 2, SCENE_HEIGHT / 2, 1, 1).data].slice(0, 3)
-    expect(painted).toEqual([0x12, 0x34, 0x56])
+    expect(pixel().slice(0, 3)).toEqual([0x12, 0x34, 0x56])
   })
 
   it("lays the stage out again on a second open, not only the first", async () => {
     const shell = newShell()
     await shell.showPicker()
     pickerRows()[0].click()
-    await sleep(400)
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
 
     await shell.backToProjects()
     expect(elements.sessionDiv.hidden).toBe(true)
     pickerRows()[0].click()
-    await sleep(400)
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
 
-    expect(backgroundCanvas().width).toBe(SCENE_WIDTH)
+    expect(backgroundCanvas()?.width).toBe(SCENE_WIDTH)
   })
 
   it("shows the session while a project is open and the picker when it is not", async () => {
@@ -142,7 +163,7 @@ describe("swapping between the picker and a project", () => {
     expect(elements.sessionDiv.hidden).toBe(true)
 
     pickerRows()[0].click()
-    await sleep(400)
+    await waitFor("the story to be loaded", () => storyLoaded(shell))
     expect(elements.pickerDiv.hidden).toBe(true)
     expect(elements.sessionDiv.hidden).toBe(false)
 
@@ -160,7 +181,10 @@ describe("swapping between the picker and a project", () => {
     const shell = newShell()
     await shell.showPicker()
     pickerRows()[0].click()
-    await sleep(300)
+    // The banner, not `pickerDiv.hidden`: the picker is already showing when the click lands, and
+    // the session is only revealed for the instant the boot takes to be refused - so that flag is
+    // true again before a poll can see it, and waiting on it waits for nothing.
+    await waitFor("the refusal banner", () => elements.pickerDiv.querySelector(".vn-picker-refusal") !== null)
 
     expect(elements.pickerDiv.hidden).toBe(false)
     expect(elements.sessionDiv.hidden).toBe(true)

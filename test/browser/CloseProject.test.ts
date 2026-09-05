@@ -12,6 +12,7 @@ import {
   sleep,
   textBoxText,
   typeCharacter,
+  waitFor,
 } from "../helpers/vnHarness"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
@@ -263,8 +264,7 @@ describe("closing a project", () => {
     }
     try {
       // The loop is running: a ten-second pan has plenty left to draw.
-      await sleep(120)
-      expect(frames.length).toBeGreaterThan(2)
+      await waitFor("the pan to ask for frames", () => frames.length > 2)
 
       await booted.close()
       frames.length = 0

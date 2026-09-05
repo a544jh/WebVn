@@ -12,7 +12,15 @@ import {
 } from "../../src/storage/projectStore"
 import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
-import { createVnRoot, nextStop, releaseStoredEditorLock, settle, sleep, typeCharacter } from "../helpers/vnHarness"
+import {
+  createVnRoot,
+  nextStop,
+  releaseStoredEditorLock,
+  settle,
+  sleep,
+  typeCharacter,
+  waitFor,
+} from "../helpers/vnHarness"
 import { writeFile } from "../../src/storage/opfs"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
@@ -274,7 +282,7 @@ describe("opening a project from the picker", () => {
 
     rows()[0].click()
     // The host is asked asynchronously and the banner is drawn by the render that follows it.
-    await sleep(300)
+    await waitFor("the refusal banner", () => refusalText() !== null)
 
     expect(refusalText()).toContain("a-story")
     expect(refusalText()).toContain("another tab")
@@ -295,7 +303,7 @@ describe("adding the demo", () => {
     expect(demoButton()).not.toBe(null)
 
     demoButton()?.click()
-    await sleep(500)
+    await waitFor("the demo to be listed", () => rowTitles().includes(demoManifest.title))
 
     expect((await listProjects()).map((project) => project.id)).toEqual([demoManifest.id])
     expect((await readProject(demoManifest.id)).scriptText).toContain("This is WebVn")
@@ -319,7 +327,7 @@ describe("adding the demo", () => {
     await newPicker().render()
 
     demoButton()?.click()
-    await sleep(300)
+    await waitFor("the refusal banner", () => refusalText() !== null)
 
     expect(refusalText()).toContain("another tab")
     expect(await listProjects()).toEqual([])
@@ -381,7 +389,7 @@ describe("picker to editor and back", () => {
 
     await picker.render()
     rows()[1].click()
-    await sleep(300)
+    await waitFor("the project to open", () => session !== null)
     const booted = session as BootedEditor | null
     if (booted === null) throw new Error("the picker did not open a project")
     expect(booted.directory).toBe("b-story")
@@ -429,7 +437,7 @@ describe("making a project", () => {
     typeInto(field("Title"), "The Lighthouse Keeper")
     expect(field("Id").value).toBe("the-lighthouse-keeper")
     pressConfirm()
-    await sleep(200)
+    await waitFor("the project to be opened", () => opened.length > 0)
 
     expect((await listProjects()).map((project) => project.directory)).toEqual(["the-lighthouse-keeper"])
     // Unlike Add demo project, this one opens what it made: populating the library and starting work
@@ -448,7 +456,7 @@ describe("making a project", () => {
 
     expect(field("Id").value).toBe("lighthouse")
     pressConfirm()
-    await sleep(200)
+    await waitFor("the project to be opened", () => opened.length > 0)
     expect((await listProjects()).map((project) => project.directory)).toEqual(["lighthouse"])
   })
 
@@ -458,7 +466,7 @@ describe("making a project", () => {
     await settle()
     typeInto(field("Title"), "The Lighthouse Keeper")
     pressConfirm()
-    await sleep(200)
+    await waitFor("the project to be opened", () => opened.length > 0)
 
     const returning = newPicker()
     await returning.render()
@@ -542,7 +550,7 @@ describe("making a project", () => {
     await settle()
     typeInto(field("Title"), "New Story")
     pressConfirm()
-    await sleep(300)
+    await waitFor("the refusal banner", () => refusalText() !== null)
 
     expect(refusalText()).toContain("another tab")
     expect(rowDirectories()).toEqual(["new-story"])
@@ -574,7 +582,7 @@ describe("deleting a project", () => {
     expect(dialogText()).toContain("cannot be recovered")
 
     pressConfirm()
-    await sleep(200)
+    await waitFor("the row to go", () => !rowDirectories().includes("doomed"))
 
     expect(rowDirectories()).toEqual(["kept"])
     expect(await listProjects()).toHaveLength(1)
@@ -593,7 +601,7 @@ describe("deleting a project", () => {
     deleteButton("doomed").click()
     await settle()
     pressConfirm()
-    await sleep(200)
+    await waitFor("the row to go", () => rows().length === 0)
 
     expect(localStorage.getItem("vn-save-doomed")).toBe(null)
   })
@@ -621,7 +629,7 @@ describe("deleting a project", () => {
     deleteButton("held-story").click()
     await settle()
     pressConfirm()
-    await sleep(200)
+    await waitFor("the refusal banner", () => refusalText() !== null)
 
     expect(refusalText()).toContain("another tab")
     expect(await listProjects()).toHaveLength(1)
@@ -639,7 +647,7 @@ describe("deleting a project", () => {
     deleteButton(demoManifest.id).click()
     await settle()
     pressConfirm()
-    await sleep(200)
+    await waitFor("an empty library", () => rows().length === 0)
 
     expect(rows()).toHaveLength(0)
     expect(pickerRoot.querySelector(".vn-picker-empty")).not.toBe(null)

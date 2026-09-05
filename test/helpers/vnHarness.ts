@@ -20,8 +20,30 @@ export const SCENE_HEIGHT = 720
 
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Long enough for a render that should not happen to have happened.
+// Long enough for a render that should not happen to have happened. **For asserting an absence** -
+// that nothing was written, that no row appeared - where there is by definition no condition to wait
+// for. Waiting for something to *happen* is `waitFor` below.
 export const settle = (): Promise<void> => sleep(50)
+
+// Waits until a condition holds, rather than for a length of time.
+//
+// The picker's actions and the editor's rename are started from click handlers and adoption
+// callbacks, so a test has no promise to await and used to guess with a fixed sleep. A guess is both
+// slower than it needs to be - every one of them pays its full length on every run - and a flake
+// waiting for a slow machine to be slower than the guess. This asks the question the test actually
+// has: it returns as soon as the answer is yes, and fails saying what it was still waiting for.
+export const waitFor = async (
+  what: string,
+  holds: () => boolean | Promise<boolean>,
+  timeoutMs = 4000
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    if (await holds()) return
+    if (Date.now() > deadline) throw new Error(`Timed out after ${timeoutMs}ms waiting for: ${what}`)
+    await sleep(10)
+  }
+}
 
 export const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
 

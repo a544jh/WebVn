@@ -26,7 +26,6 @@ const SCRATCH = "test-scratch-close-project"
 const A = "close-test-a"
 const B = "close-test-b"
 
-
 const SCRIPT = "story:\n  - First line\n  - Second line\n"
 
 // A project with music, for the teardown that has to silence it.

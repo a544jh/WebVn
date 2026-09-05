@@ -20,7 +20,6 @@ const SCRATCH = "test-scratch-project-picker"
 
 // The front door. What it lists, what it opens, and what it does when it cannot open something.
 
-
 const SCRIPT = "story:\n  - A line\n"
 
 const make = (id: string, title: string): Promise<void> =>

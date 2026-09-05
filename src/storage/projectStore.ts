@@ -78,17 +78,28 @@ export interface EditorState {
   readonly lastOpened?: string
 }
 
-// The store addresses one root rather than taking a directory per call, which is the one place this
+// The store addresses one root rather than taking a directory per call. This is the one place the
 // layer departs from `opfs.ts`'s "every function takes the directory handle it works under, so
-// nothing here holds global state". That departure is deliberate, and the reason is `OpfsAssetResolver`:
-// it is constructed inside the boot and consulted from inside `AssetLoader.loadAsset`, several
-// synchronous frames down the render path, so there is no call chain to thread a root along. A
-// `root` parameter on these six functions would look tidier and would leave the resolver - the one
-// caller a test most needs to redirect - pointing at the real OPFS root.
+// nothing here holds global state", and the setter below exists for the browser suites, which share
+// one origin and run their files in parallel, so each needs the store pointed somewhere of its own.
 //
-// So it is settable instead, and the browser suites point it at a scratch directory of their own,
-// since they share one origin and run their files in parallel. Do not "fix" this into a parameter
-// without first finding somewhere for the resolver's root to come from.
+// The departure is a cost decision, not an impossibility - an earlier version of this comment
+// claimed a root could not be threaded as far as `OpfsAssetResolver`, and that was wrong. It can:
+// the resolver takes a second constructor argument and `bootEditor` passes one down. Counted, that
+// is an optional `root` on the ten functions below, six more signatures accepting and forwarding it
+// (`OpfsAssetResolver`, `ProjectStoring`, `bootEditor`, `chooseProject`, `claimProject`,
+// `seedDemoProject`) and nine call sites - to carry a parameter nothing but a test ever passes.
+//
+// It would also not be safer. Optional, it defaults back to the real root, so a test that forgets
+// to pass it writes to the real OPFS exactly as a test that forgets `clearOpfsStore` does today;
+// required, it lands in every production call site, which is worse. And this variable does not leak
+// between suites the way a shared singleton would: the browser runner gives each test file its own
+// module instance, which is measurable in the three distinct tags a logging patch prints.
+//
+// What would settle it the other way is turning off parallel test files, which deletes the seam
+// outright by letting every suite share the real root. Timed 2026-09-05: the browser project goes
+// from 13.7s to 47.1s, and the fast gate is the thing people run before every commit. If that ever
+// stops being true, revisit this.
 let root: () => Promise<FileSystemDirectoryHandle> = opfsRoot
 
 export const setStoreRoot = (dir: () => Promise<FileSystemDirectoryHandle>): void => {

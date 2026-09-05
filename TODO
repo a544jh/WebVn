@@ -49,6 +49,13 @@ editor rather than a memory-only one; storing is debounced with a stored/unstore
 indicator above the buffer's right corner; and "store" is now a reserved word - see CONTEXT.md,
 because "save" is the player's.
 
+Landed: the whole of .scratch/project-library/ - tranche 2 - 2026-09-05. An author has a library: the
+picker is the front door, projects can be made, opened, deleted and renamed, a rename's directory
+follows the manifest's id and is recoverable from any crash state, and the editor can put a project
+down without leaving anything of it running. What is left of design-docs/PROJECT_STORAGE.md is
+import, export, the linked folder and the nag - tranche 3, which needs its own spec. Each ticket's
+Comments record what changed under it during implementation, of which there was a fair amount.
+
 Extracted: tranche 2, 2026-09-05, as .scratch/project-library/ - six tickets covering the
 three nodes below that are not import or export. Teardown first, because ProjectStoring's three
 page listeners are a measured data-loss bug the moment two boots share a page; then the picker,
@@ -103,23 +110,22 @@ Sizes: S = hours, M = a day or two, L = several days.
              ProjectStoring.ts, projectLock.ts, OpfsAssetResolver.ts, seedDemoProject.ts;
              the boot in src/editorBoot.ts. No OPFS means no editor at all.
              |
-             +-> project rename: copy + delete, editor.yaml     M  [extracted]
-             |     pendingRename marker, quota precheck, overwrite dialog.
-             |     No engine implements directory move; the recursive walk
-             |     is shared with zip import/export.
-             +-> project library UI                          M  [extracted]
-             |     |     The demo seed in openProject.ts dies here *and* at
-             |     |     URL import, not at either alone - it is keeping the
-             |     |     editor alive and making first run good, and only the
-             |     |     picker retires the first half.
-             |     |     Hosts the first-run story: an empty picker is the
-             |     |     worst introduction to an authoring tool, so the
-             |     |     "load the demo" button below lives here.
-             |     |     Its teardown must stop the old ProjectStoring, which
-             |     |     never removes its visibilitychange/pagehide handlers -
-             |     |     a switch back to a project otherwise lets the stale
-             |     |     storer write older text over newer. See its ctor.
-             |     +-> persist() + estimate() + export nag    S  [extracted, minus the nag]
+             +-> [done 2026-09-05] project rename: copy + delete, editor.yaml
+             |     pendingRename marker, quota precheck, overwrite dialog, and
+             |     the recovery that reads that marker back on every picker
+             |     render. No engine implements directory move; the recursive
+             |     walk (opfs.ts copyTree) is the one zip import/export shares.
+             +-> [done 2026-09-05] project library UI
+             |     |     src/picker/ is the front door and src/chrome/ is what
+             |     |     it and the editor both wear. The demo seed survives
+             |     |     with one caller left - the Add demo project button -
+             |     |     and still dies at URL import.
+             |     |     ProjectStoring.stop() closed the measured data loss;
+             |     |     two more things turned out to outlive close() and are
+             |     |     in ticket 01's comments, with the sweep that looked
+             |     |     for the rest.
+             |     +-> [done 2026-09-05] persist() + estimate(); the export nag
+             |           is tranche 3's, there being nothing to export yet
              (navigator.locks moved into tranche 1 - see below)
              +-> linked-folder layer  (after zip import/export)     M
              |     |     showDirectoryPicker() is the only way to write a

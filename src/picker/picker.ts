@@ -13,6 +13,7 @@ import {
   ProjectSummary,
   readEditorState,
 } from "../storage/projectStore"
+import { recoverProjects } from "../storage/recoverProjects"
 import { seedDemoProject } from "../storage/seedDemoProject"
 import { askForNewProject } from "./newProjectDialog"
 import "../chrome/chrome.css"
@@ -78,6 +79,12 @@ export class ProjectPicker {
   public async render(): Promise<void> {
     if (this.stopped) return
     const generation = ++this.generation
+
+    // Before the walk, and on every render rather than once a page: this is what finishes a rename
+    // its tab was killed in the middle of, and running it here is the only placement where the list
+    // never shows a row the sweep is about to remove.
+    await recoverProjects()
+
     const [projects, editorState, persisted] = await Promise.all([listProjects(), readEditorState(), isPersisted()])
     if (generation !== this.generation) return
 

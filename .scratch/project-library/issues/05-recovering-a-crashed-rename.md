@@ -1,6 +1,6 @@
 # 05: Recovering a crashed rename, and sweeping garbage
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 04 (renaming a project).
 
@@ -97,3 +97,41 @@ Crash states are built directly in the store and then booted over.
   wait through and nothing to report.
 - **Repairing a partial asset tree.** Undetectable without something that says what should be there,
   and the doc accounts for it as the one gap that leaves a duplicate rather than a loss.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`, completing the tranche. `src/storage/
+recoverProjects.ts` is the whole of it, called by `ProjectPicker.render` before its list walk.
+Covered by `test/browser/RecoverProjects.test.ts` - twelve crash states built directly in the store
+and rendered over, which is the only way to hold one still, since a real rename passes through each
+in milliseconds. Also driven by hand: a demo copied to a second directory with the marker left
+behind and some residue beside it, then reloaded, leaving one directory of three.
+
+**The commit point does all the deciding.** The destination's manifest is what a rename's ordering
+exists to make meaningful, and recovery needs exactly one question: is the destination a project? If
+not, the copy never committed - the marker goes and the sweep takes the half-copy. If so, the tail of
+the rename is what did not finish, and `completeRename` runs it. That tail is a **shared function**
+rather than a second implementation: what a crashed rename becomes is what an uninterrupted one would
+have been, and every step of it is safe to repeat, so it can run over a rename that got further than
+the marker suggests.
+
+**The bookkeeping had to be part of it**, which the ticket does not mention. A crash between the
+commit and `moveProjectRecords` leaves `created` filed under the old directory, and the recovered
+project would land in the undated bucket the picker sorts first - so a crash would silently move a
+project to the top of the library. Sharing the tail is what fixes that for free.
+
+**Two things the ticket says are checked, and one it says that is not acted on.** The locks are real:
+removing either one fails a test - the source lock, because between commit and delete a second tab
+can legitimately have the source open, and the sweep's, because a rename in flight in another tab
+holds a destination that is manifest-less right up until it commits. What is *not* acted on is
+"a manifest with no `script.yaml` means incomplete". It is true and it is the most enumeration alone
+can infer, but deleting on it would be a wrong delete: that is precisely the state `createProject`
+passes through between its two writes. A duplicate the author can remove is the price of never
+making a wrong one, which is the invariant the whole ordering buys.
+
+**One of my own tests was vacuous and was rewritten.** "Sweeps before the list is drawn" passed with
+recovery moved *after* the walk, because `listProjects` skips a manifest-less directory whenever the
+sweep runs - residue can never demonstrate that ordering. What can is a rename that committed and did
+not finish: both directories are valid, listed projects at that moment, and recovery removes one. The
+test now asserts one row rather than two, and was confirmed to fail with the call moved after the
+walk.

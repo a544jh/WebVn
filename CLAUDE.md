@@ -396,6 +396,17 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   stream itself, so no `close()` after). `copyTree` is the one recursive copy — a rename's today,
   export and import's later — and it goes through `writeFile`, so it is serialized per path like
   every other write rather than being a second way to put bytes on disk.
+- **`recoverProjects.ts` runs before the picker's list walk, on every render.** It finishes a rename
+  whose tab was killed, and sweeps directories with no `manifest.yaml`. **The destination's manifest
+  is the only question it asks**: absent means the copy never committed (drop the marker, let the
+  sweep take the half-copy), present means the tail is what did not finish (`completeRename`, which
+  the rename itself also calls — so a crashed rename becomes what an uninterrupted one would have
+  been). The marker is a hint and can never on its own cause a delete; both deletes take the lock on
+  what they are about to remove, because between commit and delete *both* directories are valid
+  projects and a rename in flight elsewhere holds a manifest-less destination. A manifest that does
+  not parse is **not** swept — that is an author's project with a typo in it. Neither is a manifest
+  with no script: that is the state `createProject` passes through between its two writes, and
+  deleting on it would be a wrong delete.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
   `persisted()`, re-read on every render.

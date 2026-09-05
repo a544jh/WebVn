@@ -1,5 +1,10 @@
 # The project library
 
+**Landed 2026-09-05.** All six tickets are `done`; see each one's Comments for what changed under it
+during implementation, of which there was a fair amount - the layout was rebuilt against the design
+canvas, `lastOpened` became a moment per project and then stopped being the sort, saves turned out to
+need migrating rather than orphaning, and three separate things were found surviving `close()`.
+
 Tranche 2 of `design-docs/PROJECT_STORAGE.md`. Tranche 1 built the store - a project lives in OPFS at
 `projects/<id>/{manifest.yaml,script.yaml,assets/}`, the editor boots out of it and stores both
 buffers back, and a second tab is refused by a lock. It shipped the layout for many projects and the

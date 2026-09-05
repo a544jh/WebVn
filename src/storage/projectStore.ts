@@ -1,6 +1,16 @@
 import { parse, stringify } from "yaml"
 import { parseManifest, validateProjectId } from "../yamlParser/parseManifest"
-import { copyTree, listDirectories, opfsRoot, readBlob, readText, removeRecursive, walk, writeFile } from "./opfs"
+import {
+  copyTree,
+  exists,
+  listDirectories,
+  opfsRoot,
+  readBlob,
+  readText,
+  removeRecursive,
+  walk,
+  writeFile,
+} from "./opfs"
 
 // Project semantics over the OPFS primitives: where a project's files live, what counts as a
 // project, and how one is read and written. design-docs/PROJECT_STORAGE.md, "Layout" and "Multiple
@@ -153,6 +163,18 @@ export const listProjects = async (): Promise<ProjectSummary[]> => {
   return summaries
 }
 
+// Every directory under projects/, project or not. `listProjects` answers "what projects exist" and
+// skips anything without a manifest; this answers "what is in there", which is what a sweep needs -
+// the residue it removes is precisely what `listProjects` refuses to return.
+export const listProjectDirectories = async (): Promise<string[]> => listDirectories(await root(), PROJECTS)
+
+// **A manifest file, not a manifest that parses.** A directory with no manifest is not a project at
+// all - it is what a crashed rename or, later, a crashed import leaves behind. One whose manifest
+// does not parse is an author's project with a typo in it, and the whole store is built to keep that
+// listable and openable.
+export const isProject = async (directory: string): Promise<boolean> =>
+  exists(await root(), projectPath(directory, MANIFEST_FILE))
+
 // Addressed by directory, not by id - and the parameter is named for it. The two agree in every
 // healthy project and the whole rename ticket exists to restore them when they do not.
 export const readProject = async (directory: string): Promise<ProjectFiles> => {
@@ -251,7 +273,20 @@ export const renameProject = async (from: string, to: string, manifestText: stri
   await copyTree(dir, `${PROJECTS}/${from}`, `${PROJECTS}/${to}`, (path) => path === MANIFEST_FILE)
   await writeFile(dir, projectPath(to, MANIFEST_FILE), manifestText)
 
-  await removeRecursive(dir, `${PROJECTS}/${from}`)
+  await completeRename(from, to)
+}
+
+// The tail of a rename: the source goes, its bookkeeping moves, and the marker comes off.
+//
+// Its own function because **recovery finishes exactly this** when a rename is interrupted after the
+// commit - so what a crashed rename becomes is what an uninterrupted one would have been, rather
+// than a second implementation of the same three steps that could come to disagree with them.
+//
+// Every step is safe to repeat: removing a path that is already gone is not an error, and moving
+// bookkeeping that has already moved finds nothing to move. Recovery may therefore run over a rename
+// that got further than it looks.
+export const completeRename = async (from: string, to: string): Promise<void> => {
+  await removeRecursive(await root(), `${PROJECTS}/${from}`)
   await moveProjectRecords(from, to)
   await recordPendingRename(null)
 }

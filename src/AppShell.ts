@@ -144,7 +144,7 @@ export class AppShell {
     // Before the overwrite is even *offered*, not merely before the delete it leads to: there is no
     // sense asking an author to destroy a project to make room for a copy that will not fit. The old
     // tree survives until the new one is complete, so the origin has to hold both at once.
-    const room = await roomToCopy(from)
+    const room = await roomProblem(from)
     if (room !== null) {
       await refuseRename(room)
       return await revert()
@@ -250,9 +250,13 @@ const confirmOverwrite = (to: string): Promise<boolean> =>
     "Overwrite"
   )
 
-// Null when there is room. The message otherwise, which says the number rather than only that it did
-// not fit - an author who is out of space can do something about it if they know how much by.
-const roomToCopy = async (directory: string): Promise<string | null> => {
+// The reason a copy will not fit, or null when it will - `problem or null`, the shape
+// `validateProjectId` and `idProblem` already use here, and named for it: `roomToCopy` returned null
+// when there *was* room, which is the wrong way round for anyone reading the call.
+//
+// The message says the numbers rather than only that it did not fit: an author who is out of space
+// can do something about it if they know how much by.
+const roomProblem = async (directory: string): Promise<string | null> => {
   const available = await availableBytes()
   // An unknown budget is not a small one: browsers that will not estimate get to try.
   if (available === null) return null

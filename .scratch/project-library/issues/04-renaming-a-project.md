@@ -1,0 +1,235 @@
+# 04: Renaming a project
+
+Status: done
+
+Blocked by: 01 (closing a project and opening another), 03 (new projects, and deleting one - for the
+dialog surface).
+
+## What to build
+
+Changing `id:` in the manifest buffer renames the project: the directory it is filed under follows the
+identity it declares. Today the two silently disagree - the store keeps writing to the old directory,
+because every read, write, store and lock addresses the directory and nothing rewrites an id to match
+one. The design doc is explicit that the fix runs in this direction and only this one: **when the
+directory and the manifest disagree, the directory moves.**
+
+## The trigger
+
+Manifest blur, when the id differs from the directory. That rides the adoption that already happens
+there - blur is when the manifest is parsed, taken as the one the project runs under, and the script
+reparsed against it - so the id change is noticed on the same event rather than needing a new one.
+
+Blur is a rough trigger: it fires on incidental focus changes, and it never fires on a tab close.
+That is survivable only because ticket 05's reconcile catches whatever it misses. Since 05 now runs
+before **every** picker render rather than once per page load, and an author reaches the picker on
+every Back to projects, that safety net is pulled tighter than when this sentence was written, not
+looser. Do not refine the trigger here - the doc files that as a UI question, and it is open.
+
+Declining reverts the `id:` field alone and keeps every other edit in the buffer.
+
+## The ordering, which is the whole ticket
+
+0. If the destination id already names a project: confirm the overwrite explicitly, then recursively
+   delete it - **before** the marker is written, so "a directory with no manifest is garbage" holds
+   throughout and the destructive step is up front rather than interleaved with the copy. This is the
+   same confirmation an import that collides with an existing id will get, because it is the same
+   operation.
+1. Record `pendingRename: { from, to }` in `editor.yaml`. A single slot, not a per-project field:
+   one project is open at a time under the lock, so two renames cannot overlap and "is a rename in
+   flight" is one check at startup rather than a scan.
+2. Copy `script.yaml` and `assets/` into `projects/<new-id>/`, **manifest last**.
+3. Write `projects/<new-id>/manifest.yaml` with the new id. This single atomic file write is the
+   commit point - an OPFS write is already atomic, so nothing needs layering on top of it.
+4. Recursively delete `projects/<old-id>/`, then clear `pendingRename`.
+
+Ticket 05 is what reads that marker. Write it here anyway and in this order, because the ordering is
+what makes every crash state recoverable and it is not worth building twice.
+
+## Quota, not time
+
+The old tree survives until the new one is complete, so a rename needs **2x the project size free**
+and dies halfway with `QuotaExceededError` if it is not there. Check `navigator.storage.estimate()`
+up front and refuse with a clear message rather than failing partway. `persist()` does not help with
+this - that is eviction, not quota, and it belongs to ticket 02.
+
+The check comes before the overwrite delete, which is what keeps the residual "destination deleted,
+then the copy fails" window as small as it can be.
+
+## The copy
+
+A recursive copy helper over the walk the filesystem layer already yields, streaming each file
+(`blob.stream().pipeTo(writable)`) so memory stays bounded whatever the project holds. Export and
+import share this helper later - one walk, three callers - which is why it is written as a helper
+rather than inline here.
+
+**No feature-detected fast path.** `FileSystemHandle.move()` is not in the WHATWG FS spec at all, and
+Chrome exposes it on file handles only, never on directory handles. A second code path for engines
+that might one day have directory move is not worth maintaining for an operation this rare.
+
+## Afterwards
+
+The session is addressed by a directory that no longer exists - the storer, the resolver and the lock
+all hold the old one - so the rename ends by closing and reopening under the new directory.
+`lastOpened` follows.
+
+**This is the one live swap in the tranche, and the ordering rule is this ticket's.** Ticket 02 used
+to own it; since the picker became a page, 02 never holds a project while choosing one, so it moved
+here. The rule:
+
+> Take the lock on the destination directory **before** closing the old session. A rename that closes
+> first and is then refused leaves the author with nothing mounted and their work already put down.
+> The two locks are keyed on different directories, so holding both across the swap is not a
+> conflict.
+
+So `bootEditor` grows a way to be told which directory to open and to refuse *before* anything is torn
+down - the same entry point ticket 02's picker uses to open a chosen project, exercised here with a
+session still live. A destination lock that is refused aborts the rename with everything intact and
+the author still typing.
+
+**Rename re-enters the editor without going through the picker**, which makes it the one exception to
+the front door besides New project. That is deliberate: the author is mid-edit in a project that has
+been renamed underneath them, and bouncing them out to the picker to re-pick the thing they are
+already working on would be theatre. The picker does not flash in between.
+
+**And the session picks up where it was.** Added 2026-09-05, after the first implementation shipped
+without it: not passing through the picker is not much good if the author is dropped back at the
+first line of the story anyway, which is the same theatre by another route. A rename does not touch
+the script, so the path replays whole - `VnPlayer.restorePath` carries it across, the same
+`reloadStory` machinery an ordinary manifest adoption already uses to keep an author's place. What
+the player has read comes with it: a close flushes the *buffers* and not the save data, and
+`seenCommands` moves on every undo and decision without one, so the session's own global save is
+written under the old id by hand for the move to carry.
+
+## The bookkeeping moves with the directory
+
+`editor.yaml` holds two maps keyed by directory - `created`, which the picker orders by, and
+`lastOpened`, which each row's line reads. A rename changes the key both are filed under, so it has
+to **carry the entries across and forget the old ones**, in the same step that clears
+`pendingRename`. `forgetProject(from)` already exists for delete; what is missing is the copy.
+
+Getting this wrong is not subtle: a renamed project with no `created` entry falls into the
+"no recorded creation" bucket, which sorts *above* everything dated - so renaming a project sends it
+to the top of the library. `lastOpened` matters less, since reopening under the new directory
+records it again on the way in, but there is no reason to drop it either.
+
+Note this is a merge into the file rather than a whole-state write: `pendingRename` is in there too,
+and the step that clears it must not take the maps with it.
+
+## Saves are orphaned, deliberately
+
+**Amended 2026-09-05, during implementation: the author's own saves are migrated after all.** What
+this section got right is the half it cannot reach - a build already published under the old id keys
+its players' saves in *their* browsers, and no rename here can follow them. What it got wrong is
+concluding from that to discarding the one copy that *can* be kept. Those are two different saves,
+and only one of them is a forced loss.
+
+There is no correctness argument for dropping the author's: a rename does not touch the script, so
+every saved path still replays and every seen command is still seen. `moveSaveData(from, to)` carries
+them, and the dialog says both things - your saves travel, and anyone playing a published build will
+not find theirs.
+
+The original text is kept above because the reasoning it contains about *published* saves is still
+the reasoning, and it is the sentence the dialog was written from.
+
+The paragraph below stands unchanged.
+
+There is no "keep the old id as a copy" option. Duplicating a project is its own action in the
+library, not a checkbox here: it would double the storage cost of a rename under exactly the quota
+pressure the check above exists for, and leave behind a project the author did not ask to create.
+
+## Acceptance criteria
+
+- [ ] Editing `id:` and blurring raises the dialog, naming both ids and saying what happens to saves
+      - the author's travel, a published build's players' do not
+- [ ] Confirming leaves exactly one project, under the new directory, with the script, the manifest
+      and every asset intact
+- [ ] The editor reopens on the renamed project, with the storer, the resolver and the lock all
+      addressing the new directory - and without passing through the picker
+- [ ] A rename whose destination lock is held by another tab is refused before anything is torn down,
+      and the author is left in the project they were editing, still able to type
+- [ ] Declining reverts `id:` alone; every other edit in the manifest buffer survives and adopts
+      normally
+- [ ] A rename that would not fit is refused up front with a message, and nothing is copied or
+      deleted
+- [ ] A destination that already names a project raises an explicit overwrite confirmation; declining
+      it leaves both projects untouched
+- [ ] Confirming an overwrite deletes the destination before the marker is written
+- [ ] The destination has no `manifest.yaml` until the copy is otherwise complete - asserted, since
+      every recovery state in ticket 05 turns on it
+- [ ] `pendingRename` is written before the copy and cleared after the delete
+- [ ] The author's saves are found under the new id, and nothing is left under the old one
+- [ ] The session comes back where it was - same playhead, same seen commands, and undo still walks
+      back from there
+- [ ] An overwrite destroys the overwritten project's saves rather than leaving them for the project
+      that arrives in its place
+- [ ] The renamed project keeps its place in the picker's order - its `created` entry moves to the
+      new directory and the old one is forgotten, and `lastOpened` goes with it
+- [ ] The copy is one recursive helper over the existing walk, streaming per file
+
+## Not in scope
+
+- **Recovery.** Ticket 05 reads the marker this one writes. Shipping in this order is survivable:
+  `listProjects` already skips a directory with no manifest, so a crashed rename is an invisible
+  orphan occupying quota rather than a broken picker. Invisible is the operative word now that
+  per-project size is deferred: nothing on screen would show the quota it holds.
+- **Refining the blur trigger.** Open question in the design doc, and ticket 05 is what makes blur
+  safe rather than correct.
+- **Building the rename dialog's surface.** Ticket 03 builds it, in `src/chrome/`; this ticket is its
+  second caller and the one that proves it must work inside the editor as well as over the picker.
+- **Warning harder once a project has been exported.** Also open, and there is nothing to export yet.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. The store's half is `renameProject` in
+`projectStore.ts` over `copyTree` in `opfs.ts`; the session swap is `AppShell.rename`. Covered by
+`test/browser/RenameProject.test.ts`, and driven by hand in the built app - the demo renamed, reopened
+and still painting a background out of its copied assets.
+
+**The trigger reports rather than acts.** `VnEditor` grows `onManifestAdoptedCallbacks`, which fires
+when a manifest is actually adopted rather than merely attempted; the shell compares the id to the
+directory it knows and decides. Storage stays out of `src/editor/`, which is what forced the seam,
+and it is the right one anyway: the editor has no idea what a directory is.
+
+**The two orderings, and the thing that joins them.** The store's is the ticket's - overwrite delete,
+marker, copy, manifest, source delete, clear - and the commit point is the destination's manifest
+write. The session's is: ask, check room, ask again about an overwrite, take the destination lock,
+*then* close, then move, then reopen. The lock before the close is the ticket's rule; the **close
+before the copy** is not in the ticket and is needed: closing flushes and stops the storer, and
+copying a tree a live storer is still writing into would miss whatever it wrote next.
+
+**Declining goes through the buffer, not through a reload.** `revertManifestId` replaces the one
+line the parser's own locator points at and re-adopts, so every other edit in the manifest survives.
+It deliberately does *not* use `setBuffer`: that guard exists so reading a project in is not mistaken
+for typing, and this is the opposite - a real change the storer has to hear about, or the store would
+keep the id the author just declined and the next boot would ask again.
+
+**Two tests were rewritten after they turned out to be worth nothing.** The first version of "the
+destination has no manifest until the copy is complete" asserted a tautology. It now samples two
+cheap reads over a 24-file copy and asserts the conjunction - a manifest beside a destination still
+missing its last asset - and was confirmed to fail when the manifest write is moved ahead of the
+copy.
+
+**`writeFile` now streams every Blob** (`blob.stream().pipeTo(writable)`) rather than only the copy
+doing so, which is one change for all of it: the demo seed's assets get bounded memory too, and the
+copy stays on the same serialized-per-path write everything else uses instead of being a second way
+to put bytes on disk.
+
+**Saves: one decision reversed and one bug found**, both after the ticket was first marked done and
+both raised by review rather than by a test.
+
+The reversal is above - the author's saves migrate, because "we cannot reach a published build's
+players' saves" does not argue for discarding the one copy we can keep, and a rename leaves the
+script untouched so every saved path still replays.
+
+The bug was sharper and is the reason `moveSaveData` clears its destination when the source has
+nothing. Renaming **onto** an existing project destroys it, but its saves live in localStorage rather
+than in the tree, so they survived the delete and the arriving project inherited them - save slots
+and a seen-command set describing a story it does not have. `ROUGH_EDGES.md` already records what
+that costs: replay throws loudly on a path that does not match, and `SaveLoadMenu` calls
+`loadFromSlot` with no `try`/`catch`, so Load becomes a dead button with no message.
+
+The same class of leak was in **delete**, which had been fixed for `editor.yaml` (`forgetProject`)
+and not for localStorage: a project created under a reused id inherited its predecessor's saves.
+Fixed in ticket 03's delete, keyed on the manifest's id rather than the directory, because that is
+what the save key actually is - and skipped entirely for a project whose manifest does not parse,
+which has declared no id and therefore has no saves.

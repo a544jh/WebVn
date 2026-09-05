@@ -38,6 +38,34 @@ export class DomRenderer implements Renderer {
   private menuDiv: HTMLDivElement
   private player: VnPlayer
 
+  // Every listener this renderer adds, so `teardown` can take them all off at once. The two on
+  // `document` are the ones that outlive the root - a superseded renderer would otherwise answer the
+  // keyboard - but the root's own go through it too: the root is supplied rather than created, and a
+  // remount into the same element would otherwise stack a second set of click and wheel handlers on
+  // it.
+  private listeners = new AbortController()
+
+  // The markup the root was handed, restored on teardown so the element is left as it was found.
+  // The action bar lives in it (src/index.html, src/player.html), and a remount re-queries those
+  // elements - so emptying the root outright would leave the next session without one.
+  private initialHtml: string
+
+  // The self-rescheduling skip tick, kept so teardown can cancel it rather than leaving one in
+  // flight against a story nobody is looking at. `skipMode` going false already stops the *next*
+  // one; this is about the one already scheduled.
+  private skipTimer: number | null = null
+
+  // The settle-and-measure that follows a fullscreen request, for the same reason: half a second is
+  // long enough to leave a project in, and `setScale` writes a transform onto a root this renderer
+  // shares with whatever comes next.
+  private scaleTimer: number | null = null
+
+  // **A torn-down renderer does nothing.** The net under every late continuation rather than a guard
+  // per hazard: a session is closed by a click that can land in the middle of an asset load, and the
+  // `loadStory` waiting behind that load would otherwise paint a story into a root the next session
+  // is about to be given. Checked wherever something outside this class can still reach in.
+  private torn = false
+
   private committedState: VnPlayerState | null
 
   private SKIP_DELAY = 50
@@ -77,13 +105,19 @@ export class DomRenderer implements Renderer {
 
     this.root = elem
     this.container = options.container ?? elem
+    this.initialHtml = elem.innerHTML
+    const { signal } = this.listeners
 
     this.menuDiv = document.createElement("div")
     this.menuDiv.classList.add("vn-menu-container")
-    this.menuDiv.addEventListener("click", (e) => {
-      // prevent interacting with VN when menu is open..
-      e.stopPropagation()
-    })
+    this.menuDiv.addEventListener(
+      "click",
+      (e) => {
+        // prevent interacting with VN when menu is open..
+        e.stopPropagation()
+      },
+      { signal }
+    )
 
     this.player = player
 
@@ -97,39 +131,83 @@ export class DomRenderer implements Renderer {
           e.stopPropagation()
         }
       },
-      { capture: true }
+      { capture: true, signal }
     )
-    this.root.addEventListener("click", () => {
-      this.disableAutoplay()
-      this.advance()
-    })
-    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false })
-    this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this))
+    this.root.addEventListener(
+      "click",
+      () => {
+        this.disableAutoplay()
+        this.advance()
+      },
+      { signal }
+    )
+    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false, signal })
+    this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this), { signal })
     // remembered for the contextmenu handler: not every browser gives that event a pointerType
-    this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), { capture: true })
-    document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
-    // Permanent, and registered here rather than alongside the request in `enterFullscreen`:
-    // leaving fullscreen is not something that request can await, since Esc and the browser's own
-    // chrome both do it, and a listener added per request would pile up one per click.
-    document.addEventListener("fullscreenchange", () => {
-      if (document.fullscreenElement === null) this.restoreScale()
+    this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), {
+      capture: true,
+      signal,
     })
-    this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.undo()
-    })
-    this.root.querySelector(".vn-action-skip")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.enterSkipMode()
-    })
-    this.root.querySelector(".vn-action-auto")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.toggleAutoplay()
-    })
-    this.root.querySelector(".vn-action-menu")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.showMenu(pauseMenu)
-    })
+    document.addEventListener("keydown", this.handleKeyDownEvent.bind(this), { signal })
+    // For the life of this renderer, and registered here rather than alongside the request in
+    // `enterFullscreen`: leaving fullscreen is not something that request can await, since Esc and
+    // the browser's own chrome both do it, and a listener added per request would pile up one per
+    // click.
+    document.addEventListener(
+      "fullscreenchange",
+      () => {
+        if (document.fullscreenElement === null) this.restoreScale()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-back")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.undo()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-skip")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.enterSkipMode()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-auto")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.toggleAutoplay()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-menu")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.showMenu(pauseMenu)
+      },
+      { signal }
+    )
+
+    // **The sub-renderers below measure this root in their constructors**, and BackgroundRenderer
+    // sizes its canvas from what it reads - so a renderer built into an element that has not been
+    // laid out gets a 0x0 canvas that never paints and a scene size of zero that puts every sprite
+    // and freeform box in the wrong place. Nothing throws, so the only symptom is a blank stage.
+    //
+    // Said out loud rather than fixed here: making the measurement lazy is a change across three
+    // sub-renderers and the canvas maths, with its own blast radius. Shipped once (2026-09-05, the
+    // picker's first version revealed the session *after* booting into it), which is why this is
+    // worth a line of console over a comment nobody reads.
+    if (elem.clientWidth === 0 || elem.clientHeight === 0) {
+      console.error(
+        "The vn root has no size yet - it is hidden, detached, or unstyled. The background will not paint and " +
+          "sprites will be mispositioned. Lay the root out before constructing a DomRenderer over it."
+      )
+    }
 
     this.imageLoader = new ImageAssetLoaderSrc(options.resolver)
     this.audioLoader = new AudioAssetLoaderSrc(options.resolver)
@@ -156,11 +234,13 @@ export class DomRenderer implements Renderer {
   // is not immediately followed by a render leaves the old pass free to auto-advance the new story
   // instead, and it will step commands nobody asked it to.
   public loadStory(state: VnPlayerState, animate: boolean): void {
+    if (this.torn) return
     this.player.loadState(state)
     this.render(animate)
   }
 
   public render(animate: boolean): void {
+    if (this.torn) return
     // A new render supersedes any render still waiting on animations. Its completion
     // callback below must then do nothing: sub-renderer promises can resolve long after
     // (e.g. a sprite's transitionend), and acting on them would mark the renderer
@@ -274,7 +354,7 @@ export class DomRenderer implements Renderer {
     if (this.player.state.decision !== null) {
       this.skipMode = false
     }
-    if (this.skipMode) setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
+    if (this.skipMode) this.scheduleSkipTick()
   }
 
   public enterSkipMode(): void {
@@ -282,7 +362,11 @@ export class DomRenderer implements Renderer {
     if (this.skipMode) return
     if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
-    setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
+    this.scheduleSkipTick()
+  }
+
+  private scheduleSkipTick(): void {
+    this.skipTimer = window.setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public toggleAutoplay(): void {
@@ -294,7 +378,9 @@ export class DomRenderer implements Renderer {
   }
 
   public enableAutoplay(): void {
-    document.querySelector(".vn-action-auto")?.classList.add("vn-actionstate-enabled")
+    // Scoped to this renderer's own root. Page-wide was survivable while one vn was all a page could
+    // hold; it is simply wrong now that a session and a picker share one.
+    this.root.querySelector(".vn-action-auto")?.classList.add("vn-actionstate-enabled")
     this.autoplayInterval = window.setInterval(() => {
       this.advance()
     }, 7000)
@@ -303,10 +389,49 @@ export class DomRenderer implements Renderer {
 
   public disableAutoplay(): void {
     if (this.autoplayInterval) {
-      document.querySelector(".vn-action-auto")?.classList.remove("vn-actionstate-enabled")
+      this.root.querySelector(".vn-action-auto")?.classList.remove("vn-actionstate-enabled")
       window.clearInterval(this.autoplayInterval)
       this.autoplayInterval = null
     }
+  }
+
+  // Put this renderer down: it answers nothing, runs nothing, and leaves the root as it found it.
+  // A page load used to be the only teardown there was; the picker is what brings a second renderer
+  // into the same page, and a superseded one otherwise answers the keyboard and steps a story nobody
+  // is looking at, into elements that are no longer on screen.
+  //
+  // The generation bump is the same guard a new render uses: a pass whose sprite transitions are
+  // still pending resolves after this, and its completion callback would otherwise auto-advance the
+  // story it was rendering.
+  //
+  // One-way. There is no matching `start()` - the session this belonged to is gone, and the next one
+  // constructs a renderer of its own.
+  public teardown(): void {
+    this.torn = true
+    this.renderGeneration++
+    this.listeners.abort()
+
+    this.skipMode = false
+    if (this.skipTimer !== null) {
+      window.clearTimeout(this.skipTimer)
+      this.skipTimer = null
+    }
+    this.disableAutoplay()
+    if (this.scaleTimer !== null) {
+      window.clearTimeout(this.scaleTimer)
+      this.scaleTimer = null
+    }
+
+    // The two sub-renderers that own something outside this root: audio plays from detached
+    // elements the loaders hand out, and the background keeps asking for frames. Everything else a
+    // sub-renderer made is inside the root and goes away with the markup below.
+    this.audioRenderer.teardown()
+    this.backgroundRenderer.teardown()
+
+    // Restored rather than emptied: the action bar is markup this renderer was handed rather than
+    // markup it made, and the next renderer over this element re-queries it.
+    this.root.innerHTML = this.initialHtml
+    this.restoreScale()
   }
 
   // Keyed by the project the state names, so a reload carries the key with it and no caller can
@@ -451,13 +576,14 @@ export class DomRenderer implements Renderer {
       // Rejects on desktop browsers, which expose the API but refuse to lock. Nothing to
       // do about that, and the scaling below still works, so swallow it.
       screen.orientation.lock("landscape").catch(() => undefined)
-      window.setTimeout(() => this.setScale(), 500)
+      this.scaleTimer = window.setTimeout(() => this.setScale(), 500)
     }) // hackety hack to let mobile ui settle..
   }
 
   // Fits the scene into the container it was given, letterboxing whichever axis is left over. The
   // scene has a fixed size in css pixels, so going fullscreen is a scale rather than a relayout.
   private setScale(): void {
+    if (this.torn) return
     const containerWidth = this.container.clientWidth // width of screen in css pixels
     const vnWidth = this.root.clientWidth
     const containerHeight = this.container.clientHeight

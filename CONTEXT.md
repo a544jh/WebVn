@@ -108,6 +108,12 @@ unrelated things that both used to be called saving.
 _Avoid_: save, autosave (those are the player's save slots), persist (that is
 `navigator.storage.persist`, which this design also calls)
 
+**Close**:
+What putting a project down means: flush what is pending, stop the storer, tear the renderer down,
+empty the editor's root and release the lock. Switching projects is a close and a fresh boot through
+the same path, never a live swap, so nothing in a session ever learns that another project exists.
+_Avoid_: unload, dispose, destroy, switch (a switch is two closes and a boot, seen from outside)
+
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a
 link. Two documents, manifest first.
@@ -228,3 +234,35 @@ the ones already recorded. The scene is built properly, and the result is a real
 **Animatable state**:
 The part of a state a renderer animates towards rather than snaps to: text, sprites, background,
 audio.
+
+### Presentation
+
+**Token**:
+A named value in the design language, declared as a CSS custom property and read back with `var()`.
+A value earns one by repeating, or by being spelled in a layer that another has to agree with -
+`--vn-surface` because seven rules and a keyframe use it, `--vn-editor-status-warning` because
+`editor.ts` paints a gutter marker the colour `editor.css` gives the store badge. A value used once
+inside one stylesheet stays a literal. Two namespaces, and they are not interchangeable: `--vn-*` is
+the story's look and a second theme may replace all of it, `--vn-editor-*` is the authoring chrome
+and survives that replacement.
+_Avoid_: variable (the script language has its own), custom property (the mechanism, not the point),
+constant, CSS var
+
+**Stage**:
+The fixed-size area a story is played in - background, sprites, text box, the player's own controls.
+It is what a theme themes, and what `--vn-*` names.
+_Avoid_: screen, viewport, scene (a scene is what is on the stage at one moment), canvas (that is the
+background renderer's own element)
+
+**Chrome**:
+The authoring tool's own surfaces, as opposed to the stage: the picker, the buffer tabs, the store
+indicator, dialogs, buttons. It is what `--vn-editor-*` names, and the two are deliberately separable
+- a second theme may replace everything the stage looks like without touching the chrome.
+_Avoid_: UI (both are UI), shell, frame, editor (the editor is one thing wearing the chrome, and the
+picker is another)
+
+**Picker**:
+The page an author lands on before any project is open, listing what the store enumerates and opening
+whichever is chosen. Distinct from the **library**, which is the collection of projects itself: the
+library is what an author has, the picker is where they see it.
+_Avoid_: library (the collection, not the page), launcher, dashboard, project list, home

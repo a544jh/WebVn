@@ -94,6 +94,9 @@ src/
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
+  picker/          the front door: the project library as a page, shown before any editor
+  AppShell.ts      which view is up, and the ordering that swap depends on
+  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons, the dialogs
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
   types/           global .d.ts augmentations of lib.dom
@@ -314,20 +317,119 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   project switching remounts in place - its constructor comment has the reproduction.
 - **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
-  `chooseProject` writes nothing, the lock is taken, and only then does `claimProject` seed or record.
+  the picker's walk writes nothing, the lock is taken, and only then is `lastOpened` recorded.
 - **`editorBoot.ts` is the boot, lifted out of `src/index.ts` so tests exercise the one that ships.** It
   returns either a booted editor or a refusal — three reasons, one surface. It hands back an
   `openProject` thunk rather than opening the buffers itself, because the export gate has to be
   listening before the load reports how the manifest fared.
+- **`close()` is beside it, and it is what makes a second boot in one page safe.** Flush, stop the
+  storer, tear the renderer down, empty the editor's root, release the lock — the thing that built
+  the session takes it down. `DomRenderer.teardown()` restores the vn root to the markup it was
+  handed rather than emptying it, because the action bar is page markup the renderer only queries;
+  emptying it would leave the next session without one. It also tears down the **two sub-renderers
+  that own something outside the root**: `AudioRenderer` plays through detached `<audio>` clones that
+  never enter the document (so a looping track survived every other kind of teardown — it shipped
+  that way and played over the picker), and `BackgroundRenderer` reschedules `requestAnimationFrame`
+  while a transition or pan has frames left. `test/browser/CloseProject.test.ts` covers
+  the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
-- **The demo seed in `openProject.ts` is scaffolding**, and it dies at the picker **and** URL import
-  rather than either alone — it is doing two jobs, keeping the editor alive and making first run good.
+- **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
+  one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/AppShell.ts` swaps them with
+  `hidden`, and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
+  the truth, there is no index file — orders by `created`, oldest first, so the list never moves under
+  the author, and hands a directory to `bootEditor`. `editor.yaml` holds `created` and `lastOpened`
+  as two maps keyed by directory; `createProject` dates a project and `forgetProject` un-dates a
+  deleted one, so a reused id cannot inherit its predecessor's place. Rows still show when each was
+  last opened — recency as information, not as the sort. OPFS cannot supply creation order: measured,
+  Chromium enumerates by descending name with no insertion component, and the standard defines no
+  order at all. Its
+  layout comes from the design canvas `.scratch/project-library/design.md` links, which is binding
+  for pixels — read it before changing what the picker or the dialogs look like. It has a `stop()` and a generation guard for the same reason `ProjectStoring` has a
+  `stop()`: a superseded view that kept listening is a bug, not untidiness. Its font, icons and
+  status colours come from `src/chrome/`.
+- **`bootEditor` is *told* which directory to open.** `chooseProject`/`claimProject` are gone with
+  `openProject.ts`: their two jobs — which directory, and seed the demo if the library is empty —
+  are the author's pick and the picker's Add demo project button. A cold boot always lands on the
+  picker; `lastOpened` orders the list and no longer decides anything. `bootEditor` records it after
+  the lock, so a rename gets it free.
+- **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
+  Nothing seeds behind the author: a seed would have to run before the picker could render, when no
+  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+- **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
+  `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
+  restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is
+  the documented exception and keeps `var(--vn-font)`.
+- **The dialogs are `src/chrome/dialog.ts`, built on `<dialog>` + `showModal()`.** Not
+  `window.confirm`/`window.prompt`: an id needs the schema's message beside the field it belongs to,
+  and the platform supplies the backdrop, top layer, focus trap and Escape for free. `validate`
+  refuses a confirm and keeps the dialog up with what was typed still in it. Two hosts, so it belongs
+  to neither: the picker opens these with no editor mounted, a rename will open one from inside an
+  editor.
+- **`createProject(id, files)` takes files; `mintProject(id, title)` makes a new one.** The minted
+  manifest is `stringify`d, not interpolated — `validateProjectId` accepts `true`, `false` and
+  `null`, which YAML reads as scalars, so an interpolated `id: true` produced a manifest that does
+  not parse; and a title is free text where a quote or a newline would break hand-rolled quoting.
+  `createProject` writes the manifest **first**, so a project being made never presents as the
+  manifest-less residue a crashed rename leaves.
+- **`AppShell.ts` owns the swap, and one ordering in it is load-bearing: the session is revealed
+  *before* `bootEditor` runs.** `BackgroundRenderer`, `SpriteRenderer` and `FreeformTextRenderer`
+  each read the root's `clientWidth`/`clientHeight` in their **constructors**, and the background
+  canvas is sized from what they read — so a renderer built inside a `hidden` subtree gets a 0x0
+  canvas that never paints and a scene size of zero that mispositions every sprite. Nothing throws;
+  the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
+  when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
+- **That swap lives outside `src/index.ts` for the same reason `editorBoot.ts` does.** The entry
+  point self-boots on import and looks its elements up by id, so no suite can reach it — put
+  stateful logic there and it ships untested. Every other browser suite mounts through
+  `createVnRoot`, straight onto a visible body, so none of them can see a hidden-mount bug either.
+- **Renaming is the directory following the manifest's id, and never the reverse.** The trigger is
+  manifest adoption: `VnEditor.onManifestAdoptedCallbacks` reports, `AppShell.rename` compares the id
+  to the directory and acts — storage stays out of `src/editor/`. Two orderings matter. The store's
+  (`renameProject`) is overwrite-delete → marker → copy everything but the manifest → **write the
+  manifest, which is the commit point** → delete the source → clear the marker and carry
+  `created`/`lastOpened` across. The session's is ask → check room → ask about an overwrite → take
+  the destination lock → **close** → move → reopen: the lock before the close so a refusal never
+  strands the author, and the close before the copy so a live storer cannot write into the tree
+  mid-copy. `bootEditor` takes an already-held lock for exactly this caller.
+  The session is carried across, not just the files: `VnPlayer.restorePath` replays the old path
+  against the rebuilt player (a rename does not touch the script, so it replays whole), and the
+  session's global save is written by hand under the old id before the move — a close flushes the
+  buffers and not the save data, and `seenCommands` moves on every undo and decision without one.
+- **`opfs.ts`'s `writeFile` streams a Blob** (`blob.stream().pipeTo(writable)`; `pipeTo` closes the
+  stream itself, so no `close()` after). `copyTree` is the one recursive copy — a rename's today,
+  export and import's later — and it goes through `writeFile`, so it is serialized per path like
+  every other write rather than being a second way to put bytes on disk.
+- **`recoverProjects.ts` runs before the picker's list walk, on every render.** It finishes a rename
+  whose tab was killed, and sweeps directories with no `manifest.yaml`. **The destination's manifest
+  is the only question it asks**: absent means the copy never committed (drop the marker, let the
+  sweep take the half-copy), present means the tail is what did not finish (`completeRename`, which
+  the rename itself also calls — so a crashed rename becomes what an uninterrupted one would have
+  been). The marker is a hint and can never on its own cause a delete; both deletes take the lock on
+  what they are about to remove, because between commit and delete *both* directories are valid
+  projects and a rename in flight elsewhere holds a manifest-less destination. A manifest that does
+  not parse is **not** swept — that is an author's project with a typo in it. Neither is a manifest
+  with no script: that is the state `createProject` passes through between its two writes, and
+  deleting on it would be a wrong delete. **Every step is wrapped so recovery can never stop the
+  picker drawing** — a browser interrupted mid-delete still holds the tree and throws
+  `NoModificationAllowedError`, and that rejection used to reach the entry point's catch and replace
+  the whole library with "Something went wrong". A failure leaves the marker standing and the next
+  render retries.
+- **`navigator.storage.persist()` is asked on the first store**, at most once per page load
+  (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
+  `persisted()`, re-read on every render.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
 - Save slots are `{ timestamp, path: number[] }` where `path` is `[...decisions, remainingAdvances]`.
 - Persisted via `saveToLocalStorage(id, data)` under key `vn-save-<id>`, where `id` is the manifest's.
+- **An id is reusable, so anything that changes or destroys one has to move or drop its saves.** A
+  save left under a freed id is inherited by the next project to claim it, and its paths describe a
+  story that project does not have — replay throws and `SaveLoadMenu` has no `try`/`catch`, so Load
+  becomes a dead button. `moveSaveData(from, to)` carries them on a rename and **clears `to` when
+  `from` has none**, which is what stops a renamed-onto project adopting the saves of the project it
+  destroyed; `deleteSaveData(id)` is delete's half, keyed on the manifest's id rather than the
+  directory.
   The two-level prefix is `design-docs/PROJECT_STORAGE.md`'s: localStorage is origin-wide, so an
   author-chosen id needs a keyspace separate from the app's own, and it leaves `vn-editor-*` free.
   The key comes off the state - `seedState` copies the manifest's `id` and `title` in, so a reload

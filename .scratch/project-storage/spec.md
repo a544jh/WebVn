@@ -22,6 +22,12 @@ each other. Grilled over five rounds on 2026-08-30, which is where most of the s
 from; the picker and everything past it are tranche 2 and 3, sketched at the bottom so the ordering
 is written down rather than rediscovered.
 
+**Tranche 2 was extracted 2026-09-05 as `.scratch/project-library/`** - the picker, new and deleted
+projects, rename with its crash recovery, and per-project size with `persist()`. The sketch at the
+bottom of this file is what it was extracted from and is left as written; the tickets are what to
+work from. The export nag that `TODO` bundles with `persist()` did not go with it: there is nothing
+to export yet, so it waits for tranche 3.
+
 ## Vocabulary
 
 The editor **stores** the author's project into OPFS; the store **writes** files; a **save** is the

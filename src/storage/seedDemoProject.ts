@@ -8,13 +8,15 @@ import { createProject, writeProjectFile } from "./projectStore"
 // here is what stops those imports leaking into the layer that is only supposed to know about
 // yamlParser.
 
-// Scaffolding, and its deletion condition needs *two* things: the picker **and** URL import. The
-// seed is doing two jobs. It keeps the editor alive - with no picker an empty library is not a blank
-// page, it is a hard failure, and the picker's "new project" is what retires that half
-// (`createProject` with no files is already the call). And it makes first run good, which is the
-// demo specifically, and only a URL import of the demo published in dist/ retires that. Delete it
-// after the picker alone and a new author's first experience becomes an empty project instead of a
-// story, which is worse than today. So this survives tranche 2 and dies in tranche 3.
+// Scaffolding, and half of what it was for is already gone. It used to do two jobs: keep the editor
+// alive - with no picker an empty library was a hard failure rather than a blank page - and make
+// first run good. The picker retired the first, so **nothing calls this behind the author's back any
+// more**; its one caller is the picker's Add demo project button, which is an action and can
+// therefore take a lock like any other write. A seed cannot: it would have to run before the picker
+// could render, at a moment when no project is chosen and so no lock is held.
+//
+// What is left is "make first run good", which is the demo specifically, and only a URL import of
+// the demo published in dist/ retires that. So this survives tranche 2 and dies in tranche 3.
 //
 // Written through `createProject`, so there is one code path for "put a project into the store"
 // rather than two.

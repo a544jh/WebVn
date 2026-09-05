@@ -9,10 +9,10 @@
 // bytes that have since been overwritten, and a truthful indicator over a lossy write is a more
 // convincing lie than no indicator at all.
 
-// A held lock. `release` exists for tests: a real tab releases by going away, which is the property
-// that makes Web Locks safe against a crash - unlike a flag in editor.yaml, which a killed tab would
-// leave set forever and which would need a liveness heuristic to clear. Do not build a lock out of
-// stored state.
+// A held lock. `release` is what closing a project calls - src/editorBoot.ts's `close()` - and a tab
+// that goes away releases anyway, which is the property that makes Web Locks safe against a crash:
+// unlike a flag in editor.yaml, which a killed tab would leave set forever and which would need a
+// liveness heuristic to clear. Do not build a lock out of stored state.
 export interface ProjectLock {
   // Resolves once the lock is actually gone, which is a turn or two after the ask: the Web Locks API
   // releases when the callback's promise settles, and that settling is itself asynchronous. A caller

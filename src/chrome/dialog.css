@@ -1,0 +1,129 @@
+/* The confirm-and-prompt surface. `<dialog>` gives the backdrop, the top layer and the focus trap;
+   this is only what it looks like.
+
+   The colour vocabulary is the chrome's and it means the same thing here: red is a write that
+   failed or a document that did not parse, and a destructive action is the one case where red is
+   what the author is about to cause rather than what already went wrong. */
+
+.vn-dialog {
+  width: 420px;
+  max-width: calc(100% - 2rem);
+  /* Near the top rather than centred, which is where the drawings put it: a dialog that grows a
+     field does not then walk up the page. `auto` below keeps it from being pinned to the bottom on
+     a short viewport. */
+  margin: 140px auto auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  color: black;
+}
+
+.vn-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.vn-dialog-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vn-dialog-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* The gap between fields is the dialog's own, so a field is a stack of three lines and nothing
+   more. */
+.vn-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Above the field, small and muted: it names the box rather than shouting at it. */
+.vn-dialog-label {
+  font-size: 12px;
+  color: #555;
+}
+
+.vn-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+}
+
+/* An id is an identifier rather than a name, so it wears the face the script does - the same rule
+   the picker's rows follow for a directory name. */
+.vn-dialog-input-mono {
+  font-family: var(--vn-editor-font-mono);
+  font-size: 13px;
+}
+
+/* The field is marked as well as the message written, so which field is wrong is visible before the
+   sentence is read. */
+.vn-dialog-input-problem {
+  border-color: var(--vn-editor-status-error);
+}
+
+/* Beneath the field it belongs to, which is the whole reason this is not window.prompt. */
+.vn-dialog-hint {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.45;
+}
+
+.vn-dialog-hint-problem {
+  color: var(--vn-editor-status-error);
+}
+
+/* Cancel first, then Confirm, in the DOM and on screen alike: Cancel is what Enter and the first tab
+   reach, and Confirm is where the eye ends up. */
+.vn-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.vn-dialog-buttons button {
+  padding: 7px 12px;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.vn-dialog-buttons button:hover {
+  background: #eee;
+}
+
+.vn-dialog-confirm {
+  font-weight: 600;
+}
+
+/* Red on the word and the edge, not a red slab. This chrome spends colour on meaning rather than on
+   emphasis, and a filled button would be the loudest thing in the app for an action the author has
+   already been told about in the body. */
+.vn-dialog-destructive {
+  border-color: var(--vn-editor-status-error);
+  color: var(--vn-editor-status-error);
+}
+
+/* A form is a stack of fields at the dialog's own rhythm. */
+.vn-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

@@ -20,8 +20,37 @@ export const SCENE_HEIGHT = 720
 
 export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Long enough for a render that should not happen to have happened.
+// Long enough for a render that should not happen to have happened. **For asserting an absence** -
+// that nothing was written, that no row appeared - where there is by definition no condition to wait
+// for. Waiting for something to *happen* is `waitFor` below.
 export const settle = (): Promise<void> => sleep(50)
+
+// Waits until a condition holds, rather than for a length of time.
+//
+// The picker's actions and the editor's rename are started from click handlers and adoption
+// callbacks, so a test has no promise to await and used to guess with a fixed sleep. A guess is both
+// slower than it needs to be - every one of them pays its full length on every run - and a flake
+// waiting for a slow machine to be slower than the guess. This asks the question the test actually
+// has: it returns as soon as the answer is yes, and fails saying what it was still waiting for.
+// **The timeout is generous on purpose, and 4000 was not.** Unlike a sleep, this costs nothing until
+// it fires: a condition that holds in 50ms returns in 50ms whatever the limit says. So the limit is
+// only ever a bound on how long a *failure* takes to report, and setting it near the expected time
+// buys nothing while turning a loaded machine into a red build. CI proved that within an hour of
+// this being written - two rename tests timed out on a two-core runner running four browser suites
+// at once, having passed every local run. It sits under vitest's own 15s test timeout so that the
+// message names the condition rather than the test.
+export const waitFor = async (
+  what: string,
+  holds: () => boolean | Promise<boolean>,
+  timeoutMs = 10000
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    if (await holds()) return
+    if (Date.now() > deadline) throw new Error(`Timed out after ${timeoutMs}ms waiting for: ${what}`)
+    await sleep(10)
+  }
+}
 
 export const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
 
@@ -208,20 +237,22 @@ export const releaseStoredEditorLock = async (): Promise<void> => {
   if (lock !== null) await lock.release()
 }
 
-export const startEditorFromStore = async (): Promise<StartedStoredEditor> => {
-  const booted = await bootStoredEditor()
+export const startEditorFromStore = async (directory: string): Promise<StartedStoredEditor> => {
+  const booted = await bootStoredEditor(directory)
   if (booted.kind === "refused") throw new Error("the editor refused to boot: " + booted.reason)
   return booted
 }
 
-// The same boot, handed back whichever way it went, for the tests that are about the refusal.
-export const bootStoredEditor = async (): Promise<StartedStoredEditor | RefusedBoot> => {
+// The same boot, handed back whichever way it went, for the tests that are about the refusal. The
+// directory is named rather than chosen: since the picker became the front door, `bootEditor` is
+// told which project to open and nothing in the boot path decides for it.
+export const bootStoredEditor = async (directory: string): Promise<StartedStoredEditor | RefusedBoot> => {
   await releaseStoredEditorLock()
 
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
 
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot })
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
   if (booted.kind === "refused") return booted
   heldLock = booted.lock
 
@@ -246,9 +277,16 @@ export const bootStoredEditor = async (): Promise<StartedStoredEditor | RefusedB
 export const storeStateOf = (editorRoot: HTMLDivElement): string | undefined =>
   (editorRoot.querySelector(".vn-editor-store-state") as HTMLSpanElement | null)?.dataset.vnStoreState
 
+// What the gestures below actually need. Narrower than StartedEditor on purpose: a suite that wired
+// its own boot - the picker's round trip does - holds the editor's root without holding the shape
+// startEditor returns.
+export interface EditorRoot {
+  editorRoot: HTMLDivElement
+}
+
 // Typing one character, which is what arms the debounce. `setValue` would too, but this is the
 // gesture the debounce exists for.
-export const typeCharacter = (started: StartedEditor, text: string): void => {
+export const typeCharacter = (started: EditorRoot, text: string): void => {
   const doc = codeMirrorOf(started.editorRoot).getDoc()
   doc.replaceRange(text, { line: doc.lastLine(), ch: 0 })
 }
@@ -264,13 +302,13 @@ const codeMirrorOf = (editorRoot: HTMLDivElement): CodeMirror.Editor =>
   (editorRoot.querySelector(".CodeMirror") as unknown as { CodeMirror: CodeMirror.Editor }).CodeMirror
 
 // Types into the manifest buffer, the way switching tabs and editing does.
-export const typeManifest = (started: StartedEditor, text: string): void => {
+export const typeManifest = (started: EditorRoot, text: string): void => {
   editorTab(started.editorRoot, "manifest").click()
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
 
 // The same for the script buffer, which is the one the editor opens on.
-export const typeScript = (started: StartedEditor, text: string): void => {
+export const typeScript = (started: EditorRoot, text: string): void => {
   editorTab(started.editorRoot, "script").click()
   codeMirrorOf(started.editorRoot).getDoc().setValue(text)
 }
@@ -278,13 +316,13 @@ export const typeScript = (started: StartedEditor, text: string): void => {
 // Clicking a line's gutter, which is how an author moves the playhead. Fired through CodeMirror's
 // own event bus rather than as a DOM click: the handler is registered with `cm.on`, and reaching it
 // with a real click would mean placing one over a gutter column measured at runtime.
-export const clickGutter = (started: StartedEditor, line: number): void => {
+export const clickGutter = (started: EditorRoot, line: number): void => {
   const cm = codeMirrorOf(started.editorRoot)
   CodeMirror.signal(cm, "gutterClick", cm, line - 1) // codemirror lines are zero based
 }
 
 // Leaving the editor, which is what adopts a manifest.
-export const blurEditor = async (started: StartedEditor): Promise<void> => {
+export const blurEditor = async (started: EditorRoot): Promise<void> => {
   const cm = codeMirrorOf(started.editorRoot)
   cm.focus()
   cm.getInputField().blur()
@@ -312,6 +350,9 @@ export const markedLines = (editorRoot: HTMLDivElement): MarkedLine[] =>
     return {
       line: Number(lineNumber),
       message: (marker as HTMLElement).title,
-      color: (marker as HTMLElement).style.background,
+      // Computed, not the inline value: the colour is set from a CSS token, so reading the
+      // specified value would report `var(--vn-editor-status-warning)` and a test asserting a
+      // colour would be asserting a spelling. This asks what the marker actually renders.
+      color: getComputedStyle(marker).backgroundColor,
     }
   })

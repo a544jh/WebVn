@@ -2,12 +2,17 @@ import * as CodeMirror from "codemirror"
 import "codemirror/mode/yaml/yaml"
 import { codeMirror } from "./codeMirror"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
+import { stringify } from "yaml"
 import { declarationLocations } from "../yamlParser/parseManifest"
 import { DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
+// The editor is one thing wearing the chrome and the picker is another, so each names the shared
+// vocabulary itself rather than relying on the other having been evaluated first. That incidental
+// dependency is exactly what moving the tokens out of editor.css closed.
+import "../chrome/chrome.css"
 import "./editor.css"
 
 // How clicking a line in the editor gets the player there. "replay" plays the story from the top,
@@ -114,6 +119,15 @@ export class VnEditor {
 
   // Fires after every adoption attempt, so a host page can follow `isManifestValid`.
   public onManifestStateChangeCallbacks: Array<() => void> = []
+
+  // Fires when a manifest is actually adopted - parsed, taken as the one the project runs under, and
+  // the script reparsed against it. Separate from the callback above, which fires on every attempt
+  // including the failures.
+  //
+  // It exists so that a host can notice the *id* changing: the directory a project is filed under has
+  // to follow the identity its manifest declares, and this class does not know what directory that
+  // is. Storage stays out of src/editor/, so this reports and something else acts.
+  public onManifestAdoptedCallbacks: Array<(manifest: VnManifest) => void> = []
 
   // Fires on every edit, with the buffer that changed and its whole text. What a host page does
   // with it is its own business - storing lives outside src/editor/, the same division as the
@@ -284,6 +298,50 @@ export class VnEditor {
     // carried in on that state, so later saves go to the new key without a second call to make.
     this.player.reloadStory(state)
     this.renderer.render(false)
+
+    // Last, because a host may act on it - a changed id is a rename, which closes this whole session
+    // - and everything above has to be settled first either way.
+    this.onManifestAdoptedCallbacks.forEach((cb) => cb(manifest))
+  }
+
+  // Put the manifest's `id:` back to what it was, **touching nothing else in the buffer**. That is
+  // what declining a rename means: the author edited one field, and every other edit they made in
+  // the same sitting is still theirs.
+  //
+  // A line replacement rather than a re-serialisation of the parsed document, because round-tripping
+  // manifest.yaml through the parser eats its comments - the same reason the URL payload carries the
+  // raw buffer. The line comes from the parser's own locator, so this does not need a second opinion
+  // about where a key is declared; the value goes through the YAML serialiser, because an id may be
+  // `true` or `null` and those need quoting to read back as strings.
+  //
+  // Re-adopted afterwards, so the preview, the gutter and the save key all return with it.
+  public async revertManifestId(id: string): Promise<void> {
+    const text = this.manifestDoc.getValue()
+    const [location] = declarationLocations(text, [["id"]])
+    const lines = text.split("\n")
+
+    // **Only when those lines hold nothing but the declaration.** A flow-style manifest - the whole
+    // document as `{formatVersion: 1, id: a, title: b}` on one line - locates its `id` to line 1,
+    // and splicing line 1 away would take formatVersion and title with it. The locator answers
+    // "which line is this key on", which is not the same question as "may I replace that line".
+    // Nothing here writes such a manifest, but an author may, and declining a rename must not be
+    // able to destroy the document it is declining to change.
+    const first = lines[location.startLine - 1] ?? ""
+    if (!/^\s*(id|"id"|'id')\s*:/.test(first)) {
+      // Nothing safe to edit, so the buffer is left exactly as the author has it. The id still
+      // disagrees with the directory, which the next blur will ask about again - annoying, and far
+      // better than a manifest this ate.
+      console.warn("Could not revert id: - manifest.yaml does not declare it on a line of its own")
+      return
+    }
+    lines.splice(location.startLine - 1, location.endLine - location.startLine + 1, stringify({ id }).trimEnd())
+
+    // **Not** through `setBuffer`: that guard exists so reading a project in is not mistaken for the
+    // author typing, and this is the opposite - a real change to their document, which the storer
+    // has to hear about. Without the event the store would keep the id they just declined, and the
+    // next boot would ask them about the same rename again.
+    this.manifestDoc.setValue(lines.join("\n"))
+    await this.adoptManifest()
   }
 
   // Every programmatic write to a buffer goes through here, so that reading a project in is never
@@ -445,12 +503,19 @@ export class VnEditor {
     const location = getCurrentLocation(this.player)
     if (location === null) return
     for (let line = location.startLine; line <= location.endLine; line++) {
-      this.scriptDoc.setGutterMarker(line - 1, "vn-position-gutter", this.makeMarker("vn-marker-position", "blue"))
+      this.scriptDoc.setGutterMarker(
+        line - 1,
+        "vn-position-gutter",
+        this.makeMarker("vn-marker-position", "var(--vn-editor-marker-position)")
+      )
     }
   }
 
   private setErrorMarker(doc: CodeMirror.Doc, error: ParserError) {
-    const color = error.level === ErrorLevel.WARNING ? "orange" : "red"
+    // The same tokens editor.css gives the store badge, so a marker and the badge cannot come to
+    // disagree about what orange means.
+    const color =
+      error.level === ErrorLevel.WARNING ? "var(--vn-editor-status-warning)" : "var(--vn-editor-status-error)"
     for (let line = error.location.startLine; line <= error.location.endLine; line++) {
       doc.setGutterMarker(line - 1, "vn-error-gutter", this.makeMarker("vn-marker-error", color, error.message))
     }

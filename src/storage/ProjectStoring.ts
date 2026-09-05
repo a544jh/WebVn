@@ -1,3 +1,4 @@
+import { requestPersistence } from "./persistence"
 import { writeManifest, writeScript } from "./projectStore"
 
 // What turns the editor's keystrokes into files in the project store: a debounce, the three flushes
@@ -29,38 +30,58 @@ export class ProjectStoring {
   private timer: number | null = null
   private writing: Promise<void> = Promise.resolve()
 
+  // Owns the three page-level listeners below, so `stop()` can take all of them off at once. An
+  // AbortController rather than three stored handles: the handlers are closures and would otherwise
+  // each need naming and keeping.
+  private listeners = new AbortController()
+
   // Addressed by **directory**, never by the manifest's id. An author who edits `id:` in the buffer
   // has made the two disagree, which is exactly the state ProjectSummary reports and the rename
   // ticket resolves - so nothing here re-derives a path from the id, and nothing rewrites the id to
   // match the directory, which the design doc calls out as the wrong direction and the cheap one.
   constructor(private directory: string, private onStateChange: (state: StoreState) => void, editorRoot: HTMLElement) {
+    const { signal } = this.listeners
+
     // Blur is the flush an author actually feels: they click the preview and their work is down.
-    editorRoot.addEventListener("focusout", () => void this.flush())
+    editorRoot.addEventListener("focusout", () => void this.flush(), { signal })
 
     // Not `unload`: it suppresses bfcache, Chrome is deprecating it, and mobile browsers routinely
     // kill a backgrounded tab without ever firing it. `pagehide` is strictly better and fires on
     // bfcache entry too, but visibility going hidden is the signal that catches a mobile
     // app-switch, which is the last moment before a background kill.
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") void this.flush()
-    })
-    window.addEventListener("pagehide", () => void this.flush())
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.visibilityState === "hidden") void this.flush()
+      },
+      { signal }
+    )
+    window.addEventListener("pagehide", () => void this.flush(), { signal })
   }
 
-  // **Nothing removes those three listeners, and project switching must not land without changing
-  // that.** One storer per page load is all there is today, so the page going away is the teardown -
-  // but the picker brings a second boot in the same page, and a superseded storer keeps listening.
+  // **Those three listeners come off in `stop()`, and that is not tidiness.** One storer per page
+  // load used to be all there was, so the page going away was the teardown - but the picker brings a
+  // second boot into the same page, and a superseded storer that kept listening loses work.
   //
-  // Measured 2026-09-05, not guessed: boot on project A, type without waiting out the debounce, boot
-  // on project B, fire `visibilitychange`, and A's storer writes its pending text to A. The write
-  // itself is harmless - it is A's own work going to A. The loss is on a switch *back*: A then has
-  // two storers, the stale one holds older text, and it queues its flush later. Per-path
+  // Measured 2026-09-05, before the fix: boot on project A, type without waiting out the debounce,
+  // boot on project B, fire `visibilitychange`, and A's storer writes its pending text to A. The
+  // write itself is harmless - it is A's own work going to A. The loss is on a switch *back*: A then
+  // has two storers, the stale one holds older text, and it queues its flush later. Per-path
   // serialization makes the last *queued* write win, so the older text lands on top of the newer.
   //
-  // The fix when that day comes is an AbortController owned here, `{ signal }` on the three
-  // listeners above, and a `stop()` the teardown calls - about five lines. It is not built now
-  // because nothing in the app would call it, which is the same rule that keeps `release` off
-  // `AssetResolver`.
+  // `src/editorBoot.ts`'s `close()` is the caller, on every Back to projects and on every rename.
+
+  // Flush what is pending, then stop listening for anything else. Listeners first, so a `focusout`
+  // raised by the teardown itself cannot queue a second write behind this one; the flush after it is
+  // what keeps closing a project from throwing away the debounce interval's worth of typing.
+  //
+  // One-way: a stopped storer stays stopped, because the session it belonged to is gone. `changed`
+  // after this would still queue a write, which is why the editor is torn down alongside it rather
+  // than left pointing here.
+  public async stop(): Promise<void> {
+    this.listeners.abort()
+    await this.flush()
+  }
 
   // One buffer's whole text, as it stands. Stored as the buffer rather than as a parse: a manifest
   // that does not parse is still the author's work, and reloading gives it back with the gutter
@@ -92,6 +113,12 @@ export class ProjectStoring {
   }
 
   private async write(batch: Map<StoredBuffer, string>): Promise<void> {
+    // The first store is the moment to ask for persistence: the author has committed work, so a
+    // prompt lands on someone who is invested rather than on someone who just arrived. Not awaited -
+    // a permission prompt must not hold up the write it was asked on behalf of - and asked at most
+    // once per page load, which requestPersistence rather than this class remembers.
+    void requestPersistence()
+
     try {
       for (const [buffer, text] of batch) {
         if (buffer === "script") await writeScript(this.directory, text)

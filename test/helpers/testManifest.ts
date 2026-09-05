@@ -11,3 +11,8 @@ export const TEST_MANIFEST: VnManifest = {
   backgrounds: {},
   audioAssets: {},
 }
+
+// The smallest manifest that parses, for a suite whose subject is the project store rather than
+// anything a manifest declares. Four browser suites had spelled this for themselves, disagreeing
+// only about the title - which is a parameter, not four functions.
+export const manifestNaming = (id: string, title = id): string => `formatVersion: 1\nid: ${id}\ntitle: ${title}\n`

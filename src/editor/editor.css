@@ -1,9 +1,13 @@
+/* The editor's own pixels. The status colours it paints with - `--vn-editor-*` - moved to
+   src/chrome/chrome.css, because the picker's refusal banner needs them and renders before any
+   VnEditor is constructed. They kept their names; only their home changed. */
+
 .vn-position-gutter {
   width: 1em;
 }
 
 .vn-error-gutter {
-  width: .5em;
+  width: 0.5em;
 }
 
 .vn-editor-tabs {
@@ -44,9 +48,9 @@
    is the one thing on screen that answers "is my work safe". The fill is what makes it findable
    without being looked for.
 
-   The two problem states take the same literal colours the gutter markers do (setErrorMarker's
-   "orange" and "red"), so orange means the same thing everywhere in this editor: something needs
-   your attention but the story still runs. Green is this element's own, because the gutter has no
+   The two problem states share their tokens with the gutter markers setErrorMarker paints, so
+   orange means the same thing everywhere in this editor - something needs your attention but the
+   story still runs - and now says it in one place rather than agreeing by hand. Green is this element's own, because the gutter has no
    "fine" marker to match - it says nothing when a buffer is clean. */
 .vn-editor-store-state {
   margin-left: auto;
@@ -57,18 +61,18 @@
   /* White on green and on red, black on orange: orange is light enough that white text on it fails
      to be readable, which is the whole point of the change. */
   color: white;
-  background: green;
+  background: var(--vn-editor-status-ok);
 }
 
 .vn-editor-store-state[data-vn-store-state="unstored"] {
   color: black;
-  background: orange;
+  background: var(--vn-editor-status-warning);
 }
 
 /* Quota exhaustion is a real outcome, and silently staying dirty forever is the worst version of
    it. The console carries the error itself. */
 .vn-editor-store-state[data-vn-store-state="failed"] {
   color: white;
-  background: red;
+  background: var(--vn-editor-status-error);
   font-weight: bold;
 }

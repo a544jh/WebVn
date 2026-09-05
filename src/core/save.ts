@@ -29,6 +29,29 @@ export function loadFromLocalStorage(id: string): VnGlobalSaveData {
   return JSON.parse(data)
 }
 
+// Saves are keyed by the manifest's id, so anything that changes which id a project answers to has
+// to move them - and anything that destroys a project has to take them with it. Neither is tidiness:
+// an id is reusable, and a save left behind under one is a save the *next* project to claim that id
+// inherits. Its paths describe a story that project does not have, and replaying one throws.
+//
+// The contract is total, and stating it that way is what makes the overwrite case fall out rather
+// than need a special case: **afterwards `to` holds exactly what `from` held, including nothing**.
+// Renaming onto an existing project destroys it, so anything of that project's left under its key
+// would be inherited by whatever arrives in its place.
+export function moveSaveData(from: string, to: string): void {
+  const data = window.localStorage.getItem(saveKey(from))
+  if (data === null) {
+    deleteSaveData(to)
+    return
+  }
+  window.localStorage.setItem(saveKey(to), data)
+  deleteSaveData(from)
+}
+
+export function deleteSaveData(id: string): void {
+  window.localStorage.removeItem(saveKey(id))
+}
+
 // What both entry points want: this project's saves if there are any, and a fresh start if there are
 // not. A first run has no key, which throws, and neither entry point can do anything useful with
 // that - so the absence is swallowed here rather than in the same seven lines copied into each of

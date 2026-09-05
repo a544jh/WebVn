@@ -1,0 +1,101 @@
+/* The authoring chrome's own vocabulary: the face it renders in, and the status colours it means
+   things by. Imported by src/index.ts, which is the one entry point that has any chrome at all -
+   src/playerIndex.ts is the stage and nothing else.
+
+   Its own file rather than editor.css's, because the picker renders *before* any VnEditor is
+   constructed and needs both halves. The `--vn-editor-*` prefix was always naming the authoring
+   chrome rather than the editor component; the picker is what makes that visible. The names stay
+   as they are - renaming them would churn editor.css, the tests and the design for a prefix that
+   is already right in meaning. */
+
+/* Source Sans 3 is Adobe's companion to the stage's Source Code Pro, so the two agree without
+   being confusable. A linked webfont rather than `system-ui`, because the requirement is a chrome
+   that looks the same on every system, which is exactly what `system-ui` does not do. Fetched by
+   src/index.html and by nothing else.
+
+   Deliberately not in defaultTheme.css: that file is the *story's* theme, and a second theme may
+   replace all of it. Putting the chrome's face there would mean swapping themes changes the
+   editor's typeface, which is the coupling the two namespaces exist to prevent. Nothing here has
+   to exempt the stage - every element on it names `var(--vn-font)` for itself.
+
+   One declaration used once is not a token, by the rule defaultTheme.css states: a value earns one
+   by repeating or by being spelled in a layer another has to agree with, and this is neither. */
+body {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+}
+
+/* Form controls do not inherit the page's face - a button renders in the browser's own UI font
+   unless told otherwise - and the chrome is mostly buttons. `font-family` rather than the `font`
+   shorthand, so a control keeps the size it was given. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* The authoring chrome's status colours.
+
+   These are tokens for the second reason the theme's block gives: they are spelled in another
+   layer. editor.ts paints the gutter markers from `element.style.background`, so before this block
+   the agreement between a marker and this badge was two files independently saying "orange". The
+   tab's own #eee/#fff/#ccc are left literal - used once each, and read by nothing outside
+   editor.css.
+
+   Deliberately not in defaultTheme.css: that file is the *story's* theme and a second theme should
+   be free to replace all of it without touching what the editor means by an error. */
+:root {
+  /* The chrome's own monospace, for the one thing it has to show in one: an identifier - a project
+     id, a directory name - as opposed to a name. It carries the same face as the stage's `--vn-font`
+     deliberately, and is spelled separately just as deliberately: `--vn-*` is the story's look and a
+     second theme may replace all of it, so a chrome rule reading `--vn-font` would let a theme swap
+     restyle the picker. CONTEXT.md's Token entry is the rule; this is the second namespace obeying
+     it, and the first was `--vn-editor-status-*` moving out of editor.css for the same reason. */
+  --vn-editor-font-mono: "Source Code Pro", monospace;
+
+  --vn-editor-status-ok: green;
+  --vn-editor-status-warning: orange;
+  --vn-editor-status-error: red;
+  /* The playhead. No badge state to pair with - only setPositionMarker uses it. */
+  --vn-editor-marker-position: blue;
+}
+
+/* The way back out of a project, in the session's upper left. It lives here rather than in
+   editor.css because it is not the editor's: it is the seam between the two views, and it is on
+   screen whenever a project is open regardless of what the editor is doing. */
+/* The session's own page margin, so the stage and the buffers are not flush against the window the
+   way they were when a page load was the only way in. */
+#vn-session {
+  padding: 16px 40px 40px;
+}
+
+#vn-session-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#vn-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  cursor: pointer;
+}
+
+#vn-btn-back:hover {
+  background: #fff;
+}
+
+/* Which project this is, beside the way out of it. The page is otherwise all buffers and stage, and
+   nothing on it says what is open - the picker knew and the editor did not. */
+#vn-session-title {
+  font-size: 13px;
+  color: #ddd;
+}

@@ -2,13 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { demoManifest } from "../../src/demoStory"
 import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
 import { STORE_DEBOUNCE_MS } from "../../src/storage/ProjectStoring"
-import {
-  createProject,
-  listProjects,
-  readProject,
-  writeEditorState,
-  writeProjectFile,
-} from "../../src/storage/projectStore"
+import { createProject, listProjects, readProject, writeProjectFile } from "../../src/storage/projectStore"
+import { seedDemoProject } from "../../src/storage/seedDemoProject"
 import { clearOpfsStore } from "../helpers/opfs"
 import {
   SCENE_HEIGHT,
@@ -49,7 +44,6 @@ const pastDebounce = (): Promise<void> => sleep(STORE_DEBOUNCE_MS + 300)
 
 const storeMyStory = async (manifestText = MANIFEST, scriptText = SCRIPT): Promise<void> => {
   await createProject("my-story", { manifestText, scriptText })
-  await writeEditorState({ lastOpened: "my-story" })
 }
 
 beforeEach(async () => {
@@ -60,7 +54,7 @@ describe("the editor over the project store", () => {
   it("mounts the story that was in the store, not one compiled into the bundle", async () => {
     await storeMyStory()
 
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     expect(started.directory).toBe("my-story")
     expect(textBoxText(started.root)).toBe("The stored first line")
@@ -70,7 +64,7 @@ describe("the editor over the project store", () => {
 
   it("writes an edited script buffer back to the store", async () => {
     await storeMyStory()
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     typeCharacter(started, "  - A line typed by the author\n")
     await pastDebounce()
@@ -82,7 +76,7 @@ describe("the editor over the project store", () => {
     // setValue fires `change` exactly like a keystroke, so an unguarded handler stores everything it
     // just read on every boot - which would also report unstored for two seconds after every load.
     await storeMyStory()
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     expect(storeStateOf(started.editorRoot)).toBe("stored")
     await pastDebounce()
@@ -94,7 +88,7 @@ describe("the editor over the project store", () => {
     // which is what ADR 0002 already does in-session; gating on a successful parse would mean the
     // one edit an author most wants back after a crash is the one that was not written.
     await storeMyStory()
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     typeManifest(started, "formatVersion: 1\nid: [unclosed\n")
     await pastDebounce()
@@ -109,7 +103,7 @@ describe("the editor over the project store", () => {
     // manifest was fine, and a link exported then is one the player refuses.
     await storeMyStory("formatVersion: 1\nid: [unclosed\n")
 
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     expect(textBoxText(started.root)).toBe("The stored first line")
     expect(started.editor.isManifestValid()).toBe(false)
@@ -117,8 +111,11 @@ describe("the editor over the project store", () => {
     expect(markedLines(started.editorRoot).length).toBeGreaterThan(0)
   })
 
-  it("seeds the demo when the library is empty, and opens it playable", async () => {
-    const started = await startEditorFromStore()
+  it("opens the seeded demo playable", async () => {
+    // Nothing seeds behind the author any more - the picker's Add demo project button is the one
+    // caller of seedDemoProject - so this seeds explicitly and then opens what it wrote.
+    await seedDemoProject()
+    const started = await startEditorFromStore(demoManifest.id)
 
     expect(started.directory).toBe(demoManifest.id)
     expect((await listProjects()).map((p) => p.id)).toEqual([demoManifest.id])
@@ -135,7 +132,7 @@ describe("the editor over the project store", () => {
 
   it("goes unstored on a keystroke and stored once the write resolves", async () => {
     await storeMyStory()
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
     expect(storeStateOf(started.editorRoot)).toBe("stored")
 
     typeCharacter(started, "  - One more line\n")
@@ -149,7 +146,7 @@ describe("the editor over the project store", () => {
     // The debounce is the guarantee and every flush is a bonus, but blur is the one an author feels:
     // they click the preview and their work is down.
     await storeMyStory()
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     typeCharacter(started, "  - Typed then blurred\n")
     await blurEditor(started)
@@ -167,7 +164,7 @@ describe("the editor over the project store", () => {
     await storeMyStory(MANIFEST, script)
     await writeProjectFile("my-story", backgroundFilePath("a.png"), await solidPng(bgColor))
 
-    const started = await startEditorFromStore()
+    const started = await startEditorFromStore("my-story")
 
     expect(textBoxText(started.root)).toBe("Painted")
     // One frame late, and not for any reason to do with OPFS: the editor loads a script with

@@ -37,12 +37,14 @@
   animation-timing-function: linear;
 }
 
+/* The two ends are the decision item's resting and hover fills. Named rather than repeated:
+   this animation is only right while it agrees with defaultTheme.css about both. */
 @keyframes vn-decision-anim {
   from {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: var(--vn-surface);
   }
   to {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: var(--vn-surface-active);
   }
 }
 

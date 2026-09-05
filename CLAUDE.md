@@ -309,7 +309,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   interval on the theory that the flushes cover it. It stores **the buffer, not the parse**: a manifest
   that does not parse is still the author's work and is the edit they most want back. Its indicator is a
   filled badge, not coloured text - green stored, `orange` unstored, `red` failed, the two problem
-  colours being the literal ones `setErrorMarker` paints the gutter with.
+  colours being the literal ones `setErrorMarker` paints the gutter with. **It never removes its page
+  listeners**, which is fine while one page load means one storer and is a data-loss bug the moment
+  project switching remounts in place - its constructor comment has the reproduction.
 - **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
   `chooseProject` writes nothing, the lock is taken, and only then does `claimProject` seed or record.

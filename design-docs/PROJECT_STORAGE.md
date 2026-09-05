@@ -337,7 +337,10 @@ until it exists the editor opens what `editor.yaml` names and nothing else.
 
 **The runtime stays strictly single.** `VnPlayer`, `DomRenderer` and the resolver never learn that other
 projects exist. Switching projects is a full teardown and remount through the same path as initial boot, never
-a live swap. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
+a live swap. **That teardown has a required step nothing performs yet**: `ProjectStoring` registers
+`visibilitychange` and `pagehide` handlers and never removes them, so a superseded storer keeps flushing -
+demonstrated 2026-09-05, and lossy on a switch back to a project, where the stale storer holds older text and
+queues its write last. Its constructor comment has the reproduction and the five-line fix. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
 contract in `CLAUDE.md`); a project swap mid-render would be a new class of the same bug, and there is no
 reason to invite it.
 

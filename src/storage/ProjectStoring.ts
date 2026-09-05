@@ -46,6 +46,21 @@ export class ProjectStoring {
     window.addEventListener("pagehide", () => void this.flush())
   }
 
+  // **Nothing removes those three listeners, and project switching must not land without changing
+  // that.** One storer per page load is all there is today, so the page going away is the teardown -
+  // but the picker brings a second boot in the same page, and a superseded storer keeps listening.
+  //
+  // Measured 2026-09-05, not guessed: boot on project A, type without waiting out the debounce, boot
+  // on project B, fire `visibilitychange`, and A's storer writes its pending text to A. The write
+  // itself is harmless - it is A's own work going to A. The loss is on a switch *back*: A then has
+  // two storers, the stale one holds older text, and it queues its flush later. Per-path
+  // serialization makes the last *queued* write win, so the older text lands on top of the newer.
+  //
+  // The fix when that day comes is an AbortController owned here, `{ signal }` on the three
+  // listeners above, and a `stop()` the teardown calls - about five lines. It is not built now
+  // because nothing in the app would call it, which is the same rule that keeps `release` off
+  // `AssetResolver`.
+
   // One buffer's whole text, as it stands. Stored as the buffer rather than as a parse: a manifest
   // that does not parse is still the author's work, and reloading gives it back with the gutter
   // marked, which is what ADR 0002 already does in-session. Gating the write on a successful parse

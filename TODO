@@ -108,6 +108,10 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     Hosts the first-run story: an empty picker is the
              |     |     worst introduction to an authoring tool, so the
              |     |     "load the demo" button below lives here.
+             |     |     Its teardown must stop the old ProjectStoring, which
+             |     |     never removes its visibilitychange/pagehide handlers -
+             |     |     a switch back to a project otherwise lets the stale
+             |     |     storer write older text over newer. See its ctor.
              |     +-> persist() + estimate() + export nag    S
              (navigator.locks moved into tranche 1 - see below)
              +-> linked-folder layer  (after zip import/export)     M

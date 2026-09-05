@@ -26,6 +26,9 @@ import {
   typeManifest,
 } from "../helpers/vnHarness"
 
+// A scratch directory no other suite uses - see test/helpers/opfs.ts.
+const SCRATCH = "test-scratch-editor-storage"
+
 // The editor booting out of the project store, storing back into it, and saying whether it has -
 // the ticket an author would notice, because what they type survives a reload.
 
@@ -50,7 +53,7 @@ const storeMyStory = async (manifestText = MANIFEST, scriptText = SCRIPT): Promi
 }
 
 beforeEach(async () => {
-  await clearOpfsStore()
+  await clearOpfsStore(SCRATCH)
 })
 
 describe("the editor over the project store", () => {

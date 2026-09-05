@@ -14,6 +14,9 @@ import { writeEditorState } from "../../src/storage/projectStore"
 import { readText, writeFile } from "../../src/storage/opfs"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 
+// A scratch directory no other suite uses - see test/helpers/opfs.ts.
+const SCRATCH = "test-scratch-project-store"
+
 // Project semantics over the OPFS primitives: where a project's files live, what counts as a
 // project, and how one is read and written.
 
@@ -27,7 +30,7 @@ const SCRIPT = `story:
 `
 
 beforeEach(async () => {
-  await clearOpfsStore()
+  await clearOpfsStore(SCRATCH)
 })
 
 describe("the project store", () => {
@@ -41,7 +44,7 @@ describe("the project store", () => {
   it("does not list a directory with no manifest", async () => {
     // Not a project with a missing name - not a project. It is what a crashed rename or import
     // leaves behind, and the rename ticket's sweep is what deletes it.
-    const root = await storeRoot()
+    const root = await storeRoot(SCRATCH)
     await writeFile(root, "projects/residue/script.yaml", SCRIPT)
 
     expect(await listProjects()).toEqual([])
@@ -50,7 +53,7 @@ describe("the project store", () => {
   it("lists a project whose manifest does not parse, with no id and no title", async () => {
     // An author's project with a typo in it. Dropping it would make the picker the one place they
     // cannot go to fix it, and the editor opens a broken manifest perfectly well already (ADR 0002).
-    const root = await storeRoot()
+    const root = await storeRoot(SCRATCH)
     await writeFile(root, "projects/broken/manifest.yaml", "id: [unclosed\n")
     await writeFile(root, "projects/broken/script.yaml", SCRIPT)
 
@@ -61,7 +64,7 @@ describe("the project store", () => {
     // The state the rename ticket exists to resolve, and the reason ProjectSummary is a summary
     // rather than a list of ids. The fix is always to rename the directory to match the manifest -
     // never to rewrite the manifest to match the directory, which is the cheap-looking direction.
-    const root = await storeRoot()
+    const root = await storeRoot(SCRATCH)
     await writeFile(root, "projects/old-name/manifest.yaml", MANIFEST)
     await writeFile(root, "projects/old-name/script.yaml", SCRIPT)
 
@@ -105,7 +108,7 @@ describe("the project store", () => {
 
   it("removes the tree on delete, and stops listing the project", async () => {
     await createProject("my-story", { manifestText: MANIFEST, scriptText: SCRIPT })
-    const root = await storeRoot()
+    const root = await storeRoot(SCRATCH)
     await writeFile(root, "projects/my-story/assets/backgrounds/a.png", "not really a png")
 
     await deleteProject("my-story")
@@ -125,7 +128,7 @@ describe("the project store", () => {
     // rule is the migration strategy, which is why the file gets no schema version.
     expect(await readEditorState()).toEqual({})
 
-    const root = await storeRoot()
+    const root = await storeRoot(SCRATCH)
     await writeFile(root, "editor.yaml", "lastOpened: [unclosed\n")
     expect(await readEditorState()).toEqual({})
 
@@ -138,6 +141,6 @@ describe("the project store", () => {
     await writeEditorState({ lastOpened: "my-story" })
 
     expect(await listProjects()).toEqual([{ directory: "my-story", id: "my-story", title: "My Story" }])
-    expect(await readText(await storeRoot(), "editor.yaml")).toContain("lastOpened")
+    expect(await readText(await storeRoot(SCRATCH), "editor.yaml")).toContain("lastOpened")
   })
 })

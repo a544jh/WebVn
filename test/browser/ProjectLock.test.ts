@@ -4,6 +4,9 @@ import { createProject, readEditorState } from "../../src/storage/projectStore"
 import { clearOpfsStore } from "../helpers/opfs"
 import { bootStoredEditor, releaseStoredEditorLock } from "../helpers/vnHarness"
 
+// A scratch directory no other suite uses - see test/helpers/opfs.ts.
+const SCRATCH = "test-scratch-project-lock"
+
 // One tab per project. Web Locks are per-origin and shared across tabs, but a test file cannot open
 // a second tab - so this tests the layer rather than the browser: taking the lock before calling
 // boot is exactly what a second tab does, minus the tab.
@@ -35,7 +38,7 @@ beforeEach(async () => {
   // A previous test's boot still holds its lock - a real tab releases by going away, and a test file
   // is one tab for its whole run.
   await releaseStoredEditorLock()
-  await clearOpfsStore()
+  await clearOpfsStore(SCRATCH)
   // One project and no editor.yaml: chooseProject falls back to the first of listProjects, so a boot
   // that gets as far as claiming writes `lastOpened` - which is what makes "wrote nothing" testable
   // below without needing an empty library and the demo seed.

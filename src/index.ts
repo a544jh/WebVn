@@ -12,6 +12,7 @@ import { icon } from "./chrome/icons"
 import { encodePayload, playerUrl } from "./scriptUrl"
 import { unsupportedBrowserReason } from "./editorBoot"
 import { AppShell } from "./AppShell"
+import { browserNavigation } from "./projectUrl"
 
 declare global {
   interface Window {
@@ -54,6 +55,9 @@ const shell = new AppShell(
       wireExportUrl(editor)
     },
     onClose: () => wiring.abort(),
+    // The real address bar. Everything with a decision in it is above this line, in the shell, where
+    // a test can drive it; this is four one-line members over `location` and `history`.
+    navigation: browserNavigation(),
   }
 )
 
@@ -75,7 +79,8 @@ async function boot(): Promise<void> {
   backButton.prepend(icon("chevron-left"))
   backButton.addEventListener("click", () => void shell.backToProjects())
 
-  await shell.showPicker()
+  // Wherever `?project=` says, which is the picker when it says nothing.
+  await shell.start()
 }
 
 // The editor's only refusal surface, and it has two callers: a browser without OPFS, and anything

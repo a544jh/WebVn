@@ -11,6 +11,7 @@ import { VnEditor } from "../../src/editor/editor"
 import { bootEditor, RefusedBoot } from "../../src/editorBoot"
 import { ProjectLock } from "../../src/storage/projectLock"
 import { ProjectStoring } from "../../src/storage/ProjectStoring"
+import { deleteSaveData } from "../../src/core/save"
 
 // Shared setup for the browser-backed suites: mounting a VN into a fresh DOM root, waiting for
 // the render loop to come to rest, and reading what ended up on screen.
@@ -66,11 +67,21 @@ const VN_ACTIONS_HTML = `
   </div>
 </div>`
 
-// A clean slate for one test: an empty document, an empty localStorage (DomRenderer saves into it)
-// and a scene-sized root to mount into. Pass `actions` for the player's action bar, which only the
-// tests that click Back/Menu/Auto/Skip need.
+// Wiping the saves a suite owns, and **only** those. `localStorage` is origin-wide and the browser
+// suites share one origin, so `localStorage.clear()` takes out the save data of whatever file is
+// running beside this one - their `beforeEach` calls interleave milliseconds apart, which is the
+// hazard test/helpers/opfs.ts already names for OPFS and which locks have their own version of.
+// Measured as save assertions failing in a suite nothing was touching.
+//
+// Through `deleteSaveData` rather than a second spelling of `vn-save-<id>`: the key format is
+// src/core/save.ts's, and a copy here is the copy that drifts.
+export const clearSaves = (...ids: string[]): void => ids.forEach(deleteSaveData)
+
+// A clean slate for one test: an empty document, no saves under the id a test that does not care
+// uses, and a scene-sized root to mount into. Pass `actions` for the player's action bar, which only
+// the tests that click Back/Menu/Auto/Skip need. A suite with ids of its own clears them itself.
 export const createVnRoot = (options: { actions?: boolean } = {}): HTMLDivElement => {
-  localStorage.clear()
+  clearSaves(TEST_MANIFEST.id)
   document.body.innerHTML = ""
   const root = document.createElement("div")
   root.id = "vn-div"
@@ -203,6 +214,9 @@ export const startEditor = async (manifestText: string, script: string): Promise
   const [manifest, errors] = YamlParser.parseManifest(manifestText)
   expect(errors).toEqual([])
   if (manifest === null) throw new Error("the test's own manifest does not parse")
+  // The id this editor is about to write saves under, which `createVnRoot` cannot know: it is the
+  // suite's, not `TEST_MANIFEST`'s.
+  clearSaves(manifest.id)
 
   const player = new VnPlayer(seedState(manifest))
   const renderer = new DomRenderer(root, player)

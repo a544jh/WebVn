@@ -33,10 +33,14 @@ import "./picker.css"
 // The layout is the design canvas's, which `design.md` names as the pixels: a header, one panel
 // holding a title strip with the two actions in it, and the rows inside that panel.
 
-// What the host does when a row is chosen. Resolves with a reason the project could not be opened -
-// another tab holds it - or null when it was, in which case this picker is already down. Refusing is
-// a place the author can stay: they are on the list, looking at what they have.
-export type OpenProject = (directory: string) => Promise<string | null>
+// What the host does when a row is chosen. Resolves with the notice to show when the project could
+// not be opened, or null when it was, in which case this picker is already down. Refusing is a place
+// the author can stay: they are on the list, looking at what they have.
+//
+// **The whole notice, not a reason to dress up here.** Each refusal knows its own next step - close
+// the other tab, or pick something that exists - and a picker that appended one line of advice to
+// every reason said "Close it there" under "there is no project called that".
+export type OpenProject = (directory: string) => Promise<RefusalNotice | null>
 
 // A row's own line, and what the list is ordered by. `openedAt` is undefined for a project nobody
 // has opened yet, which is a thing to say rather than a zero; `createdAt` is undefined for one that
@@ -65,14 +69,21 @@ export class ProjectPicker {
   // the same hazard, as DomRenderer.renderGeneration.
   private generation = 0
 
-  private refusal: RefusalNotice | null = null
-
   // One-way, like every other teardown here: a stopped picker paints nothing, whether the render was
   // already in flight when it was stopped or is asked for afterwards. Both happen - the host stops
   // this one the moment a project opens, and the walk it is stopped in the middle of resolves later.
   private stopped = false
 
-  constructor(private root: HTMLElement, private openProject: OpenProject) {}
+  // **Seeded with a refusal only when the host has one this picker could not have raised itself** -
+  // a URL that named a project which would not open, refused before any picker existed to say so.
+  // Every other banner it shows, it produced. A parameter rather than a setter because a picker is
+  // built fresh for each showing and rendered immediately after, so a setter could only ever be
+  // called in the one line between the two.
+  constructor(
+    private root: HTMLElement,
+    private openProject: OpenProject,
+    private refusal: RefusalNotice | null = null
+  ) {}
 
   // Walk the store and draw what it holds. Called to show the picker and again after anything that
   // changes the library.
@@ -229,12 +240,12 @@ export class ProjectPicker {
   // says so on the page - from the front door there is nothing to be stranded from, because the
   // previous project was released on the way out.
   private async choose(directory: string): Promise<void> {
-    const reason = await this.openProject(directory)
+    const refusal = await this.openProject(directory)
     // Null means the project opened, which means this picker is already down: rendering over the
     // editor that replaced it is exactly what the generation guard above is for, and `stop()` has
     // bumped it.
-    if (reason === null) return
-    this.refusal = { lead: reason, detail: "Close it there, or pick a different project." }
+    if (refusal === null) return
+    this.refusal = refusal
     await this.render()
   }
 
@@ -285,9 +296,11 @@ export class ProjectPicker {
     }
 
     await mintProject(chosen.id, chosen.title)
-    const reason = await this.openProject(chosen.id)
-    if (reason === null) return
-    this.refusal = { lead: reason, detail: `"${chosen.id}" was created, but not opened.` }
+    const refusal = await this.openProject(chosen.id)
+    if (refusal === null) return
+    // The one place the refusal's own advice is overridden, because there is something more specific
+    // to say: what the author asked for did happen, and only the opening did not.
+    this.refusal = { ...refusal, detail: `"${chosen.id}" was created, but not opened.` }
     await this.render()
   }
 
@@ -407,7 +420,10 @@ const openedLabel = (at: Date | undefined): string => {
 
 // What could not be opened, and what to do about it. Two parts because the artboard reads that way
 // and it is right: the first sentence is the news and carries the weight, the second is the advice.
-interface RefusalNotice {
+//
+// Exported for the one refusal this picker does not raise: a URL naming a project that would not
+// open, which is refused before there is a picker to put it on.
+export interface RefusalNotice {
   readonly lead: string
   readonly detail: string
 }

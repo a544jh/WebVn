@@ -16,8 +16,6 @@ const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserE
   const [docs, lineCounter] = composeDocuments(text)
   const doc = docs[0]
 
-  console.dir(doc)
-
   errors = errors.concat(yamlProblems(doc, lineCounter))
   // A script is one document too. Everything after a stray `---` used to be dropped in silence, and
   // that gets much easier to hit now that the URL payload is a `---` separated stream authors see.
@@ -41,7 +39,6 @@ const parseStory = (text: string, manifest: VnManifest): [VnPlayerState, ParserE
 
   newState = updateLabels(newState)
 
-  console.dir(newState)
   return [newState, errors]
 }
 

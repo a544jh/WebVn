@@ -119,6 +119,13 @@ A project's manifest and script, minus its assets, encoded into a URL so a story
 link. Two documents, manifest first.
 _Avoid_: story, script, export (an export is the archive, which carries the assets too)
 
+**Project link**:
+The editor's own URL with `?project=<directory>` in it - which project is open, written down where a
+reload can find it again. It names a *project directory* and carries nothing else, so a link opened
+in another browser finds no such project: the bytes are in this one's store. That is the whole of
+what makes it not a *payload*, which carries a story and works anywhere.
+_Avoid_: deep link, route, permalink, share link (there is nothing in it to share)
+
 **Story**:
 The ordered sequence of commands a visual novel is made of, under the script's top-level `story` key.
 _Avoid_: scene, scenario, script (that is the text it parses from)

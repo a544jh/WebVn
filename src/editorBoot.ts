@@ -6,7 +6,7 @@ import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { readProject, recordOpened } from "./storage/projectStore"
+import { isProject, readProject, recordOpened } from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -19,12 +19,18 @@ import { YamlParser } from "./yamlParser/YamlParser"
 
 // The boot either produces an editor or refuses, and every refusal is one message with nothing
 // mounted - the surface src/playerIndex.ts's showLoadError already set for the player. There are
-// three reasons and no new UI for the two that arrived after the first.
+// four reasons and no new UI for any of the three that arrived after the first.
 export type EditorBoot = BootedEditor | RefusedBoot
 
 export interface RefusedBoot {
   readonly kind: "refused"
+  // The news: what stopped this project opening, and nothing else in it.
   readonly reason: string
+  // What to do about it. **It travels with the reason** because it is reason-specific, and a surface
+  // that supplied its own could only ever have one line for every reason - which the picker did,
+  // appending "Close it there" under "there is no project called that" the moment a second reason
+  // existed.
+  readonly advice: string
 }
 
 export interface BootedEditor {
@@ -69,10 +75,11 @@ export interface EditorElements {
 //
 // Exported because the picker renders *before* any boot and has to refuse the same browsers on the
 // same terms. One message, one place: a second copy would be the one that goes stale.
+const UNSUPPORTED_REASON = "This browser cannot store projects, so the editor will not load."
+const UNSUPPORTED_ADVICE = "Try a recent Chrome or Edge."
+
 export const unsupportedBrowserReason = (): string | null =>
-  isSupported() && areLocksSupported()
-    ? null
-    : "This browser cannot store projects, so the editor will not load. Try a recent Chrome or Edge."
+  isSupported() && areLocksSupported() ? null : `${UNSUPPORTED_REASON} ${UNSUPPORTED_ADVICE}`
 
 // Resolves once everything is built and wired. The story is not on screen until the returned
 // `openProject` is called.
@@ -92,8 +99,9 @@ export const bootEditor = async (
   directory: string,
   held?: ProjectLock
 ): Promise<EditorBoot> => {
-  const unsupported = unsupportedBrowserReason()
-  if (unsupported !== null) return { kind: "refused", reason: unsupported }
+  if (unsupportedBrowserReason() !== null) {
+    return { kind: "refused", reason: UNSUPPORTED_REASON, advice: UNSUPPORTED_ADVICE }
+  }
 
   // Ordering: the lock before anything is written. A lock taken after the first store is a lock that
   // was not there for the write it was meant to protect, and a refused tab must not have written
@@ -106,7 +114,27 @@ export const bootEditor = async (
     // from a different direction.
     return {
       kind: "refused",
-      reason: `"${directory}" is already open in another tab. Close it and reload this one.`,
+      reason: `"${directory}" is already open in another tab.`,
+      // Not "close it and reload this one", which is what this said when a boot was the whole app
+      // and there was nowhere else to be. There is a list to go back to now.
+      advice: "Close it there, or pick a different project.",
+    }
+  }
+  // **A directory that is not a project**, which is what a bookmark to a deleted one names, and what
+  // a picker row racing a delete in another tab becomes. Without this, `readProject` throws and the
+  // entry point's catch says "Something went wrong opening your project", which is true of nothing
+  // in particular. This boot already owns "here is why you cannot open this project" with one
+  // surface for every reason, so the fourth reason belongs here too.
+  //
+  // **Asked with the lock in hand**, which is what makes the answer stay true long enough to act on:
+  // a delete takes the same lock before it removes anything. The lock is released again on the way
+  // out, unless it was handed in - a rename's destination lock is the caller's to release.
+  if (!(await isProject(directory))) {
+    if (held === undefined) await lock.release()
+    return {
+      kind: "refused",
+      reason: `There is no project called "${directory}".`,
+      advice: "Pick a project from the list.",
     }
   }
   // Here rather than in the picker, so the one other caller - a rename, which reopens under a

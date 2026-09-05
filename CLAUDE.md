@@ -95,7 +95,8 @@ src/
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
   picker/          the front door: the project library as a page, shown before any editor
-  AppShell.ts      which view is up, and the ordering that swap depends on
+  AppShell.ts      which view is up, the ordering that swap depends on, and the queue it runs in
+  projectUrl.ts    which project is open, in the address bar: ?project=<directory>
   chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons, the dialogs
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
@@ -106,7 +107,9 @@ test/              one directory per vitest project — the directory is what pi
   demo/            real Chromium, full demo playthroughs, not in the fast gate
   helpers/         vnHarness.ts (DOM boot + queries), commands.ts (building commands),
                    testManifest.ts (TEST_MANIFEST, the manifest a test does not care about),
-                   opfs.ts (scratch directories, and pointing the store at one)
+                   opfs.ts (scratch directories, and pointing the store at one),
+                   navigation.ts (a fake address bar, which AppShell requires rather than
+                   defaulting to the browser's)
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
 test-assets/       the demo project — manifest.yaml, script.yaml and assets/, copied to dist/ by CopyPlugin
 ```
@@ -183,6 +186,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 
 ### The URL payload
+- **Not to be confused with `index.html?project=<directory>`**, which names a project in *this*
+  browser's store and carries nothing. `?vn=` is on `player.html` and carries a whole story, so it
+  works anywhere; see "The open project is in the URL" under Project storage, and CONTEXT.md's
+  _Payload_ and _Project link_.
 - `?vn=` carries a **two-document YAML stream, manifest first**, gzipped and base64'd. `src/scriptUrl.ts`
   keeps the vocabulary `CONTEXT.md` sets: `encodeText`/`decodeText` are the transport over any text,
   `encodePayload`/`decodePayload` are the manifest-and-script pair. A
@@ -319,9 +326,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
   the picker's walk writes nothing, the lock is taken, and only then is `lastOpened` recorded.
 - **`editorBoot.ts` is the boot, lifted out of `src/index.ts` so tests exercise the one that ships.** It
-  returns either a booted editor or a refusal — three reasons, one surface. It hands back an
-  `openProject` thunk rather than opening the buffers itself, because the export gate has to be
-  listening before the load reports how the manifest fared.
+  returns either a booted editor or a refusal — four reasons, one surface, the fourth being a
+  directory that is no longer a project (a bookmark to a deleted one, or a picker row racing a
+  delete in another tab); it is asked with the lock in hand, because a delete takes the same lock.
+  It hands back an `openProject` thunk rather than opening the buffers itself, because the export
+  gate has to be listening before the load reports how the manifest fared.
 - **`close()` is beside it, and it is what makes a second boot in one page safe.** Flush, stop the
   storer, tear the renderer down, empty the editor's root, release the lock — the thing that built
   the session takes it down. `DomRenderer.teardown()` restores the vn root to the markup it was
@@ -379,10 +388,41 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   canvas that never paints and a scene size of zero that mispositions every sprite. Nothing throws;
   the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
   when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
+- **Every view swap runs in a queue, one at a time.** `AppShell.queue` chains them, and it is what
+  makes back-and-forward safe: two swaps in flight interleave, and the older one's `showPicker`
+  lands *after* the newer revealed the session — hiding it again under a renderer that has not
+  measured itself, which is the 0x0 canvas above reached from a new direction. A queue rather than
+  the generation guard `DomRenderer.render` and `ProjectPicker` use for their version of this: those
+  two can drop a superseded pass because painting is all it would have done, while a swap holds a
+  lock and a storer and has to finish. A rename is queued too, dialogs included, so a `popstate`
+  cannot close the session it is about to move — unqueued it closed that session twice and drew the
+  list, which is what `RenameProject.test.ts`'s "wins a race with a Back" pins. **A queued swap reads
+  the URL at its turn**, not when the navigation fired: a back-and-forward burst collapses instead of
+  tearing the project down, and a rename landing while a Back waits behind it wins, the Back being
+  swallowed rather than left drawing the picker under a URL naming the renamed project.
 - **That swap lives outside `src/index.ts` for the same reason `editorBoot.ts` does.** The entry
   point self-boots on import and looks its elements up by id, so no suite can reach it — put
   stateful logic there and it ships untested. Every other browser suite mounts through
   `createVnRoot`, straight onto a visible body, so none of them can see a hidden-mount bug either.
+- **The open project is in the URL: `index.html?project=<directory>`, `src/projectUrl.ts`.** A
+  reload, and webpack-dev-server's reload-on-save, land back in the project rather than at the front
+  door. It carries the **directory**, because that is what `bootEditor` is told and what a project
+  whose manifest does not parse still has. A bare URL is still the picker, so ticket 02's "a cold
+  boot always enters the picker" stands — `lastOpened` deciding is the app guessing, a URL deciding
+  is the author having said. Three ways a directory arrives and one routine for two of them: the
+  first load and every back/forward go through `goTo`, which **records nothing back** to the URL
+  (it does replace it with the bare one when the link will not open), while `openProject` and
+  `backToProjects` are the author's own gestures and push *after* doing the work. That split is what
+  stops a `popstate` pushing an entry for the move it is reacting to. A rename **replaces** rather
+  than pushes, overwriting the entry that named the old directory — that entry and no other, so an
+  older entry naming the same project survives a rename and walks back into the boot's fourth
+  refusal. A URL naming a project that will not open lands on the picker with the reason in its
+  banner and the URL replaced with the bare one, because the invariant worth keeping is that the URL
+  matches the view; the refusal carries its own **advice** line alongside its reason, since the
+  picker appending one hard-coded sentence to every reason read as "There is no project called "x".
+  Close it there." the moment a second reason existed. `AppShellOptions.navigation` is **required**,
+  not defaulted to `browserNavigation()`: the browser suites run in a page whose URL is vitest's.
+  `.scratch/project-library/issues/06-the-open-project-in-the-url.md` has the format comparison.
 - **Renaming is the directory following the manifest's id, and never the reverse.** The trigger is
   manifest adoption: `VnEditor.onManifestAdoptedCallbacks` reports, `AppShell.rename` compares the id
   to the directory and acts — storage stays out of `src/editor/`. Two orderings matter. The store's
@@ -518,7 +558,14 @@ If you're tempted to import from any of these, don't.
   talks to OPFS, `src/storage/projectStore.ts` is the only place that knows the `projects/<id>/` layout, and
   `src/domRenderer/assetPaths.ts` is the only place that builds an `assets/` path. The browser suites share
   one origin and run their files in parallel, so a test that writes into OPFS needs `test/helpers/opfs.ts`'s
-  scratch directory rather than the root.
+  scratch directory rather than the root. **A scratch directory is not enough on its own: the project
+  directory *names* must be unique across browser suites too.** `navigator.locks` is origin-wide and knows
+  nothing about scratch roots, so two suites using the same directory name contend for one
+  `vn-project-<directory>` lock even though their files are nowhere near each other. `RecoverProjects` and
+  `RenameProject` both used `old-name`/`new-name`, and both take locks on exactly those directories - a boot
+  refused as "already open in another tab", then every later test in the file timing out. It reproduced
+  roughly one run in three, only with the whole browser project running, and never with either suite alone.
+  Name a suite's directories after the suite.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
 - **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startEditor(manifestText, script)` mounts player, renderer and editor over one root (with `typeManifest`/`blurEditor` to drive an adoption), `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { VnManifest } from "../../src/core/manifest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
 import { advanceVn, SCENE_HEIGHT, SCENE_WIDTH, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
 
 // The regression net for the whole of ticket 03: this exact script threw out of DomRenderer.render
@@ -46,7 +47,7 @@ const registerTestBackground = async (renderer: DomRenderer): Promise<void> => {
   img.src = canvas.toDataURL()
   await img.decode()
   const assets = renderer["imageLoader"]["assets"] as Record<string, HTMLImageElement>
-  assets["backgrounds/a.png"] = img
+  assets[backgroundFilePath("a.png")] = img
 }
 
 // What the scene is actually painted with, read off the canvas the background renderer owns.

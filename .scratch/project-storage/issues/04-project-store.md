@@ -1,6 +1,6 @@
 # The project store
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 Project semantics over ticket 03's primitives: where a project's files live, what counts as a
 project, and how one is read and written. `design-docs/PROJECT_STORAGE.md`, "Layout" and "Multiple

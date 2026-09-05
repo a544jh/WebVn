@@ -23,6 +23,17 @@ const idSchema = z
   .regex(ID_PATTERN, "must be 1-64 characters of a-z, 0-9, _ or -, starting with a letter or digit")
   .refine((id) => !WINDOWS_RESERVED.test(id), "is a reserved device name and cannot name a directory")
 
+// The same rule, for a caller that has an id but no manifest around it - `createProject`, which
+// names a directory from one. It reuses the schema rather than restating the pattern, because this
+// one rule has to hold for the OPFS directory, the export filename and the localStorage key at
+// once, and a second copy of a filesystem-safety rule is a rule that drifts.
+//
+// Returns the message an author would see, or null when the id is fine.
+export const validateProjectId = (id: string): string | null => {
+  const result = idSchema.safeParse(id)
+  return result.success ? null : result.error.issues[0].message
+}
+
 // YamlParser decides a `Name: "text"` line is a Say by testing the key's casing, so an actor
 // declared lowercase is one no script can ever speak as - and their lines are reported as
 // unrecognized commands, blaming the script for the manifest's mistake. `default` and `narrator`

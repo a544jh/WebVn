@@ -1,6 +1,6 @@
 # OPFS primitives: atomic writes, walk, delete
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 The filesystem layer the project store is built on, knowing nothing about manifests, projects or ids.
 `design-docs/PROJECT_STORAGE.md`, "Storage: OPFS" and "Load-bearing details". Its own ticket because
@@ -36,6 +36,18 @@ has nowhere else to come from (`navigator.storage.estimate()` is origin-wide). C
 than to add a second walk later.
 
 ## Atomic writes are not optional
+
+> **Corrected 2026-08-30, after this ticket shipped.** This whole section is wrong, and the tmp-then-move
+> it prescribes was removed the same day. The File System Standard is normative that "any changes made
+> through stream won't be reflected in the file entry locatable by fileHandle's locator until the stream
+> has been closed" - so `createWritable` does not truncate the target, the old contents stand until
+> `close()`, and the crash this section is protecting against cannot happen. The tmp file was also
+> *itself* written with `createWritable`, hedging that primitive with itself, and a crash between
+> `close()` and `move()` left a stray `<name>.tmp` for the walk, the listing and an export to pick up.
+> The per-path serialization below **stays** - it is about last-queued-wins ordering, not atomicity -
+> and its test was rewritten, because with the tmp names gone the original could no longer fail.
+> See `writeNow` in `src/storage/opfs.ts` and "Load-bearing details" in the design doc.
+
 
 `writeFile` writes `<name>.tmp` beside the target and then `move()`s it into place. The doc is
 explicit that this is load-bearing rather than a nicety: storing (ticket 05) writes constantly, and

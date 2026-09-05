@@ -28,3 +28,19 @@ export function loadFromLocalStorage(id: string): VnGlobalSaveData {
   if (data === null) throw new Error("Could not load save data for " + key)
   return JSON.parse(data)
 }
+
+// What both entry points want: this project's saves if there are any, and a fresh start if there are
+// not. A first run has no key, which throws, and neither entry point can do anything useful with
+// that - so the absence is swallowed here rather than in the same seven lines copied into each of
+// them, which is what ROUGH_EDGES.md's "duplicated bootstrap" entry named.
+//
+// It swallows a *corrupt* save too, which is deliberate but not free: nothing beyond JSON.parse
+// validates the shape (see the entry above this function), so a save that parses into the wrong
+// shape still loads and fails later. That is the same rough edge, not a new one.
+export function loadSaveData(id: string): VnGlobalSaveData | undefined {
+  try {
+    return loadFromLocalStorage(id)
+  } catch (e) {
+    return undefined
+  }
+}

@@ -5,9 +5,10 @@ import { parseManifest } from "./yamlParser/parseManifest"
 // The demo VN shipped by the standalone player (src/playerIndex.ts). Kept in its own module so
 // test/demo/DemoStory.test.ts exercises the script that actually ships instead of a copy of it.
 //
-// The files live in test-assets/, which CopyPlugin copies to the dist root beside backgrounds/,
-// sprites/ and audio/ - so the demo is a published project directory, which is what URL import
-// will later read back.
+// The files live in test-assets/, which CopyPlugin copies to the dist root beside the assets/
+// directory holding backgrounds/, sprites/ and audio/ - so the demo is a published project
+// directory, laid out exactly as design-docs/PROJECT_STORAGE.md says one is, which is what URL
+// import will later read back.
 //
 // Parsing the manifest here, at module load, is scaffolding rather than architecture: once the
 // player parses manifest.yaml at boot - URL import first, then OPFS - the demo becomes an ordinary

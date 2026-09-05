@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
+import { spriteFilePath } from "../../src/domRenderer/assetPaths"
 import { VnManifest } from "../../src/core/manifest"
 import { advanceVn, liveSprites, startVn, startVnWithErrors, textBoxText } from "../helpers/vnHarness"
 
@@ -15,7 +16,10 @@ const MANIFEST: VnManifest = {
   audioAssets: {},
 }
 
-const SPRITE_COLORS: Record<string, string> = { "sprites/Jenny/a.png": "#9b59b6", "sprites/Jenny/b.png": "#2980b9" }
+const SPRITE_COLORS: Record<string, string> = {
+  [spriteFilePath("Jenny", "a.png")]: "#9b59b6",
+  [spriteFilePath("Jenny", "b.png")]: "#2980b9",
+}
 
 // A coloured rectangle per declared file, put straight into the renderer's image loader so the
 // sprites render without a network fetch. dataset.testAsset survives cloneNode.
@@ -80,8 +84,8 @@ describe("sprite ids", () => {
     const both = liveSprites(started.root)
     expect(Object.keys(both).sort()).toEqual(["Jenny", "jenny-twin"])
     // The script names declared sprites; the manifest is what says which file each one is.
-    expect(both["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
-    expect(both["jenny-twin"].dataset.testAsset).toBe("sprites/Jenny/b.png")
+    expect(both["Jenny"].dataset.testAsset).toBe(spriteFilePath("Jenny", "a.png"))
+    expect(both["jenny-twin"].dataset.testAsset).toBe(spriteFilePath("Jenny", "b.png"))
 
     await advanceVn(started)
     expect(Object.keys(liveSprites(started.root))).toEqual(["Jenny"])
@@ -97,13 +101,13 @@ describe("sprite ids", () => {
     expect(started.errors.map((e) => e.message)).toEqual(["Actor Jenny declares no sprite named furious"])
 
     await advanceVn(started)
-    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
+    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe(spriteFilePath("Jenny", "a.png"))
 
     // Past the undeclared name. A render that throws never comes to rest, so the stop advanceVn
     // waits for is also the proof that this one did not - which is what it did before the parser
     // started checking the ids a script names.
     await advanceVn(started)
     expect(textBoxText(started.root)).toBe("Still here")
-    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe("sprites/Jenny/a.png")
+    expect(liveSprites(started.root)["Jenny"].dataset.testAsset).toBe(spriteFilePath("Jenny", "a.png"))
   })
 })

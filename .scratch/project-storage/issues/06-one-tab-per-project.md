@@ -1,6 +1,6 @@
 # One tab per project, via navigator.locks
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 Needs 05, and lands immediately after it. `design-docs/PROJECT_STORAGE.md`, "Load-bearing details":
 *two tabs on one project race the editor's storing*.

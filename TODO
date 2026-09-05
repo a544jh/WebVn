@@ -22,6 +22,18 @@ loaders report a declared file that is not there instead of hanging on it. That 
 URL-payload item and its save-keying child below, and the ordering edge between them.
 VnEditor has tests and a startEditor harness for the first time, which is the start of T.
 
+Landed: the whole of .scratch/project-storage/ tranche 1, 2026-08-30. A project lives in
+OPFS at projects/<id>/{manifest.yaml,script.yaml,assets/}, the editor boots out of it and
+stores both buffers back on a 2s debounce with a stored/unstored/failed indicator, an asset's
+bytes come through an AssetResolver (relative paths for the player, OPFS for the editor), and
+a second tab on one project is refused by a navigator.locks lock rather than racing the first.
+That takes E and its object-URL test below, and the whole "OPFS project store" node. What
+hangs off it - the picker, rename, import, export, the nag - is tranche 2 and 3 and unchanged
+below. One finding is filed in ROUGH_EDGES.md, and it turned out to predate this work: an
+unanimated background render reports finished one frame before it paints, so the editor shows a
+one-frame white flash on every script load. It was first blamed on OPFS object URLs and is not
+theirs - a clone of a loaded image is ready synchronously either way.
+
 Extracted: the storage chain's first six tickets, 2026-08-29, as .scratch/project-storage/,
 then grilled over five rounds on 2026-08-30. E and its object-URL test are two of them; the
 OPFS store below is split into three, because one "L" line was hiding a filesystem layer, a
@@ -58,16 +70,6 @@ Sizes: S = hours, M = a day or two, L = several days.
        duplicate label; becomes routine once includes exist.
        design-docs/SCRIPT_INCLUDES.md
 
-  E  AssetResolver indirection                               M
-       The seven call sites that concatenated asset paths are now four calls
-       into src/domRenderer/assetPaths.ts, which resolves an id to a path.
-       One interface behind that makes the storage backend swappable.
-       Two implementations, one per entry point and both permanent: OPFS for
-       the editor, URLs for the player. The player does not import to read.
-       It resolves paths rather than ids, and only loadAsset consults it, so
-       the render path stays synchronous.
-       .scratch/project-storage/issues/01-asset-resolver.md
-
   F  Parser benchmark at 1k/10k/50k commands, written down   S
        Spike. Settles whether YAML parse time is worth designing around, and
        says which of parse / updateLabels / time-to-first-stop dominates.
@@ -87,20 +89,29 @@ Sizes: S = hours, M = a day or two, L = several days.
 
 == STORAGE ==  design-docs/PROJECT_STORAGE.md
 
-  E -> OPFS project store                                L
-             Now three tickets: 03 primitives (tmp-then-move writes, walk,
-             recursive delete, feature detection), 04 the store over them
-             (id directories, enumeration as truth), 05 the editor booting
-             through both and autosaving into them.
+  [done 2026-08-30] OPFS project store
+             src/storage/: opfs.ts (tmp-then-move writes serialized per path,
+             walk with sizes, recursive delete, feature detection), projectStore.ts
+             (id directories, enumeration as truth, editor.yaml), openProject.ts,
+             ProjectStoring.ts, projectLock.ts, OpfsAssetResolver.ts, seedDemoProject.ts;
+             the boot in src/editorBoot.ts. No OPFS means no editor at all.
              |
              +-> project rename: copy + delete, editor.yaml     M
              |     pendingRename marker, quota precheck, overwrite dialog.
              |     No engine implements directory move; the recursive walk
              |     is shared with zip import/export.
              +-> project library UI                          M
+             |     |     The demo seed in openProject.ts dies here *and* at
+             |     |     URL import, not at either alone - it is keeping the
+             |     |     editor alive and making first run good, and only the
+             |     |     picker retires the first half.
              |     |     Hosts the first-run story: an empty picker is the
              |     |     worst introduction to an authoring tool, so the
              |     |     "load the demo" button below lives here.
+             |     |     Its teardown must stop the old ProjectStoring, which
+             |     |     never removes its visibilitychange/pagehide handlers -
+             |     |     a switch back to a project otherwise lets the stale
+             |     |     storer write older text over newer. See its ctor.
              |     +-> persist() + estimate() + export nag    S
              (navigator.locks moved into tranche 1 - see below)
              +-> linked-folder layer  (after zip import/export)     M
@@ -130,8 +141,9 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
 
-  E -> object URL lifetime test (cloneNode against a revoked blob URL)
-         .scratch/project-storage/issues/02-object-url-lifetime.md
+  [done 2026-08-30] object URL lifetime test
+         test/browser/objectUrlLifetime.test.ts, written before anything minted
+         such a URL. It is what backs AssetResolver having no release method.
 
 
 == EDITOR ==  design-docs/EDITOR.md

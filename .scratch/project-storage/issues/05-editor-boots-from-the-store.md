@@ -1,6 +1,6 @@
 # The editor boots from the store, and stores into it
 
-Status: ready-for-agent
+Status: done (2026-08-30)
 
 The ticket an author would notice: what they type survives a reload. Needs 01, 03 and 04. Four
 pieces - the OPFS resolver that ticket 01 left unwritten, a boot path that reads a project instead of

@@ -6,12 +6,13 @@ Status: partly built. The constraint the whole document is shaped by: no cloud, 
 free, open-source tool with no strings attached cannot have a backend, so everything below happens on the
 author's own machine.
 
-**Landed as of 2026-08-29**, each marked inline where it is described: the manifest and its asset
-declarations, the id charset rule, the `vn-save-<id>` key, the two-document `?vn=` payload, and the demo's
-`manifest.yaml` and `script.yaml` as real files. Nothing under "Storage: OPFS" exists yet -
-`.scratch/project-storage/` holds the first five tickets of it, and that spec lists what has already landed
-so it is not re-derived. Everything else here is still design, and expect the details to move as it gets
-built.
+**Landed as of 2026-08-30**, each marked inline where it is described: the manifest and its asset
+declarations, the id charset rule, the `vn-save-<id>` key, the two-document `?vn=` payload, the demo's
+`manifest.yaml` and `script.yaml` as real files, and - as of 2026-08-30 - the whole of tranche 1 of the OPFS
+chain: the resolver seam, the primitives, the store, the editor booting and storing through them, and the
+one-tab lock. What is left of this document is everything that follows from having a store: the picker, the
+rename, import, export and the nag. `.scratch/project-storage/` holds tranche 1's six tickets and that spec
+lists what had already landed under them; expect the rest of the details here to move as they get built.
 
 ## Two different things are called "saving"
 
@@ -51,6 +52,12 @@ to learn to await.
 
 ### The player and the editor get different resolvers
 
+**Landed 2026-08-30.** `AssetResolver` in `src/assetLoaders/AssetResolver.ts`, consulted only by
+`AssetLoader.loadAsset` so the render path stays synchronous; `RelativePathResolver` beside it for the player
+and every test, and `OpfsAssetResolver` in `src/storage/` for the editor. The logical path stays the loader's
+key throughout, which is what makes a missing file report the same way whatever the bytes come from. The base
+URL for an outside origin is still unbuilt - nothing has a caller for it - but the class is shaped for it.
+
 Those two implementations are not a transition, they are the steady state, and they line up with the two
 entry points that already exist.
 
@@ -76,6 +83,18 @@ option here and none of them address it; it needs eviction in the loader. Keep t
 
 ## Storage: OPFS
 
+**Landed 2026-08-30** as `src/storage/opfs.ts`: writes, a recursive walk yielding sizes, recursive delete,
+directory listing, and `isSupported()`. Three deviations from what is written below, all deliberate.
+The dedicated-worker plus `createSyncAccessHandle()` path is **not** built - it is a second implementation of
+the write half justified by reports rather than a measurement, it would land untested against the browser it
+exists for, and it cannot even be feature-detected from the main thread, where `createSyncAccessHandle` is
+undefined. A browser that fails `isSupported()` gets **no editor at all** rather than a degraded one; see
+`.scratch/project-storage/issues/03-opfs-primitives.md`. And the tmp-then-`move()` write this document
+prescribed was dropped the same day it shipped, because `createWritable` is already atomic - the correction
+is in "Load-bearing details", and it is the one place where reading the spec reversed a decision this
+document had called not optional. No Safari was available to measure, so the open question about it below
+stays open.
+
 The working copy lives in the Origin Private File System, reached through
 `navigator.storage.getDirectory()`.
 
@@ -99,9 +118,12 @@ What OPFS wins on:
 
 What it costs:
 
-- **No cross-file atomicity.** IndexedDB has transactions; OPFS has per-file writes. Mitigated by writing
-  `x.tmp` then `FileSystemFileHandle.move()`, which has shipped for OPFS-internal files in all three engines.
-  Not optional - see "Load-bearing details".
+- **No cross-file atomicity.** IndexedDB has transactions; OPFS has per-file writes. **Corrected
+  2026-08-30**: this section used to prescribe writing `x.tmp` then `FileSystemFileHandle.move()` and
+  called it not optional. Per-*file* writes turn out to be atomic already - see "Load-bearing details" -
+  so what is actually missing is only the *cross-file* half, which nothing in the store needs yet:
+  `manifest.yaml` and `script.yaml` are written independently and a torn pair is not a state either
+  reader can detect. If a change ever has to span both, this is the cost to design around.
 - **`createWritable()` support has been uneven**, Safari in particular. Feature-detect at runtime and keep a
   dedicated-worker plus `createSyncAccessHandle()` path, which is the surface every OPFS implementation has.
   Worth re-checking against real browsers before relying on either.
@@ -115,6 +137,10 @@ files take bytes. Project metadata does *not* need it - that belongs in OPFS, wh
 with the data it describes instead of drifting out of sync with it.
 
 ## Layout
+
+**Landed 2026-08-30**, exactly as below, in `src/storage/projectStore.ts` - and `src/domRenderer/assetPaths.ts`
+moved to build `assets/`-prefixed paths ahead of it, so a project directory, a published folder and an export
+archive are the same shape.
 
 ```
 projects/
@@ -304,11 +330,17 @@ writers, no account - and it is also the cautionary tale: its most common suppor
 someone losing their whole library to cleared browser data. Hence the export nagging below.
 
 **Sequencing: build the layout for many, ship the UI for one.** `projects/<project-id>/...` from the first commit
-costs nothing and removes the migration entirely; the picker can arrive whenever it is convenient.
+costs nothing and removes the migration entirely; the picker can arrive whenever it is convenient. **The layout
+half landed 2026-08-30**: `listProjects` walks `projects/` and there is no index file, `editor.yaml` records
+`lastOpened`, and the boot is already "`lastOpened`, else the first listed". The picker itself is unbuilt, and
+until it exists the editor opens what `editor.yaml` names and nothing else.
 
 **The runtime stays strictly single.** `VnPlayer`, `DomRenderer` and the resolver never learn that other
 projects exist. Switching projects is a full teardown and remount through the same path as initial boot, never
-a live swap. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
+a live swap. **That teardown has a required step nothing performs yet**: `ProjectStoring` registers
+`visibilitychange` and `pagehide` handlers and never removes them, so a superseded storer keeps flushing -
+demonstrated 2026-09-05, and lossy on a switch back to a project, where the stale storer holds older text and
+queues its write last. Its constructor comment has the reproduction and the five-line fix. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
 contract in `CLAUDE.md`); a project swap mid-render would be a new class of the same bug, and there is no
 reason to invite it.
 
@@ -569,25 +601,44 @@ sharing mechanism, and should not grow into one.
 
 Things that will break quietly if they are skipped.
 
-- **Every OPFS write goes `x.tmp` then `move()`.** Autosave writes constantly; a crash or tab kill mid-write
-  to `script.yaml` truncates the author's work. This is `FileSystemFileHandle.move()` - files, inside OPFS,
-  which is the one case every engine implements. It is still worth a feature detect: the method is not in the
-  WHATWG FS spec (see "Renaming"), and Firefox shipped then backed out its OPFS implementation once. There is
-  no atomic alternative, so the degraded path is a direct write plus an acknowledgement that a crash mid-write
-  can truncate.
+- **An OPFS write is already atomic; do not add a scheme on top. Corrected 2026-08-30**, after the
+  spec was actually read. This bullet used to say every write must go `x.tmp` then `move()`, on the
+  grounds that a crash mid-write to `script.yaml` truncates the author's work. That is not what
+  happens. The File System Standard is normative that "any changes made through stream won't be
+  reflected in the file entry locatable by fileHandle's locator until the stream has been closed", so
+  the old contents stand until `close()` and there is no short window. The swap file is how that is
+  typically implemented and is explicitly non-normative - Chromium writes `<name>.crswap` beside the
+  target, which enumeration never sees.
+  The tmp-then-move that shipped in `src/storage/opfs.ts` was therefore dropped the same day. Two
+  reasons beyond redundancy: the tmp file was *itself* written with `createWritable`, so it hedged
+  that primitive with itself and hedged nothing; and it added a failure mode, since a crash between
+  `close()` and `move()` leaves a stray `<name>.tmp` that the walk, the listing and an export would
+  each treat as the author's.
+  What is genuinely uncovered is an engine that ignores the visibility rule and writes in place -
+  "try to ensure that no partial writes happen" is the spec's phrasing, and "try" is not "must". That
+  is a ticket with a reproduction attached, not a guess, and its answer would be a tmp file written
+  through whatever primitive that engine does get right. `move()` is a Chromium addition and is not
+  in the spec at all, which is the other half of why it is gone.
+  **Per-path write serialization stays**, and is a different thing: it is what makes the *last queued*
+  write win, which is what a debounced store wants.
 - **Object URLs must survive until story teardown.** `ImageAssetLoaderSrc.getAsset` and
   `AudioAssetLoaderSrc.getAsset` return `cloneNode()`, and a clone re-triggers a load of the copied `src`.
   Against a revoked blob URL there is nothing to fall back to. Revoke on teardown, never on load. Worth a
   `test/browser/` test to pin the behaviour, since this is the sort of thing that works in Chrome and bites
-  elsewhere.
+  elsewhere. **Landed 2026-08-30** as `test/browser/objectUrlLifetime.test.ts`, written before anything minted
+  such a URL. `OpfsAssetResolver` therefore never revokes, and `AssetResolver` has no `release` method: there
+  is no teardown yet, and when eviction needs one it belongs to the loader, which holds the element and knows
+  when it drops one. A clone of a loaded image is ready synchronously whether its URL is
+  `blob:` or relative - measured, after the opposite was briefly written down here.
 - **The decoded bitmap is the memory cost, not the file.** A 1920x1080 background is about 8MB decoded
   whether the file is 400KB or 4MB, and the loaders hold every registered asset decoded for the lifetime of
   the page with no eviction. Fine for the demo's two backgrounds; the ceiling to think about once an author
   imports forty. Independent of the storage backend.
 - **Two tabs on one project race the editor's storing.** Take a `navigator.locks` lock keyed by the project
   *directory* - which is what writes address - and the second tab gets an "already open in another tab"
-  refusal rather than an editor. Ticketed as `.scratch/project-storage/issues/06-one-tab-per-project.md`, and
-  deliberately in the same tranche as storing itself: before storing exists a second tab costs nothing, and
+  refusal rather than an editor. **Landed 2026-08-30** in `src/storage/projectLock.ts`, `ifAvailable` so a
+  refused tab fails fast rather than looking hung, and taken before the boot writes anything. Deliberately in
+  the same tranche as storing itself: before storing exists a second tab costs nothing, and
   after it there is exactly one copy of the author's work and two debounced writers, so the two must ship
   together. Read-only for the second tab was considered and dropped - a mounted editor whose writes are
   suppressed is the memory-only path the editor otherwise refuses to have, reached from another direction.

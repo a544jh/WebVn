@@ -8,6 +8,9 @@ import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
 import { seedState, VnManifest } from "../../src/core/manifest"
 import { VnEditor } from "../../src/editor/editor"
+import { bootEditor, RefusedBoot } from "../../src/editorBoot"
+import { ProjectLock } from "../../src/storage/projectLock"
+import { ProjectStoring } from "../../src/storage/ProjectStoring"
 
 // Shared setup for the browser-backed suites: mounting a VN into a fresh DOM root, waiting for
 // the render loop to come to rest, and reading what ended up on screen.
@@ -62,7 +65,7 @@ export const nextStop = (renderer: DomRenderer, player: VnPlayer): Promise<void>
 
 // One click's worth of story: advance, and wait for the next stop. A render that throws never comes
 // to rest, so a stop that arrives is also the proof that none did.
-export const advanceVn = async (started: MountedVn): Promise<void> => {
+export const advanceVn = async (started: { player: VnPlayer; renderer: DomRenderer }): Promise<void> => {
   const stop = nextStop(started.renderer, started.player)
   started.renderer.advance()
   await stop
@@ -157,10 +160,16 @@ export interface StartedEditor {
   editor: VnEditor
 }
 
-export const startEditor = async (manifestText: string, script: string): Promise<StartedEditor> => {
-  const root = createVnRoot()
+// A root for the editor's own markup, beside the vn root createVnRoot mints.
+const createEditorRoot = (): HTMLDivElement => {
   const editorRoot = document.createElement("div")
   document.body.appendChild(editorRoot)
+  return editorRoot
+}
+
+export const startEditor = async (manifestText: string, script: string): Promise<StartedEditor> => {
+  const root = createVnRoot()
+  const editorRoot = createEditorRoot()
 
   const [manifest, errors] = YamlParser.parseManifest(manifestText)
   expect(errors).toEqual([])
@@ -174,6 +183,74 @@ export const startEditor = async (manifestText: string, script: string): Promise
   await editor.loadProject(manifestText, script)
   await firstStop
   return { root, editorRoot, player, renderer, editor }
+}
+
+// The other way in: boot the editor out of the OPFS project store, which is what src/index.ts does.
+// It calls the same `bootEditor` that ships rather than a copy of it, so what this exercises is the
+// production boot sequence minus the element lookups and the refusal surface.
+export interface StartedStoredEditor extends StartedEditor {
+  kind: "booted"
+  directory: string
+  storing: ProjectStoring
+  lock: ProjectLock
+}
+
+// A real tab releases its project lock by going away, and a test file is one tab for its whole run -
+// so the previous boot's lock is released here rather than in every afterEach. A test that wants to
+// watch a refusal takes the lock itself and asserts on `bootStoredEditor`.
+let heldLock: ProjectLock | null = null
+
+// Releases the lock the last store-backed boot took, which a real tab does by going away. A suite
+// that takes the lock itself, to watch a boot be refused, has to call this first.
+export const releaseStoredEditorLock = async (): Promise<void> => {
+  const lock = heldLock
+  heldLock = null
+  if (lock !== null) await lock.release()
+}
+
+export const startEditorFromStore = async (): Promise<StartedStoredEditor> => {
+  const booted = await bootStoredEditor()
+  if (booted.kind === "refused") throw new Error("the editor refused to boot: " + booted.reason)
+  return booted
+}
+
+// The same boot, handed back whichever way it went, for the tests that are about the refusal.
+export const bootStoredEditor = async (): Promise<StartedStoredEditor | RefusedBoot> => {
+  await releaseStoredEditorLock()
+
+  const root = createVnRoot()
+  const editorRoot = createEditorRoot()
+
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot })
+  if (booted.kind === "refused") return booted
+  heldLock = booted.lock
+
+  const firstStop = nextStop(booted.renderer, booted.player)
+  await booted.openProject()
+  await firstStop
+
+  return {
+    kind: "booted",
+    root,
+    editorRoot,
+    player: booted.player,
+    renderer: booted.renderer,
+    editor: booted.editor,
+    directory: booted.directory,
+    storing: booted.storing,
+    lock: booted.lock,
+  }
+}
+
+// What the store indicator currently says, read the way an author reads it.
+export const storeStateOf = (editorRoot: HTMLDivElement): string | undefined =>
+  (editorRoot.querySelector(".vn-editor-store-state") as HTMLSpanElement | null)?.dataset.vnStoreState
+
+// Typing one character, which is what arms the debounce. `setValue` would too, but this is the
+// gesture the debounce exists for.
+export const typeCharacter = (started: StartedEditor, text: string): void => {
+  const doc = codeMirrorOf(started.editorRoot).getDoc()
+  doc.replaceRange(text, { line: doc.lastLine(), ch: 0 })
 }
 
 export const editorTab = (editorRoot: HTMLDivElement, buffer: "script" | "manifest"): HTMLButtonElement =>

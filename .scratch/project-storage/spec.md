@@ -1,5 +1,15 @@
 # Project storage: OPFS as the working copy
 
+**Landed 2026-08-30.** All six tickets are code; each carries `Status: done`. What shipped matches this
+spec, with the deviations recorded in the tickets and the commit messages - the notable ones being that
+`DomRenderer` took an options object rather than a fourth argument, the boot was lifted into
+`src/editorBoot.ts` so a test exercises the one that ships, and the demo seed also fetches the demo's
+media, since a demo seeded from the two YAML files alone opens with every declared file reported missing.
+One finding came out of it, filed in `ROUGH_EDGES.md`, though it turned out not to belong to this effort at
+all: an unanimated background render reports finished one frame before it paints, so the editor flashes white
+for a frame on every script load. It was first written up here as an OPFS object-URL problem; it is not one,
+and `BackgroundRenderer` is untouched by these commits.
+
 The storage chain in `TODO`, designed in `design-docs/PROJECT_STORAGE.md`. Nothing an author types
 survives a reload today: `src/index.ts` boots the editor by handing it two strings compiled into the
 bundle, and there is no other copy of a project anywhere. This effort is what makes the editor

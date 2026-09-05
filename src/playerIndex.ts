@@ -5,7 +5,7 @@ import { VnEditor } from "./editor/editor"
 import "./player.html"
 
 import { YamlParser } from "./yamlParser/YamlParser"
-import { loadFromLocalStorage } from "./core/save"
+import { loadSaveData } from "./core/save"
 import { VnPath } from "./core/vnPath"
 import { demoManifestYaml, demoYaml } from "./demoStory"
 import { decodePayload } from "./scriptUrl"
@@ -39,16 +39,10 @@ async function boot(): Promise<void> {
     return
   }
 
-  let save
-  try {
-    save = loadFromLocalStorage(manifest.id)
-  } catch (e) {
-    save = undefined
-  }
-  const player = new VnPlayer(seedState(manifest), save)
+  const player = new VnPlayer(seedState(manifest), loadSaveData(manifest.id))
   window.vnPlayer = player
 
-  const renderer = new DomRenderer(vnDiv, player, vnDivContainer)
+  const renderer = new DomRenderer(vnDiv, player, { container: vnDivContainer })
   window.vnDomRenderer = renderer
   // The button is page chrome rather than part of the vn, so the wiring stays here and the
   // mechanism lives in the renderer. Wired inside boot because that is where the renderer exists -

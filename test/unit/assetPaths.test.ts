@@ -35,7 +35,7 @@ const instance = (actor: string, sprite: string): SpriteInstance => ({
 
 describe("audioAssetPath", () => {
   it("resolves an id to the file the manifest declared for it", () => {
-    expect(audioAssetPath(audioAssets, "daylight")).toBe("audio/bgm/dayl.ogg")
+    expect(audioAssetPath(audioAssets, "daylight")).toBe("assets/audio/bgm/dayl.ogg")
   })
 
   // Preloading walks the declarations, so it has files rather than ids. Both halves must agree on
@@ -51,7 +51,7 @@ describe("audioAssetPath", () => {
 
 describe("backgroundAssetPath", () => {
   it("resolves an id to the file the manifest declared for it", () => {
-    expect(backgroundAssetPath(backgrounds, "classroom")).toBe("backgrounds/a.png")
+    expect(backgroundAssetPath(backgrounds, "classroom")).toBe("assets/backgrounds/a.png")
   })
 
   it("agrees with the path preloading registers for the same file", () => {
@@ -65,7 +65,7 @@ describe("backgroundAssetPath", () => {
 
 describe("spriteAssetPath", () => {
   it("resolves an actor's declared sprite name to their file", () => {
-    expect(spriteAssetPath(actors, instance("A1", "happy"))).toBe("sprites/A1/a1_happy.png")
+    expect(spriteAssetPath(actors, instance("A1", "happy"))).toBe("assets/sprites/A1/a1_happy.png")
   })
 
   it("yields nothing for a name the actor does not declare", () => {
@@ -82,7 +82,7 @@ describe("spriteAssetPath", () => {
 
   // Two actors may declare the same filename; the actor's own directory is what keeps them apart.
   it("files a sprite under its own actor", () => {
-    expect(spriteFilePath("A2", "idle.png")).toBe("sprites/A2/idle.png")
+    expect(spriteFilePath("A2", "idle.png")).toBe("assets/sprites/A2/idle.png")
   })
 
   it("agrees with the path preloading registers for the same file", () => {

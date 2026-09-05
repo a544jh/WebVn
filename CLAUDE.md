@@ -6,8 +6,10 @@ Notes for Claude Code (and other agents) working in this repo. Derived from a re
 A client-side visual novel engine + authoring tool. TypeScript, webpack. The "real" renderer uses direct DOM + Canvas2D APIs (no UI framework). Script language is YAML, parsed by the `yaml` lib. Commands self-register via side-effect imports.
 
 Two entry points:
-- `src/index.ts` → editor + live-preview player (demo/authoring)
-- `src/playerIndex.ts` → standalone player, can load a script from `?vn=<base64 gzip YAML>`
+- `src/index.ts` → editor + live-preview player. Boots a project out of OPFS through `src/editorBoot.ts`;
+  a browser without OPFS, or a second tab on the same project, gets a refusal and no editor.
+- `src/playerIndex.ts` → standalone player, can load a script from `?vn=<base64 gzip YAML>`. Never touches
+  OPFS, so it works in any browser.
 
 ## Commands
 - `npm install` — install
@@ -86,6 +88,8 @@ hand-written. Anything committed there by hand is gone on the next master push.
 src/
   core/            state, player, VnPath, save, commands/*  (no DOM imports)
   yamlParser/      YamlParser.ts (script) + parseManifest.ts (manifest.yaml) — the parser actually used
+  storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver
+  editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
@@ -98,9 +102,10 @@ test/              one directory per vitest project — the directory is what pi
   browser/         real Chromium, fast gate
   demo/            real Chromium, full demo playthroughs, not in the fast gate
   helpers/         vnHarness.ts (DOM boot + queries), commands.ts (building commands),
-                   testManifest.ts (TEST_MANIFEST, the manifest a test does not care about)
+                   testManifest.ts (TEST_MANIFEST, the manifest a test does not care about),
+                   opfs.ts (scratch directories, and pointing the store at one)
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
-test-assets/       the demo project — manifest.yaml, script.yaml and the asset dirs, copied to dist/ by CopyPlugin
+test-assets/       the demo project — manifest.yaml, script.yaml and assets/, copied to dist/ by CopyPlugin
 ```
 
 ## Architecture — the parts worth understanding
@@ -196,8 +201,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   `src/domRenderer/assetPaths.ts` is the one place an id becomes a path. Two functions per asset kind:
   `xFilePath(file)` for preloading and `xAssetPath(declarations, id)` for rendering, which has an id.
   The second is defined in terms of the first, so the directory prefix is written once and what is
-  preloaded cannot drift from what is asked for. Do not re-spell `"audio/"`, `"backgrounds/"` or
-  `sprites/<actor>/` anywhere else. `declaredAssets(state)` is the one walk of all three declarations,
+  preloaded cannot drift from what is asked for. Do not re-spell `"assets/audio/"`,
+  `"assets/backgrounds/"` or `assets/sprites/<actor>/` anywhere else — **and note the `assets/` level**,
+  which is the project layout the store writes: everything above it is the project describing itself.
+  That prefix belongs here and **not** in an `AssetResolver`, because it is part of the layout rather
+  than part of where bytes come from. `declaredAssets(state)` is the one walk of all three declarations,
   yielding each path with the manifest key it was declared under; `loadAssets` preloads what it
   yields and reports failures out of the same list, so what is preloaded, what is asked for and what
   an error points at cannot come apart.
@@ -246,6 +254,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   parse pass above guarantees none reaches them. All four wordings come from `undeclaredMessage` in
   `core/manifest.ts`, so a guard that does fire says what the author was already told. A *missing*
   file is a different matter and still reaches them - see below.
+- **Where an asset's bytes come from is one interface, `AssetResolver`, and only `loadAsset` consults
+  it.** `RelativePathResolver` is what the player, the deployed demo and every test use permanently;
+  `OpfsAssetResolver` is the editor's. The **logical path stays the loader's key everywhere** —
+  `registerAsset`, `getAsset`, `loadAll` and every failure report are untouched — which is what keeps
+  the three render-time call sites synchronous map lookups. They have to be: two are structurally
+  synchronous, and making them async pushes `await` into `DomRenderer.render`. The resolver is consulted
+  *inside* `loadAsset`, after its already-loaded early return, so re-registering the whole project on
+  every adopt-on-blur costs nothing; resolving ahead in `loadAssets` would be N reads per keystroke
+  pause. `DomRenderer`'s two optional dependencies (`container`, `resolver`) travel in an options object.
 - **`loadAssets` reports rather than refuses.** It resolves with the *declarations* whose file could
   not be loaded - the path, plus the key the manifest declares it under - scoped to the state it was
   given, since the loaders keep every path they have ever been handed and an old typo is not this
@@ -256,11 +273,56 @@ test-assets/       the demo project — manifest.yaml, script.yaml and the asset
   renderers *survive* one is a separate change with its own blast radius.
 - **Starting a story is `loadStory(state, animate)`, and nothing boots itself.** It swaps the story into the player and renders in one synchronous step; the auto-advance in `render` then walks to the first stop, painting every frame. Those two steps must not be separated by an `await` — `render` bumps `renderGeneration`, and that bump is the only thing that stops a pass still in flight from auto-advancing the story that replaced it. A bare `player.loadState` followed by an awaited asset load is exactly the bug this replaced. `animate` is the caller's choice: the player passes `true` so an intro or title screen plays out, the editor passes `false` so reloading a script lands on the first stop without replaying the opening.
 - `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~520 lines and growing — candidates for extraction if you touch it.
-- **Fullscreen is `enterFullscreen()`, and the button that calls it is not the renderer's.** The mechanism — request, orientation lock, the scale that letterboxes the fixed-size scene, and the `fullscreenchange` listener that undoes it — lives in `DomRenderer`; the `#vn-btn-fullscreen` chrome sits outside the vn root in both HTML files, so each entry point keeps one line of wiring. The element scaled *into* is the constructor's third argument, defaulting to the root: it too is outside the root, so the renderer is told it rather than walking up to `parentElement`, and a renderer mounted without a container (every test — `createVnRoot` puts `#vn-div` straight under `<body>`) scales to 1 and pads nothing. Nothing automated covers any of this: `requestFullscreen` needs user activation, so verify by hand with `npm run dev`.
+- **Fullscreen is `enterFullscreen()`, and the button that calls it is not the renderer's.** The mechanism — request, orientation lock, the scale that letterboxes the fixed-size scene, and the `fullscreenchange` listener that undoes it — lives in `DomRenderer`; the `#vn-btn-fullscreen` chrome sits outside the vn root in both HTML files, so each entry point keeps one line of wiring. The element scaled *into* is the constructor's `container` option, defaulting to the root: it too is outside the root, so the renderer is told it rather than walking up to `parentElement`, and a renderer mounted without a container (every test — `createVnRoot` puts `#vn-div` straight under `<body>`) scales to 1 and pads nothing. Nothing automated covers any of this: `requestFullscreen` needs user activation, so verify by hand with `npm run dev`.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).
 - Sub-renderers read prev state via `renderer.getCommittedState()`. `DomRenderer.committedState` is set synchronously **before** the `Promise.all(...).then()` runs, so reads inside scheduled microtasks see the *new* state. Always capture `prev` synchronously at the top of a sub-renderer's `render`.
 - Renders can overlap: a rapid click triggers `render(false)` while an animated render's promises are still pending. `DomRenderer.render` stamps each pass with `renderGeneration` and the completion callback bails if superseded — completion side effects (`finished = true`, auto-advance) must stay behind that guard, since sprite `transitionend` promises can resolve long after their render was replaced.
 - **The generation guard only shows its worth while the story is still moving.** Once the player is parked on a stop, a stale auto-advance is a no-op anyway, so most overlapping-render scenarios pass with the guard deleted — including the two sprite cases in `test/browser/DomRendererRapidClick.test.ts`, which were cited here as its regression net and are not. **The real net is the demo suite**: delete the guard and five of its decision tests fail, because the decision click's effect is lost and the story stays on the prompt. Reaching that window through clicks needs a scene's worth of animations still pending underneath, which is why it takes the demo story to do it. Nothing in the fast gate covers it, and an attempt at a fast-gate test was dropped rather than kept: every reproduction small enough for that suite — a click during a sprite walk, `advanceFast` over it, a decision click on a minimal branching story, two overlapping renders mid-flight — behaves the same with the guard deleted, and the only version that failed had to induce the overlap in a way no caller does. **If you rewrite the render loop, run `test:demo`** — `npm test` will not tell you that guard is gone.
+
+### Project storage — where an author's project lives
+`src/storage/`, all of it browser-only and none of it imported by `core/`. Tranche 1 of
+`design-docs/PROJECT_STORAGE.md`, landed 2026-08-30.
+- **`opfs.ts` is the filesystem layer and knows nothing about projects.** Every function takes the
+  directory handle it works under, so nothing holds global state. **`writeFile` is a plain write, on
+  purpose**: the File System Standard is normative that nothing reaches the file until the stream is
+  closed, so a write is already atomic and a tmp-then-`move()` scheme on top is redundant - it shipped
+  briefly and was dropped 2026-08-30, because the tmp file was itself written with `createWritable`
+  (hedging a primitive with itself) and a crash between `close()` and `move()` left a stray `.tmp`
+  that the walk, the listing and an export all picked up. Read `writeNow`'s comment before adding one
+  back. Writes are still **serialized per path**, which is a separate concern: it makes the *last
+  queued* write win, which is what a debounced store wants. `isSupported()` gates the whole editor.
+- **`projectStore.ts` is `projects/<id>/{manifest.yaml,script.yaml,assets/}` plus `editor.yaml`.** Two
+  truths that are easy to conflate: **enumeration** is the truth about what exists (`listProjects` walks
+  the directory; there is no index file, ever), and **the manifest** is the truth about what a project
+  *is* (nothing rewrites an id to match a directory - the fix for a disagreement is to rename the
+  directory, which is the rename ticket's). Reads and writes are addressed by **directory**, never by
+  id. A directory with no manifest is not a project and is skipped; one whose manifest does not *parse*
+  **is** listed, with a null id, because that is an author's project with a typo in it. `editor.yaml`
+  deliberately has no schema version: it is defined as losable, and "unparseable reads as empty" is the
+  migration strategy.
+- **`OpfsAssetResolver` mints one object URL per path and never revokes.** The loaders never evict and
+  `getAsset` hands out a `cloneNode()` that re-fetches its `src`, so a revoked URL is an element that
+  silently never loads. `test/browser/objectUrlLifetime.test.ts` pins both halves of that.
+- **`ProjectStoring.ts` is the debounce**, 2000ms, plus flushes on blur, on `visibilitychange` to
+  hidden, and on `pagehide` (never `unload`). **The debounce is the guarantee and every flush is a
+  bonus** — no unload-time hook can promise an async OPFS write completes, so do not lengthen the
+  interval on the theory that the flushes cover it. It stores **the buffer, not the parse**: a manifest
+  that does not parse is still the author's work and is the edit they most want back. Its indicator is a
+  filled badge, not coloured text - green stored, `orange` unstored, `red` failed, the two problem
+  colours being the literal ones `setErrorMarker` paints the gutter with. **It never removes its page
+  listeners**, which is fine while one page load means one storer and is a data-loss bug the moment
+  project switching remounts in place - its constructor comment has the reproduction.
+- **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
+  anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
+  `chooseProject` writes nothing, the lock is taken, and only then does `claimProject` seed or record.
+- **`editorBoot.ts` is the boot, lifted out of `src/index.ts` so tests exercise the one that ships.** It
+  returns either a booted editor or a refusal — three reasons, one surface. It hands back an
+  `openProject` thunk rather than opening the buffers itself, because the export gate has to be
+  listening before the load reports how the manifest fared.
+- **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
+  player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
+- **The demo seed in `openProject.ts` is scaffolding**, and it dies at the picker **and** URL import
+  rather than either alone — it is doing two jobs, keeping the editor alive and making first run good.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
@@ -305,14 +367,12 @@ covers.
   editor's boot path, or anything that writes to localStorage.
   **Already decides:** the save key is `vn-save-<id>` and why the prefix exists; renaming a project orphans the
   old key deliberately rather than migrating; the rename dialog is triggered from the manifest *on editor blur*,
-  and blur's weaknesses (incidental focus changes, never fires on a tab close) are named there; a project
-  directory holds `manifest.yaml`, `script.yaml` and an **`assets/`** directory over the three asset folders,
-  which the code does not do yet - `src/domRenderer/assetPaths.ts` builds unprefixed paths, and moving it is
-  the first step of the resolver ticket.
-  Its first six tickets are extracted at `.scratch/project-storage/` - the resolver seam, the object-URL
-  lifetime pin, the OPFS primitives/store/editor-boot trio, and the two-tab lock. Read that spec before
-  starting any of it: it lists what the design doc predates and is now code, and it carries the vocabulary
-  rule that the editor **stores** a project while a **save** is the player's.
+  and blur's weaknesses (incidental focus changes, never fires on a tab close) are named there. Its `assets/`
+  layout is now what the code builds.
+  **Its first six tickets landed 2026-08-30** and are now `src/storage/` - see "Project storage" above, and
+  `.scratch/project-storage/` for the reasoning behind each. What is left of the doc is everything that
+  follows from having a store: the picker, rename, import, export and the nag. That spec still carries the
+  vocabulary rule that the editor **stores** a project while a **save** is the player's.
 - [SCRIPT_INCLUDES.md](./design-docs/SCRIPT_INCLUDES.md) — splitting a story across YAML files with an
   `include` directive, resolved at parse time rather than as a command. Read it before changing
   `SourceLocation`, `storyToCommands`, `updateLabels`, or the editor's buffer handling.
@@ -351,6 +411,12 @@ If you're tempted to import from any of these, don't.
   any value the engine has spoken for. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
+- **Touch anything about where files live**: read "Project storage" above first, then
+  `design-docs/PROJECT_STORAGE.md` for the parts still unbuilt. `src/storage/opfs.ts` is the only place that
+  talks to OPFS, `src/storage/projectStore.ts` is the only place that knows the `projects/<id>/` layout, and
+  `src/domRenderer/assetPaths.ts` is the only place that builds an `assets/` path. The browser suites share
+  one origin and run their files in parallel, so a test that writes into OPFS needs `test/helpers/opfs.ts`'s
+  scratch directory rather than the root.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
 - **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startEditor(manifestText, script)` mounts player, renderer and editor over one root (with `typeManifest`/`blurEditor` to drive an adoption), `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 

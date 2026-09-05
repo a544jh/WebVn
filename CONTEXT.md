@@ -241,3 +241,22 @@ the story's look and a second theme may replace all of it, `--vn-editor-*` is th
 and survives that replacement.
 _Avoid_: variable (the script language has its own), custom property (the mechanism, not the point),
 constant, CSS var
+
+**Stage**:
+The fixed-size area a story is played in - background, sprites, text box, the player's own controls.
+It is what a theme themes, and what `--vn-*` names.
+_Avoid_: screen, viewport, scene (a scene is what is on the stage at one moment), canvas (that is the
+background renderer's own element)
+
+**Chrome**:
+The authoring tool's own surfaces, as opposed to the stage: the picker, the buffer tabs, the store
+indicator, dialogs, buttons. It is what `--vn-editor-*` names, and the two are deliberately separable
+- a second theme may replace everything the stage looks like without touching the chrome.
+_Avoid_: UI (both are UI), shell, frame, editor (the editor is one thing wearing the chrome, and the
+picker is another)
+
+**Picker**:
+The page an author lands on before any project is open, listing what the store enumerates and opening
+whichever is chosen. Distinct from the **library**, which is the collection of projects itself: the
+library is what an author has, the picker is where they see it.
+_Avoid_: library (the collection, not the page), launcher, dashboard, project list, home

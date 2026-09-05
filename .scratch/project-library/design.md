@@ -70,12 +70,48 @@ row inherits without a second rule.
   it there and explains why - the tabs carry per-buffer status and this is per-project, so it must
   not read as a third tab. The first draft of this design got that wrong and it was moved back.
 
+## The app stays a single page
+
+The picker is a **view**, not a third html entry: it is swapped in where the editor would mount, and
+opening a project never reloads. `editorBoot.ts` already returns either a booted editor or a refusal,
+so the seam exists. It lives in `src/picker/`, which is neither `src/editor/` (it must render without
+one, and outlives any one editor session) nor `src/storage/` (deliberately UI-free).
+
+Being one page is what makes teardown load-bearing rather than tidy. The picker is re-created on
+every Back to projects, so it comes down the way ticket 01 brings the storer down - an
+`AbortController` and a `stop()` - for the reason already written into `ProjectStoring`'s
+constructor: a superseded component that kept its listeners is a data-loss bug, not a leak.
+
+## There is a `src/chrome/`, and it is not the editor's
+
+The authoring chrome now has at least three members that the picker needs and the editor also needs,
+and neither owns:
+
+- the shared stylesheet, including the chrome font
+- the **`--vn-editor-*` tokens, moved out of `editor.css`** - the picker's refusal banner needs
+  `--vn-editor-status-warning`, and it renders before any editor is constructed
+- the **Lucide icon helper**, for the same reason - the picker draws a trash and a plus
+- the **confirm surface**, which ticket 03 fires over the picker and ticket 04 fires inside the
+  editor, so it can belong to neither
+
+The `--vn-editor-*` prefix was always naming the chrome rather than the editor; the picker is what
+makes that visible. The tokens keep their names - renaming them would churn `editor.css`, the tests
+and the design for a prefix that is already right in meaning.
+
+## The demo is added by a button, never seeded behind the author
+
+Nothing seeds automatically. The picker carries an **Add demo project** button, shown only while the
+demo is absent, which writes the demo and adds a row - and leaves the author on the picker, so they
+see it arrive and see the button go. **New project** opens what it made; the demo button does not,
+because populating a library and starting work are different intents.
+
+This started as a fix for an ordering problem and turned out to be the better product. Seeding
+automatically had to happen before the picker could render, at a moment when no project is chosen and
+so no lock is held - which is exactly what `chooseProject`'s comment refuses, since a refused tab must
+not have written anything on its way to being refused. A button is an action, and an action can take
+a lock like any other.
+
 ## Not decided
 
-- **The confirm surface** (ticket 03's, reused by 04's rename). It now appears over the picker page
-  rather than in the editor's chrome, which is a venue change and not a design.
-- **Whether the picker is a separate html entry or a view swapped in before `bootEditor`.** The
-  drawings do not care. `editorBoot.ts` already returns either a booted editor or a refusal, so a
-  view in `index.ts` is the smaller change, but nothing here depends on that.
-- **Per-project size** (ticket 06). Drawn in the row so the layout accommodates it; the figure itself
-  is that ticket's.
+Nothing outstanding. Per-project size was **deferred** rather than dropped - see `spec.md`, which
+records why `WalkedFile.size` stays behind a display nothing currently shows.

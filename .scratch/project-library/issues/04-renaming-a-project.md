@@ -20,8 +20,10 @@ there - blur is when the manifest is parsed, taken as the one the project runs u
 reparsed against it - so the id change is noticed on the same event rather than needing a new one.
 
 Blur is a rough trigger: it fires on incidental focus changes, and it never fires on a tab close.
-That is survivable only because ticket 05's startup reconcile catches whatever it misses. Do not
-refine the trigger here - the doc files that as a UI question, and it is open.
+That is survivable only because ticket 05's reconcile catches whatever it misses. Since 05 now runs
+before **every** picker render rather than once per page load, and an author reaches the picker on
+every Back to projects, that safety net is pulled tighter than when this sentence was written, not
+looser. Do not refine the trigger here - the doc files that as a UI question, and it is open.
 
 Declining reverts the `id:` field alone and keeps every other edit in the buffer.
 
@@ -48,7 +50,7 @@ what makes every crash state recoverable and it is not worth building twice.
 The old tree survives until the new one is complete, so a rename needs **2x the project size free**
 and dies halfway with `QuotaExceededError` if it is not there. Check `navigator.storage.estimate()`
 up front and refuse with a clear message rather than failing partway. `persist()` does not help with
-this - that is eviction, not quota, and it belongs to ticket 06.
+this - that is eviction, not quota, and it belongs to ticket 02.
 
 The check comes before the overwrite delete, which is what keeps the residual "destination deleted,
 then the copy fails" window as small as it can be.
@@ -67,8 +69,27 @@ that might one day have directory move is not worth maintaining for an operation
 ## Afterwards
 
 The session is addressed by a directory that no longer exists - the storer, the resolver and the lock
-all hold the old one - so the rename ends by closing and reopening under the new directory, through
-ticket 02's switch. `lastOpened` follows.
+all hold the old one - so the rename ends by closing and reopening under the new directory.
+`lastOpened` follows.
+
+**This is the one live swap in the tranche, and the ordering rule is this ticket's.** Ticket 02 used
+to own it; since the picker became a page, 02 never holds a project while choosing one, so it moved
+here. The rule:
+
+> Take the lock on the destination directory **before** closing the old session. A rename that closes
+> first and is then refused leaves the author with nothing mounted and their work already put down.
+> The two locks are keyed on different directories, so holding both across the swap is not a
+> conflict.
+
+So `bootEditor` grows a way to be told which directory to open and to refuse *before* anything is torn
+down - the same entry point ticket 02's picker uses to open a chosen project, exercised here with a
+session still live. A destination lock that is refused aborts the rename with everything intact and
+the author still typing.
+
+**Rename re-enters the editor without going through the picker**, which makes it the one exception to
+the front door besides New project. That is deliberate: the author is mid-edit in a project that has
+been renamed underneath them, and bouncing them out to the picker to re-pick the thing they are
+already working on would be theatre. The picker does not flash in between.
 
 ## Saves are orphaned, deliberately
 
@@ -88,7 +109,9 @@ pressure the check above exists for, and leave behind a project the author did n
 - [ ] Confirming leaves exactly one project, under the new directory, with the script, the manifest
       and every asset intact
 - [ ] The editor reopens on the renamed project, with the storer, the resolver and the lock all
-      addressing the new directory
+      addressing the new directory - and without passing through the picker
+- [ ] A rename whose destination lock is held by another tab is refused before anything is torn down,
+      and the author is left in the project they were editing, still able to type
 - [ ] Declining reverts `id:` alone; every other edit in the manifest buffer survives and adopts
       normally
 - [ ] A rename that would not fit is refused up front with a message, and nothing is copied or
@@ -105,7 +128,10 @@ pressure the check above exists for, and leave behind a project the author did n
 
 - **Recovery.** Ticket 05 reads the marker this one writes. Shipping in this order is survivable:
   `listProjects` already skips a directory with no manifest, so a crashed rename is an invisible
-  orphan occupying quota rather than a broken library.
+  orphan occupying quota rather than a broken picker. Invisible is the operative word now that
+  per-project size is deferred: nothing on screen would show the quota it holds.
 - **Refining the blur trigger.** Open question in the design doc, and ticket 05 is what makes blur
   safe rather than correct.
+- **Building the rename dialog's surface.** Ticket 03 builds it, in `src/chrome/`; this ticket is its
+  second caller and the one that proves it must work inside the editor as well as over the picker.
 - **Warning harder once a project has been exported.** Also open, and there is nothing to export yet.

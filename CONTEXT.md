@@ -108,6 +108,12 @@ unrelated things that both used to be called saving.
 _Avoid_: save, autosave (those are the player's save slots), persist (that is
 `navigator.storage.persist`, which this design also calls)
 
+**Close**:
+What putting a project down means: flush what is pending, stop the storer, tear the renderer down,
+empty the editor's root and release the lock. Switching projects is a close and a fresh boot through
+the same path, never a live swap, so nothing in a session ever learns that another project exists.
+_Avoid_: unload, dispose, destroy, switch (a switch is two closes and a boot, seen from outside)
+
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a
 link. Two documents, manifest first.

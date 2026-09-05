@@ -1,27 +1,13 @@
-/* The authoring chrome's status colours.
-
-   These are tokens for the second reason the theme's block gives: they are spelled in another
-   layer. editor.ts paints the gutter markers from `element.style.background`, so before this block
-   the agreement between a marker and this badge was two files independently saying "orange". The
-   tab's own #eee/#fff/#ccc are left literal - used once each, and read by nothing outside this
-   file.
-
-   Deliberately not in defaultTheme.css: that file is the *story's* theme and a second theme should
-   be free to replace all of it without touching what the editor means by an error. */
-:root {
-  --vn-editor-status-ok: green;
-  --vn-editor-status-warning: orange;
-  --vn-editor-status-error: red;
-  /* The playhead. No badge state to pair with - only setPositionMarker uses it. */
-  --vn-editor-marker-position: blue;
-}
+/* The editor's own pixels. The status colours it paints with - `--vn-editor-*` - moved to
+   src/chrome/chrome.css, because the picker's refusal banner needs them and renders before any
+   VnEditor is constructed. They kept their names; only their home changed. */
 
 .vn-position-gutter {
   width: 1em;
 }
 
 .vn-error-gutter {
-  width: .5em;
+  width: 0.5em;
 }
 
 .vn-editor-tabs {

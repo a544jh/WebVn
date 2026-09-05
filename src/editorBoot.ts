@@ -31,9 +31,8 @@ export interface RefusedBoot {
 export interface BootedEditor {
   readonly kind: "booted"
   readonly directory: string
-  // Held for the session, and released by this tab going away. `release` is here for tests; nothing
-  // in the app calls it, because there is no project switching yet and switching is a teardown and
-  // remount rather than a live swap.
+  // Held for as long as this project is open, and released by `close()` below or by the tab going
+  // away. Exposed because a test asserts on it; the app reaches it through `close()`.
   readonly lock: ProjectLock
   readonly player: VnPlayer
   readonly renderer: DomRenderer
@@ -43,6 +42,14 @@ export interface BootedEditor {
   // are filled: the export gate has to be listening before the load reports how the manifest fared.
   // A thunk rather than the two strings, so nobody can open the editor on the wrong project's text.
   readonly openProject: () => Promise<void>
+  // Puts the project down: flush what is pending, stop the storer, tear the renderer down, empty the
+  // editor's root and release the lock. The thing that built the session is the thing that takes it
+  // down, so the entry point keeps its one line of wiring.
+  //
+  // Resolves once the last store has landed, so a caller can await it before opening the next
+  // project. That matters for a rename, where the next project is the same files under a different
+  // directory.
+  readonly close: () => Promise<void>
 }
 
 export interface EditorElements {
@@ -130,6 +137,21 @@ export const bootEditor = async (elements: EditorElements): Promise<EditorBoot> 
     editor,
     storing,
     openProject: () => editor.loadProject(manifestText, scriptText),
+    close: async () => {
+      // The storer first, and its flush is what makes closing lossless: an author who types and
+      // immediately leaves has not waited out the debounce, and the interval's worth of typing is
+      // theirs.
+      await storing.stop()
+      // Leaves the vn root holding the markup it was handed - the action bar is part of the page,
+      // not part of the session - so the next renderer over the same element finds it.
+      renderer.teardown()
+      // The editor filled this one entirely, so emptying it is what "one editor after a remount"
+      // means. CodeMirror keeps its DOM inside the wrapper it was given.
+      elements.vnEditorDiv.innerHTML = ""
+      // Last: everything that could still write has stopped, so the next tab - or the next boot in
+      // this one - takes the lock over a project nobody is holding.
+      await lock.release()
+    },
   }
 }
 

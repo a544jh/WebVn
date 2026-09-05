@@ -1,6 +1,6 @@
 # 00: The authoring chrome's own vocabulary
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: nothing (can start immediately, in parallel with 01).
 
@@ -104,3 +104,21 @@ it "the editor's own", which was true when the library was a panel and is not no
 - **Building the confirm surface.** Ticket 03. This ticket only decides where it lives.
 - **Restyling existing chrome beyond the font.** The `#eee`/`#ccc`/`3px` vocabulary is already
   consistent and is not this ticket's to revisit.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. `src/chrome/chrome.css` holds the chrome's face
+and the `--vn-editor-*` tokens; `src/chrome/icons.ts` holds three Lucide icons behind
+`icon(name, size)`. Covered by `test/browser/chrome.test.ts`, which imports the two chrome modules
+*without* `src/editor/editor.ts` - that absence is the point.
+
+Two decisions worth recording:
+
+- **`chrome.css` is imported by `src/editor/editor.ts` as well as by `src/index.ts`.** The ticket
+  names only the entry point, but the editor is chrome too and its gutter markers are painted from
+  these tokens. Naming the dependency in both places is what closes the hazard the ticket
+  describes - the tokens resolving because some *other* module happened to pull `editor.css` in -
+  rather than moving it one file along. The picker will do the same.
+- **Form controls get `font-family: inherit`.** A `<button>` renders in the browser's own UI font
+  whatever `body` says, and the chrome is mostly buttons, so the face would otherwise have landed on
+  the labels and nothing else.

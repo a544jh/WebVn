@@ -1,0 +1,53 @@
+/* The authoring chrome's own vocabulary: the face it renders in, and the status colours it means
+   things by. Imported by src/index.ts, which is the one entry point that has any chrome at all -
+   src/playerIndex.ts is the stage and nothing else.
+
+   Its own file rather than editor.css's, because the picker renders *before* any VnEditor is
+   constructed and needs both halves. The `--vn-editor-*` prefix was always naming the authoring
+   chrome rather than the editor component; the picker is what makes that visible. The names stay
+   as they are - renaming them would churn editor.css, the tests and the design for a prefix that
+   is already right in meaning. */
+
+/* Source Sans 3 is Adobe's companion to the stage's Source Code Pro, so the two agree without
+   being confusable. A linked webfont rather than `system-ui`, because the requirement is a chrome
+   that looks the same on every system, which is exactly what `system-ui` does not do. Fetched by
+   src/index.html and by nothing else.
+
+   Deliberately not in defaultTheme.css: that file is the *story's* theme, and a second theme may
+   replace all of it. Putting the chrome's face there would mean swapping themes changes the
+   editor's typeface, which is the coupling the two namespaces exist to prevent. Nothing here has
+   to exempt the stage - every element on it names `var(--vn-font)` for itself.
+
+   One declaration used once is not a token, by the rule defaultTheme.css states: a value earns one
+   by repeating or by being spelled in a layer another has to agree with, and this is neither. */
+body {
+  font-family: "Source Sans 3", system-ui, sans-serif;
+}
+
+/* Form controls do not inherit the page's face - a button renders in the browser's own UI font
+   unless told otherwise - and the chrome is mostly buttons. `font-family` rather than the `font`
+   shorthand, so a control keeps the size it was given. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* The authoring chrome's status colours.
+
+   These are tokens for the second reason the theme's block gives: they are spelled in another
+   layer. editor.ts paints the gutter markers from `element.style.background`, so before this block
+   the agreement between a marker and this badge was two files independently saying "orange". The
+   tab's own #eee/#fff/#ccc are left literal - used once each, and read by nothing outside
+   editor.css.
+
+   Deliberately not in defaultTheme.css: that file is the *story's* theme and a second theme should
+   be free to replace all of it without touching what the editor means by an error. */
+:root {
+  --vn-editor-status-ok: green;
+  --vn-editor-status-warning: orange;
+  --vn-editor-status-error: red;
+  /* The playhead. No badge state to pair with - only setPositionMarker uses it. */
+  --vn-editor-marker-position: blue;
+}

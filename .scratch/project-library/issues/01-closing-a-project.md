@@ -1,6 +1,6 @@
 # 01: Closing a project and opening another
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: nothing (can start immediately).
 
@@ -72,3 +72,18 @@ directory.
   cost - a 1920x1080 background is about 8MB decoded whichever file it came from - but it is a
   separate change with its own blast radius, and the object-URL lifetime test pins why a naive revoke
   is wrong.
+
+## Comments
+
+**Landed 2026-09-05**, on `claude/project-library`. `bootEditor` returns `close()`;
+`ProjectStoring.stop()` and `DomRenderer.teardown()` are what it calls. Covered by
+`test/browser/CloseProject.test.ts`, including the measured loss end to end - boot A, type, close,
+work in B, reopen A.
+
+One deviation from the acceptance criteria, and it is deliberate. **The vn root is restored to the
+markup it was handed rather than emptied.** The action bar lives inside `#vn-div` in both html files
+and a renderer *queries* it rather than creating it, so emptying that root outright would leave the
+second session with no Back, Menu, Auto or Skip - which fails "a remount leaves one vn" by a reading
+the criterion did not intend. `DomRenderer` captures `innerHTML` at construction and puts it back, so
+the element is left as it was found. The editor's root *is* emptied, because the editor fills it
+entirely. `test/browser/CloseProject.test.ts` pins both halves.

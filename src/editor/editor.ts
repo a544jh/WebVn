@@ -8,6 +8,10 @@ import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
+// The editor is one thing wearing the chrome and the picker is another, so each names the shared
+// vocabulary itself rather than relying on the other having been evaluated first. That incidental
+// dependency is exactly what moving the tokens out of editor.css closed.
+import "../chrome/chrome.css"
 import "./editor.css"
 
 // How clicking a line in the editor gets the player there. "replay" plays the story from the top,

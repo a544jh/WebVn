@@ -38,6 +38,23 @@ export class DomRenderer implements Renderer {
   private menuDiv: HTMLDivElement
   private player: VnPlayer
 
+  // Every listener this renderer adds, so `teardown` can take them all off at once. The two on
+  // `document` are the ones that outlive the root - a superseded renderer would otherwise answer the
+  // keyboard - but the root's own go through it too: the root is supplied rather than created, and a
+  // remount into the same element would otherwise stack a second set of click and wheel handlers on
+  // it.
+  private listeners = new AbortController()
+
+  // The markup the root was handed, restored on teardown so the element is left as it was found.
+  // The action bar lives in it (src/index.html, src/player.html), and a remount re-queries those
+  // elements - so emptying the root outright would leave the next session without one.
+  private initialHtml: string
+
+  // The self-rescheduling skip tick, kept so teardown can cancel it rather than leaving one in
+  // flight against a story nobody is looking at. `skipMode` going false already stops the *next*
+  // one; this is about the one already scheduled.
+  private skipTimer: number | null = null
+
   private committedState: VnPlayerState | null
 
   private SKIP_DELAY = 50
@@ -77,13 +94,19 @@ export class DomRenderer implements Renderer {
 
     this.root = elem
     this.container = options.container ?? elem
+    this.initialHtml = elem.innerHTML
+    const { signal } = this.listeners
 
     this.menuDiv = document.createElement("div")
     this.menuDiv.classList.add("vn-menu-container")
-    this.menuDiv.addEventListener("click", (e) => {
-      // prevent interacting with VN when menu is open..
-      e.stopPropagation()
-    })
+    this.menuDiv.addEventListener(
+      "click",
+      (e) => {
+        // prevent interacting with VN when menu is open..
+        e.stopPropagation()
+      },
+      { signal }
+    )
 
     this.player = player
 
@@ -97,39 +120,67 @@ export class DomRenderer implements Renderer {
           e.stopPropagation()
         }
       },
-      { capture: true }
+      { capture: true, signal }
     )
-    this.root.addEventListener("click", () => {
-      this.disableAutoplay()
-      this.advance()
-    })
-    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false })
-    this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this))
+    this.root.addEventListener(
+      "click",
+      () => {
+        this.disableAutoplay()
+        this.advance()
+      },
+      { signal }
+    )
+    this.root.addEventListener("wheel", this.handleScrollWheelEvent.bind(this), { passive: false, signal })
+    this.root.addEventListener("contextmenu", this.handleContextMenuEvent.bind(this), { signal })
     // remembered for the contextmenu handler: not every browser gives that event a pointerType
-    this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), { capture: true })
-    document.addEventListener("keydown", this.handleKeyDownEvent.bind(this))
-    // Permanent, and registered here rather than alongside the request in `enterFullscreen`:
-    // leaving fullscreen is not something that request can await, since Esc and the browser's own
-    // chrome both do it, and a listener added per request would pile up one per click.
-    document.addEventListener("fullscreenchange", () => {
-      if (document.fullscreenElement === null) this.restoreScale()
+    this.root.addEventListener("pointerdown", (e) => (this.lastPointerType = e.pointerType), {
+      capture: true,
+      signal,
     })
-    this.root.querySelector(".vn-action-back")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.undo()
-    })
-    this.root.querySelector(".vn-action-skip")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.enterSkipMode()
-    })
-    this.root.querySelector(".vn-action-auto")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.toggleAutoplay()
-    })
-    this.root.querySelector(".vn-action-menu")?.addEventListener("click", (e) => {
-      e.stopPropagation()
-      this.showMenu(pauseMenu)
-    })
+    document.addEventListener("keydown", this.handleKeyDownEvent.bind(this), { signal })
+    // For the life of this renderer, and registered here rather than alongside the request in
+    // `enterFullscreen`: leaving fullscreen is not something that request can await, since Esc and
+    // the browser's own chrome both do it, and a listener added per request would pile up one per
+    // click.
+    document.addEventListener(
+      "fullscreenchange",
+      () => {
+        if (document.fullscreenElement === null) this.restoreScale()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-back")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.undo()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-skip")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.enterSkipMode()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-auto")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.toggleAutoplay()
+      },
+      { signal }
+    )
+    this.root.querySelector(".vn-action-menu")?.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation()
+        this.showMenu(pauseMenu)
+      },
+      { signal }
+    )
 
     this.imageLoader = new ImageAssetLoaderSrc(options.resolver)
     this.audioLoader = new AudioAssetLoaderSrc(options.resolver)
@@ -274,7 +325,7 @@ export class DomRenderer implements Renderer {
     if (this.player.state.decision !== null) {
       this.skipMode = false
     }
-    if (this.skipMode) setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
+    if (this.skipMode) this.scheduleSkipTick()
   }
 
   public enterSkipMode(): void {
@@ -282,7 +333,11 @@ export class DomRenderer implements Renderer {
     if (this.skipMode) return
     if (!this.player.isNextCommandSeen() || this.player.state.decision !== null) return
     this.skipMode = true
-    setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
+    this.scheduleSkipTick()
+  }
+
+  private scheduleSkipTick(): void {
+    this.skipTimer = window.setTimeout(this.skipModeTick.bind(this), this.SKIP_DELAY)
   }
 
   public toggleAutoplay(): void {
@@ -307,6 +362,34 @@ export class DomRenderer implements Renderer {
       window.clearInterval(this.autoplayInterval)
       this.autoplayInterval = null
     }
+  }
+
+  // Put this renderer down: it answers nothing, runs nothing, and leaves the root as it found it.
+  // A page load used to be the only teardown there was; the picker is what brings a second renderer
+  // into the same page, and a superseded one otherwise answers the keyboard and steps a story nobody
+  // is looking at, into elements that are no longer on screen.
+  //
+  // The generation bump is the same guard a new render uses: a pass whose sprite transitions are
+  // still pending resolves after this, and its completion callback would otherwise auto-advance the
+  // story it was rendering.
+  //
+  // One-way. There is no matching `start()` - the session this belonged to is gone, and the next one
+  // constructs a renderer of its own.
+  public teardown(): void {
+    this.renderGeneration++
+    this.listeners.abort()
+
+    this.skipMode = false
+    if (this.skipTimer !== null) {
+      window.clearTimeout(this.skipTimer)
+      this.skipTimer = null
+    }
+    this.disableAutoplay()
+
+    // Restored rather than emptied: the action bar is markup this renderer was handed rather than
+    // markup it made, and the next renderer over this element re-queries it.
+    this.root.innerHTML = this.initialHtml
+    this.restoreScale()
   }
 
   // Keyed by the project the state names, so a reload carries the key with it and no caller can

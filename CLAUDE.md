@@ -94,6 +94,7 @@ src/
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor
+  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
   types/           global .d.ts augmentations of lib.dom
@@ -319,6 +320,12 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   returns either a booted editor or a refusal — three reasons, one surface. It hands back an
   `openProject` thunk rather than opening the buffers itself, because the export gate has to be
   listening before the load reports how the manifest fared.
+- **`close()` is beside it, and it is what makes a second boot in one page safe.** Flush, stop the
+  storer, tear the renderer down, empty the editor's root, release the lock — the thing that built
+  the session takes it down. `DomRenderer.teardown()` restores the vn root to the markup it was
+  handed rather than emptying it, because the action bar is page markup the renderer only queries;
+  emptying it would leave the next session without one. `test/browser/CloseProject.test.ts` covers
+  the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
 - **The demo seed in `openProject.ts` is scaffolding**, and it dies at the picker **and** URL import

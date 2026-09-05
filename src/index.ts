@@ -3,6 +3,7 @@ import { PathStep } from "./core/vnPath"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import { JumpMode, VnEditor } from "./editor/editor"
 import "./index.html"
+import "./chrome/chrome.css"
 import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"

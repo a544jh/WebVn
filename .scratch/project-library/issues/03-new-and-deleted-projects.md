@@ -178,3 +178,18 @@ unconditionally. The first is the UI; the second is what makes it true.
 diaeresis loses its first letter outright (`Ürsula's Tale` becomes `rsula-s-tale`). That is the
 producer being better at its job, not a second rule about what an id may be - the one rule is still
 `validateProjectId`, which judges whatever the slugifier hands it.
+
+**The Id field's note was corrected after ticket 04 changed what it describes.** The design canvas
+draws it as "Changing it later orphans saves made under the old one", and it was implemented
+verbatim - correctly, at the time. Ticket 04 then made a rename carry the author's own saves to the
+new id, which left this field warning about the one thing that no longer happens, in the one place an
+author decides whether to care about the id at all.
+
+It now reads "Names its folder, its saves and its export file. Renaming later brings your work along,
+but breaks saves for anyone already playing a build you published." - the same two facts the rename
+dialog states, in the same order and for the same reason: naming the half that survives is what lets
+the half that does not land as information rather than as a scare.
+
+**The canvas is behind on this string**, deliberately, and that is worth writing down given it is
+otherwise binding for these pixels. A drawing cannot know what a later ticket changed underneath it.
+

@@ -17,12 +17,18 @@ export const askForNewProject = async (isTaken: (id: string) => boolean): Promis
   const title = dialogField("Title")
   title.input.addEventListener("input", () => title.setProblem(null))
   // **Shown rather than hidden, deliberately.** The id names the OPFS directory, the localStorage
-  // save key and the export filename; it is not cosmetic, and changing it later is a rename that
-  // orphans saves made under the old one. An author who never looks at this field loses nothing, and
-  // one who cares can set it now instead of paying for it later.
+  // save key and the export filename; it is not cosmetic. An author who never looks at this field
+  // loses nothing, and one who cares can set it now instead of paying for it later.
+  //
+  // The note says what renaming actually costs, which is not what it cost when the design canvas
+  // drew this field: a rename now carries the author's own saves to the new id (`moveSaveData`), so
+  // "orphans saves made under the old one" had become untrue of the only saves the author can see.
+  // What a rename does still break is saves in *other people's* browsers, under a build already
+  // published as the old id, which nothing local can reach. Naming the half that survives is what
+  // makes the half that does not land as information rather than as a scare.
   const id = dialogField(
     "Id",
-    "Names its folder, its save file and its export. Changing it later orphans saves made under the old one."
+    "Names its folder, its saves and its export file. Renaming later brings your work along, but breaks saves for anyone already playing a build you published."
   )
   id.input.classList.add("vn-dialog-input-mono")
 

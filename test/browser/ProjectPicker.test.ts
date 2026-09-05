@@ -50,6 +50,8 @@ const demoButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn
 
 const refusalText = (): string | null => pickerRoot.querySelector(".vn-picker-refusal")?.textContent ?? null
 
+const rowIds = (): string[] => [...pickerRoot.querySelectorAll(".vn-picker-id")].map((elem) => elem.textContent ?? "")
+
 const openedLabels = (): string[] =>
   [...pickerRoot.querySelectorAll(".vn-picker-opened")].map((elem) => elem.textContent ?? "")
 
@@ -102,13 +104,16 @@ beforeEach(async () => {
 })
 
 describe("the picker's list", () => {
-  it("lists every project the store enumerates, by title", async () => {
+  it("lists every project the store enumerates, by title, with the id under it", async () => {
     await make("a-story", "A Story")
     await make("b-story", "B Story")
 
     await newPicker().render()
 
     expect(rowTitles()).toEqual(["A Story", "B Story"])
+    // What the project is addressed by, as opposed to what it is called: its folder, its save key
+    // and its export filename. Two projects may be called the same and only one can be `a-story`.
+    expect(rowIds()).toEqual(["a-story", "b-story"])
   })
 
   it("orders by when each project was created, oldest first", async () => {
@@ -216,6 +221,9 @@ describe("the picker's list", () => {
     await newPicker().render()
 
     expect(rowTitles()).toEqual(["broken-story"])
+    // And no id line: none has been declared, and the title is already the directory - the two
+    // would be the same word twice.
+    expect(rowIds()).toEqual([])
     expect(pickerRoot.querySelector(".vn-picker-unparsed")?.textContent).toContain("does not parse")
     // A directory name is an identifier rather than a name, so the row says which kind of word it is
     // by wearing the face the script does.

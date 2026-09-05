@@ -164,6 +164,20 @@ export class ProjectPicker {
     if (project.title === null) name.classList.add("vn-picker-identifier")
     open.appendChild(name)
 
+    // The id, under the name, in the story's monospace face - the same rule the title above follows
+    // when it is standing in for a directory. It is what the project is *addressed* by: its folder,
+    // its save key and its export filename, and the thing a rename changes. Two projects may be
+    // called the same and only one of them can be `my-story`.
+    //
+    // Nothing to show when the manifest does not parse: no id has been declared, and the title line
+    // is already the directory. The two lines would be the same word twice.
+    if (project.id !== null) {
+      const id = document.createElement("span")
+      id.classList.add("vn-picker-id")
+      id.textContent = project.id
+      open.appendChild(id)
+    }
+
     if (project.title === null) {
       const problem = document.createElement("span")
       problem.classList.add("vn-picker-unparsed")

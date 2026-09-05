@@ -214,3 +214,11 @@ real two-div markup **with its `hidden`** and asserts the stage has a size and p
 `DomRenderer` logs when its root measures zero. Note the second gap the suite had: every browser test
 mounts through `createVnRoot`, which appends a sized `#vn-div` straight to a visible `body`, so no
 existing test could have seen this whatever it asserted.
+
+**The rows show the id under the title, which the canvas does not draw.** Asked for 2026-09-05,
+after the layout was rebuilt from the drawings. Recorded here so the next reader does not "correct"
+it back: the canvas is binding for pixels *until a decision supersedes it*, and this is one. It is
+the id rather than the directory, in the story's monospace face, by the same rule the title follows
+when it stands in for a directory - an identifier is a different kind of word from a name, and the
+row says which it is looking at. Omitted entirely when the manifest does not parse, where no id has
+been declared and the title line is already the directory.

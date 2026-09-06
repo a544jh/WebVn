@@ -142,17 +142,31 @@ holds three icons today and both of these are added by these two tickets; if the
 would rather take Lucide's own named `import`/`export` glyphs, take them **as a pair** - a box from
 one set beside a tray from the other is the thing to avoid.
 
-**On each picker row**, next to delete. **In the editor's chrome**, beside the existing buttons -
-the author spends their time there, and sending them back to the front door for a backup is friction
-in the one gesture we most want them to make. `AppShell` owns the session, so the editor's button is
-a line of wiring.
+**On each picker row**, next to delete: an icon control, so any project can be exported without
+being opened, and a project too broken to work in can still be got out.
+
+**In the editor**, labelled **Export ZIP**, `#vn-btn-export-zip`, immediately to the right of the
+player-link button in `src/index.html`'s row - the author spends their time there, and sending them
+back to the front door for a backup is friction in the one gesture we most want them to make.
+`AppShell` owns the session, so it is a line of wiring. It carries the arrow icon at 14px like the
+picker's header actions; its two neighbours are plain text and predate the chrome having an icon
+vocabulary at all, so close that gap by giving *them* icons rather than by stripping this one.
+
+"Export ZIP" names the format because it sits beside a button that also emits something - a link -
+and "Export" alone would not say which. That does not soften `CONTEXT.md`'s reservation of *export*
+for the archive: this is an export, and it is a zip.
 
 **`#vn-btn-export-url` is renamed to "Copy player link".** `CONTEXT.md`'s **Payload** entry already
 reserves *export* for the archive ("an export is the archive, which carries the assets too"), so the
-chrome currently spends the word on the thing the glossary says it is not. Note it is **not** called
-"Share link": `CONTEXT.md`'s **Project link** entry has already spent that phrase on its _Avoid_
-list. `scriptUrl.ts` calls the thing `playerUrl`, so the button now says what the code says. The
-element id changes with it; both `index.html` and `src/index.ts` reference it.
+chrome currently spends the word on the thing the glossary says it is not - and it will be spending
+it beside a button that *is* the archive, which is what makes this a rename rather than a tidy-up.
+Note it is **not** called "Share link": `CONTEXT.md`'s **Project link** entry has already spent that
+phrase on its _Avoid_ list. `scriptUrl.ts` calls the thing `playerUrl`, so the button now says what
+the code says. Rename the ids with it - `#vn-btn-copy-player-link` and its
+`#vn-btn-export-url-message` span, which becomes `#vn-btn-copy-player-link-message` - in
+`src/index.html` and `src/index.ts` (`wireExportUrl`, itself worth renaming). Those two files are the
+only places either id appears - checked 2026-09-06, no test queries them - so the rename is four
+lines and carries no risk of a stale selector.
 
 ## Two sentences this ticket makes false
 

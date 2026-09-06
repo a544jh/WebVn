@@ -10,6 +10,7 @@ import {
   readProject,
   writeEditorState,
 } from "../../src/storage/projectStore"
+import { immediately } from "../helpers/picker"
 import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import {
@@ -41,11 +42,15 @@ let opened: string[]
 let refuseWith: RefusalNotice | null = null
 
 const newPicker = (): ProjectPicker =>
-  new ProjectPicker(pickerRoot, async (directory) => {
-    opened.push(directory)
-    await settle()
-    return refuseWith
-  })
+  new ProjectPicker(
+    pickerRoot,
+    async (directory) => {
+      opened.push(directory)
+      await settle()
+      return refuseWith
+    },
+    immediately
+  )
 
 const rows = (): HTMLButtonElement[] => [...pickerRoot.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
 
@@ -382,15 +387,19 @@ describe("picker to editor and back", () => {
     document.body.append(pickerRoot, vnEditorDiv)
 
     let session: BootedEditor | null = null
-    const picker = new ProjectPicker(pickerRoot, async (directory) => {
-      const booted = await bootEditor({ vnDiv, vnEditorDiv }, directory)
-      if (booted.kind === "refused") return { lead: booted.reason, detail: booted.advice }
-      session = booted
-      const firstStop = nextStop(booted.renderer, booted.player)
-      await booted.openProject()
-      await firstStop
-      return null
-    })
+    const picker = new ProjectPicker(
+      pickerRoot,
+      async (directory) => {
+        const booted = await bootEditor({ vnDiv, vnEditorDiv }, directory)
+        if (booted.kind === "refused") return { lead: booted.reason, detail: booted.advice }
+        session = booted
+        const firstStop = nextStop(booted.renderer, booted.player)
+        await booted.openProject()
+        await firstStop
+        return null
+      },
+      immediately
+    )
 
     await picker.render()
     rows()[1].click()

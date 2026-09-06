@@ -12,6 +12,7 @@ import {
   writeEditorState,
 } from "../../src/storage/projectStore"
 import { manifestNaming } from "../helpers/testManifest"
+import { immediately } from "../helpers/picker"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { releaseStoredEditorLock, settle } from "../helpers/vnHarness"
 
@@ -41,7 +42,7 @@ const holdAsAnotherTab = async (directory: string): Promise<void> => {
 
 // Recovery runs before the picker's list walk, so rendering one is how it is triggered.
 const renderPicker = async (): Promise<ProjectPicker> => {
-  const picker = new ProjectPicker(pickerRoot, async () => null)
+  const picker = new ProjectPicker(pickerRoot, async () => null, immediately)
   await picker.render()
   return picker
 }

@@ -2,7 +2,7 @@ import { confirmDialog, confirmOverwritingProject, noticeDialog } from "./chrome
 import { VnPath } from "./core/vnPath"
 import { moveSaveData, saveToLocalStorage } from "./core/save"
 import { BootedEditor, bootEditor } from "./editorBoot"
-import { OpenProject, ProjectPicker, RefusalNotice } from "./picker/ProjectPicker"
+import { InTurn, OpenProject, ProjectPicker, RefusalNotice } from "./picker/ProjectPicker"
 import { Navigation } from "./projectUrl"
 import { availableBytes, megabytes } from "./storage/persistence"
 import { ProjectLock, takeProjectLock } from "./storage/projectLock"
@@ -171,9 +171,19 @@ export class AppShell {
   // `start()`, which is what src/index.ts calls.
   private async showPicker(refusal: RefusalNotice | null = null): Promise<void> {
     this.show("picker")
-    this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, refusal)
+    this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, this.inTurn, refusal)
     await this.picker.render()
   }
+
+  // **The picker's own long operations run in this queue too**, which is what stops one outliving the
+  // view that started it. An import holds a project lock and writes for several seconds, and until
+  // this existed a browser Back could close the picker underneath it: the write went on, the picker
+  // rebuilt on the way back knew nothing about it, and the result was reported to a stopped view.
+  // Opening a row the import was rewriting was worse - the boot asked for the lock the import held
+  // and refused the author with "already open in another tab", about their own tab.
+  //
+  // A bound property rather than a method, because it is handed over as a callback.
+  public inTurn: InTurn = (job) => this.queue(job)
 
   // The author picked a row, which is a place they navigated to - so it is recorded, and their Back
   // comes back here. **After the open and only on success**: a refusal leaves the URL saying what it

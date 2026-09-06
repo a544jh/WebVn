@@ -46,6 +46,22 @@ import "./picker.css"
 // every reason said "Close it there" under "there is no project called that".
 export type OpenProject = (directory: string) => Promise<RefusalNotice | null>
 
+// The host's queue, for the picker's own long operations: import, export, delete, and writing the
+// demo. `AppShell.queue` is what every view swap already runs in - "a swap holds a lock and a
+// storer, so a half-done one cannot be abandoned; it has to finish, and the next has to wait" - and
+// each of these is that same shape, holding a project lock while it writes into OPFS.
+//
+// **What it buys is that the picker cannot be torn down mid-write.** Without it an import outlives
+// the view that started it: a browser Back closes the picker, the storer's work goes on writing, the
+// picker rebuilt on the way back knows nothing about it, and the result is reported to a view that
+// is already stopped. It also stops this tab refusing itself - opening a row the import is rewriting
+// takes the lock the import holds, and the boot says "already open in another tab", which is a lie.
+//
+// **Do not call `openProject` from inside a job.** That queues too, and queueing from inside the
+// queue is a chain that cannot resolve - the outer turn waits for the inner one, which waits for the
+// outer to end. `create` below is written around that.
+export type InTurn = <T>(job: () => Promise<T>) => Promise<T>
+
 // What the panel is saying about itself right now, and in which of the two tones this page has. A
 // **refusal** is orange, because something did not happen; a **result** is neither orange nor green,
 // because it is news rather than a status - and `design.md` is explicit that the status colours are
@@ -57,6 +73,13 @@ type Tone = "refusal" | "result"
 
 interface Announcement extends RefusalNotice {
   readonly tone: Tone
+}
+
+// A job in flight, and which control is wearing it: the button the author pressed, or - when the
+// gesture was a drop - the one that gesture belongs to.
+interface Working {
+  readonly control: string
+  readonly saying: string
 }
 
 // A row's own line, and what the list is ordered by. `openedAt` is undefined for a project nobody
@@ -100,12 +123,22 @@ export class ProjectPicker {
   // Every other banner it shows, it produced. A parameter rather than a setter because a picker is
   // built fresh for each showing and rendered immediately after, so a setter could only ever be
   // called in the one line between the two.
-  constructor(private root: HTMLElement, private openProject: OpenProject, refusal: RefusalNotice | null = null) {
+  constructor(
+    private root: HTMLElement,
+    private openProject: OpenProject,
+    private inTurn: InTurn,
+    refusal: RefusalNotice | null = null
+  ) {
     this.announcement = refusal === null ? null : { ...refusal, tone: "refusal" }
     this.watchForDrops()
   }
 
   private announcement: Announcement | null
+
+  // What the picker is doing that has to finish before anything else on the page moves, or null when
+  // it is idle. **A field rather than a poke at a live control**, which is what made the state a
+  // casualty of the next render - and of the view swap that used to be able to happen underneath it.
+  private working: Working | null = null
 
   // The two ways this page has of saying something, so no call site has to remember which tone goes
   // with which kind of news.
@@ -160,7 +193,46 @@ export class ProjectPicker {
     page.appendChild(panel)
 
     page.appendChild(storageLine(persisted))
+    this.markWorking(page)
     return page
+  }
+
+  // **Applied at the end of every draw**, which is the whole of the fix: the state is drawn from the
+  // field rather than poked onto a control that the next render replaces.
+  //
+  // Every button on the page goes inert, not only the one that was pressed. While a lock is held and
+  // bytes are being written, nothing else here should be actionable - and a row that queued a boot
+  // behind the import would open a project several seconds after the author gave up on the click,
+  // which is a worse surprise than nothing happening.
+  private markWorking(page: HTMLElement): void {
+    const working = this.working
+    if (working === null) return
+    for (const control of page.querySelectorAll("button")) (control as HTMLButtonElement).disabled = true
+
+    const shown = page.querySelector<HTMLButtonElement>(working.control)
+    if (shown === null) return
+    shown.title = working.saying
+    // A labelled action says it in place of its label; a row's icon control has nowhere to put it but
+    // its tooltip, which is the difference between the two kinds of button on this page.
+    if (shown.classList.contains("vn-picker-action")) shown.replaceChildren(document.createTextNode(working.saying))
+  }
+
+  // Everything that takes a project lock and writes: import, export, delete, and the demo seed.
+  //
+  // It shows what is happening, runs the job **in the host's turn** so no view swap can interleave
+  // with it, and draws the outcome the job left behind. A second gesture while one is in flight is
+  // ignored rather than queued - the page is already saying it is busy, and every control on it is
+  // disabled, so the only way to arrive here twice is a race.
+  private async work<T>(control: string, saying: string, job: () => Promise<T>): Promise<T | null> {
+    if (this.working !== null) return null
+    this.working = { control, saying }
+    await this.render()
+    try {
+      return await this.inTurn(job)
+    } finally {
+      this.working = null
+      await this.render()
+    }
   }
 
   // The panel's title strip: what this is, then the things you can do to it.
@@ -353,23 +425,22 @@ export class ProjectPicker {
   // It writes under the demo directory's lock, like any other write, and **leaves the author on the
   // picker**: the row appears and the button goes, which is the confirmation. Unlike New project,
   // which opens what it made, this populates the library rather than starting work.
-  private async addDemo(): Promise<void> {
-    const lock = await takeProjectLock(demoManifest.id)
-    if (lock === null) {
-      this.refuse(
-        `${demoManifest.title} is open in another tab.`,
-        "The demo was not written. Close it there and try again."
-      )
-      await this.render()
-      return
-    }
-    try {
-      this.announcement = null
-      await seedDemoProject()
-    } finally {
-      await lock.release()
-    }
-    await this.render()
+  private addDemo(): Promise<unknown> {
+    return this.work(".vn-picker-demo", "Adding\u2026", async () => {
+      const lock = await takeProjectLock(demoManifest.id)
+      if (lock === null) {
+        return this.refuse(
+          `${demoManifest.title} is open in another tab.`,
+          "The demo was not written. Close it there and try again."
+        )
+      }
+      try {
+        this.announcement = null
+        await seedDemoProject()
+      } finally {
+        await lock.release()
+      }
+    })
   }
 
   // One of the two ways to leave the front door without picking an existing row - a rename is the
@@ -379,24 +450,33 @@ export class ProjectPicker {
   // A refused lock is possible even here: another tab can hold `projects/<id>/` if that id was just
   // deleted and re-made, or if two tabs race the same new id. The project is created but not opened,
   // and the author is left on the picker with the row present.
+  //
+  // **The minting is queued and the opening is not**, which is not tidiness: `openProject` queues in
+  // its own right, and asking for a turn from inside one is a chain that cannot resolve. So the job
+  // below ends at the write, and the boot happens after the turn is over - which is also the honest
+  // ordering, since by then the project exists whatever the boot does.
   private async create(): Promise<void> {
-    // Walked as the dialog opens rather than taken from the last render, which may be old - and
-    // walked again below, because another tab can create the id while the dialog is up and
-    // `createProject` writes into projects/<id>/ unconditionally. The dialog's own check is what
-    // puts the message beside the field; this one is what makes it true at the moment of the write.
-    const taken = async (): Promise<Set<string>> => new Set((await listProjects()).map((p) => p.directory))
-    const before = await taken()
+    const chosen = await this.work(".vn-picker-new", "Creating\u2026", async () => {
+      // Walked as the dialog opens rather than taken from the last render, which may be old - and
+      // walked again below, because another tab can create the id while the dialog is up and
+      // `createProject` writes into projects/<id>/ unconditionally. The dialog's own check is what
+      // puts the message beside the field; this one is what makes it true at the moment of the write.
+      const taken = async (): Promise<Set<string>> => new Set((await listProjects()).map((p) => p.directory))
+      const before = await taken()
 
-    const chosen = await askForNewProject((id) => before.has(id))
-    if (chosen === null) return
+      const asked = await askForNewProject((id) => before.has(id))
+      if (asked === null) return null
 
-    if ((await taken()).has(chosen.id)) {
-      this.refuse(`"${chosen.id}" already names a project.`, "Nothing was created.")
-      await this.render()
-      return
-    }
+      if ((await taken()).has(asked.id)) {
+        this.refuse(`"${asked.id}" already names a project.`, "Nothing was created.")
+        return null
+      }
 
-    await mintProject(chosen.id, chosen.title)
+      await mintProject(asked.id, asked.title)
+      return asked
+    })
+    if (chosen === null || chosen === undefined) return
+
     const refusal = await this.openProject(chosen.id)
     if (refusal === null) return
     // The one place the refusal's own advice is overridden, because there is something more specific
@@ -428,27 +508,28 @@ export class ProjectPicker {
     )
     if (!confirmed) return
 
-    const lock = await takeProjectLock(project.directory)
-    if (lock === null) {
-      this.refuse(`${name} is open in another tab.`, "It was not deleted.")
-      await this.render()
-      return
-    }
-    try {
-      this.announcement = null
-      await deleteProject(project.directory)
-      // The bookkeeping goes with the tree, in both places it lives. An entry that outlives its
-      // directory is inherited by the next project to reuse the id: from `editor.yaml` that means
-      // someone else's creation date and place in the list, and from localStorage it means someone
-      // else's save slots, whose paths describe a story the new project does not have.
-      await forgetProject(project.directory)
-      // Keyed by the manifest's id rather than the directory, which is what the save key actually
-      // is. A project whose manifest does not parse has declared no id and so has no saves to drop.
-      if (project.id !== null) deleteSaveData(project.id)
-    } finally {
-      await lock.release()
-    }
-    await this.render()
+    await this.work(
+      `.vn-picker-delete[data-vn-project="${cssValue(project.directory)}"]`,
+      "Deleting\u2026",
+      async () => {
+        const lock = await takeProjectLock(project.directory)
+        if (lock === null) return this.refuse(`${name} is open in another tab.`, "It was not deleted.")
+        try {
+          this.announcement = null
+          await deleteProject(project.directory)
+          // The bookkeeping goes with the tree, in both places it lives. An entry that outlives its
+          // directory is inherited by the next project to reuse the id: from `editor.yaml` that means
+          // someone else's creation date and place in the list, and from localStorage it means someone
+          // else's save slots, whose paths describe a story the new project does not have.
+          await forgetProject(project.directory)
+          // Keyed by the manifest's id rather than the directory, which is what the save key actually
+          // is. A project whose manifest does not parse has declared no id and so has no saves to drop.
+          if (project.id !== null) deleteSaveData(project.id)
+        } finally {
+          await lock.release()
+        }
+      }
+    )
   }
 
   // An archive arriving, from either gesture: the Import project button's file input, or a drop.
@@ -458,8 +539,10 @@ export class ProjectPicker {
   // what an author most wants is to see the thing arrived intact. So there is no success banner
   // either: the row is the confirmation.
   private async importFile(file: File): Promise<void> {
-    this.busy(".vn-picker-import", "Importing\u2026")
+    await this.work(".vn-picker-import", `Importing ${file.name}\u2026`, () => this.readArchive(file))
+  }
 
+  private async readArchive(file: File): Promise<void> {
     const result = await importArchive(file, {
       confirmOverwrite: (plan) =>
         confirmOverwritingProject(
@@ -485,7 +568,6 @@ export class ProjectPicker {
           : `"${result.title}" is in your library.`
       )
     } else this.announcement = null
-    await this.render()
   }
 
   // A project leaving, from the row rather than from inside the editor - so **the lock is this
@@ -494,48 +576,25 @@ export class ProjectPicker {
   // lock already and flushes its storer instead.
   private async exportRow(project: ListedProject): Promise<void> {
     const name = project.title ?? project.directory
-    this.busy(`.vn-picker-export[data-vn-project="${cssValue(project.directory)}"]`, "Exporting\u2026")
+    const selector = `.vn-picker-export[data-vn-project="${cssValue(project.directory)}"]`
 
-    const lock = await takeProjectLock(project.directory)
-    if (lock === null) {
-      this.refuse(`${name} is open in another tab.`, "It was not exported. Close it there.")
-      await this.render()
-      return
-    }
-    try {
-      const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
-      if (result.kind === "refused") {
-        this.refuse(`${name} was not exported: ${result.problem}.`, result.advice)
-      } else {
-        // Said rather than left to the row's own line: "exported just now" appears down among the
-        // dates, and what an author wants confirmed is that a file left the browser.
-        this.report(`${name} was exported.`, `Your browser is saving ${result.filename}.`)
-        downloadBlob(result.blob, result.filename)
+    await this.work(selector, "Exporting\u2026", async () => {
+      const lock = await takeProjectLock(project.directory)
+      if (lock === null) return this.refuse(`${name} is open in another tab.`, "It was not exported. Close it there.")
+      try {
+        const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
+        if (result.kind === "refused") {
+          this.refuse(`${name} was not exported: ${result.problem}.`, result.advice)
+        } else {
+          // Said rather than left to the row's own line: "exported just now" appears down among the
+          // dates, and what an author wants confirmed is that a file left the browser.
+          this.report(`${name} was exported.`, `Your browser is saving ${result.filename}.`)
+          downloadBlob(result.blob, result.filename)
+        }
+      } finally {
+        await lock.release()
       }
-    } finally {
-      await lock.release()
-    }
-    // Last, so the row's "exported just now" is drawn from what the store now says rather than from
-    // what this method knows.
-    await this.render()
-  }
-
-  // A control that is working: disabled, and saying so wherever it has room to. No progress bar - the
-  // honest unit of progress here (entries) is not the one the author perceives (bytes) - but a click
-  // that appears to do nothing for three seconds gets clicked again.
-  //
-  // A labelled action says it in place of its label; a row's icon control has nowhere to put it but
-  // its tooltip, which is the difference between the two kinds of button on this page rather than a
-  // difference between importing and exporting.
-  //
-  // Nothing puts it back: every path through both callers ends in a render, which draws the control
-  // fresh.
-  private busy(selector: string, saying: string): void {
-    const control = this.root.querySelector<HTMLButtonElement>(selector)
-    if (control === null) return
-    control.disabled = true
-    control.title = saying
-    if (control.classList.contains("vn-picker-action")) control.replaceChildren(document.createTextNode(saying))
+    })
   }
 
   // **The whole page is the drop target**, not a zone inside it: an author dragging an archive at the
@@ -593,6 +652,9 @@ export class ProjectPicker {
   }
 
   private setDropping(dropping: boolean): void {
+    // Nothing to invite while a write is in flight: the page is already saying what it is doing, and
+    // a second archive would be ignored on arrival anyway.
+    if (this.working !== null) return
     this.dropping = dropping
     this.root.querySelector(".vn-picker-panel")?.classList.toggle("vn-picker-dropping", dropping)
   }

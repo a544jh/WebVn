@@ -14,6 +14,7 @@ import {
   writeProjectFile,
 } from "../../src/storage/projectStore"
 import { recoverProjects } from "../../src/storage/recoverProjects"
+import { immediately } from "../helpers/picker"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { manifestNaming } from "../helpers/testManifest"
 import { settle, waitFor } from "../helpers/vnHarness"
@@ -207,12 +208,61 @@ describe("an import that never finished", () => {
 
 describe("the picker's import surface", () => {
   let pickerRoot: HTMLDivElement
+  let picker: ProjectPicker
+  // A real queue rather than `immediately`, because half of what is under test here is that the
+  // picker's work takes its turn in one.
+  let turns: (() => Promise<unknown>)[]
+  let tail: Promise<unknown>
+
+  const inTurn = <T>(job: () => Promise<T>): Promise<T> => {
+    turns.push(job)
+    const next = tail.then(job, job)
+    tail = next.then(
+      () => undefined,
+      () => undefined
+    )
+    return next
+  }
 
   const newPicker = (): ProjectPicker => {
     pickerRoot = document.createElement("div")
     document.body.appendChild(pickerRoot)
-    return new ProjectPicker(pickerRoot, () => Promise.resolve(null))
+    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn)
+    return picker
   }
+
+  // An import that will not finish until the test says so, so that "while it is running" is a state a
+  // test can stand in rather than a race it has to win.
+  //
+  // `release` waits for the picker to go idle again, and every test that holds one must await it: an
+  // import still writing when the test ends runs into the next test's `clearOpfsStore`, which removes
+  // the tree underneath it.
+  const holdUntilAsked = (): { release: () => Promise<void> } => {
+    let open = (): void => undefined
+    const held = new Promise<void>((resolve) => (open = resolve))
+    const real = ProjectPicker.prototype["readArchive" as keyof ProjectPicker] as unknown
+    Object.defineProperty(picker, "readArchive", {
+      configurable: true,
+      value: async function (this: ProjectPicker, file: File) {
+        await held
+        return (real as (f: File) => Promise<void>).call(this, file)
+      },
+    })
+    return {
+      release: async () => {
+        open()
+        await waitFor("the picker to go idle", () => importButton().disabled === false)
+      },
+    }
+  }
+
+  const importButton = (): HTMLButtonElement => pickerRoot.querySelector(".vn-picker-import") as HTMLButtonElement
+
+  const row = (directory: string): HTMLButtonElement =>
+    pickerRoot.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
+
+  const make = (directory: string): Promise<void> =>
+    createProject(directory, { manifestText: manifestNaming(directory), scriptText: SCRIPT })
 
   const panel = (): HTMLElement => pickerRoot.querySelector(".vn-picker-panel") as HTMLElement
 
@@ -238,6 +288,8 @@ describe("the picker's import surface", () => {
 
   beforeEach(() => {
     document.body.innerHTML = ""
+    turns = []
+    tail = Promise.resolve()
   })
 
   it("offers Import project beside New project", async () => {
@@ -294,6 +346,53 @@ describe("the picker's import surface", () => {
     expect(said).toContain("replaced what was filed under")
     // News, not a status: none of the three status colours is spent on it.
     expect(pickerRoot.querySelector(".vn-picker-refusal")).toBeNull()
+  })
+
+  it("says which file it is importing, on the button and with the page inert under it", async () => {
+    // Held rather than poked at a live control: the state is a field the draw reads, so the next
+    // render keeps it. Every button goes inert, not only the one that was pressed.
+    await make(OTHER)
+    await newPicker().render()
+    const held = holdUntilAsked()
+
+    drag("drop", carrying(await archiveFile("held.webvn.zip")))
+    await waitFor("the import to say so", () => importButton().textContent?.includes("Importing") === true)
+
+    expect(importButton().textContent).toContain("held.webvn.zip")
+    expect(importButton().disabled).toBe(true)
+    expect(row(OTHER).disabled).toBe(true)
+    await held.release()
+  })
+
+  it("keeps saying so across a render it does not control", async () => {
+    await newPicker().render()
+    const held = holdUntilAsked()
+    drag("drop", carrying(await archiveFile("held.webvn.zip")))
+    await waitFor("the import to say so", () => importButton().textContent?.includes("Importing") === true)
+
+    await picker.render()
+
+    expect(importButton().textContent).toContain("Importing")
+    await held.release()
+  })
+
+  it("runs in the host's turn, so nothing can swap the picker out from under it", async () => {
+    // The bug this closes: an import outliving the view that started it. With the work in the queue
+    // a Back cannot take its turn until the write is done, so there is no window to be torn down in.
+    await newPicker().render()
+    const held = holdUntilAsked()
+    drag("drop", carrying(await archiveFile("held.webvn.zip")))
+    await waitFor("the import to start", () => turns.length === 1)
+
+    let swapped = false
+    void inTurn(async () => {
+      swapped = true
+    })
+    await settle()
+    expect(swapped).toBe(false)
+
+    await held.release()
+    expect(swapped).toBe(true)
   })
 
   it("names the file that was refused, in the banner the rest of the picker refuses in", async () => {

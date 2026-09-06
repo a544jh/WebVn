@@ -224,6 +224,36 @@ describe("swapping between the picker and a project", () => {
 // picker writes it, and back and forward move it. The address bar itself is a fake - see
 // test/helpers/navigation.ts for why - so what is covered here is every decision the shell makes
 // about it, and not `browserNavigation`, which has none.
+describe("the picker's own work takes a turn in the queue", () => {
+  it("holds a navigation until the work is done, rather than swapping the view out from under it", async () => {
+    // The property the picker's import, export and delete all rest on. Without it an import outlives
+    // the view that started it: a Back closes the picker mid-write, the picker rebuilt on the way
+    // back knows nothing about it, and the result is reported to a stopped view - and opening the row
+    // the import is rewriting refuses the author with "already open in another tab", about their own
+    // tab.
+    const shell = newShell()
+    await shell.start()
+
+    let release = (): void => undefined
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let finished = false
+    void shell.inTurn(async () => {
+      await held
+      finished = true
+    })
+
+    navigation.go(DIRECTORY)
+    await settle()
+
+    expect(shell.getSession()).toBeNull()
+    expect(elements.pickerDiv.hidden).toBe(false)
+
+    release()
+    await waitFor("the navigation to take its turn", () => shell.getSession() !== null)
+    expect(finished).toBe(true)
+  })
+})
+
 describe("the open project in the URL", () => {
   it("opens what the URL names, without the author picking it", async () => {
     // The whole point of the ticket: a reload lands back in the project rather than at the front

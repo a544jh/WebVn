@@ -404,6 +404,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   canvas that never paints and a scene size of zero that mispositions every sprite. Nothing throws;
   the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
   when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
+- **The picker's own long operations run in that queue too**, through the `InTurn` callback it takes
+  beside `openProject` - import, export, delete and the demo seed, each of which holds a project lock
+  while it writes. Without it the work outlives the view that started it: a Back closes the picker
+  mid-import, the picker rebuilt on the way back knows nothing about it, the result is reported to a
+  stopped view, and opening the row the import is rewriting refuses the author with "already open in
+  another tab" about their own tab. **A job must never call `openProject`**, which queues in its own
+  right - asking for a turn from inside one is a chain that cannot resolve; `ProjectPicker.create`
+  is written around that. The busy state is a field the draw reads, not a poke at a live control, and
+  it disables every button on the page.
 - **Every view swap runs in a queue, one at a time.** `AppShell.queue` chains them, and it is what
   makes back-and-forward safe: two swaps in flight interleave, and the older one's `showPicker`
   lands *after* the newer revealed the session — hiding it again under a renderer that has not

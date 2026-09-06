@@ -291,6 +291,28 @@ entry's writable stream is **aborted**: an open stream holds a lock on the file,
 refused with `NoModificationAllowedError` while it is held, and residue the sweep can never remove is
 the one thing this ordering exists to prevent.
 
+**Found by using it: an import could outlive the picker that started it.** The ticket says the
+control disables and reads "Importing...", and it did - on a live element, in a view that a click on
+any row could tear down underneath it. Three consequences, all reachable in a few seconds of a
+1000-asset import: the "Importing..." state was lost, because `showPicker` builds a *new*
+`ProjectPicker` on the way back; the result was lost too, because the completing import called
+`render` on a stopped view; and opening a row that an *overwriting* import was rewriting asked for
+the lock that import held, so the boot refused the author with `"x" is already open in another tab`,
+about their own tab.
+
+The fix is the mechanism the app already had. `AppShell.queue` is what every view swap runs in, on
+the reasoning that "a swap holds a lock and a storer, so a half-done one cannot be abandoned" - and
+an import is that same shape. The picker takes an `InTurn` callback beside `openProject`, and
+`work(control, saying, job)` puts import, export, delete and the demo seed through it, so no swap can
+interleave and there is no window to be torn down in. The busy state became a **field the draw
+reads** rather than a poke at a control the next render replaces, and it disables every button on the
+page - a row that queued a boot *behind* the import would open a project several seconds after the
+author gave up on the click, which is a worse surprise than nothing happening.
+
+One trap is worth knowing about: a job must not call `openProject`, which queues in its own right,
+because asking for a turn from inside one is a chain that cannot resolve. `create` is written around
+it - the mint is queued and the boot happens after the turn is over.
+
 **The path rule refuses a drive letter where a drive letter can be, not a colon anywhere.** The first
 version banned the colon outright, which is a legal POSIX filename character - so an asset called
 `scene: one.png` took the whole archive down with it, which is neither what the ticket asks nor a

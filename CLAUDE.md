@@ -618,6 +618,11 @@ a **story** is the command sequence parsed from it; a command is **applied** to 
 **adopted** by the editor.
 
 The ADRs, newest first:
+- `0005-an-archive-holds-a-project-that-parses.md` — a `.webvn.zip` always contains a manifest that parses and
+  a script; export refuses to build one that does not and import refuses to accept one, which is 0002's line
+  drawn at the format boundary. Why the archive refuses what the store deliberately tolerates.
+- `0004-an-undeclared-reference-neutralizes-its-command.md` — an id no declaration answers becomes a WARNING
+  and a `NoOp` at the same index, rather than a dropped command or a crash.
 - `0003-the-url-payload-carries-the-manifest.md` — the `?vn=` payload is a two-document YAML stream, manifest
   first, and a single-document payload is refused rather than defaulted.
 - `0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md` — why `parseStory` always returns a state and

@@ -10,9 +10,13 @@ author's own machine.
 declarations, the id charset rule, the `vn-save-<id>` key, the two-document `?vn=` payload, the demo's
 `manifest.yaml` and `script.yaml` as real files, and - as of 2026-08-30 - the whole of tranche 1 of the OPFS
 chain: the resolver seam, the primitives, the store, the editor booting and storing through them, and the
-one-tab lock. What is left of this document is everything that follows from having a store: the picker, the
-rename, import, export and the nag. `.scratch/project-storage/` holds tranche 1's six tickets and that spec
-lists what had already landed under them; expect the rest of the details here to move as they get built.
+one-tab lock. **Tranche 2 landed 2026-09-05**: the picker, new and deleted projects, the rename with its
+crash recovery, and the open project in the URL - `.scratch/project-library/` holds its six tickets and
+its design decisions. What is left of this document is import, export, the linked folder and the nag.
+**Tranche 3 is specced at `.scratch/project-archive/`** - zip export and import, and only those - and it
+takes three decisions against what this document says; each is marked where it is said. `.scratch/project-storage/`
+holds tranche 1's six tickets and that spec lists what had already landed under them; expect the rest of the
+details here to move as they get built.
 
 ## Two different things are called "saving"
 
@@ -332,15 +336,19 @@ someone losing their whole library to cleared browser data. Hence the export nag
 **Sequencing: build the layout for many, ship the UI for one.** `projects/<project-id>/...` from the first commit
 costs nothing and removes the migration entirely; the picker can arrive whenever it is convenient. **The layout
 half landed 2026-08-30**: `listProjects` walks `projects/` and there is no index file, `editor.yaml` records
-`lastOpened`, and the boot is already "`lastOpened`, else the first listed". The picker itself is unbuilt, and
-until it exists the editor opens what `editor.yaml` names and nothing else.
+`lastOpened`, and the boot is already "`lastOpened`, else the first listed". **The UI half landed 2026-09-05**
+as `src/picker/`, and the boot rule went with it: a cold boot always lands on the picker, `lastOpened` became
+a moment per project that orders nothing, and `bootEditor` is *told* which directory to open - by the author's
+click, or by `?project=<directory>` in the URL.
 
 **The runtime stays strictly single.** `VnPlayer`, `DomRenderer` and the resolver never learn that other
 projects exist. Switching projects is a full teardown and remount through the same path as initial boot, never
-a live swap. **That teardown has a required step nothing performs yet**: `ProjectStoring` registers
-`visibilitychange` and `pagehide` handlers and never removes them, so a superseded storer keeps flushing -
-demonstrated 2026-09-05, and lossy on a switch back to a project, where the stale storer holds older text and
-queues its write last. Its constructor comment has the reproduction and the five-line fix. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
+a live swap. **That teardown landed 2026-09-05** as `close()` beside the boot, and it was required rather
+than tidy: `ProjectStoring` registered `visibilitychange` and `pagehide` handlers and never removed them, so
+a superseded storer kept flushing - measured, and lossy on a switch back to a project, where the stale storer
+holds older text and queues its write last. Two more things turned out to outlive a close and are in
+`.scratch/project-library/issues/01-closing-a-project.md`: `AudioRenderer`'s detached `<audio>` clones, which
+played over the picker, and `BackgroundRenderer`'s rescheduled animation frames. `DomRenderer.render` already carries a generation guard for overlapping renders (see the renderer
 contract in `CLAUDE.md`); a project swap mid-render would be a new class of the same bug, and there is no
 reason to invite it.
 
@@ -350,11 +358,20 @@ Four ways a project reaches the library: the file picker, drag and drop, "load t
 published VN from a URL. They share their whole back half - validate the manifest, write the tree into OPFS,
 raise the collision dialog if the id is taken - and differ only in where the bytes come from.
 
-**That difference is a `SourceLoader`, which the design already has.**
-[SCRIPT_INCLUDES.md](./SCRIPT_INCLUDES.md) defines `load(path): Promise<string>` with implementations for
-the editor's OPFS, for zip entries, and for an in-memory map in tests. An HTTP base URL is a fourth. Import
-is written against that interface and against nothing else, so a new ingestion path costs a loader rather
-than a subsystem. Resist the version that takes a `File`: two of the four sources never produce one.
+**That difference is one interface, and it is not `SourceLoader`. Corrected 2026-09-06.** This
+section used to say import was written against [SCRIPT_INCLUDES.md](./SCRIPT_INCLUDES.md)'s
+`SourceLoader` - `load(path): Promise<string>` - "and against nothing else". That cannot be true: a
+`string` cannot carry a PNG, so an asset through that interface is either corrupt or a base64 detour,
+and the detour is exactly what `entry.getData(writable)` exists to avoid. `SourceLoader` is the right
+shape for *includes* - text, pulled by path, from a known set - and the wrong shape for *ingestion* -
+bytes, pushed as a stream, from an unknown set.
+
+The seam is an entry stream instead: `AsyncIterable<{ path: string; blob: Blob }>`, with a producer
+per ingestion path and one shared back half consuming it. The property that mattered is unchanged, so
+the original point stands: a new ingestion path costs a producer rather than a subsystem, and the
+validation, the caps and the collision dialog are written once. Resist the version that takes a
+`File`: two of the four sources never produce one. `.scratch/project-archive/issues/01-import.md`
+builds it.
 
 ### Importing from a URL
 
@@ -423,10 +440,31 @@ does sharpen the collision policy though: "I tinkered with the demo and want a c
 natural case, and overwrite-or-cancel forces losing one of them. It is the strongest argument for offering
 rename-on-import.
 
+**Not taken in tranche 3, which ships overwrite-or-cancel.** A copy written under a different directory
+while its manifest still names the original mints exactly the id/directory disagreement the rename exists
+to repair - and the rename trigger is *manifest adoption*, so the author's first blur offers to move the
+copy onto the original and then asks them to confirm destroying it. The version that works has to rewrite
+the manifest's id on the way in, which is a bigger idea than one dialog button and wants its own ticket;
+until then the workflow is to rename the copy you already have, then import.
+`.scratch/project-archive/spec.md`, decision 2.
+
 ### Sequencing, and the one hard constraint
 
 URL import lands before zip import. It needs no build machinery, the demo is already hosted, and same-origin
 keeps CORS out of the first attempt.
+
+**Amended 2026-09-06: zip goes first, and URL import follows in tranche 4.** The argument above was
+written when `seedDemoProject` ran behind the author's back and URL import was what would retire it.
+Tranche 2 retired the half that mattered - the picker's **Add demo project** button is an action that
+can take a lock, and an empty library is a page offering the demo by name rather than a failure - so
+what URL import buys now is deleting scaffolding that works, while zip buys the durability claim this
+document makes, which is false until an author can get their project out. Every other sequencing rule
+below is untouched. `.scratch/project-archive/spec.md` has the full reasoning, along with two other
+decisions that went against this document: an id collision on import offers overwrite or cancel and
+*not* rename-on-import (a copy under a different directory mints the id/directory disagreement the
+rename exists to repair, and the rename trigger then offers to "fix" it by destroying the project the
+copy was protecting), and export is gated on a manifest that parses, per
+`docs/adr/0005-an-archive-holds-a-project-that-parses.md`.
 
 **Zip export and import land before the linked-folder layer.** The archive works in every browser and the
 folder export works only on Chromium, so the archive is what makes the durability claim true for everyone;
@@ -545,12 +583,26 @@ await reader.close()
 ```
 
 It also ships `HttpRangeReader` (read a project off any static host, pulling only the entries touched) and
-OPFS temp-stream helpers that bound peak memory while *writing* an archive. Open question: the shipped bundles
-gzip to about 79-85KB, but those include mime tables, encryption and wasm codecs. Modular entry points exist
-(`lib/zip-core-reader.js`, `lib/zip-core-native.js`, the latter delegating to `DecompressionStream`), so a
-reader-only build should be far smaller - it has not been measured, and that measurement is what decides
-zip.js against the lighter unzipit plus client-zip pairing. Note also that zip.js spawns web workers by
-default, which is exactly the kind of thing the webpack config in `CLAUDE.md` is fragile about.
+OPFS temp-stream helpers that bound peak memory while *writing* an archive.
+
+**Measured 2026-09-06, and the entry point is part of the decision.** This paragraph used to guess at
+"79-85KB gzipped, and a reader-only build should be far smaller"; the guess was stale in both
+directions. With webpack 5.109.2 in production mode, gzip deltas over an empty entry:
+`@zip.js/zip.js` at the package root is **65.0KB** for reader and writer, `lib/zip-core-custom.js` is
+**30.6KB** for both, `lib/zip-core-native.js` is 44.4KB, and the `unzipit` + `client-zip` pairing is
+6.7KB. **Import `lib/zip-core-custom.js`**: it registers no codec of its own and delegates to the
+platform's `CompressionStream`/`DecompressionStream`, and it sets `workerURI: null`, so the web
+workers this paragraph used to warn about are not spawned at all rather than being configured away -
+the `CLAUDE.md` fragility does not arise. Two things the measurement turned up that are worth more
+than the numbers: the package's **default** entry calls `setDefaultConfiguration({ baseURI:
+import.meta.url })`, which webpack resolves to the *build machine's* absolute `file://` path and
+bakes into the bundle as a literal, after which every worker construction throws `SecurityError` and
+is silently swallowed - so it would ship unnoticed with a CI checkout path published to the demo
+repo; and the no-fallback floor that `zip-core-custom.js` and unzipit share (Compression Streams
+`deflate-raw`) is narrower than it looks here, because this code only ever runs in the editor bundle
+and `isSupported()` already refuses an editor to any browser without OPFS `createWritable`. If the
+floor ever does bite, `lib/zip-core-native.js` buys a JS-zlib fallback back for +13.8KB with no call
+site touched. Full table and the runtime checks: `.scratch/project-archive/spec.md`.
 
 Publish targets, none of which need a server we run: a static folder, a single-file HTML export with assets
 inlined as data URIs (pleasant below ~20MB, silly above ~100MB), or a zip dropped on itch.io, GitHub Pages or
@@ -692,7 +744,9 @@ Two that were open here are now settled and have moved into the sections they be
 resolution is async (it is, and it resolves paths rather than ids), and whether a project directory has an
 `assets/` level (it does not).
 
-- **zip.js's tree-shaken reader size.** Unmeasured, and it decides zip.js against unzipit plus client-zip.
+- ~~**zip.js's tree-shaken reader size.**~~ **Settled 2026-09-06** and moved into "Leaving the browser"
+  above: `lib/zip-core-custom.js`, 30.6KB gzipped for reader and writer, no workers, deflate through
+  Compression Streams.
 - **`createWritable()` support in current Safari.** Reports conflict. Determines whether the worker plus
   `createSyncAccessHandle()` path is a fallback or the primary implementation. Until someone measures it,
   `.scratch/project-storage/issues/03-opfs-primitives.md` feature-detects and refuses rather than building a

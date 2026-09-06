@@ -114,10 +114,32 @@ empty the editor's root and release the lock. Switching projects is a close and 
 the same path, never a live swap, so nothing in a session ever learns that another project exists.
 _Avoid_: unload, dispose, destroy, switch (a switch is two closes and a boot, seen from outside)
 
+**Archive**:
+A whole project as one file on the author's disk: `<project-id>.webvn.zip`, holding the manifest,
+the script and the assets, unwrapped at the archive root. The canonical artifact - the copy in the
+browser is a working copy, and this is the one that survives cleared browser data. It always holds a
+project that parses and has a script, in both directions, which is the property that makes it a
+backup rather than a hope.
+_Avoid_: bundle, package, backup (that is what it is *for*, not what it is), project file
+
+**Export**:
+Writing a project out of the library as an archive. Distinct from a **payload**, which is a link
+carrying no assets, and from publishing, which puts a playable project on a host. What the author
+does so that losing the browser does not lose the work.
+_Avoid_: download (that is how the file arrives, not what was done), save, publish
+
+**Import**:
+Reading an archive into the library, as a new project or over an existing one. Additive: it never
+replaces "the project you were working on", because there is a library rather than one loaded
+project. The manifest inside decides the identity, so importing a renamed file yields the project
+its manifest names.
+_Avoid_: load, open (those are what the editor does with a project already in the library), upload
+
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a
-link. Two documents, manifest first.
-_Avoid_: story, script, export (an export is the archive, which carries the assets too)
+link. Two documents, manifest first. The button that copies one says **player link**, not *share
+link* - see **Project link** for why that phrase is spent.
+_Avoid_: story, script, export (that is the archive, and it carries the assets)
 
 **Project link**:
 The editor's own URL with `?project=<directory>` in it - which project is open, written down where a

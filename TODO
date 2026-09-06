@@ -66,6 +66,22 @@ new/delete, rename with its crash recovery, and per-project size with persist().
 that sits with persist() below did not go with it and is now tranche 3's: there is nothing to
 export yet, so a "last exported" date would be a field nothing writes.
 
+Extracted: tranche 3, 2026-09-06, as .scratch/project-archive/ - zip export and import, three
+tickets, after five rounds of grilling. It is deliberately smaller than the node below suggests:
+URL import, the published static folder, single-file HTML, re-encoding and content addressing all
+move to tranche 4, against this document's and the design doc's own ordering. The argument that put
+URL import first was that it would retire seedDemoProject, and tranche 2 already retired the half of
+that which mattered - so URL import now deletes scaffolding that works, while zip is what makes
+"your project can leave the browser" true for the first time. Every destructive dialog in the app
+currently says so out loud: "There is no export yet, so nothing outside this browser has a copy."
+
+Settled: H, 2026-09-06, by measurement rather than by building anything. @zip.js/zip.js pinned to
+lib/zip-core-custom.js is 30.6KB gzipped for reader and writer, spawns no workers at all, and
+delegates deflate to the platform's Compression Streams; unzipit + client-zip is 6.7KB but cannot
+pipe an entry into a FileSystemWritableFileStream. The doc's 79-85KB guess was stale both ways. The
+sharp finding is that the package's *default* entry bakes the build machine's file:// path into the
+bundle via import.meta.url and then loses its workers silently - see design-docs/PROJECT_STORAGE.md.
+
 Sizes: S = hours, M = a day or two, L = several days.
 
 
@@ -90,11 +106,6 @@ Sizes: S = hours, M = a day or two, L = several days.
   F  Parser benchmark at 1k/10k/50k commands, written down   S
        Spike. Settles whether YAML parse time is worth designing around, and
        says which of parse / updateLabels / time-to-first-stop dominates.
-
-  H  Measure the tree-shaken zip.js reader bundle            S
-       Spike. Shipped bundles gzip to ~79-85KB but include mime tables,
-       encryption and wasm codecs. Decides zip.js against unzipit + client-zip.
-       design-docs/PROJECT_STORAGE.md
 
   T  Behavioural editor tests                                M
        Started: test/helpers/vnHarness.ts's startEditor mounts one, and
@@ -137,10 +148,23 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     only, which is why the archive ships first.
              |     +-> IndexedDB handle store
              +-> import: shared back half + size/entry caps    M
-             |     |     SourceLoader in front, so a new ingestion path
-             |     |     is a loader and not a subsystem. Validate the
-             |     |     manifest, write the tree, raise the collision
-             |     |     dialog. All four paths share this.
+             |     |     An entry stream in front - AsyncIterable of
+             |     |     {path, blob} - so a new ingestion path is a
+             |     |     producer and not a subsystem. NOT SourceLoader,
+             |     |     which returns a string and cannot carry a PNG;
+             |     |     the design doc's claim there is corrected.
+             |     |     Validate the manifest, write the tree, raise the
+             |     |     collision dialog. All four paths share this.
+             |     +-> [tranche 3] zip export + import              M
+             |     |     .scratch/project-archive/ - extracted 2026-09-06,
+             |     |     and it goes FIRST, ahead of URL import.
+             |     |     <project-id>.webvn.zip, manifest at the archive
+             |     |     root. Sniffs PK\x03\x04 not the extension, strips
+             |     |     a single wrapping dir, identity from the manifest
+             |     |     id. Export must NOT ship ahead of import, so the
+             |     |     two land on one branch. Carries the back half and
+             |     |     the caps above with it, plus the exported date
+             |     |     tranche 2 deferred. ADR 0005 is its invariant.
              |     +-> publish: static folder                       M
              |     |     The demo is the first one, laid out in dist/
              |     |     in the OPFS shape. URL import reads it back.
@@ -148,11 +172,7 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     Same-origin first, so CORS is not a variable
              |     |     in the first attempt. The manifest is the file
              |     |     index; a partial fetch fails the whole import.
-             |     +-> zip import/export  (needs H)                 M
-             |     |     <project-id>.webvn.zip, manifest at the archive
-             |     |     root. Sniffs PK\x03\x04 not the extension, strips
-             |     |     a single wrapping dir, identity from the manifest
-             |     |     id. Export must NOT ship ahead of this.
+             |     |     This is what finally deletes seedDemoProject.
              |     +-> single-file HTML export
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)
@@ -196,8 +216,8 @@ Sizes: S = hours, M = a day or two, L = several days.
   someone other than its author can use. Everything in the editor chain is
   quality of life on top of an authoring loop that does not exist yet.
 
-  F and H are pure measurement. Each retires an open question rather than
-  building anything.
+  F is pure measurement - it retires an open question rather than building
+  anything. H was the other one, and it is settled: see the note at the top.
 
 
 == UNSEQUENCED ==

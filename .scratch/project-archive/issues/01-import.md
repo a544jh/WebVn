@@ -1,0 +1,201 @@
+# 01: Importing an archive
+
+Status: ready-for-agent
+
+Blocked by: nothing. First of the tranche, and the doc's hard constraint is that ticket 02 does not
+merge without it.
+
+## What to build
+
+A `.webvn.zip` on the author's disk becomes a project in the library. The picker gains an **Import
+project** button and accepts a dropped file; the archive is validated whole before a byte is
+written; a taken id is overwritten or the import is cancelled.
+
+## The surface
+
+**On the picker, beside New project and Add demo project.** A hidden `<input type="file"
+accept=".zip">` behind the button, plus `dragover`/`drop` on the picker page.
+
+**A multi-file drop is refused** with a one-line message rather than silently picking one. Importing
+three projects from one gesture is a bulk operation nobody asked for, and quietly ignoring two of
+three files is the worse failure.
+
+**The author stays on the picker afterwards**, with the new row visible, exactly as **Add demo
+project** does. Populating a library and starting work are different intents, and after an import
+the author most wants to see the thing arrived intact.
+
+Both listeners come down with the picker's existing `AbortController` and `stop()`. A superseded
+view that kept listening is a bug, not untidiness - `ProjectStoring`'s constructor comment has the
+reasoning and `design.md` repeats it.
+
+## The seam
+
+```ts
+export interface ArchiveEntry {
+  readonly path: string
+  readonly blob: Blob
+}
+
+importProject(entries: AsyncIterable<ArchiveEntry>, …): Promise<ImportResult>
+```
+
+**The design doc is wrong where it says import is written against `SourceLoader`.** That interface
+is `load(path): Promise<string>` and cannot carry an asset's bytes - a PNG through a `string` is
+either corrupt or a base64 detour, and the point of `entry.getData(writable)` is that no
+intermediate representation exists at all. `SourceLoader` is the right shape for *includes* (text,
+pulled by path, from a known set) and the wrong shape for *ingestion* (bytes, pushed as a stream,
+from an unknown set). The doc has been corrected; do not resurrect the claim.
+
+The payoff is that the whole back half - normalization, refusals, caps, collision, the write
+ordering - is reachable from `test/unit/` over an in-memory `AsyncIterable`, with no zip library and
+no OPFS in the way.
+
+## Reading the archive
+
+`@zip.js/zip.js` pinned to **`lib/zip-core-custom.js`** - see `spec.md` for the measurement and for
+why the package root must not be imported (it bakes the build machine's `file://` path into the
+bundle and then silently loses its workers).
+
+```ts
+const reader = new ZipReader(new BlobReader(file))
+```
+
+`BlobReader` slices, so a disk-backed `File` is never held whole; the central directory carries
+`uncompressedSize` per entry, so the caps below are arithmetic rather than a watch on the quota
+draining. Entries are written with `entry.getData(await handle.createWritable())` where possible so
+no decoded entry is materialized.
+
+Sniff **`PK\x03\x04`**, never the extension: renaming a project file must not make it unopenable,
+and a drop carries no reliable extension anyway.
+
+## Normalizing the shape
+
+`manifest.yaml` at the archive root. If there is none there, and **every** entry shares a single
+top-level directory prefix, strip that prefix and look again. The rule is unambiguous because a
+manifest at the root is mandatory, so the two layouts cannot be confused.
+
+This matters more than the layout does: the natural way to re-zip an edited project - macOS
+right-click Compress, Windows "Send to compressed folder" - operates on the *folder* and produces a
+wrapped archive. A format meant to be opened by hand has to accept what a hand puts back.
+
+## What is refused, and it is always the whole archive
+
+- not a zip (magic bytes)
+- no `manifest.yaml` after normalization
+- the manifest does not parse
+- `formatVersion` is not 1 - `parseManifest` reports this first and alone, by design, so the message
+  explains itself
+- the id fails `validateProjectId`
+- **no `script.yaml`** - see below
+- an entry path that is not a plain relative path: any `..` segment, a leading `/`, a backslash, a
+  drive letter, or a control character
+- over the caps
+
+**Never a partial landing.** *"A partial import is a failure, not a project"* is already the doc's
+rule for the URL path and applies harder here, where skipping entries would produce exactly the
+project with silent holes that the rename recovery exists to prevent. Report the reason, using the
+parser's own messages where there are any.
+
+**`script.yaml` is refused because nothing else would catch it.** `recoverProjects.ts` deliberately
+does *not* sweep a manifest with no script - that is the state `createProject` passes through
+between its two writes, and sweeping it would be a wrong delete - so a script-less archive would
+land, appear in the picker with its title, and then throw out of `readProject` when the author
+clicked it. A dead row, in the surface whose entire purpose is opening things. One `exists()` closes
+it. Supplying an empty script instead was considered and refused: it converts "this archive is
+broken" into "this project mysteriously lost its story", and the author cannot tell which happened.
+
+**What is deliberately not refused**: a manifest declaring files that are not in the archive, a
+script with parse errors, and a script naming undeclared ids. Each is an ordinary state of a project
+being written, and the editor reports every one of them on the line that caused it. The manifest
+gates the archive; the script never does. ADR 0005.
+
+## The caps
+
+Every import needs them from the first one - they cover content the author did not make, and they
+are awkward to retrofit.
+
+- **5,000 entries.**
+- **2 GB uncompressed**, or the free space `navigator.storage.estimate()` reports, whichever is
+  lower. `AppShell` already has `availableBytes` and `roomProblem` from the rename's quota check;
+  reuse them rather than writing a second estimate reader.
+- Both are checked against the summed `uncompressedSize` from the central directory **before
+  inflating anything**, which is what makes a zip bomb an arithmetic problem rather than a race with
+  the quota.
+
+They live in the back half, so the URL and folder producers tranche 4 adds are covered without
+retrofitting each.
+
+## The collision
+
+The destination directory is the manifest's id. If it is taken: a dialog with **Overwrite** and
+**Cancel**, through `src/chrome/dialog.ts` like every other confirm here.
+
+**No rename-on-import**, against the design doc's leaning - `spec.md` decision 2 has the reasoning,
+which is that a copy under a different directory mints an id/directory disagreement that
+`AppShell.rename` then offers to "fix" by destroying the very project the copy was protecting.
+
+**The dialog names the title and the folder.** The destination is addressed by directory but the
+author knows their project by its title, and the two can disagree. Name the title in the sentence
+and `projectFolder(directory)` underneath, matching how the delete dialog already does it.
+
+**Overwrite drops the destination's player saves** - `deleteSaveData(id)`, matching delete. See
+`spec.md` for why keeping them is not safe, and ticket 03 for the `exported` date, which goes the
+same way and for the same reason.
+
+## The ordering, which is the rest of the ticket
+
+0. Read and validate `manifest.yaml` out of the archive by random access - **before a byte is
+   written**. Everything in "What is refused" is settled here.
+1. Take the destination's project lock. Refuse like every other refusal if another tab holds it.
+2. On overwrite: `removeRecursive` the destination, and `deleteSaveData(id)`.
+3. Write every entry except `README.txt` at the root and except `manifest.yaml`.
+4. **Write `manifest.yaml`. This single atomic write is the commit point.**
+5. Record `created`. Release the lock.
+
+**Step 4 is the opposite of `createProject`'s ordering and that is deliberate.** `createProject`
+writes the manifest first so a project being minted never looks like residue; import is a copy, and
+a manifest written first would mean a crash mid-import leaves a directory that looks like a valid
+project with files silently missing. `renameProject` already commits this way. Before step 4 the
+destination has no manifest and is therefore garbage; after it, it is a valid project; there is no
+third state.
+
+**The crash recovery is free, and the lock is what makes it safe.** `recoverProjects.ts` already
+sweeps manifest-less directories on every picker render, so a crashed import needs no marker and no
+new recovery code - but a *live* import is in exactly that state, so the sweep must be unable to
+reach it. It takes the lock on what it deletes, which is why step 1 is not optional.
+
+**A failed import loses nothing**, which is what makes this ordering enough. Unlike a rename, whose
+source is destroyed as part of the operation, the archive is still on disk: re-running the import is
+the recovery. The author already accepted the destruction in the overwrite dialog.
+
+## Feedback
+
+The control disables and reads "Importing…"; the picker's existing status line reports the outcome.
+No progress bar: import ends in a dialog and a new row, and a click that appears to do nothing for
+three seconds gets clicked again, but the honest unit of progress (entries) is not the one the
+author perceives (bytes).
+
+## Where the code goes
+
+`src/storage/archive.ts` - UI-free, and the only file in the repo importing zip.js, so "does this
+reach the player bundle?" is answerable by reading one import list. The picker and `AppShell` own
+the input, the drop handler and the dialogs. It belongs under `src/storage/` because it needs
+`projectStore`'s private knowledge of the `projects/<directory>/` layout, which a top-level
+`src/archive/` would have to re-spell.
+
+## Tests
+
+**`test/unit/`** - everything the seam makes reachable without OPFS or a zip, over an in-memory
+`AsyncIterable<ArchiveEntry>`: path rejection (`..`, absolute, backslash, drive letter, control
+characters), both caps, the single-wrapping-directory strip, the manifest-missing /
+unparseable / wrong-`formatVersion` / bad-id refusals, the missing-script refusal, and the
+`README.txt` skip.
+
+**`test/browser/`** - real OPFS and real zip.js: import an archive built in the test and assert the
+tree; the overwrite path, including that the saves went; a hostile archive refused; and that a
+crashed import (stop before step 4) leaves a directory the sweep removes.
+
+**Name this suite's project directories after the suite.** `navigator.locks` is origin-wide and
+knows nothing about scratch roots, and this ticket takes locks - `RecoverProjects` and
+`RenameProject` sharing `old-name`/`new-name` produced a one-in-three flake that only appeared with
+the whole browser project running. `CLAUDE.md` has the story.

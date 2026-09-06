@@ -313,6 +313,19 @@ One trap is worth knowing about: a job must not call `openProject`, which queues
 because asking for a turn from inside one is a chain that cannot resolve. `create` is written around
 it - the mint is queued and the boot happens after the turn is over.
 
+**The drop invitation is an overlay, where the canvas draws the rows replaced - and that is a
+departure worth not correcting back.** *Picker - archive dropped* shows the panel holding the
+invitation and nothing else, and the first implementation did that literally, with `display: none` on
+the rows. On Chrome it flickers: hiding the rows pulls the element out from under the pointer, the
+browser fires `dragleave` for it, the state comes off, the rows return, the pointer is over a row
+again, and the page alternates at the drag's frame rate. The depth counter cannot see that loop -
+those enters and leaves are genuine and paired. Nothing but *not moving anything* fixes it, so the
+invitation is drawn absolutely over the list, opaque and with `pointer-events: none`, and the list
+carries a min-height so an empty library does not grow under the drag either. The pixels are the
+board's; only the mechanism differs. Hand-verified on Chrome, because the flicker is not reproducible
+in automation - CDP's `Input.dispatchDragEvent` does not drive the hit-testing that causes it, which
+was checked by getting the same reading out of the broken build.
+
 **The path rule refuses a drive letter where a drive letter can be, not a colon anywhere.** The first
 version banned the colon outright, which is a legal POSIX filename character - so an asset called
 `scene: one.png` took the whole archive down with it, which is neither what the ticket asks nor a

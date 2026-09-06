@@ -162,12 +162,20 @@ Safari are unverified, which is the same coverage the rest of the storage work h
 - **The picker's browser suites must name their project directories after the suite.** Import takes
   locks, and `navigator.locks` is origin-wide and knows nothing about scratch roots. `RecoverProjects`
   and `RenameProject` both used `old-name`/`new-name` and cost a week to that - see `CLAUDE.md`.
-- **The design canvas is binding for pixels and is behind.** `.scratch/project-library/design.md`
+- **The design canvas is binding for pixels, and it is up to date.** `.scratch/project-library/design.md`
   links it and says *"Read it before building anything it draws. Tickets 02 and 03 were first built
-  from the prose on this page alone and had to be redone against the drawings."* This tranche puts
-  an export control and a last-exported line on every row. **Three new artboards are needed before
-  any code**: a row with an export date, a row that has never been exported, and a row whose export
-  control is disabled because the manifest does not parse.
+  from the prose on this page alone and had to be redone against the drawings."* **Four artboards
+  were added 2026-09-06, before any of this was built**: *Picker - export dates and controls* (all
+  three row states at once - exported, never exported, and the control disabled under a manifest
+  that does not parse - plus the Import project button in the header), *Picker - archive dropped*,
+  *Picker - import refused* (the orange banner every refusal lands in), and *Import - id already
+  taken*. Read them before building the surfaces, not after.
+
+  Two things the drawings decide that this file does not. The row keeps **one** meta line, with the
+  export fact after a middle dot - "opened 2 days ago &middot; never exported" - rather than growing
+  a second line. And a project whose manifest does not parse carries **both** consequences on its
+  existing red line - "manifest.yaml does not parse - opens anyway, and cannot be exported until it
+  does" - which is what lets the disabled control need no label of its own.
 
 ## What this tranche deliberately does not do
 

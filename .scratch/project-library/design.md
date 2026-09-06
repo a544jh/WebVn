@@ -7,7 +7,10 @@ Settled 2026-09-05, ahead of ticket 02. The drawings live on a design canvas:
 Seven artboards as of 2026-09-05 - the picker populated, with a project whose manifest does not
 parse, with a switch refused, empty, the new-project dialog, that dialog refusing a taken id, and the
 editor carrying its return button. (This file said five; the last two arrived later, which is the
-rule below working exactly as written.) **That canvas is editable and is not in this repo**, so it is
+rule below working exactly as written.) **Eleven as of 2026-09-06**: tranche 3 added a bottom row of
+four for the archive - export dates and controls, an archive dropped, an import refused, and an id
+already taken - which belong to `.scratch/project-archive/spec.md` rather than to this file, and are
+described there. **That canvas is editable and is not in this repo**, so it is
 the pixels and this file is the reasoning. Where the two disagree, the canvas is newer and this file
 is wrong; say so rather than quietly following either.
 

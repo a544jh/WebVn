@@ -135,6 +135,13 @@ fit in a Blob does not fit in OPFS either.
 
 ## The buttons, and one rename
 
+**The icon is the arrow leaving the tray** - Lucide's `upload` glyph, the exact mirror of the one
+ticket 01 puts on Import, which is what makes the pair read as a pair. It is not the browser
+download the button performs: the arrow follows the project leaving the library. `src/chrome/icons.ts`
+holds three icons today and both of these are added by these two tickets; if the vendoring pass
+would rather take Lucide's own named `import`/`export` glyphs, take them **as a pair** - a box from
+one set beside a tray from the other is the thing to avoid.
+
 **On each picker row**, next to delete. **In the editor's chrome**, beside the existing buttons -
 the author spends their time there, and sending them back to the front door for a backup is friction
 in the one gesture we most want them to make. `AppShell` owns the session, so the editor's button is

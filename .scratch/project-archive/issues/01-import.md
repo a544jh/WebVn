@@ -16,6 +16,13 @@ written; a taken id is overwritten or the import is cancelled.
 **On the picker, beside New project and Add demo project.** A hidden `<input type="file"
 accept=".zip">` behind the button, plus `dragover`/`drop` on the picker page.
 
+**The icon is the arrow going INTO the tray** - Lucide's `download` glyph, which the picker vendors
+per `src/chrome/icons.ts`'s "add path data per ticket rather than vendoring a set nobody calls".
+Direction follows the data, not the verb: import brings a project in, so the arrow points in, and
+export's points out. Drawn the other way round first, and corrected from a comment on the canvas -
+an import drawn with an upload arrow and an export drawn with a download arrow left both buttons
+pointing the same way, which is what made it wrong rather than merely unconventional.
+
 **A multi-file drop is refused** with a one-line message rather than silently picking one. Importing
 three projects from one gesture is a bulk operation nobody asked for, and quietly ignoring two of
 three files is the worse failure.

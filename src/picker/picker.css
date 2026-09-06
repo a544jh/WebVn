@@ -80,6 +80,9 @@
   background: #eee;
 }
 
+/* `position` and `min-height` are both for the drop invitation below: it is drawn as an overlay on
+   this box, and it must never resize it. The minimum is what the invitation needs, so an empty
+   library does not grow as an archive arrives over it either. */
 .vn-picker-projects {
   list-style: none;
   margin: 0;
@@ -87,6 +90,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
+  min-height: 112px;
 }
 
 /* A row is the project's own button plus its two controls, side by side. Separate buttons rather
@@ -236,9 +241,9 @@
 }
 
 /* While an archive is over the page. The panel takes a dashed edge - the one place this page draws
-   one, so it reads as "this is a target" rather than as a style - and the rows step aside for what
-   letting go would do, because the list is not the answer to the question the author is asking. The
-   border stays 1px so that nothing under it moves as the drag arrives. */
+   one, so it reads as "this is a target" rather than as a style - and the invitation covers the list
+   with what letting go would do, because the list is not the answer to the question the author is
+   asking. The border stays 1px so that nothing under it moves as the drag arrives. */
 .vn-picker-dropping {
   border-style: dashed;
   border-color: #888;
@@ -248,17 +253,27 @@
   display: none;
 }
 
+/* **An overlay, and every part of that is load-bearing.** Hiding the rows instead - which is what
+   this did first - changes the layout *under the pointer*: Chrome fires `dragleave` for the element
+   that just vanished, the state comes off, the rows return, the pointer is over a row again, and the
+   whole page flickers at the drag's frame rate. The depth counter cannot save it, because those
+   enters and leaves are genuinely paired; the only fix is that nothing moves.
+   
+   So: `absolute` over the list, which takes it out of the flow so the list keeps its height;
+   `inset: 0` so it covers exactly the box that was already there; opaque, so the rows underneath do
+   not show through; and `pointer-events: none`, so the overlay itself never becomes the thing the
+   drag is over. */
 .vn-picker-dropping .vn-picker-drop {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 34px 8px 36px;
-}
-
-.vn-picker-dropping .vn-picker-project,
-.vn-picker-dropping .vn-picker-empty {
-  display: none;
+  background: #eee;
+  pointer-events: none;
 }
 
 .vn-picker-drop-icon {

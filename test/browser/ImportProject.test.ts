@@ -258,6 +258,12 @@ describe("the picker's import surface", () => {
 
   const importButton = (): HTMLButtonElement => pickerRoot.querySelector(".vn-picker-import") as HTMLButtonElement
 
+  const rowRects = (): string[] =>
+    [...pickerRoot.querySelectorAll(".vn-picker-project")].map((row) => {
+      const { top, left, width, height } = row.getBoundingClientRect()
+      return `${top},${left},${width},${height}`
+    })
+
   const row = (directory: string): HTMLButtonElement =>
     pickerRoot.querySelector(`.vn-picker-open[data-vn-project="${directory}"]`) as HTMLButtonElement
 
@@ -305,6 +311,26 @@ describe("the picker's import surface", () => {
 
     expect(panel().classList.contains("vn-picker-dropping")).toBe(true)
     expect(pickerRoot.querySelector(".vn-picker-drop")?.textContent).toContain("Drop a")
+  })
+
+  it("moves nothing while it says it, which is what stops the drag flickering", async () => {
+    // The bug: the invitation used to replace the rows, which pulls the element out from under the
+    // pointer - Chrome fires `dragleave` for it, the state comes off, the rows come back, and the
+    // page flickers at the drag's frame rate. The counter cannot see that loop, because those enters
+    // and leaves are genuinely paired. So the property to hold is that the geometry does not change.
+    await make(OTHER)
+    await newPicker().render()
+    const list = pickerRoot.querySelector(".vn-picker-projects") as HTMLElement
+    const before = { height: list.getBoundingClientRect().height, rows: rowRects() }
+
+    drag("dragenter", carrying(await archiveFile("story.webvn.zip")))
+
+    expect(list.getBoundingClientRect().height).toEqual(before.height)
+    expect(rowRects()).toEqual(before.rows)
+    // And the invitation cannot become the thing the drag is over, or it would take the drop from
+    // the page it is drawn on.
+    const invitation = pickerRoot.querySelector(".vn-picker-drop") as HTMLElement
+    expect(getComputedStyle(invitation).pointerEvents).toEqual("none")
   })
 
   it("stops saying so when the drag leaves again", async () => {

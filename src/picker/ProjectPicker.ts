@@ -607,6 +607,12 @@ export class ProjectPicker {
     const { signal } = this.listeners
     // A counter rather than a flag: `dragleave` fires every time the pointer crosses into a child, so
     // a flag cleared on it flickers off as the cursor moves over a row.
+    //
+    // It is only half of what stops the flicker, and the smaller half. The other is that the drop
+    // state must not move anything: hiding the rows to make room for the invitation pulls the
+    // element out from under the pointer, Chrome fires `dragleave` for it, and the state comes
+    // straight off again - a loop the counter cannot see, because those enters and leaves are real
+    // and paired. `picker.css` draws the invitation as an overlay for exactly that reason.
     let depth = 0
     const carriesFiles = (event: DragEvent): boolean => event.dataTransfer?.types.includes("Files") ?? false
 
@@ -632,7 +638,10 @@ export class ProjectPicker {
     )
     this.root.addEventListener(
       "dragleave",
-      () => {
+      (event) => {
+        // Guarded like `dragenter`, or the count drifts: a leave whose matching enter was skipped
+        // would decrement something it never incremented.
+        if (!carriesFiles(event)) return
         depth = Math.max(0, depth - 1)
         if (depth === 0) this.setDropping(false)
       },

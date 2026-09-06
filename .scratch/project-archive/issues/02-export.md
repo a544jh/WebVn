@@ -1,6 +1,6 @@
 # 02: Exporting a project
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (importing an archive).
 
@@ -226,3 +226,44 @@ split: `spec.md` claims zip.js lands in `app.js` and never in `playerIndex.js`, 
 long as nothing in the player's import graph reaches `src/storage/archive.ts`. Nothing enforces it;
 `npm run build` prints both bundles' sizes, so check them once when this lands and treat a jump in
 `playerIndex.js` as the symptom.
+
+## Comments
+
+**Landed 2026-09-06**, on one branch with 01 and 03. `exportProject` is in `src/storage/archive.ts`,
+the delivery is `src/chrome/download.ts`, and `test/browser/ExportProject.test.ts` covers the tree, the
+two gates, the round trip back through 01, the picker control and flush-before-export.
+
+**The flush and the lock are the callers', which is what the ticket's asymmetry paragraph forces.**
+`exportProject` walks and writes; the picker takes the row's project lock around it, and the editor's
+button flushes `session.storing` before it. The suite pins both halves of the flush: with one, the
+archive holds the sentence just typed; without one, it holds the stored text - which is the bug the
+ordering exists to prevent, written down as a test rather than as a comment.
+
+**Both dialogs that ended on the false sentence now go through `confirmDestroyingProject`**, which had
+been sitting in `src/chrome/dialog.ts` unused since tranche 2 with a comment promising exactly this
+("When export lands, that sentence changes here rather than in two places that had drifted"). The
+shared line is now *"It cannot be recovered from here - only an archive you exported has a copy of
+it."* A sibling, `confirmOverwritingProject`, is what makes 01's collision dialog the rename's wording
+with one verb changed, which `AppShell.confirmOverwrite`'s comment had also promised.
+
+**The `import.meta.url` finding needed one more step than `spec.md` said.** Pinning to
+`zip-core-custom.js` does *not* keep the build machine's path out of the bundle - that entry
+re-exports `zip-core-base.js`, which is where the call is - it only keeps the consequence away, since
+`workerURI: null` means nothing resolves against it. Measured by grepping `dist/app.js` for `file:///`
+after the first production build. Closed with a `DefinePlugin` entry in `webpack.config.js`; the spec
+is corrected.
+
+**The bundle split holds**, checked once as the ticket asks: `dist/playerIndex.js` contains no zip.js
+at all (grep for `zip-core`, `ZipReader`, `deflate-raw`: zero hits) and is unchanged in size, while
+`app.js` carries it.
+
+**The `<a download>` was verified by hand, and so was the whole loop.** `npm run build`, `dist/` served
+over `localhost`, driven with Playwright: add the demo, export it from its row (a real download of
+`webvn-demo.webvn.zip`), import it back through the file input, take the overwrite dialog, open the
+project and export again from the editor's own button. No console output at all. The archive on disk
+holds `README.txt` first, deflates the two YAML files and stores the eight media files whole.
+
+**One thing the ticket dictated that is worth flagging for the next reader**: the message span is
+`#vn-btn-copy-player-link-message`, named for the link button, and Export ZIP writes into it too. That
+is the id the ticket names, and the row has one message line rather than one per button; if a third
+tool button ever lands there, rename it for the row instead of adding a second.

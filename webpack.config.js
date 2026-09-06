@@ -1,4 +1,5 @@
 let path = require("path");
+const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
 
 const isDevServer = process.env.WEBPACK_SERVE;
@@ -21,6 +22,13 @@ module.exports = {
   },
 
   plugins : [
+    // zip.js's lib/zip-core-base.js opens with `setDefaultConfiguration({ baseURI: import.meta.url })`,
+    // and webpack resolves import.meta.url to an absolute file:// path on the machine that built the
+    // bundle, emitted as a string literal - so a deploy publishes the CI runner's checkout path.
+    // Nothing reads the value: src/storage/archive.ts pins the `zip-core-custom.js` entry, which sets
+    // workerURI and wasmURI to null, so no URL is ever resolved against it. Defined away rather than
+    // left in, because the leak is the point and the value is not. Nothing of our own uses import.meta.
+    new webpack.DefinePlugin({ "import.meta.url": "undefined" }),
     new CopyPlugin({
       patterns: [
         {from: "test-assets"}

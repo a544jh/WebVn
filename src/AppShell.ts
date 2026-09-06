@@ -1,10 +1,10 @@
-import { confirmDialog, noticeDialog } from "./chrome/dialog"
+import { confirmDialog, confirmOverwritingProject, noticeDialog } from "./chrome/dialog"
 import { VnPath } from "./core/vnPath"
 import { moveSaveData, saveToLocalStorage } from "./core/save"
 import { BootedEditor, bootEditor } from "./editorBoot"
 import { OpenProject, ProjectPicker, RefusalNotice } from "./picker/ProjectPicker"
 import { Navigation } from "./projectUrl"
-import { availableBytes } from "./storage/persistence"
+import { availableBytes, megabytes } from "./storage/persistence"
 import { ProjectLock, takeProjectLock } from "./storage/projectLock"
 import { listProjects, projectFolder, projectSize, renameProject } from "./storage/projectStore"
 import { recoverProjects } from "./storage/recoverProjects"
@@ -337,7 +337,7 @@ export class AppShell {
     }
 
     const taken = (await listProjects()).some((project) => project.directory === to)
-    if (taken && !(await confirmOverwrite(to))) return await revert()
+    if (taken && !(await confirmOverwritingProject(to, projectFolder(to), "renaming"))) return await revert()
 
     const lock = await takeProjectLock(to)
     if (lock === null) {
@@ -449,19 +449,9 @@ const confirmRename = (from: string, to: string): Promise<boolean> =>
   )
 
 // A second question rather than a louder version of the first: destroying a project the author did
-// not mention is not the same decision as renaming the one they are looking at, and an import that
-// collides with an existing id will ask it in the same words.
-const confirmOverwrite = (to: string): Promise<boolean> =>
-  confirmDialog(
-    `Overwrite "${to}"?`,
-    [
-      `A project is already filed under ${projectFolder(
-        to
-      )}, and renaming onto it destroys that project - its script, its manifest, every asset and its saves.`,
-      "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.",
-    ],
-    "Overwrite"
-  )
+// not mention is not the same decision as renaming the one they are looking at. **The import that
+// collides with an existing id asks it in the same words**, which this comment promised before there
+// was an import - so the wording is `src/chrome/dialog.ts`'s and the verb is all that differs here.
 
 // The reason a copy will not fit, or null when it will - `problem or null`, the shape
 // `validateProjectId` and `idProblem` already use here, and named for it: `roomToCopy` returned null
@@ -484,8 +474,6 @@ const roomProblem = async (directory: string): Promise<string | null> => {
     size * 2
   )}. Nothing has been changed.`
 }
-
-const megabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`
 
 // A rename that cannot go ahead, said in the place the author is already looking - inside the
 // editor, over the project they are still editing, which is exactly why the dialogs are src/chrome/'s

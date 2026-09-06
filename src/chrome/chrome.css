@@ -60,15 +60,15 @@ textarea {
   --vn-editor-marker-position: blue;
 }
 
-/* The way back out of a project, in the session's upper left. It lives here rather than in
-   editor.css because it is not the editor's: it is the seam between the two views, and it is on
-   screen whenever a project is open regardless of what the editor is doing. */
 /* The session's own page margin, so the stage and the buffers are not flush against the window the
    way they were when a page load was the only way in. */
 #vn-session {
   padding: 16px 40px 40px;
 }
 
+/* The way back out of a project, in the session's upper left. It lives here rather than in
+   editor.css because it is not the editor's: it is the seam between the two views, and it is on
+   screen whenever a project is open regardless of what the editor is doing. */
 #vn-session-bar {
   display: flex;
   align-items: center;
@@ -76,7 +76,16 @@ textarea {
   margin-bottom: 12px;
 }
 
-#vn-btn-back {
+/* **One button style for the whole editor chrome**, which tranche 3 is what established. Before it
+   `#vn-btn-back` was the only one of these with any CSS at all: Fullscreen and the link button were
+   styled by nothing and rendered as browser-default buttons, and the design canvas had been drawing
+   them as chrome they never were.
+
+   `line-height: 1` is the part that is about height rather than looks. Text at its default leading is
+   about 16px tall and a 14px icon is not, so an iconless button and an icon one sit at different
+   heights however alike their borders look - which is what this row did. Hence also icons on all
+   three of the tools below, or none: one icon among three is not one style. */
+.vn-chrome-button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -89,8 +98,32 @@ textarea {
   cursor: pointer;
 }
 
-#vn-btn-back:hover {
+.vn-chrome-button:hover:enabled {
   background: #fff;
+}
+
+/* Greyed rather than hidden, so a gate says what it is gating. Both of these are gated on the same
+   flag - a manifest that does not parse has no id to key a save under, name an archive after, or
+   send in a link - and each carries its own `title` saying so. */
+.vn-chrome-button:disabled {
+  color: #999;
+  cursor: default;
+}
+
+/* What the session can do with the project that is open: show it, link to it, take a copy of it out.
+   Under the stage, because they are about the project rather than about the frame it plays in. */
+#vn-session-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+/* Whatever the last of those buttons has to report. Muted and on the page's own dimgray, like the
+   session title. */
+#vn-session-tools span {
+  font-size: 13px;
+  color: #ddd;
 }
 
 /* Which project this is, beside the way out of it. The page is otherwise all buffers and stage, and

@@ -1,6 +1,6 @@
 # 03: The exported date
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 02 (exporting a project). There is nothing to date until an export exists - which is
 exactly why tranche 2 refused to build this field then. See `.scratch/project-library/spec.md`: *"A
@@ -77,3 +77,23 @@ forgotten.
 
 `test/browser/`, with the picker: a row before and after an export; the date surviving a rename; the
 date gone after a delete and after an overwriting import.
+
+## Comments
+
+**Landed 2026-09-06**, with 01 and 02. `exported` is a third map in `editor.yaml` beside `created` and
+`lastOpened`, written by `recordExported` inside `exportProject` - so both surfaces date a project
+without either caller remembering to.
+
+**All three ways it moves are covered.** `moveProjectRecords` carries it across a rename (and the loop
+there is now one pass over the three maps rather than two spelled-out fields, which is what stops the
+fourth being forgotten); `forgetProject` drops it on a delete; and an import drops it through
+`forgetExport`, beside the `deleteSaveData` call it belongs with. `test/browser/ExportProject.test.ts`
+asserts the first two and `ImportProject.test.ts` the third.
+
+**The row's line is one line, with the fact after a middle dot**, as the canvas draws it - and
+`openedLabel` was generalized into `agoLabel(verb, at)` rather than copied, so the two halves cannot
+drift. A project whose manifest does not parse says nothing about exporting at all: it cannot be
+exported, its red line says so, and "never exported" under that would read as a second complaint.
+
+**No nag, and no colour**, exactly as specified. The statement sits in the muted line the row already
+had.

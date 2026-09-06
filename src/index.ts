@@ -8,9 +8,11 @@ import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"
 
-import { icon } from "./chrome/icons"
+import { icon, IconName } from "./chrome/icons"
 import { encodePayload, playerUrl } from "./scriptUrl"
-import { unsupportedBrowserReason } from "./editorBoot"
+import { BootedEditor, unsupportedBrowserReason } from "./editorBoot"
+import { downloadBlob } from "./chrome/download"
+import { exportProject } from "./storage/archive"
 import { AppShell } from "./AppShell"
 import { browserNavigation } from "./projectUrl"
 
@@ -52,7 +54,8 @@ const shell = new AppShell(
       wireDebugPanel(player, renderer)
       wireJumpMode(editor)
       wireFullscreen(renderer)
-      wireExportUrl(editor)
+      wireCopyPlayerLink(editor)
+      wireExportZip(booted)
     },
     onClose: () => wiring.abort(),
     // The real address bar. Everything with a decision in it is above this line, in the shell, where
@@ -76,7 +79,7 @@ async function boot(): Promise<void> {
     return
   }
 
-  backButton.prepend(icon("chevron-left"))
+  backButton.prepend(icon("chevron-left", 14))
   backButton.addEventListener("click", () => void shell.backToProjects())
 
   // Wherever `?project=` says, which is the picker when it says nothing.
@@ -104,40 +107,105 @@ function wireJumpMode(editor: VnEditor): void {
 }
 
 // The button is page chrome rather than part of the vn, so the wiring stays here and the
-// mechanism lives in the renderer.
+// mechanism lives in the renderer. Its icon is the chrome's, like the other two in that row: icons
+// on all three or none, because one icon among three is not one style.
 function wireFullscreen(renderer: DomRenderer): void {
-  document
-    .getElementById("vn-btn-fullscreen")
-    ?.addEventListener("click", () => renderer.enterFullscreen(), { signal: wiring.signal })
+  const button = document.getElementById("vn-btn-fullscreen") as HTMLButtonElement
+  face(button, "maximize", "Fullscreen")
+  button.addEventListener("click", () => renderer.enterFullscreen(), { signal: wiring.signal })
 }
 
-function wireExportUrl(editor: VnEditor): void {
-  const exportUrlMessage = document.getElementById("vn-btn-export-url-message") as HTMLSpanElement
-  const exportUrlButton = document.getElementById("vn-btn-export-url") as HTMLButtonElement
+// A chrome button's icon and its label, set together - because setting one alone takes the other
+// out: the icon is a child of the button, and `textContent` replaces every child there is.
+function face(button: HTMLButtonElement, name: IconName, label: string): void {
+  button.replaceChildren(icon(name, 14), document.createTextNode(label))
+}
 
-  const exportUrl = async () => {
+// The `?vn=` payload as a link, copied to the clipboard. **Not "Export"**: CONTEXT.md's Payload
+// entry reserves that word for the archive, which carries the assets, and this button now sits
+// beside the one that is the archive - which is what turned a tidy-up into a rename.
+function wireCopyPlayerLink(editor: VnEditor): void {
+  const message = document.getElementById("vn-btn-copy-player-link-message") as HTMLSpanElement
+  const button = document.getElementById("vn-btn-copy-player-link") as HTMLButtonElement
+  face(button, "link", "Copy player link")
+
+  const copyPlayerLink = async () => {
     const url = playerUrl(await encodePayload(editor.getManifestText(), editor.getScript()), location.href)
     try {
       await navigator.clipboard.writeText(url)
-      exportUrlMessage.textContent = "Copied the story URL to the clipboard"
+      message.textContent = "Copied the player link to the clipboard"
     } catch (e) {
       // writeText needs a secure context and can still be refused by permission policy. There is
       // nothing to retry, so leave the url somewhere the user can still get at it.
       console.log(url)
-      exportUrlMessage.textContent = "Could not write to the clipboard - the URL is in the console instead"
+      message.textContent = "Could not write to the clipboard - the link is in the console instead"
     }
   }
-  exportUrlButton.addEventListener("click", () => void exportUrl(), { signal: wiring.signal })
-  // A message from the project just closed is not this one's news.
-  exportUrlMessage.textContent = ""
+  button.addEventListener("click", () => void copyPlayerLink(), { signal: wiring.signal })
+  // A message from the project just closed is not this one's news, and the two buttons in that row
+  // share it.
+  message.textContent = ""
 
   // A payload whose manifest does not parse is one the player refuses, so the link would be dead
   // rather than degraded - and whoever finds out is the person it was sent to. Following canSave's
   // precedent, which greys out Save when the path cannot be written as one.
   editor.onManifestStateChangeCallbacks.push(() => {
     const valid = editor.isManifestValid()
-    exportUrlButton.disabled = !valid
-    exportUrlButton.title = valid ? "" : "manifest.yaml does not parse - a link exported now would not load"
+    button.disabled = !valid
+    button.title = valid ? "" : "manifest.yaml does not parse - a link copied now would not load"
+  })
+}
+
+// The project as an archive, from inside the editor - because the author spends their time here, and
+// sending them back to the front door for a backup is friction in the one gesture we most want them
+// to make. `AppShell` owns the session, so this is a line of wiring.
+//
+// **Flush first.** The debounce is 2000ms, so an export taken straight after typing would otherwise
+// ship an archive missing the author's last sentence - the worst possible bug in a backup feature -
+// and a walk has to run over a tree nothing is writing into. `session.storing.flush()` resolves once
+// every write the storer has queued has landed, pending or not. Not `AppShell.settled()`, which is
+// the view-swap queue and says nothing about the store. No lock is taken: this session already holds
+// this project's, and `takeProjectLock` is `ifAvailable`, so asking again would refuse us against
+// ourselves.
+function wireExportZip(session: BootedEditor): void {
+  const message = document.getElementById("vn-btn-copy-player-link-message") as HTMLSpanElement
+  const button = document.getElementById("vn-btn-export-zip") as HTMLButtonElement
+  face(button, "upload", "Export ZIP")
+
+  const exportZip = async () => {
+    button.disabled = true
+    button.textContent = "Exporting\u2026"
+    try {
+      await session.storing.flush()
+      const result = await exportProject(session.directory)
+      if (result.kind === "refused") {
+        message.textContent = `Not exported: ${result.problem}. ${result.advice}`
+      } else {
+        message.textContent = `Exported ${result.filename}`
+        downloadBlob(result.blob, result.filename)
+      }
+    } catch (e) {
+      // A refusal is a decision about the project; this is the store not doing what it said, and it
+      // is caught because the caller is a `void`ed handler - an unhandled rejection there would leave
+      // the button reading "Exporting..." for the rest of the session.
+      console.error("The project could not be exported", e)
+      message.textContent = "Could not export the project - see the console"
+    } finally {
+      face(button, "upload", "Export ZIP")
+      // The gate below owns whether this is usable and has not been asked since, so this asks it -
+      // otherwise a finished export leaves the button dead on a project it should be live on.
+      button.disabled = !session.editor.isManifestValid()
+    }
+  }
+  button.addEventListener("click", () => void exportZip(), { signal: wiring.signal })
+
+  // The same gate the link button follows, and deliberately the same flag: an archive is named after
+  // an id and imports into a directory named after one, and a manifest that does not parse has
+  // declared none. ADR 0005 - and `editor.ts` already tracks this, so there is no second flag.
+  session.editor.onManifestStateChangeCallbacks.push(() => {
+    const valid = session.editor.isManifestValid()
+    button.disabled = !valid
+    button.title = valid ? "" : "manifest.yaml does not parse - a project cannot be exported until it does"
   })
 }
 

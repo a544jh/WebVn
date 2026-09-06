@@ -59,7 +59,9 @@ const refusalText = (): string | null => pickerRoot.querySelector(".vn-picker-re
 
 const rowIds = (): string[] => [...pickerRoot.querySelectorAll(".vn-picker-id")].map((elem) => elem.textContent ?? "")
 
-const openedLabels = (): string[] =>
+// The row's one meta line: when it was opened, and - where the project can be exported at all - when
+// it last was, after a middle dot.
+const metaLabels = (): string[] =>
   [...pickerRoot.querySelectorAll(".vn-picker-opened")].map((elem) => elem.textContent ?? "")
 
 const daysAgo = (days: number): string => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
@@ -201,7 +203,7 @@ describe("the picker's list", () => {
     await newPicker().render()
 
     expect(rowDirectories()).toEqual(["opened-story", "fresh-story"])
-    expect(openedLabels()).toEqual(["opened 2 days ago", "not opened yet"])
+    expect(metaLabels()).toEqual(["opened 2 days ago \u00b7 never exported", "not opened yet \u00b7 never exported"])
   })
 
   it("records the moment a project is opened, and says so on its row", async () => {
@@ -217,7 +219,7 @@ describe("the picker's list", () => {
     await newPicker().render()
 
     expect(rowDirectories()).toEqual(["a-story", "z-story"])
-    expect(openedLabels()).toEqual(["not opened yet", "opened just now"])
+    expect(metaLabels()).toEqual(["not opened yet \u00b7 never exported", "opened just now \u00b7 never exported"])
   })
 
   it("lists a project whose manifest does not parse, under its directory name", async () => {

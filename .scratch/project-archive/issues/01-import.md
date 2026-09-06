@@ -1,6 +1,6 @@
 # 01: Importing an archive
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: nothing. First of the tranche, and the doc's hard constraint is that ticket 02 does not
 merge without it.
@@ -222,3 +222,51 @@ crashed import (stop before step 4) leaves a directory the sweep removes.
 knows nothing about scratch roots, and this ticket takes locks - `RecoverProjects` and
 `RenameProject` sharing `old-name`/`new-name` produced a one-in-three flake that only appeared with
 the whole browser project running. `CLAUDE.md` has the story.
+
+## Comments
+
+**Landed 2026-09-06**, on the same branch as 02 and 03, as the doc's hard constraint requires.
+`src/storage/archive.ts` is the whole of it and the only file in the repo importing zip.js;
+`test/unit/archive.test.ts` covers the back half over a listing and `test/browser/ImportProject.test.ts`
+covers the writing, the overwrite, the picker surface and the crash.
+
+**The seam is a listing rather than an `AsyncIterable`, and the ticket's own ordering is why.**
+`ArchiveEntry` is `{ path, size, blob(): Promise<Blob> }` and `planImport` takes an array of them.
+Two of the things step 0 has to settle **before a byte is written** cannot be asked of a one-pass
+iterable without buffering the archive it exists to avoid buffering: what the whole thing sums to,
+which is what makes the caps arithmetic rather than a race with the quota, and what the manifest says,
+which this ticket asks to be read "by random access". Lazy bytes keep everything the seam was for - a
+refused archive still inflates nothing at all, one entry is materialized at a time, and the whole back
+half is reachable from `test/unit/` with no zip and no OPFS. `design-docs/PROJECT_STORAGE.md`'s
+paragraph specifying the iterable is amended to match.
+
+**The id gate turned out to be the manifest schema's, so there is no second check.** The ticket lists
+"the id fails `validateProjectId`" as its own refusal; `parseManifest` validates `id` with that exact
+schema, so a manifest that parses always names a directory the store can create. Adding a second call
+would be a second copy of a filesystem-safety rule, which is what `validateProjectId`'s own comment
+warns against. The refusal exists - it is reported as "its manifest.yaml does not parse", with the
+parser's own message.
+
+**The saves are dropped on every import, not only on an overwrite.** Step 2's `deleteSaveData(id)` is
+one line broader than written, because a *fresh* directory can still collide with saves left under
+that id by a published build of the same project played in this browser - the player writes to the
+same `vn-save-<id>` keyspace - and that is the identical failure the ticket describes: a save whose
+paths describe a story this project does not have, a replay that throws, and Load as a dead button.
+The ticket's own reasoning for not keeping them ("indistinguishable at import time") applies unchanged
+to that case.
+
+**`created` is recorded only for a new directory, and `exported` is dropped whatever happened**, which
+is the asymmetry the ticket sets out, implemented as `recordCreated` and `forgetExport` in the store.
+
+**The file input is the Import button's sibling, not its child.** A click on a child input bubbles
+back to the button, whose handler clicks the input: a loop with no bottom. Found by writing it the
+other way first.
+
+**The drag listeners are the first thing `ProjectPicker`'s `AbortController` genuinely carries.** They
+are on the picker's root, which is the host's element and outlives every picker mounted into it - so a
+superseded picker that kept them would answer drops over a project that had since opened. That
+controller's comment said outright it was insurance until such a listener arrived; it has.
+
+**Nothing says "imported" on success.** The row arriving is the confirmation, exactly as **Add demo
+project** works - the banner is for refusals, and a green one would spend a status colour this chrome
+means something else by.

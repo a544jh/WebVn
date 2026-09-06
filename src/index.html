@@ -17,7 +17,7 @@
     <div id="vn-picker"></div>
     <div id="vn-session" hidden>
       <div id="vn-session-bar">
-        <button id="vn-btn-back" type="button">Back to projects</button>
+        <button id="vn-btn-back" class="vn-chrome-button" type="button">Back to projects</button>
         <span id="vn-session-title"></span>
       </div>
       <div id="vn-div-container">
@@ -32,9 +32,16 @@
           </div>
         </div>
       </div>
-      <button id="vn-btn-fullscreen">Fullscreen</button>
-      <button id="vn-btn-export-url">Export URL encoded</button>
-      <span id="vn-btn-export-url-message"></span>
+      <!-- What the session can do with the project that is open. "Export ZIP" names the format
+           because it sits beside a button that also emits something - a link - and "Export" alone
+           would not say which; the link button says "Copy player link" because CONTEXT.md reserves
+           *export* for the archive that carries the assets. -->
+      <div id="vn-session-tools">
+        <button id="vn-btn-fullscreen" class="vn-chrome-button" type="button">Fullscreen</button>
+        <button id="vn-btn-copy-player-link" class="vn-chrome-button" type="button">Copy player link</button>
+        <button id="vn-btn-export-zip" class="vn-chrome-button" type="button">Export ZIP</button>
+        <span id="vn-btn-copy-player-link-message"></span>
+      </div>
       <div id="vn-editor"></div>
       <div id="vn-jump-mode">
         Jump mode:

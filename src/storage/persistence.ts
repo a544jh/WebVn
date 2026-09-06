@@ -47,6 +47,12 @@ export const availableBytes = async (): Promise<number | null> => {
   return Math.max(0, quota - usage)
 }
 
+// How much a number of bytes is, said to an author rather than to a machine. Here because every
+// caller of it is a caller of `availableBytes` above: a rename asking whether a second copy will
+// fit, and an import asking whether an archive will. One decimal place, and the SI megabyte the
+// browser's own estimate is quoted in.
+export const megabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`
+
 // Whether the origin is persisted *now*. Read fresh on every picker render rather than cached: the
 // answer changes when the request above is granted, and a browser may revoke it.
 export const isPersisted = async (): Promise<boolean> => {

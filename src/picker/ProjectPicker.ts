@@ -1,7 +1,9 @@
-import { confirmDialog } from "../chrome/dialog"
-import { icon } from "../chrome/icons"
+import { confirmDestroyingProject, confirmOverwritingProject } from "../chrome/dialog"
+import { downloadBlob } from "../chrome/download"
+import { icon, IconName } from "../chrome/icons"
 import { deleteSaveData } from "../core/save"
 import { demoManifest } from "../demoStory"
+import { ArchiveRefusal, exportProject, importArchive } from "../storage/archive"
 import { isPersisted } from "../storage/persistence"
 import { takeProjectLock } from "../storage/projectLock"
 import {
@@ -10,6 +12,7 @@ import {
   forgetProject,
   listProjects,
   mintProject,
+  projectFolder,
   ProjectSummary,
   readEditorState,
 } from "../storage/projectStore"
@@ -31,7 +34,8 @@ import "./picker.css"
 // shown. There is no index file, ever, and nothing here caches one.
 //
 // The layout is the design canvas's, which `design.md` names as the pixels: a header, one panel
-// holding a title strip with the two actions in it, and the rows inside that panel.
+// holding a title strip with the actions in it, and the rows inside that panel. The page is also the
+// drop target for an archive, which is the one thing on it that is not drawn.
 
 // What the host does when a row is chosen. Resolves with the notice to show when the project could
 // not be opened, or null when it was, in which case this picker is already down. Refusing is a place
@@ -48,21 +52,25 @@ export type OpenProject = (directory: string) => Promise<RefusalNotice | null>
 interface ListedProject extends ProjectSummary {
   readonly openedAt: Date | undefined
   readonly createdAt: Date | undefined
+  // Undefined for a project that has never been exported, which the row states rather than warns
+  // about - there is no nag, and no colour spent on it.
+  readonly exportedAt: Date | undefined
 }
 
 export class ProjectPicker {
   // Everything this view listens to, so `stop()` takes it all off at once.
   //
-  // **Insurance rather than a fix, and worth being honest about.** Every listener registered through
-  // it today is on an element this picker made inside its own root, and both `render` and `stop`
-  // call `replaceChildren` - so those elements are detached and unreferenced, and nothing in the app
-  // can reach their handlers. It is not the bug ProjectStoring's `stop()` closes, whose listeners
-  // are on `document` and `window` and genuinely outlive their session. What actually carries this
-  // teardown is the `stopped` flag and the generation below.
-  //
-  // It is kept because the moment a dialog here needs `document` - a key handler, an outside click -
-  // the picker is in exactly ProjectStoring's position, and this is where that listener will go.
+  // **It stopped being insurance when the drop target arrived.** Every other listener registered
+  // through it is on an element this picker made inside its own root, and both `render` and `stop`
+  // call `replaceChildren` - so those are detached and unreferenced whatever happens. The four drag
+  // listeners are not: they are on the root itself, which is the host's element and outlives every
+  // picker mounted into it, so a superseded picker that kept them would go on answering drops after
+  // a project had opened over it. That is exactly the bug ProjectStoring's `stop()` closes.
   private listeners = new AbortController()
+
+  // Whether a file is being dragged over the page. Held here rather than read off the DOM because a
+  // render in the middle of a drag has to draw the state the drag is in.
+  private dropping = false
 
   // Every render walks the store, and the author can leave while that walk is in flight. Bumped by
   // each render and by `stop()`, so a walk that resolves late paints nothing - the same guard, and
@@ -83,7 +91,9 @@ export class ProjectPicker {
     private root: HTMLElement,
     private openProject: OpenProject,
     private refusal: RefusalNotice | null = null
-  ) {}
+  ) {
+    this.watchForDrops()
+  }
 
   // Walk the store and draw what it holds. Called to show the picker and again after anything that
   // changes the library.
@@ -117,6 +127,9 @@ export class ProjectPicker {
 
     const panel = document.createElement("div")
     panel.classList.add("vn-picker-panel")
+    // A render can land mid-drag - a drop refused while another is still hovering - so the dashed
+    // border is drawn from the state rather than only toggled onto it.
+    panel.classList.toggle("vn-picker-dropping", this.dropping)
     panel.appendChild(this.drawPanelBar(projects))
     // Inside the panel and under its title strip, because it is news about this list rather than
     // about the page - the artboard puts it there and it is right: the row it names is under it.
@@ -128,7 +141,7 @@ export class ProjectPicker {
     return page
   }
 
-  // The panel's title strip: what this is, then the two things you can do to it.
+  // The panel's title strip: what this is, then the things you can do to it.
   private drawPanelBar(projects: ListedProject[]): HTMLElement {
     const bar = document.createElement("div")
     bar.classList.add("vn-picker-bar")
@@ -145,13 +158,45 @@ export class ProjectPicker {
     if (!projects.some((project) => project.directory === demoManifest.id)) {
       bar.appendChild(this.action("vn-picker-demo", null, "Add demo project", () => void this.addDemo()))
     }
+    this.drawImport(bar)
     bar.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
     return bar
+  }
+
+  // **Import project, beside New project**, with a hidden file input behind it - the platform's own
+  // control, styled by nobody, is not a button this page can draw. `accept` is a hint to the file
+  // dialog and nothing more: what an archive actually is, `importArchive` decides by sniffing the
+  // magic bytes.
+  //
+  // The input is the button's *sibling* rather than its child, which is not a layout preference: a
+  // click on a child input bubbles back to the button, whose handler clicks the input, which is a
+  // loop with no bottom.
+  private drawImport(bar: HTMLElement): void {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".zip"
+    input.classList.add("vn-picker-file")
+    input.hidden = true
+    input.addEventListener(
+      "change",
+      () => {
+        const file = input.files?.[0]
+        if (file !== undefined) void this.importFile(file)
+      },
+      { signal: this.listeners.signal }
+    )
+
+    bar.appendChild(input)
+    bar.appendChild(this.action("vn-picker-import", "download", "Import project", () => input.click()))
   }
 
   private drawList(projects: ListedProject[]): HTMLElement {
     const list = document.createElement("ul")
     list.classList.add("vn-picker-projects")
+    // Drawn on every render and shown by CSS only while a file is over the page, which takes the
+    // rows' place rather than sitting above them: what the author is being told is what will happen
+    // if they let go, and the list is not the answer to that.
+    list.appendChild(dropInvitation())
     if (projects.length === 0) {
       list.appendChild(emptyLibrary())
       return list
@@ -199,34 +244,68 @@ export class ProjectPicker {
     if (project.title === null) {
       const problem = document.createElement("span")
       problem.classList.add("vn-picker-unparsed")
-      problem.textContent = "manifest.yaml does not parse - opens anyway, marked in the gutter"
+      // **Both consequences on the one red line**, which is what lets the greyed-out export control
+      // need no label of its own: the project opens, and it cannot leave the browser until the
+      // manifest declares an id to name an archive after (ADR 0005).
+      problem.textContent = "manifest.yaml does not parse - opens anyway, and cannot be exported until it does"
       open.appendChild(problem)
     }
 
-    const opened = document.createElement("span")
-    opened.classList.add("vn-picker-opened")
-    opened.textContent = openedLabel(project.openedAt)
-    open.appendChild(opened)
+    const meta = document.createElement("span")
+    meta.classList.add("vn-picker-opened")
+    meta.textContent = metaLine(project)
+    open.appendChild(meta)
 
     open.addEventListener("click", () => void this.choose(project.directory), { signal: this.listeners.signal })
     row.appendChild(open)
 
-    const remove = document.createElement("button")
-    remove.type = "button"
-    remove.classList.add("vn-picker-delete")
-    remove.dataset.vnProject = project.directory
-    // The row's own button carries the name, so the icon says the rest. An icon with no text needs
-    // the label a screen reader looks for.
-    remove.setAttribute("aria-label", `Delete ${project.title ?? project.directory}`)
-    remove.title = "Delete this project"
-    remove.appendChild(icon("trash-2", 15))
-    remove.addEventListener("click", () => void this.remove(project), { signal: this.listeners.signal })
-    row.appendChild(remove)
+    // Both icon controls in one group, so the row has one right-hand edge rather than two things
+    // floated at it.
+    const controls = document.createElement("div")
+    controls.classList.add("vn-picker-controls")
+    controls.appendChild(this.drawExport(project))
+    controls.appendChild(this.drawDelete(project))
+    row.appendChild(controls)
 
     return row
   }
 
-  private action(className: string, name: "plus" | null, label: string, onClick: () => void): HTMLButtonElement {
+  // **Any project can be exported without being opened**, which is half of why this control is on the
+  // row at all: the other half is that a project too broken to work in can still be got out - except
+  // that a project whose manifest does not parse is exactly the one that cannot, so the control is
+  // disabled and the row says why.
+  private drawExport(project: ListedProject): HTMLButtonElement {
+    const button = this.control(project, "upload", `Export ${project.title ?? project.directory}`)
+    button.classList.add("vn-picker-export")
+    button.disabled = project.id === null
+    button.title = button.disabled
+      ? "manifest.yaml does not parse, so there is no id to name an archive after"
+      : "Export this project as a .webvn.zip"
+    button.addEventListener("click", () => void this.exportRow(project), { signal: this.listeners.signal })
+    return button
+  }
+
+  private drawDelete(project: ListedProject): HTMLButtonElement {
+    const button = this.control(project, "trash-2", `Delete ${project.title ?? project.directory}`)
+    button.classList.add("vn-picker-delete")
+    button.title = "Delete this project"
+    button.addEventListener("click", () => void this.remove(project), { signal: this.listeners.signal })
+    return button
+  }
+
+  // The row's own button carries the name, so an icon says the rest - and an icon with no text needs
+  // the label a screen reader looks for.
+  private control(project: ListedProject, name: IconName, label: string): HTMLButtonElement {
+    const button = document.createElement("button")
+    button.type = "button"
+    button.classList.add("vn-picker-control")
+    button.dataset.vnProject = project.directory
+    button.setAttribute("aria-label", label)
+    button.appendChild(icon(name, 15))
+    return button
+  }
+
+  private action(className: string, name: IconName | null, label: string, onClick: () => void): HTMLButtonElement {
     const button = document.createElement("button")
     button.type = "button"
     button.classList.add("vn-picker-action", className)
@@ -304,8 +383,9 @@ export class ProjectPicker {
     await this.render()
   }
 
-  // Ask first, and say the project cannot be recovered - which is plainly true right now, because
-  // there is no export yet.
+  // Ask first, and say the project cannot be recovered from here - which since tranche 3 is the whole
+  // of what is true: an archive the author exported is a copy, and the row above says when they last
+  // made one.
   //
   // **Take the lock on what is about to be deleted, and refuse if it is held.** On the picker this
   // tab holds nothing and has no live storer to flush into a directory being removed, so the case
@@ -317,12 +397,11 @@ export class ProjectPicker {
   // else is not a thing to want, and from the front door there is nothing to land in.
   private async remove(project: ListedProject): Promise<void> {
     const name = project.title ?? project.directory
-    const confirmed = await confirmDialog(
+    const confirmed = await confirmDestroyingProject(
       `Delete "${name}"?`,
-      [
-        `This removes projects/${project.directory}/ and everything in it - the script, the manifest and every asset.`,
-        "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.",
-      ],
+      `This removes ${projectFolder(
+        project.directory
+      )} and everything in it - the script, the manifest and every asset.`,
       "Delete"
     )
     if (!confirmed) return
@@ -349,7 +428,175 @@ export class ProjectPicker {
     }
     await this.render()
   }
+
+  // An archive arriving, from either gesture: the Import project button's file input, or a drop.
+  //
+  // **The author stays on the picker afterwards, with the new row visible**, exactly as Add demo
+  // project does - populating a library and starting work are different intents, and after an import
+  // what an author most wants is to see the thing arrived intact. So there is no success banner
+  // either: the row is the confirmation.
+  private async importFile(file: File): Promise<void> {
+    this.busy(".vn-picker-import", "Importing\u2026")
+
+    const result = await importArchive(file, {
+      confirmOverwrite: (plan) =>
+        confirmOverwritingProject(
+          plan.id,
+          projectFolder(plan.id),
+          "importing",
+          "The archive you are importing is untouched, and can be imported again.",
+          "To keep both, cancel, rename the project you have, and import again."
+        ),
+    }).catch(broke("imported", "Whatever was written is not a project, and the library tidies it away."))
+
+    // A cancelled overwrite is not news: the author decided, nothing happened, and the render below
+    // is only there to put the button back.
+    this.refusal =
+      result.kind === "refused"
+        ? { lead: `${file.name} was not imported: ${result.problem}.`, detail: result.advice }
+        : null
+    await this.render()
+  }
+
+  // A project leaving, from the row rather than from inside the editor - so **the lock is this
+  // method's to take**, and a walk that overlapped another tab's writes would be a walk over a tree
+  // being written into. The editor's own button has the other half of that asymmetry: it holds this
+  // lock already and flushes its storer instead.
+  private async exportRow(project: ListedProject): Promise<void> {
+    const name = project.title ?? project.directory
+    this.busy(`.vn-picker-export[data-vn-project="${cssValue(project.directory)}"]`, null)
+
+    const lock = await takeProjectLock(project.directory)
+    if (lock === null) {
+      this.refusal = { lead: `${name} is open in another tab.`, detail: "It was not exported. Close it there." }
+      await this.render()
+      return
+    }
+    try {
+      const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
+      if (result.kind === "refused") {
+        this.refusal = { lead: `${name} was not exported: ${result.problem}.`, detail: result.advice }
+      } else {
+        this.refusal = null
+        downloadBlob(result.blob, result.filename)
+      }
+    } finally {
+      await lock.release()
+    }
+    // Last, so the row's "exported just now" is drawn from what the store now says rather than from
+    // what this method knows.
+    await this.render()
+  }
+
+  // A control that is working: disabled, and saying so where it has room to. No progress bar - the
+  // honest unit of progress here (entries) is not the one the author perceives (bytes) - but a click
+  // that appears to do nothing for three seconds gets clicked again.
+  //
+  // Nothing puts it back: every path through the two callers ends in a render, which draws the
+  // control fresh.
+  private busy(selector: string, label: string | null): void {
+    const control = this.root.querySelector<HTMLButtonElement>(selector)
+    if (control === null) return
+    control.disabled = true
+    if (label === null) control.title = "Exporting\u2026"
+    else control.replaceChildren(document.createTextNode(label))
+  }
+
+  // **The whole page is the drop target**, not a zone inside it: an author dragging an archive at the
+  // library means the library, and a target they have to find is a target they will miss.
+  //
+  // On the root rather than on anything drawn, so a drag survives the renders this picker does
+  // underneath it - and taken off by `stop()`, because the root is the host's element and outlives
+  // every picker mounted into it.
+  private watchForDrops(): void {
+    const { signal } = this.listeners
+    // A counter rather than a flag: `dragleave` fires every time the pointer crosses into a child, so
+    // a flag cleared on it flickers off as the cursor moves over a row.
+    let depth = 0
+    const carriesFiles = (event: DragEvent): boolean => event.dataTransfer?.types.includes("Files") ?? false
+
+    this.root.addEventListener(
+      "dragenter",
+      (event) => {
+        if (!carriesFiles(event)) return
+        depth += 1
+        this.setDropping(true)
+      },
+      { signal }
+    )
+    this.root.addEventListener(
+      "dragover",
+      (event) => {
+        if (!carriesFiles(event)) return
+        // Without this the browser takes the drop itself and navigates to the file, which is the
+        // default nobody wants and the one thing a drop target must say no to.
+        event.preventDefault()
+        if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy"
+      },
+      { signal }
+    )
+    this.root.addEventListener(
+      "dragleave",
+      () => {
+        depth = Math.max(0, depth - 1)
+        if (depth === 0) this.setDropping(false)
+      },
+      { signal }
+    )
+    this.root.addEventListener(
+      "drop",
+      (event) => {
+        if (!carriesFiles(event)) return
+        event.preventDefault()
+        depth = 0
+        this.setDropping(false)
+        void this.dropped([...(event.dataTransfer?.files ?? [])])
+      },
+      { signal }
+    )
+  }
+
+  private setDropping(dropping: boolean): void {
+    this.dropping = dropping
+    this.root.querySelector(".vn-picker-panel")?.classList.toggle("vn-picker-dropping", dropping)
+  }
+
+  // **A multi-file drop is refused** rather than silently picking one. Importing three projects from
+  // one gesture is a bulk operation nobody asked for, and quietly ignoring two of three files is the
+  // worse failure.
+  private async dropped(files: File[]): Promise<void> {
+    if (files.length === 0) return
+    if (files.length > 1) {
+      this.refusal = {
+        lead: `${files.length} files were dropped.`,
+        detail: "Import takes one archive at a time. Nothing was written.",
+      }
+      await this.render()
+      return
+    }
+    await this.importFile(files[0])
+  }
 }
+
+// **An archive can fail rather than be refused**, and the two are different: a refusal is a decision
+// this code made about a file, while this is the file - or the store under it - not doing what it
+// said. A truncated archive whose central directory still reads is the case to picture. It is caught
+// here rather than left to reject, because the caller is a `void`ed handler: an unhandled rejection
+// there would leave the control reading "Importing..." for the rest of the page's life.
+//
+// The store needs no help either way. An import that dies partway has written no manifest, so what it
+// leaves is not a project and the next render's sweep removes it.
+const broke =
+  (verb: string, advice: string) =>
+  (e: unknown): ArchiveRefusal => {
+    console.error(`The project could not be ${verb}`, e)
+    return { kind: "refused", problem: "could not be read to the end", advice }
+  }
+
+// A directory name inside an attribute selector. Every id that reaches here has been through
+// `validateProjectId`, so this can only ever be a no-op - but a selector built by interpolation is
+// the shape that stops being safe the moment the charset does, and `CSS.escape` is one call.
+const cssValue = (value: string): string => (typeof CSS?.escape === "function" ? CSS.escape(value) : value)
 
 const header = (): HTMLElement => {
   const elem = document.createElement("div")
@@ -386,6 +633,7 @@ const order = (projects: ProjectSummary[], state: EditorState): ListedProject[] 
       ...project,
       openedAt: parseDate(state.lastOpened?.[project.directory]),
       createdAt: parseDate(state.created?.[project.directory]),
+      exportedAt: parseDate(state.exported?.[project.directory]),
     }))
     .sort((a, b) => {
       if (a.createdAt !== undefined && b.createdAt !== undefined) return a.createdAt.getTime() - b.createdAt.getTime()
@@ -405,18 +653,39 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-// "opened just now", "opened yesterday", "opened 5 days ago". Through Intl rather than a table of
-// plurals, which is a table that only works in English.
-const openedLabel = (at: Date | undefined): string => {
-  if (at === undefined) return "not opened yet"
+// **One line, with the export fact after a middle dot** rather than a second line under the first.
+// The row is already three lines deep on a project with a problem, and "when" is one question with
+// two answers rather than two questions.
+//
+// A project whose manifest does not parse says nothing about exporting, because it cannot be
+// exported at all - its red line above says so, and repeating "never exported" under it would read
+// as a second complaint rather than the same one.
+const metaLine = (project: ListedProject): string =>
+  project.id === null
+    ? openedLabel(project.openedAt)
+    : `${openedLabel(project.openedAt)} \u00b7 ${exportedLabel(project.exportedAt)}`
+
+// "opened just now", "exported yesterday", "opened 5 days ago". Through Intl rather than a table of
+// plurals, which is a table that only works in English - and one formatter for both facts, because
+// the row draws them side by side and two copies would drift in the small hours.
+const agoLabel = (verb: string, at: Date): string => {
   const elapsed = Date.now() - at.getTime()
-  if (elapsed < MINUTE) return "opened just now"
+  if (elapsed < MINUTE) return `${verb} just now`
 
   const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
-  if (elapsed < HOUR) return `opened ${relative.format(-Math.round(elapsed / MINUTE), "minute")}`
-  if (elapsed < DAY) return `opened ${relative.format(-Math.round(elapsed / HOUR), "hour")}`
-  return `opened ${relative.format(-Math.round(elapsed / DAY), "day")}`
+  if (elapsed < HOUR) return `${verb} ${relative.format(-Math.round(elapsed / MINUTE), "minute")}`
+  if (elapsed < DAY) return `${verb} ${relative.format(-Math.round(elapsed / HOUR), "hour")}`
+  return `${verb} ${relative.format(-Math.round(elapsed / DAY), "day")}`
 }
+
+const openedLabel = (at: Date | undefined): string => (at === undefined ? "not opened yet" : agoLabel("opened", at))
+
+// **A statement, not a warning**: no colour, no icon, no badge. The status colours mean things -
+// green stored, orange "needs attention and the work still runs", red "did not parse, or a write
+// failed" - and spending orange on a project nobody has backed up would cost that meaning. There is
+// no nag either; this line in the place the author is already looking is most of a nag's value at
+// none of its interaction cost.
+const exportedLabel = (at: Date | undefined): string => (at === undefined ? "never exported" : agoLabel("exported", at))
 
 // What could not be opened, and what to do about it. Two parts because the artboard reads that way
 // and it is right: the first sentence is the news and carries the weight, the second is the advice.
@@ -440,6 +709,33 @@ const banner = (notice: RefusalNotice): HTMLElement => {
   lead.classList.add("vn-picker-refusal-lead")
   lead.textContent = notice.lead
   elem.append(lead, ` ${notice.detail}`)
+  return elem
+}
+
+// What is about to happen if the author lets go, in the rows' own place. Named as the file it wants
+// rather than as an instruction about the button, because by this point the author is already
+// holding the thing.
+const dropInvitation = (): HTMLElement => {
+  const elem = document.createElement("li")
+  elem.classList.add("vn-picker-drop")
+
+  const arrow = document.createElement("span")
+  arrow.classList.add("vn-picker-drop-icon")
+  arrow.appendChild(icon("download", 22))
+  elem.appendChild(arrow)
+
+  const lead = document.createElement("span")
+  lead.classList.add("vn-picker-drop-lead")
+  const extension = document.createElement("span")
+  extension.classList.add("vn-picker-identifier")
+  extension.textContent = ".webvn.zip"
+  lead.append("Drop a ", extension, " to import it")
+  elem.appendChild(lead)
+
+  const one = document.createElement("span")
+  one.classList.add("vn-picker-drop-note")
+  one.textContent = "One at a time"
+  elem.appendChild(one)
   return elem
 }
 

@@ -89,8 +89,8 @@
   gap: 4px;
 }
 
-/* A row is the project's own button plus its delete, side by side. Two buttons rather than one with
-   something inside it: a button cannot contain a button. */
+/* A row is the project's own button plus its two controls, side by side. Separate buttons rather
+   than one with something inside it: a button cannot contain a button. */
 .vn-picker-project {
   display: flex;
   align-items: stretch;
@@ -105,8 +105,8 @@
   background: #fafafa;
 }
 
-/* Opening is the whole row bar the trash, so there is barely a target to aim for. The row draws the
-   border and the fill, so the button itself is only a stack of lines. */
+/* Opening is the whole row bar the two icons at its edge, so there is barely a target to aim for.
+   The row draws the border and the fill, so the button itself is only a stack of lines. */
 .vn-picker-open {
   flex: 1;
   min-width: 0;
@@ -155,16 +155,38 @@
   color: #555;
 }
 
-/* Muted until it is reached for, because destroying a project should not be the brightest thing in
-   the row. No border and no fill: the row is the surface, and this is an icon on it. */
-.vn-picker-delete {
+/* The row's two icon controls, export then delete, at its one right-hand edge. The group carries the
+   nudge that lines them up with the title above; the buttons inside it are only icons. */
+.vn-picker-controls {
   display: flex;
   align-items: flex-start;
+  gap: 10px;
   padding: 1px 0 0;
+}
+
+/* Muted until it is reached for, because neither taking a project out of the browser nor destroying
+   it should be the brightest thing in the row. No border and no fill: the row is the surface, and
+   these are icons on it. */
+.vn-picker-control {
+  display: flex;
+  padding: 0;
   border: none;
   background: none;
   color: #999;
   cursor: pointer;
+}
+
+/* Grey, and no pointer: the row's red line is what says why, which is what lets this need no label
+   of its own. */
+.vn-picker-control:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+/* Export darkens; delete goes red. The colour is the difference between "this takes a copy out" and
+   "this destroys it", and it is the one place in the row that says so. */
+.vn-picker-export:hover:enabled {
+  color: #333;
 }
 
 .vn-picker-delete:hover {
@@ -200,4 +222,50 @@
   margin: 0;
   font-size: 12px;
   color: #ddd;
+}
+
+/* While an archive is over the page. The panel takes a dashed edge - the one place this page draws
+   one, so it reads as "this is a target" rather than as a style - and the rows step aside for what
+   letting go would do, because the list is not the answer to the question the author is asking. The
+   border stays 1px so that nothing under it moves as the drag arrives. */
+.vn-picker-dropping {
+  border-style: dashed;
+  border-color: #888;
+}
+
+.vn-picker-drop {
+  display: none;
+}
+
+.vn-picker-dropping .vn-picker-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 34px 8px 36px;
+}
+
+.vn-picker-dropping .vn-picker-project,
+.vn-picker-dropping .vn-picker-empty {
+  display: none;
+}
+
+.vn-picker-drop-icon {
+  display: flex;
+  color: #666;
+}
+
+.vn-picker-drop-lead {
+  font-size: 13px;
+  color: #333;
+}
+
+/* The extension is an identifier, so it wears the face every other identifier on this page does. */
+.vn-picker-drop-lead .vn-picker-identifier {
+  font-size: 12px;
+}
+
+.vn-picker-drop-note {
+  font-size: 12px;
+  color: #555;
 }

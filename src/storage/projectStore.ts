@@ -4,11 +4,13 @@ import {
   copyTree,
   exists,
   listDirectories,
+  openWritable,
   opfsRoot,
   readBlob,
   readText,
   removeRecursive,
   walk,
+  WalkedFile,
   writeFile,
 } from "./opfs"
 
@@ -103,6 +105,16 @@ export interface EditorState {
   // questions *about* what that walk found. A project missing from either map is a project this file
   // has nothing to say about, not a project that does not exist.
   readonly created?: Record<string, string>
+  // **When each project was last written out as an archive**, same shape again, and what the picker
+  // says after "opened 2 days ago" on every row. A project with no entry has never been exported,
+  // which the row states rather than warns about.
+  //
+  // It moves with a project and dies with one, in all three places: `moveProjectRecords` carries it
+  // across a rename, `forgetProject` drops it on a delete, and `forgetExport` drops it when an import
+  // lands on top of a project - because at that point the date describes an archive of a project
+  // nobody has any more. An entry that outlives what it describes is inherited by the next project to
+  // claim the directory, which is the trap `forgetProject` exists for arriving through a third door.
+  readonly exported?: Record<string, string>
   // A rename in flight. **One slot, not a field per project**: one project is open at a time under
   // its lock, so two renames cannot overlap, and "is a rename in flight" is one check rather than a
   // scan. Written before the copy and cleared after the source is gone; ticket 05's recovery is what
@@ -192,6 +204,32 @@ export const readProject = async (directory: string): Promise<ProjectFiles> => {
   return { manifestText, scriptText }
 }
 
+// The manifest alone, for a caller that has to look at a project before deciding anything about it -
+// export's gate, which asks whether the manifest parses before it will build an archive out of the
+// project (ADR 0005). Separate from `readProject` because that one reads both buffers and throws
+// when either is missing, which is two questions where the gate asks one at a time.
+export const readManifest = (directory: string): Promise<string> =>
+  root().then((dir) => readText(dir, projectPath(directory, MANIFEST_FILE)))
+
+// The other half of the archive's invariant: **a project that parses and has a script**. `isProject`
+// asks about the manifest, because that is what makes a directory a project at all; this asks about
+// the script, which nothing else in the store cares about - `recoverProjects` deliberately does not
+// sweep a manifest with no script, since that is the state `createProject` passes through between
+// its two writes.
+export const hasScript = (directory: string): Promise<boolean> =>
+  root().then((dir) => exists(dir, projectPath(directory, SCRIPT_FILE)))
+
+// Every file in a project, path relative to the project directory - `assets/backgrounds/a.png`,
+// which is exactly what an archive holds. The second walk that descends into `assets/`, beside
+// `projectSize`, and it is here for the same reason: the `projects/<directory>/` layout is this
+// module's business, and an export that spelled it would go on claiming a path that had moved.
+//
+// A generator, like `walk` under it, so the archive writer adds each entry as it reads it rather
+// than holding the project in memory to hand a list back.
+export async function* walkProject(directory: string): AsyncGenerator<WalkedFile> {
+  yield* walk(await root(), `${PROJECTS}/${directory}`)
+}
+
 // Put a project into the store, from text that already exists: the demo seed, and later an import.
 // `mintProject` below is the same call with text this module writes, so there is one code path for
 // "put a project into the store" rather than two.
@@ -241,13 +279,16 @@ export const deleteProject = (directory: string): Promise<void> =>
 // Carry a project's bookkeeping to the directory it now lives under. Without this a renamed project
 // has no recorded creation, which puts it in the undated bucket the picker sorts *first* - so
 // renaming would send a project to the top of the library.
+//
+// `exported` travels with them, and for a second reason on top of that one: a renamed project that
+// read as never exported would be telling the author to make a backup they already have.
 const moveProjectRecords = async (from: string, to: string): Promise<void> => {
-  const { lastOpened = {}, created = {}, pendingRename } = await readEditorState()
-  if (created[from] !== undefined) created[to] = created[from]
-  if (lastOpened[from] !== undefined) lastOpened[to] = lastOpened[from]
-  delete created[from]
-  delete lastOpened[from]
-  await writeEditorState({ lastOpened, created, pendingRename })
+  const { lastOpened = {}, created = {}, exported = {}, pendingRename } = await readEditorState()
+  for (const map of [created, lastOpened, exported]) {
+    if (map[from] !== undefined) map[to] = map[from]
+    delete map[from]
+  }
+  await writeEditorState({ lastOpened, created, exported, pendingRename })
 }
 
 // **The directory follows the identity the manifest declares**, which is the only direction this
@@ -315,6 +356,12 @@ export const readProjectFile = async (directory: string, path: string): Promise<
 export const writeProjectFile = async (directory: string, path: string, data: Blob | string): Promise<void> =>
   writeFile(await root(), projectPath(directory, path), data)
 
+// The same file, opened for a caller that has bytes arriving rather than bytes in hand - an import,
+// which pipes an archive entry straight in. `openWritable` in opfs.ts says why that is the one write
+// not routed through `writeFile`, and why it is safe only under a lock.
+export const openProjectFile = async (directory: string, path: string): Promise<FileSystemWritableFileStream> =>
+  openWritable(await root(), projectPath(directory, path))
+
 // A hint, not a source of truth. Anything unreadable, unparseable or the wrong shape reads as empty
 // and the caller falls back to enumeration - see EditorState for why that is the whole versioning
 // story for this file.
@@ -323,14 +370,15 @@ export const readEditorState = async (): Promise<EditorState> => {
     .then((dir) => readText(dir, EDITOR_FILE))
     .catch(() => null)
   const parsed = text === null ? null : parseOrNull(text)
-  // Both maps, always, however little the file had to say - a missing file, an unparseable one and a
+  // Every map, always, however little the file had to say - a missing file, an unparseable one and a
   // valid one all read the same shape, so no caller has to tell those apart. They stay optional on
-  // the type because a *writer* need not supply either.
-  if (typeof parsed !== "object" || parsed === null) return { lastOpened: {}, created: {} }
+  // the type because a *writer* need not supply them.
+  if (typeof parsed !== "object" || parsed === null) return { lastOpened: {}, created: {}, exported: {} }
   const record = parsed as Record<string, unknown>
   return {
     lastOpened: timestamps(record.lastOpened),
     created: timestamps(record.created),
+    exported: timestamps(record.exported),
     pendingRename: pendingRename(record.pendingRename),
   }
 }
@@ -371,9 +419,35 @@ const timestamps = (value: unknown): Record<string, string> => {
 // already and a rename marker is to come, so a caller that wrote the whole state would drop them.
 export const recordOpened = (directory: string): Promise<void> => note("lastOpened", directory)
 
-const note = async (field: "lastOpened" | "created", directory: string): Promise<void> => {
+// Dated by whoever puts a project into the store. `createProject` does it for the two callers that
+// go through it; an import writes its manifest last rather than first, so it does not, and records
+// its own - **and only when the directory is new**. An import landing on an existing project keeps
+// the date it found, because `created` is what the picker orders by and minting a fresh one would
+// send the overwritten project to the bottom of the library as a side effect of replacing its
+// contents. The slot is the same slot.
+export const recordCreated = (directory: string): Promise<void> => note("created", directory)
+
+// The moment an archive was written, recorded where the archive is built rather than by either
+// button that asks for one - an author who exports from inside the editor and then goes back to the
+// library must find the row already saying so.
+export const recordExported = (directory: string): Promise<void> => note("exported", directory)
+
+const note = async (field: "lastOpened" | "created" | "exported", directory: string): Promise<void> => {
   const state = await readEditorState()
   await writeEditorState({ ...state, [field]: { ...state[field], [directory]: new Date().toISOString() } })
+}
+
+// Forget when a directory was last exported, without forgetting the directory. An import writes a
+// different project into it, and the date it found describes an archive of the project that just
+// stopped existing - which is `forgetProject`'s reasoning applied to one field. Note this is the
+// opposite of what the same step does with `created`, and the two are consistent rather than
+// arbitrary: `created` describes the row's place in the library, which has not changed, while
+// `exported` describes a file on disk that is now a copy of a project nobody has any more.
+export const forgetExport = async (directory: string): Promise<void> => {
+  const state = await readEditorState()
+  const exported = { ...state.exported }
+  delete exported[directory]
+  await writeEditorState({ ...state, exported })
 }
 
 // The rename marker, on and off. Merged into whatever else the file holds, like every other write
@@ -405,9 +479,11 @@ export const forgetProject = async (directory: string): Promise<void> => {
   const state = await readEditorState()
   const lastOpened = { ...state.lastOpened }
   const created = { ...state.created }
+  const exported = { ...state.exported }
   delete lastOpened[directory]
   delete created[directory]
-  await writeEditorState({ ...state, lastOpened, created })
+  delete exported[directory]
+  await writeEditorState({ ...state, lastOpened, created, exported })
 }
 
 export const writeEditorState = (state: EditorState): Promise<void> =>

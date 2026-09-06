@@ -366,12 +366,18 @@ and the detour is exactly what `entry.getData(writable)` exists to avoid. `Sourc
 shape for *includes* - text, pulled by path, from a known set - and the wrong shape for *ingestion* -
 bytes, pushed as a stream, from an unknown set.
 
-The seam is an entry stream instead: `AsyncIterable<{ path: string; blob: Blob }>`, with a producer
-per ingestion path and one shared back half consuming it. The property that mattered is unchanged, so
-the original point stands: a new ingestion path costs a producer rather than a subsystem, and the
-validation, the caps and the collision dialog are written once. Resist the version that takes a
-`File`: two of the four sources never produce one. `.scratch/project-archive/issues/01-import.md`
-builds it.
+The seam is a listing instead, and the property that mattered is unchanged: a new ingestion path
+costs a producer rather than a subsystem, and the validation, the caps and the collision dialog are
+written once. Resist the version that takes a `File`: two of the four sources never produce one.
+
+**Landed 2026-09-06** as `ArchiveEntry` in `src/storage/archive.ts`, and it is a listing rather than
+the `AsyncIterable<{ path, blob }>` this paragraph specified: `{ path, size, blob(): Promise<Blob> }`,
+handed over as an array. Two things the ordering in
+`.scratch/project-archive/issues/01-import.md` demands **before a byte is written** cannot be asked
+of a one-pass iterable without buffering the archive it exists to avoid buffering - what the whole
+thing sums to, which is what makes a zip bomb arithmetic rather than a race with the quota, and what
+its manifest says, which is read by random access. Lazy bytes keep the rest of the property: a refused
+archive inflates nothing at all, and one entry is materialized at a time.
 
 ### Importing from a URL
 
@@ -485,6 +491,13 @@ zip bomb or an archive of a hundred thousand entries can exhaust the origin's qu
 cap belongs in the shared back half, where it covers all four paths at once, and is awkward to retrofit.
 
 ## Leaving the browser
+
+**Landed 2026-09-06**, the zip half of it: export and import both, as `src/storage/archive.ts`, with
+the buttons on the picker's rows and in the editor's chrome. Everything below about the archive is now
+code - the format, the normalization, the README, the filename, the magic-byte sniff, the caps and the
+`<a download>` - and what is left of this section is the *publishing* half: URL import, the static
+folder, the linked folder and the single-file HTML export. `.scratch/project-archive/` has the spec,
+the three tickets and the three decisions taken against this document.
 
 **The canonical artifact is a `<project-id>.webvn.zip` file on the author's disk. The OPFS library holds
 working copies.** That framing is what makes eviction survivable, makes a "last exported N days ago" nag

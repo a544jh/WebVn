@@ -1,6 +1,6 @@
 # 01: Importing an archive
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: nothing. First of the tranche, and the doc's hard constraint is that ticket 02 does not
 merge without it.
@@ -222,3 +222,111 @@ crashed import (stop before step 4) leaves a directory the sweep removes.
 knows nothing about scratch roots, and this ticket takes locks - `RecoverProjects` and
 `RenameProject` sharing `old-name`/`new-name` produced a one-in-three flake that only appeared with
 the whole browser project running. `CLAUDE.md` has the story.
+
+## Comments
+
+**Landed 2026-09-06**, on the same branch as 02 and 03, as the doc's hard constraint requires.
+`src/storage/archive.ts` is the whole of it and the only file in the repo importing zip.js;
+`test/unit/archive.test.ts` covers the back half over a listing and `test/browser/ImportProject.test.ts`
+covers the writing, the overwrite, the picker surface and the crash.
+
+**The seam is a listing rather than an `AsyncIterable`, and the ticket's own ordering is why.**
+`ArchiveEntry` is `{ path, size, writeTo(stream) }` and `planImport` takes an array of them.
+Two of the things step 0 has to settle **before a byte is written** cannot be asked of a one-pass
+iterable without buffering the archive it exists to avoid buffering: what the whole thing sums to,
+which is what makes the caps arithmetic rather than a race with the quota, and what the manifest says,
+which this ticket asks to be read "by random access". Lazy bytes keep everything the seam was for - a
+refused archive still inflates nothing at all, and the whole back half is reachable from `test/unit/`
+with no zip and no OPFS. `design-docs/PROJECT_STORAGE.md`'s paragraph specifying the iterable is
+amended to match.
+
+**The entry writes itself into a stream rather than handing a Blob back**, which review is what
+restored: the first version was `blob(): Promise<Blob>` piped into `writeProjectFile`, which is
+exactly the materialize-then-write shape `unzipit` was rejected for, so the 24 KB `spec.md` paid for
+`entry.getData(await handle.createWritable())` was buying nothing. The manifest is the one entry read
+rather than written, through the platform's own `Response(stream).text()`, because its text is what
+decides whether anything is written at all. `openWritable` in `opfs.ts` is the primitive, and its
+comment says why it is the one write that does not go through `writeFile`.
+
+**The id gate turned out to be the manifest schema's, so there is no second check.** The ticket lists
+"the id fails `validateProjectId`" as its own refusal; `parseManifest` validates `id` with that exact
+schema, so a manifest that parses always names a directory the store can create. Adding a second call
+would be a second copy of a filesystem-safety rule, which is what `validateProjectId`'s own comment
+warns against. The refusal exists - it is reported as "its manifest.yaml does not parse", with the
+parser's own message.
+
+**The saves are dropped on every import, not only on an overwrite.** Step 2's `deleteSaveData(id)` is
+one line broader than written, because a *fresh* directory can still collide with saves left under
+that id by a published build of the same project played in this browser - the player writes to the
+same `vn-save-<id>` keyspace - and that is the identical failure the ticket describes: a save whose
+paths describe a story this project does not have, a replay that throws, and Load as a dead button.
+The ticket's own reasoning for not keeping them ("indistinguishable at import time") applies unchanged
+to that case.
+
+**`created` is recorded only for a new directory, and `exported` is dropped whatever happened**, which
+is the asymmetry the ticket sets out, implemented as `recordCreated` and `forgetExport` in the store.
+
+**The file input is the Import button's sibling, not its child.** A click on a child input bubbles
+back to the button, whose handler clicks the input: a loop with no bottom. Found by writing it the
+other way first.
+
+**The drag listeners are the first thing `ProjectPicker`'s `AbortController` genuinely carries.** They
+are on the picker's root, which is the host's element and outlives every picker mounted into it - so a
+superseded picker that kept them would answer drops over a project that had since opened. That
+controller's comment said outright it was insurance until such a listener arrived; it has.
+
+**The picker's status line says an import landed, in a tone this page did not have before.** The
+first version said nothing, on the reasoning that the row arriving is the confirmation - which is how
+**Add demo project** works and is true of a *fresh* import. Review caught that it is exactly false in
+the case an author is most anxious about: an overwrite adds no row, so the only thing that changed
+was a date in a muted line. So the banner grew a second tone - `refusal` orange and `result` the
+panel's own white with a hairline - and neither green nor orange is spent on "this happened", which
+`design.md` is explicit about. `ImportResult` carries `overwrote` so the line can say which of the
+two it was. The picker's export control reports the same way.
+
+**Two orderings moved after review, and both were the ticket's to begin with.** The lock is taken
+**before** the overwrite question, per step 1 - asking first lets an author agree to destroy a project
+and only then be told it is open in another tab, a confirmation collected for nothing. And a failed
+entry's writable stream is **aborted**: an open stream holds a lock on the file, `removeEntry` is
+refused with `NoModificationAllowedError` while it is held, and residue the sweep can never remove is
+the one thing this ordering exists to prevent.
+
+**Found by using it: an import could outlive the picker that started it.** The ticket says the
+control disables and reads "Importing...", and it did - on a live element, in a view that a click on
+any row could tear down underneath it. Three consequences, all reachable in a few seconds of a
+1000-asset import: the "Importing..." state was lost, because `showPicker` builds a *new*
+`ProjectPicker` on the way back; the result was lost too, because the completing import called
+`render` on a stopped view; and opening a row that an *overwriting* import was rewriting asked for
+the lock that import held, so the boot refused the author with `"x" is already open in another tab`,
+about their own tab.
+
+The fix is the mechanism the app already had. `AppShell.queue` is what every view swap runs in, on
+the reasoning that "a swap holds a lock and a storer, so a half-done one cannot be abandoned" - and
+an import is that same shape. The picker takes an `InTurn` callback beside `openProject`, and
+`work(control, saying, job)` puts import, export, delete and the demo seed through it, so no swap can
+interleave and there is no window to be torn down in. The busy state became a **field the draw
+reads** rather than a poke at a control the next render replaces, and it disables every button on the
+page - a row that queued a boot *behind* the import would open a project several seconds after the
+author gave up on the click, which is a worse surprise than nothing happening.
+
+One trap is worth knowing about: a job must not call `openProject`, which queues in its own right,
+because asking for a turn from inside one is a chain that cannot resolve. `create` is written around
+it - the mint is queued and the boot happens after the turn is over.
+
+**The drop invitation is an overlay, where the canvas draws the rows replaced - and that is a
+departure worth not correcting back.** *Picker - archive dropped* shows the panel holding the
+invitation and nothing else, and the first implementation did that literally, with `display: none` on
+the rows. On Chrome it flickers: hiding the rows pulls the element out from under the pointer, the
+browser fires `dragleave` for it, the state comes off, the rows return, the pointer is over a row
+again, and the page alternates at the drag's frame rate. The depth counter cannot see that loop -
+those enters and leaves are genuine and paired. Nothing but *not moving anything* fixes it, so the
+invitation is drawn absolutely over the list, opaque and with `pointer-events: none`, and the list
+carries a min-height so an empty library does not grow under the drag either. The pixels are the
+board's; only the mechanism differs. Hand-verified on Chrome, because the flicker is not reproducible
+in automation - CDP's `Input.dispatchDragEvent` does not drive the hit-testing that causes it, which
+was checked by getting the same reading out of the broken build.
+
+**The path rule refuses a drive letter where a drive letter can be, not a colon anywhere.** The first
+version banned the colon outright, which is a legal POSIX filename character - so an asset called
+`scene: one.png` took the whole archive down with it, which is neither what the ticket asks nor a
+thing to want.

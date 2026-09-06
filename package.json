@@ -47,6 +47,7 @@
   "dependencies": {
     "@types/react": "^17.0.3",
     "@types/react-dom": "^17.0.3",
+    "@zip.js/zip.js": "^2.11.2",
     "codemirror": "^5.61.0",
     "js-base64": "^3.7.5",
     "react": "^17.0.2",

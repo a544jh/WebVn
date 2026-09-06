@@ -59,6 +59,20 @@ design-docs/PROJECT_STORAGE.md is import, export, the linked folder and the nag 
 needs its own spec. Each ticket's Comments record what changed under it during implementation, of
 which there was a fair amount.
 
+Landed: the whole of .scratch/project-archive/ - tranche 3 - 2026-09-06. A project can leave the
+browser and come back: `<project-id>.webvn.zip` is written from a picker row or from the editor's own
+Export ZIP button, read back through an Import project button or a drop on the picker, and every row
+says when it was last exported or that it never has been. The invariant is both ways and it is
+docs/adr/0005: an archive always holds a manifest that parses and a script, so export refuses to build
+one that does not and import refuses one that fails the same test. Spike H is settled with it - the
+measurement is in that spec - and `@zip.js/zip.js` is pinned to lib/zip-core-custom.js, in
+src/storage/archive.ts, which is the only file that imports it.
+
+What is left of design-docs/PROJECT_STORAGE.md is the publishing half: URL import, the static folder,
+the linked folder and the nag, which is tranche 4 and unspecced. seedDemoProject survives this
+tranche - its deletion condition is URL import, not zip - and the nag is deliberately not built: the
+row saying "never exported" is most of its value in the place the author is already looking.
+
 Extracted: tranche 2, 2026-09-05, as .scratch/project-library/ - six tickets covering the
 three nodes below that are not import or export. Teardown first, because ProjectStoring's three
 page listeners are a measured data-loss bug the moment two boots share a page; then the picker,
@@ -81,6 +95,13 @@ delegates deflate to the platform's Compression Streams; unzipit + client-zip is
 pipe an entry into a FileSystemWritableFileStream. The doc's 79-85KB guess was stale both ways. The
 sharp finding is that the package's *default* entry bakes the build machine's file:// path into the
 bundle via import.meta.url and then loses its workers silently - see design-docs/PROJECT_STORAGE.md.
+
+Corrected 2026-09-06, while building tranche 3: pinning to zip-core-custom.js does NOT avoid that
+path being baked in. It re-exports zip-core-base.js, which is where the import.meta.url call is, so
+the CI runner's checkout path landed in dist/app.js as a string literal - measured by grepping the
+production bundle. What pinning avoids is the *consequence*: workerURI is null, so nothing is ever
+resolved against it and no worker throws. The leak itself is closed by a webpack DefinePlugin entry
+defining import.meta.url away, in webpack.config.js with the reasoning beside it.
 
 Sizes: S = hours, M = a day or two, L = several days.
 
@@ -147,24 +168,24 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     folder export, not a convenience - but Chromium
              |     |     only, which is why the archive ships first.
              |     +-> IndexedDB handle store
-             +-> import: shared back half + size/entry caps    M
-             |     |     An entry stream in front - AsyncIterable of
-             |     |     {path, blob} - so a new ingestion path is a
-             |     |     producer and not a subsystem. NOT SourceLoader,
-             |     |     which returns a string and cannot carry a PNG;
-             |     |     the design doc's claim there is corrected.
-             |     |     Validate the manifest, write the tree, raise the
-             |     |     collision dialog. All four paths share this.
-             |     +-> [tranche 3] zip export + import              M
-             |     |     .scratch/project-archive/ - extracted 2026-09-06,
-             |     |     and it goes FIRST, ahead of URL import.
+             +-> import: shared back half + size/entry caps    LANDED
+             |     |     Landed 2026-09-06 with tranche 3, as planImport
+             |     |     in src/storage/archive.ts. A listing in front -
+             |     |     ArchiveEntry {path, size, blob()} - so a new
+             |     |     ingestion path is a producer and not a subsystem.
+             |     |     NOT SourceLoader, which returns a string and
+             |     |     cannot carry a PNG. Validate the manifest, write
+             |     |     the tree, raise the collision dialog: URL import
+             |     |     and the folder producers inherit all of it.
+             |     +-> [tranche 3] zip export + import           LANDED
+             |     |     .scratch/project-archive/ - landed 2026-09-06,
+             |     |     ahead of URL import as that spec decided.
              |     |     <project-id>.webvn.zip, manifest at the archive
              |     |     root. Sniffs PK\x03\x04 not the extension, strips
              |     |     a single wrapping dir, identity from the manifest
-             |     |     id. Export must NOT ship ahead of import, so the
-             |     |     two land on one branch. Carries the back half and
-             |     |     the caps above with it, plus the exported date
-             |     |     tranche 2 deferred. ADR 0005 is its invariant.
+             |     |     id. Landed on one branch, import first, and the
+             |     |     exported date tranche 2 deferred came with them.
+             |     |     ADR 0005 is its invariant.
              |     +-> publish: static folder                       M
              |     |     The demo is the first one, laid out in dist/
              |     |     in the OPFS shape. URL import reads it back.

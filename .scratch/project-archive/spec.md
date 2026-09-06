@@ -113,6 +113,15 @@ emits one). All of it lands in `app.js`, which already carries CodeMirror, and n
   unnoticed, with the CI runner's checkout path published to the demo repo. Verified in the
   `zip-core-native` and `zip-core-external` builds. Pinning to `zip-core-custom.js` avoids it
   entirely.
+
+  **Corrected 2026-09-06, while building this tranche: pinning does not avoid it.**
+  `zip-core-custom.js` re-exports `zip-core-base.js`, which is where the `import.meta.url` call
+  lives, so the path is baked into `dist/app.js` under the pinned entry too - measured by grepping
+  the production bundle for `file:///`. What pinning avoids is the *consequence*: `workerURI: null`
+  means nothing is ever resolved against `baseURI` and no worker construction throws. The leak
+  itself - the CI runner's checkout path published to the demo repo - is closed by
+  `new webpack.DefinePlugin({ "import.meta.url": "undefined" })`, which is safe because the only
+  two things that read `baseURI` are worker and codec URL resolution and both are switched off.
 - **The no-fallback floor is narrower than it sounds.** `zip-core-custom.js` has no bundled
   inflate/deflate, so it needs Compression Streams `deflate-raw` - but this code only ever runs in
   the editor bundle, and `opfs.ts`'s `isSupported()` already refuses an editor to any browser

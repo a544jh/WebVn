@@ -149,6 +149,7 @@ describe("the project store", () => {
     const state = {
       lastOpened: { "my-story": "2026-09-05T10:00:00.000Z" },
       created: { "my-story": "2026-09-01T09:00:00.000Z" },
+      exported: { "my-story": "2026-09-06T11:02:31.000Z" },
     }
     await writeEditorState(state)
 
@@ -176,7 +177,7 @@ describe("the project store", () => {
 
     await deleteProject("my-story")
     await forgetProject("my-story")
-    expect(await readEditorState()).toEqual({ lastOpened: {}, created: {} })
+    expect(await readEditorState()).toEqual({ lastOpened: {}, created: {}, exported: {} })
 
     await mintProject("my-story", "Someone Else's")
     expect((await readEditorState()).created?.["my-story"]).not.toBe(first)
@@ -202,7 +203,7 @@ describe("the project store", () => {
     // rule is the migration strategy, which is why the file gets no schema version.
     // A missing file, an unparseable one and one holding nonsense all read the same shape, so no
     // caller has to tell them apart.
-    const empty = { lastOpened: {}, created: {} }
+    const empty = { lastOpened: {}, created: {}, exported: {} }
     expect(await readEditorState()).toEqual(empty)
 
     const root = await storeRoot(SCRATCH)
@@ -219,7 +220,7 @@ describe("the project store", () => {
     // gets no schema version.
     await writeFile(await storeRoot(SCRATCH), "editor.yaml", "lastOpened: my-story\n")
 
-    expect(await readEditorState()).toEqual({ lastOpened: {}, created: {} })
+    expect(await readEditorState()).toEqual({ lastOpened: {}, created: {}, exported: {} })
   })
 
   it("keeps one unreadable entry from costing the rest", async () => {
@@ -229,7 +230,11 @@ describe("the project store", () => {
       "lastOpened:\n  good: 2026-09-05T10:00:00.000Z\n  bad: 7\n"
     )
 
-    expect(await readEditorState()).toEqual({ lastOpened: { good: "2026-09-05T10:00:00.000Z" }, created: {} })
+    expect(await readEditorState()).toEqual({
+      lastOpened: { good: "2026-09-05T10:00:00.000Z" },
+      created: {},
+      exported: {},
+    })
   })
 
   it("keeps editor.yaml outside projects/, so it cannot travel in an export", async () => {

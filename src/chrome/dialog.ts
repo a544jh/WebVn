@@ -96,19 +96,55 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
 export const noticeDialog = (title: string, body: string[]): Promise<boolean> =>
   openDialog({ title, body, confirmLabel: "Close", dismissOnly: true })
 
-// Destroying a project, which two dialogs ask about in the same breath: deleting one, and renaming
-// onto one. They differ in what is being destroyed and why, so the caller supplies that; what they
-// share is the sentence about it being gone for good, which is a fact about **this tranche** rather
-// than about either dialog - there is no export yet, so nothing outside the browser has a copy.
-// When export lands, that sentence changes here rather than in two places that had drifted.
+// Destroying a project, which three dialogs ask about in the same breath: deleting one, renaming onto
+// one, and importing onto one. They differ in what is being destroyed and why, so the caller supplies
+// that; what they share is the sentence about it being gone for good.
+//
+// **That sentence used to end "there is no export yet, so nothing outside this browser has a copy",
+// and tranche 3 is what made it untrue.** A project that was exported does have a copy outside the
+// browser, and the picker row now says when it was. What stays true is the half about the copy in
+// OPFS, which is the one this dialog is about to remove.
 //
 // In `src/chrome/` for the reason the surface itself is: one host is the picker with no editor
-// mounted, the other is inside one.
-export const confirmDestroyingProject = (title: string, what: string, confirmLabel: string): Promise<boolean> =>
+// mounted, the others are inside one.
+export const confirmDestroyingProject = (
+  title: string,
+  what: string,
+  confirmLabel: string,
+  // Whatever else there is to say after the sentence they share - the import's reassurance that the
+  // archive itself is untouched, and its line about how to keep both, which is what standing on
+  // overwrite-or-cancel owes the author.
+  ...also: string[]
+): Promise<boolean> =>
   confirmDialog(
     title,
-    [what, "It cannot be recovered. There is no export yet, so nothing outside this browser has a copy."],
+    [what, "It cannot be recovered from here - only an archive you exported has a copy of it.", ...also],
     confirmLabel
+  )
+
+// **Renaming onto a project and importing onto one ask the same question in the same words**, and
+// differ by a verb: both destroy a project the author did not mention, in order to put another one
+// where it was. `AppShell.confirmOverwrite`'s comment promised this outright before there was an
+// import to promise it to.
+//
+// A second question rather than a louder version of the first - a rename or an import is a decision
+// about the project in front of the author, and this is a decision about a different one.
+export const confirmOverwritingProject = (
+  // **The directory**, which is what both callers are about to write into and what the folder below
+  // names - not the id of the project being destroyed, which may disagree with it and is not what is
+  // at stake. The two happen to be the same word in both callers, because a rename's destination is
+  // the id its manifest declares and an import's is the id the archive's manifest declares.
+  directory: string,
+  folder: string,
+  // The gerund of what is landing on it: "renaming", "importing".
+  by: string,
+  ...also: string[]
+): Promise<boolean> =>
+  confirmDestroyingProject(
+    `Overwrite "${directory}"?`,
+    `A project is already filed under ${folder}, and ${by} onto it destroys that project - its script, its manifest, every asset and its saves.`,
+    "Overwrite",
+    ...also
   )
 
 // The common case: a question with no fields. Destructive by default, because that is what a

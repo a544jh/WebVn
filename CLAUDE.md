@@ -88,7 +88,8 @@ hand-written. Anything committed there by hand is gone on the next master push.
 src/
   core/            state, player, VnPath, save, commands/*  (no DOM imports)
   yamlParser/      YamlParser.ts (script) + parseManifest.ts (manifest.yaml) — the parser actually used
-  storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver
+  storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver,
+                   the .webvn.zip archive (the only file that imports zip.js)
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
@@ -97,7 +98,8 @@ src/
   picker/          the front door: the project library as a page, shown before any editor
   AppShell.ts      which view is up, the ordering that swap depends on, and the queue it runs in
   projectUrl.ts    which project is open, in the address bar: ?project=<directory>
-  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens, Lucide icons, the dialogs
+  chrome/          what the editor and the picker both wear: the chrome font, the --vn-editor-* tokens,
+                   Lucide icons, the dialogs, the one button style, the download anchor
   assetLoaders/    image/audio preloaders
   lib/             ConsecutiveIntegerSet
   types/           global .d.ts augmentations of lib.dom
@@ -349,6 +351,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
+- **The editor chrome has one button style, `.vn-chrome-button` in `chrome.css`**, worn by all four:
+  Back to projects, Fullscreen, Copy player link, Export ZIP. Before tranche 3 only the first had any
+  CSS and the other two rendered as browser-default buttons, which the design canvas had been drawing
+  as chrome they never were. `line-height: 1` is the load-bearing declaration - default leading is
+  ~16px and a 14px icon is not, so an iconless button and an icon one sit at different heights - and
+  it is why the rule is **icons on all three tools or none**. "Copy player link" is what
+  `#vn-btn-export-url` became: `CONTEXT.md` reserves *export* for the archive, and the link button now
+  sits beside the thing that is one. Not "Share link", which that glossary entry has also spent.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
   one page: `index.html` holds `#vn-picker` and `#vn-session`, `src/AppShell.ts` swaps them with
   `hidden`, and opening a project never reloads. The picker walks `projects/` on every render — enumeration is
@@ -394,6 +404,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   canvas that never paints and a scene size of zero that mispositions every sprite. Nothing throws;
   the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
   when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
+- **The picker's own long operations run in that queue too**, through the `InTurn` callback it takes
+  beside `openProject` - import, export, delete and the demo seed, each of which holds a project lock
+  while it writes. Without it the work outlives the view that started it: a Back closes the picker
+  mid-import, the picker rebuilt on the way back knows nothing about it, the result is reported to a
+  stopped view, and opening the row the import is rewriting refuses the author with "already open in
+  another tab" about their own tab. **A job must never call `openProject`**, which queues in its own
+  right - asking for a turn from inside one is a chain that cannot resolve; `ProjectPicker.create`
+  is written around that. The busy state is a field the draw reads, not a poke at a live control, and
+  it disables every button on the page.
 - **Every view swap runs in a queue, one at a time.** `AppShell.queue` chains them, and it is what
   makes back-and-forward safe: two swaps in flight interleave, and the older one's `showPicker`
   lands *after* the newer revealed the session — hiding it again under a renderer that has not
@@ -468,7 +487,57 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   render retries.
 - **`navigator.storage.persist()` is asked on the first store**, at most once per page load
   (`src/storage/persistence.ts`), and the answer is reported rather than assumed — the picker shows
-  `persisted()`, re-read on every render.
+  `persisted()`, re-read on every render. `megabytes()` lives beside it, because every caller of one
+  is a caller of the other.
+
+### The archive - how a project leaves the browser and comes back
+`src/storage/archive.ts`, tranche 3 of `design-docs/PROJECT_STORAGE.md`, landed 2026-09-06. UI-free,
+and **the only file in the repo that imports zip.js**, so "does the zip library reach the player
+bundle?" is answerable by reading one import list. (It does not: checked against `dist/playerIndex.js`
+when this landed, and `npm run build` prints both sizes.) The library is pinned to
+`@zip.js/zip.js/lib/zip-core-custom.js` - `src/types/zipJs.d.ts` says why the deep specifier needs a
+declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
+- **The invariant is the whole format: an archive always holds a project that parses and has a
+  script.** Export refuses to build one from a project whose manifest does not parse or whose script
+  is missing; import refuses one that fails the same test. Neither degrades, warns and continues, or
+  lands a partial project. That is ADR 0002's line drawn at the format boundary, and it inherits the
+  asymmetry exactly: **the manifest gates the archive, the script never does** - a manifest declaring
+  files nobody has drawn yet, a script with parse errors and a script naming undeclared ids all travel
+  freely. Read `docs/adr/0005-an-archive-holds-a-project-that-parses.md` before touching either gate.
+- **`planImport(entries, available)` is the seam, and it is pure.** `ArchiveEntry` is
+  `{ path, size, blob() }` - the size from the central directory, the bytes lazy - so normalization,
+  every refusal, both caps and the README skip are settled over a listing with no zip library and no
+  OPFS in the way (`test/unit/archive.test.ts`), and a refused archive inflates nothing at all. The
+  design doc specifies an `AsyncIterable` here and is amended: a one-pass iterable cannot answer what
+  the archive sums to or what its manifest says before the first write.
+- **The caps are arithmetic over what the archive claims** - 5,000 entries, and 2 GB or the free space
+  `availableBytes()` reports, whichever is lower - checked before anything is inflated, which is what
+  makes a zip bomb a refusal rather than a race with the quota.
+- **Import writes the manifest LAST, which contradicts `createProject` deliberately.** An import is a
+  copy, not a mint: a manifest written first would leave a crash mid-import looking like a valid
+  project with files silently missing. `renameProject` commits the same way. That single write is the
+  commit point, and it buys the crash recovery for free - `recoverProjects` already sweeps
+  manifest-less directories - which is exactly why an import holds the destination's lock for the
+  duration: a live import is in that state, and the sweep takes the lock on what it deletes.
+- **Anything that claims an id drops its saves.** `deleteSaveData(id)` fires on every import rather
+  than only on an overwrite: the player writes to the same `vn-save-<id>` keyspace, so even a fresh
+  directory can collide with a published build's saves, and a save describing another story turns Load
+  into a dead button. `exported` goes with them; `created` is *kept* on an overwrite and minted only
+  for a new directory, because it is what the picker orders by and the row must not move.
+- **Export flushes or locks, and which one is not a choice.** The **open** project is covered by
+  `session.storing.flush()` - the debounce is 2000ms, and a walk must not overlap a write (see
+  `walkFrom`) - and **another** project is covered by its project lock. `takeProjectLock` is
+  `ifAvailable`, so a session asking for the lock it already holds would refuse itself. Do not add a
+  `.crswap` filter: it would be a second rule for a hazard these two already close.
+- **`README.txt` is the one place an archive is not exactly the project tree**, generated at the root
+  and skipped on import by exact path, so a README an author put in their own project round-trips. Its
+  wording ships inside every archive already exported and cannot be corrected later: no architecture
+  in it, and an instruction rather than a prohibition. The app URL is hardcoded, because an archive
+  outlives any one deployment of the app.
+- **Delivery is `<a download>` over an object URL** (`src/chrome/download.ts`), in every browser,
+  because being the mechanism the platform offers everywhere is the archive's whole justification.
+  Nothing automated covers the anchor - a headless browser will not show you a file arriving in
+  Downloads - so it is verified by hand, like `enterFullscreen` and `npm run dev`.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
@@ -480,7 +549,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   becomes a dead button. `moveSaveData(from, to)` carries them on a rename and **clears `to` when
   `from` has none**, which is what stops a renamed-onto project adopting the saves of the project it
   destroyed; `deleteSaveData(id)` is delete's half, keyed on the manifest's id rather than the
-  directory.
+  directory, and an import's, where it fires on every import rather than only on an overwrite.
   The two-level prefix is `design-docs/PROJECT_STORAGE.md`'s: localStorage is origin-wide, so an
   author-chosen id needs a keyspace separate from the app's own, and it leaves `vn-editor-*` free.
   The key comes off the state - `seedState` copies the manifest's `id` and `title` in, so a reload
@@ -578,6 +647,11 @@ If you're tempted to import from any of these, don't.
   roughly one run in three, only with the whole browser project running, and never with either suite alone.
   Name a suite's directories after the suite.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
+- **Touch the archive**: read "The archive" above, then `.scratch/project-archive/` for the tickets
+  and the three decisions taken against the design doc. `src/storage/archive.ts` is the only place
+  zip.js is imported and the only place that knows what a `.webvn.zip` holds; `test/unit/archive.test.ts`
+  is where a refusal, a cap or the normalization rule is pinned, and the two browser suites are where
+  the writing is. Nothing covers the `<a download>` or the bundle split - check both by hand.
 - **Add tests**: the directory a test sits in is what picks its vitest project — `test/unit/` (node), `test/browser/` (real Chromium — CSS transitions/animations actually fire, so render promises resolve like in production), `test/demo/` (whole-story playthroughs, which only `npm run test:demo` runs). Nothing keys off the filename, so a browser test misfiled under `test/unit/` runs in node and dies on a missing `document`. Put a test in the demo project only if it needs to walk a long stretch of a story — anything narrower belongs in `browser` so it stays in the fast gate. Start from `test/helpers/vnHarness.ts`: `startEditor(manifestText, script)` mounts player, renderer and editor over one root (with `typeManifest`/`blurEditor` to drive an adoption), `startVn(script)` parses a YAML story, mounts a `DomRenderer` into a fresh root and resolves at the first stop (pass `{ manifest }` when the script names assets or actors - `TEST_MANIFEST` declares none, and an undeclared asset now throws in the renderer), `nextStop(renderer, player)` waits for the next one, and `textBoxText`/`spriteElems`/`liveSprites`/`decisionItems` read the result out of the DOM. Node-side suites build commands through `test/helpers/commands.ts` instead. `ConsecutiveIntegerSet`, `VnPath` and the core state machine are covered; `test/browser/DomRenderer.test.ts` is the smoke test for the DOM render path; `test/demo/DemoStory.test.ts` covers the demo end to end. Sub-renderer promises must resolve even when there is nothing to animate, or the render loop stalls (see the empty-children guard in `DecisionRenderer.render`).
 
 ## Build tooling caveats
@@ -592,6 +666,13 @@ If you're tempted to import from any of these, don't.
   `src/types/yamlRaw.d.ts`. Nothing but the demo's two YAML files uses it yet, and nothing in CI would catch
   its removal except the build.
 - Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
+- **`import.meta.url` is defined away by `DefinePlugin`**, and that is about zip.js rather than about
+  us: `lib/zip-core-base.js` opens with `setDefaultConfiguration({ baseURI: import.meta.url })`, and
+  webpack resolves that to an absolute `file://` path on the machine that built the bundle and emits
+  it as a string literal - so a deploy would publish the CI runner's checkout path. Pinning to
+  `zip-core-custom.js` does *not* avoid it (that entry re-exports the base one); what pinning avoids
+  is the consequence, since `workerURI: null` means nothing is ever resolved against `baseURI`.
+  Nothing of ours uses `import.meta`. Verified by grepping `dist/app.js` for `file:///`.
 - `@types/react` is in `dependencies` but should be `devDependencies`.
 - `src/types/screenOrientation.d.ts` declares `ScreenOrientation.lock` back into `lib.dom`, which dropped it in TS 5.9. It is a global augmentation (no imports/exports), picked up because `tsconfig.json` has no `include`. Both fullscreen call sites `.catch()` the rejection non-mobile browsers give.
 - `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under the TypeScript we build with. Without it `tsc --noEmit` reports 17 errors under TS 5.9, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.

@@ -149,10 +149,19 @@ function wireCopyPlayerLink(editor: VnEditor): void {
   // A payload whose manifest does not parse is one the player refuses, so the link would be dead
   // rather than degraded - and whoever finds out is the person it was sent to. Following canSave's
   // precedent, which greys out Save when the path cannot be written as one.
+  gateOnManifest(editor, button, "manifest.yaml does not parse - a link copied now would not load")
+}
+
+// **Both tools in that row are gated on the same flag, and it is the editor's own** - `editor.ts`
+// tracks whether the manifest buffer last parsed, and ADR 0005 puts the archive behind exactly that:
+// an archive is named after an id and imports into a directory named after one, and a manifest that
+// does not parse has declared none. One helper because the two would otherwise be the same four lines
+// twice, with only the sentence differing - and a second flag is what this is here to prevent.
+function gateOnManifest(editor: VnEditor, button: HTMLButtonElement, reason: string): void {
   editor.onManifestStateChangeCallbacks.push(() => {
     const valid = editor.isManifestValid()
     button.disabled = !valid
-    button.title = valid ? "" : "manifest.yaml does not parse - a link copied now would not load"
+    button.title = valid ? "" : reason
   })
 }
 
@@ -199,14 +208,7 @@ function wireExportZip(session: BootedEditor): void {
   }
   button.addEventListener("click", () => void exportZip(), { signal: wiring.signal })
 
-  // The same gate the link button follows, and deliberately the same flag: an archive is named after
-  // an id and imports into a directory named after one, and a manifest that does not parse has
-  // declared none. ADR 0005 - and `editor.ts` already tracks this, so there is no second flag.
-  session.editor.onManifestStateChangeCallbacks.push(() => {
-    const valid = session.editor.isManifestValid()
-    button.disabled = !valid
-    button.title = valid ? "" : "manifest.yaml does not parse - a project cannot be exported until it does"
-  })
+  gateOnManifest(session.editor, button, "manifest.yaml does not parse - a project cannot be exported until it does")
 }
 
 const STEP_CLASS: Record<PathStep["kind"], string> = {

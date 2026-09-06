@@ -4,6 +4,7 @@ import {
   copyTree,
   exists,
   listDirectories,
+  openWritable,
   opfsRoot,
   readBlob,
   readText,
@@ -354,6 +355,12 @@ export const readProjectFile = async (directory: string, path: string): Promise<
 
 export const writeProjectFile = async (directory: string, path: string, data: Blob | string): Promise<void> =>
   writeFile(await root(), projectPath(directory, path), data)
+
+// The same file, opened for a caller that has bytes arriving rather than bytes in hand - an import,
+// which pipes an archive entry straight in. `openWritable` in opfs.ts says why that is the one write
+// not routed through `writeFile`, and why it is safe only under a lock.
+export const openProjectFile = async (directory: string, path: string): Promise<FileSystemWritableFileStream> =>
+  openWritable(await root(), projectPath(directory, path))
 
 // A hint, not a source of truth. Anything unreadable, unparseable or the wrong shape reads as empty
 // and the caller falls back to enumeration - see EditorState for why that is the whole versioning

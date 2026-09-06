@@ -19,12 +19,12 @@ const MANIFEST = manifestNaming("cat-adventure", "Cat Adventure")
 const SCRIPT = "story:\n  - A line\n"
 
 // An entry as the reader hands one over: a path, the size the central directory claims, and a way to
-// pull the bytes. Nothing here ever pulls them, which is the property being relied on - a refused
-// archive inflates nothing at all.
+// put the bytes somewhere. Nothing here ever asks for them except the manifest, which is the property
+// being relied on - a refused archive inflates nothing at all.
 const entry = (path: string, text = "", size?: number): ArchiveEntry => ({
   path,
   size: size ?? text.length,
-  blob: () => Promise.resolve(new Blob([text])),
+  writeTo: (destination) => new Blob([text]).stream().pipeTo(destination),
 })
 
 const project = (prefix = ""): ArchiveEntry[] => [
@@ -127,6 +127,13 @@ describe("planning an import", () => {
     ["a control character", "assets/ro\u0000om.png"],
   ])("refuses %s in an entry path", async (_what, path) => {
     expect(await refusal([...project(), entry(path, "x")])).toMatch(/outside the project/)
+  })
+
+  it("allows a colon that is not a drive letter, since a POSIX filename may hold one", async () => {
+    // The blanket rule took a whole archive down over a file an author can perfectly well have.
+    expect(paths(await planned([...project(), entry("assets/backgrounds/scene: one.png", "x")]))).toContain(
+      "assets/backgrounds/scene: one.png"
+    )
   })
 
   it("allows a dot in a name, which is not a parent segment", async () => {

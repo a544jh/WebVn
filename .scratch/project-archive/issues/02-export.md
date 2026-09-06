@@ -263,6 +263,21 @@ over `localhost`, driven with Playwright: add the demo, export it from its row (
 project and export again from the editor's own button. No console output at all. The archive on disk
 holds `README.txt` first, deflates the two YAML files and stores the eight media files whole.
 
+**A project holding its own `README.txt` at the root could not be exported at all**, found in review.
+`ZipWriter.add` throws `ERR_DUPLICATED_NAME` on a second entry with the same name, so the generated
+README plus the author's own was an export that failed outright. The generated one wins and the
+author's is skipped, which costs nothing that would have survived anyway: import drops that exact
+path on the way back in, so a root README never round-trips whichever of the two is in the archive.
+This ticket's sentence *"skipped on import by exact path - so a `README.txt` an author put inside
+their own project still round-trips"* is true only of one **inside** the project, `assets/README.txt`;
+the comment in the code now says which.
+
+**The row's export control disables and greys, and says "Exporting..." in its tooltip rather than in
+place of a label** - it has no label to replace, being an icon. The ticket's *"The control disables
+and reads 'Exporting...'"* is met literally by the editor's button, which does have one. Recorded as
+a departure rather than answered with a spinner, which is a thing this chrome does not have and would
+be the only moving part on the page.
+
 **One thing the ticket dictated that is worth flagging for the next reader**: the message span is
 `#vn-btn-copy-player-link-message`, named for the link button, and Export ZIP writes into it too. That
 is the id the ticket names, and the row has one message line rather than one per button; if a third

@@ -149,6 +149,27 @@ const writeNow = async (dir: FileSystemDirectoryHandle, path: string, data: Blob
   await data.stream().pipeTo(writable)
 }
 
+// A file opened for writing, for the one caller that has bytes *arriving* rather than bytes in hand:
+// an archive entry, which zip.js pipes straight into the stream this returns, so no decoded entry is
+// ever materialized. That is the property the library was chosen for -
+// design-docs/PROJECT_STORAGE.md's loop is `entry.getData(await handle.createWritable())` - and it is
+// the one write that does not go through `writeFile` above.
+//
+// **That exception is deliberate and narrow.** `writeFile` serializes per path so the last queued
+// write wins, which is what a debounced store wants; a stream cannot be queued behind another write
+// without buffering the whole entry, which is the thing this exists to avoid. Its one caller writes
+// into a directory it holds the project lock on and that nothing else in the tab is writing to, so
+// there is no ordering to preserve. Do not reach for it anywhere the store might overlap.
+//
+// Parent directories are created, exactly as `writeFile` creates them.
+export const openWritable = async (
+  dir: FileSystemDirectoryHandle,
+  path: string
+): Promise<FileSystemWritableFileStream> => {
+  const { parent, name } = await locate(dir, path, true)
+  return (await parent.getFileHandle(name, { create: true })).createWritable()
+}
+
 // The directory names directly under `path`. A path that is not there lists as empty rather than
 // throwing: "what projects exist" is a question with an answer before anything has been stored.
 export const listDirectories = async (dir: FileSystemDirectoryHandle, path: string): Promise<string[]> => {

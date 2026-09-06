@@ -9,12 +9,12 @@ import {
   forgetExport,
   hasScript,
   isProject,
+  openProjectFile,
   readManifest,
   recordCreated,
   recordExported,
   walkProject,
   writeManifest,
-  writeProjectFile,
 } from "./projectStore"
 
 // The archive, both ways: a project in the library becomes a `<project-id>.webvn.zip` on the
@@ -51,8 +51,9 @@ const MANIFEST_FILE = "manifest.yaml"
 const SCRIPT_FILE = "script.yaml"
 
 // The one place an archive is not exactly the project tree: generated on export at the archive root,
-// and skipped on import **by exact path**, so a README.txt an author put inside their own project
-// still round-trips.
+// and skipped on import **by exact path**, so a README.txt *inside* an author's project -
+// `assets/README.txt` - still round-trips. One at the project root does not, in either direction:
+// export writes the generated one in its place and import drops it again.
 const README_FILE = "README.txt"
 
 // Where an archive says to open it. **Hardcoded, not taken from `location`**: an archive travels -
@@ -76,19 +77,37 @@ export const MAX_UNPACKED_BYTES = 2_000_000_000
 const PRECOMPRESSED = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp3", ".ogg", ".m4a", ".aac"]
 
 // One file in an archive, as the back half sees it: where it sits, how big it says it is, and how to
-// get its bytes.
+// get its bytes out.
 //
-// **The size comes from the central directory rather than from the bytes**, and **the bytes are
-// pulled rather than pushed**, one entry at a time and only for the entries actually written - so a
-// refused archive inflates nothing at all, and a plan can be built, checked and thrown away without
-// touching the quota. Ticket 01 sketched this seam as an `AsyncIterable<ArchiveEntry>` carrying a
-// `blob`; a one-pass iterable cannot answer the two questions the same ticket's ordering demands
-// before a byte is written - what the whole archive sums to, and what its manifest says - without
-// buffering the archive it was meant to avoid buffering.
+// **The size comes from the central directory rather than from the bytes**, so the caps are
+// arithmetic over what the archive claims before anything is inflated. **The bytes go into a stream
+// the caller opens** rather than coming back as a Blob, which is the property zip.js was chosen for
+// over `unzipit` and is what `design-docs/PROJECT_STORAGE.md` writes out as
+// `entry.getData(await handle.createWritable())`: an entry is inflated straight into OPFS and no
+// decoded entry is ever materialized. And it is pulled per entry, only for the entries actually
+// written, so a refused archive inflates nothing at all.
+//
+// Ticket 01 sketched this seam as an `AsyncIterable<ArchiveEntry>` carrying a `blob`. A one-pass
+// iterable cannot answer the two questions the same ticket's ordering demands *before a byte is
+// written* - what the whole archive sums to, and what its manifest says - without buffering the
+// archive it was meant to avoid buffering.
 export interface ArchiveEntry {
   readonly path: string
   readonly size: number
-  readonly blob: () => Promise<Blob>
+  readonly writeTo: (destination: WritableStream<Uint8Array>) => Promise<void>
+}
+
+// The one entry that has to be *read* rather than written: the manifest, whose text decides whether
+// anything is written at all. `Response` is the platform's own stream-to-text, so an entry needs only
+// the one way out of it - and a manifest is a few hundred bytes, which is why this is the exception
+// rather than the shape.
+//
+// Both sides run at once on purpose: the reader drains what the writer puts in, and awaiting either
+// alone would deadlock on a stream nobody is emptying.
+const textOf = async (entry: ArchiveEntry): Promise<string> => {
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
+  const [text] = await Promise.all([new Response(readable).text(), entry.writeTo(writable)])
+  return text
 }
 
 // Why an archive was refused, in the two parts the picker's banner is drawn in: the news, then what
@@ -107,9 +126,10 @@ export interface ArchiveRefusal {
 
 const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "refused", problem, advice })
 
-// Nothing was written, said once. Every refusal below is raised before the first write, and an
-// author reading "was not imported" wants to know that in the same breath.
+// Nothing happened, said once per direction. Every refusal below is raised before the first write or
+// the first entry, and an author reading "was not imported" wants to know that in the same breath.
 const NOTHING_WRITTEN = "Nothing was written."
+const NOTHING_EXPORTED = "Nothing was exported."
 
 // What an archive turned out to hold, once it is known to be importable: where it goes, what it is
 // called, and the files to write. `files` is normalized - a wrapping directory stripped, the
@@ -130,7 +150,11 @@ export interface ImportOptions {
 }
 
 export type ImportResult =
-  | { readonly kind: "imported"; readonly directory: string; readonly title: string }
+  // `overwrote` because the two outcomes look different to an author and read differently on the
+  // status line: a fresh import adds a row they can see arrive, and an overwrite changes a row that
+  // was already there - which is the one an author is most anxious about and the one with the least
+  // to show for itself.
+  | { readonly kind: "imported"; readonly directory: string; readonly title: string; readonly overwrote: boolean }
   // The author said no to the overwrite. Not a refusal: nothing went wrong, and there is nothing to
   // put on a banner.
   | { readonly kind: "cancelled" }
@@ -145,10 +169,13 @@ export type ExportResult =
 // and the whole archive is refused for it rather than the entry skipped, because a partial import is
 // a failure rather than a project.
 //
-// A colon goes with the drive letter: it cannot be written on Windows anyway, and refusing it here
-// is one rule instead of a rule plus an exception for `C:`.
+// **The drive letter is refused where a drive letter can be**, in the first segment, rather than by
+// banning the colon outright. A colon is a legal character in a POSIX filename, so the blanket rule
+// took down a whole archive over an asset called `scene: one.png` - which is a file an author can
+// perfectly well have, and which means nothing about where the entry lands.
 const isPlainRelativePath = (path: string): boolean => {
-  if (path === "" || path.startsWith("/") || path.includes("\\") || path.includes(":")) return false
+  if (path === "" || path.startsWith("/") || path.includes("\\")) return false
+  if (/^[A-Za-z]:/.test(path)) return false
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(path)) return false
   return path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..")
@@ -179,9 +206,13 @@ const firstError = (errors: ParserError[]): ParserError | undefined =>
 // The parser's own words, which is what an author needs when the archive came from somewhere else -
 // above all for a manifest from a later format, which `parseManifest` reports first and alone by
 // design, so that one message explains itself.
-const parserAdvice = (errors: ParserError[]): string => {
+//
+// **The clause only**, with the caller supplying the sentence in front of it: import says nothing was
+// written and export says nothing was exported, and a helper that supplied one of them made the other
+// read "Nothing was exported. Nothing was written."
+const parserClause = (errors: ParserError[]): string => {
   const error = firstError(errors)
-  return error === undefined ? NOTHING_WRITTEN : `${NOTHING_WRITTEN} Line ${error.location.startLine}: ${error.message}`
+  return error === undefined ? "" : ` Line ${error.location.startLine}: ${error.message}`
 }
 
 // Everything an import decides before it is allowed to write anything, over a listing rather than
@@ -233,13 +264,13 @@ export const planImport = async (
       `${NOTHING_WRITTEN} An archive holds a project's manifest.yaml at its root, or in one folder inside it.`
     )
   }
-  const manifestText = await (await manifest.blob()).text()
+  const manifestText = await textOf(manifest)
   // The id is gated here too, and by the same schema: `parseManifest` validates it with the rule
   // `validateProjectId` states, because that one rule has to hold for the OPFS directory, the export
   // filename and the save key at once. A manifest that parses therefore always names a directory
   // this can create, and there is no second copy of a filesystem-safety rule to drift.
   const [parsed, errors] = parseManifest(manifestText)
-  if (parsed === null) return refuse("its manifest.yaml does not parse", parserAdvice(errors))
+  if (parsed === null) return refuse("its manifest.yaml does not parse", NOTHING_WRITTEN + parserClause(errors))
 
   // **Refused because nothing else would catch it.** `recoverProjects` deliberately does not sweep a
   // manifest with no script - that is the state `createProject` passes through between its two
@@ -298,12 +329,21 @@ export const importProject = async (
   // The manifest's id is the destination, always: not the archive's filename, and not the wrapping
   // directory just stripped. Those are labels derived from the id and are allowed to be stale.
   const directory = plan.id
-  const taken = await isProject(directory)
-  if (taken && !(await options.confirmOverwrite(plan))) return { kind: "cancelled" }
 
+  // **The lock first, and only then the question.** Asking the other way round means an author can
+  // agree to destroy a project and then be told the import could not happen anyway - a confirmation
+  // collected for nothing, about the most alarming thing this app does. It also makes the answer to
+  // "is something already filed here" stay true long enough to act on, which is what `bootEditor`
+  // takes its lock before asking for.
   const lock = await takeProjectLock(directory)
   if (lock === null) {
     return refuse(`"${directory}" is open in another tab`, "Nothing was imported. Close it there and try again.")
+  }
+
+  const taken = await isProject(directory)
+  if (taken && !(await options.confirmOverwrite(plan))) {
+    await lock.release()
+    return { kind: "cancelled" }
   }
 
   try {
@@ -323,7 +363,22 @@ export const importProject = async (
     deleteSaveData(plan.id)
     await forgetExport(directory)
 
-    for (const file of plan.files) await writeProjectFile(directory, file.path, await file.blob())
+    // Each entry inflated straight into the file it lands in, one at a time - see `ArchiveEntry`, and
+    // `openWritable` in opfs.ts for why this is the one write that does not go through `writeFile`.
+    for (const file of plan.files) {
+      const destination = await openProjectFile(directory, file.path)
+      try {
+        await file.writeTo(destination)
+      } catch (e) {
+        // **An open stream holds a lock on the file it is writing**, and while it is held *nothing*
+        // can remove the directory around it: `removeEntry` is refused with
+        // `NoModificationAllowedError`, which is the failure `recoverProjects` already has a comment
+        // about. So a truncated archive would otherwise leave residue that the sweep which exists to
+        // remove it can never remove - for the life of the page. Aborting is what gives the lock back.
+        await destination.abort().catch(() => undefined)
+        throw e
+      }
+    }
 
     await writeManifest(directory, plan.manifestText)
 
@@ -335,7 +390,7 @@ export const importProject = async (
     await lock.release()
   }
 
-  return { kind: "imported", directory, title: plan.title }
+  return { kind: "imported", directory, title: plan.title, overwrote: taken }
 }
 
 // `PK\x03\x04`, **never the extension**: renaming a project file must not make it unopenable, and a
@@ -366,7 +421,11 @@ export const importArchive = async (file: Blob, options: ImportOptions): Promise
         .map((entry) => ({
           path: entry.filename,
           size: entry.uncompressedSize,
-          blob: () => entry.getData<Blob>(new BlobWriter()),
+          // zip.js takes the destination stream and closes it itself, which is the commit - so there
+          // is no `close()` after, exactly as `writeFile`'s Blob path has none after its `pipeTo`.
+          writeTo: async (destination: WritableStream<Uint8Array>) => {
+            await entry.getData(destination)
+          },
         })),
       options
     )
@@ -428,7 +487,7 @@ export const readmeText = (id: string, title: string, at: Date): string =>
 export const exportProject = async (directory: string): Promise<ExportResult> => {
   const manifestText = await readManifest(directory).catch(() => null)
   if (manifestText === null) {
-    return refuse("it has no manifest.yaml", "Nothing was exported. There is no project in that folder.")
+    return refuse("it has no manifest.yaml", `${NOTHING_EXPORTED} There is no project in that folder.`)
   }
   const [manifest, errors] = parseManifest(manifestText)
   if (manifest === null) {
@@ -437,19 +496,26 @@ export const exportProject = async (directory: string): Promise<ExportResult> =>
     // with a typo in it. What it cannot do is leave the browser - an archive is named after an id and
     // imports into a directory named after one, and a manifest that does not parse has declared no
     // id. The hatch that looks closed is not: fix the typo in the editor, then export.
-    return refuse("its manifest.yaml does not parse", `Nothing was exported. ${parserAdvice(errors).trimStart()}`)
+    return refuse("its manifest.yaml does not parse", NOTHING_EXPORTED + parserClause(errors))
   }
   // Unreachable from anything the app can currently produce, and kept anyway: it costs one `exists`,
   // and it is the half that stops a bad archive existing rather than the half that catches one
   // afterwards.
   if (!(await hasScript(directory))) {
-    return refuse("it has no script.yaml", "Nothing was exported. An archive always holds a script.")
+    return refuse("it has no script.yaml", `${NOTHING_EXPORTED} An archive always holds a script.`)
   }
 
   const writer = new ZipWriter<Blob>(new BlobWriter("application/zip"))
   // First, so it is the first thing visible when the zip is opened in an OS viewer.
   await writer.add(README_FILE, new TextReader(readmeText(manifest.id, manifest.title, new Date())))
   for await (const file of walkProject(directory)) {
+    // **A project holding its own `README.txt` at the root gives way to the generated one**, and this
+    // is not a preference: `ZipWriter.add` throws "File already exists" on a duplicate name, so
+    // without this an author who put a readme beside their manifest could not export at all. Nothing
+    // is lost that would have survived anyway - import skips that exact path on the way back in, so a
+    // root README never round-trips whichever of the two is in the archive. One inside the project,
+    // `assets/README.txt`, is untouched and does round-trip.
+    if (file.path === README_FILE) continue
     const options = storesWhole(file.path) ? { level: 0 } : undefined
     await writer.add(file.path, new BlobReader(await file.handle.getFile()), options)
   }

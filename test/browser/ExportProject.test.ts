@@ -13,7 +13,7 @@ import {
 } from "../../src/storage/projectStore"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { manifestNaming } from "../helpers/testManifest"
-import { releaseStoredEditorLock, settle, startEditorFromStore, typeScript } from "../helpers/vnHarness"
+import { releaseStoredEditorLock, startEditorFromStore, typeScript, waitFor } from "../helpers/vnHarness"
 
 // Export against real OPFS and real zip.js, and the round trip through import that is the whole point
 // of the format. The README's text, the store-mode list and the filename are settled in
@@ -95,11 +95,31 @@ describe("exporting a project", () => {
     expect(Object.keys(await archiveOf(EXPORTED))).not.toContain("editor.yaml")
   })
 
+  it("gives way to the generated README when the project keeps one of its own at the root", async () => {
+    // Not a preference: `ZipWriter.add` throws on a duplicate name, so without this an author who put
+    // a readme beside their manifest could not export at all.
+    await makeProject(EXPORTED)
+    await writeProjectFile(EXPORTED, "README.txt", "the author's own")
+    await writeProjectFile(EXPORTED, "assets/README.txt", "this one is inside the project")
+
+    const contents = await archiveOf(EXPORTED)
+
+    expect(contents["README.txt"]).toContain("This is a WebVn project")
+    expect(contents["assets/README.txt"]).toEqual("this one is inside the project")
+  })
+
   it("refuses a project whose manifest does not parse, which is the invariant at the format boundary", async () => {
     await createProject(BROKEN, { manifestText: manifestNaming(BROKEN), scriptText: SCRIPT })
     await writeFile(await storeRoot(SCRATCH), `projects/${BROKEN}/manifest.yaml`, "formatVersion: 1\nid: [\n")
 
-    expect(await exportProject(BROKEN)).toMatchObject({ kind: "refused" })
+    const result = await exportProject(BROKEN)
+
+    expect(result).toMatchObject({ kind: "refused", problem: "its manifest.yaml does not parse" })
+    // The parser's own words, once - said by an export that says nothing was exported, rather than by
+    // one that says nothing was written and then says it again.
+    if (result.kind !== "refused") throw new Error("expected a refusal")
+    expect(result.advice).toMatch(/^Nothing was exported\. Line \d+: /)
+    expect(result.advice).not.toContain("Nothing was written")
   })
 
   it("refuses a project with no script, which nothing else would ever catch", async () => {
@@ -232,13 +252,27 @@ describe("the picker's export control", () => {
     expect(metaLine()).not.toContain("exported")
   })
 
+  // Waited for rather than slept past: building a zip and walking a tree takes as long as it takes,
+  // and the whole browser project runs its files in parallel.
+  const pressExport = async (directory: string): Promise<void> => {
+    exportButton(directory).click()
+    await waitFor("the export to report", () => document.querySelector(".vn-picker-result") !== null)
+  }
+
+  it("says an archive was written, rather than leaving it to a date among the dates", async () => {
+    await makeProject(EXPORTED)
+    await newPicker().render()
+
+    await pressExport(EXPORTED)
+
+    expect(document.querySelector(".vn-picker-result")?.textContent).toContain(`${EXPORTED}.webvn.zip`)
+  })
+
   it("exports the row it was pressed on, and redraws the library with the date on it", async () => {
     await makeProject(EXPORTED)
-    const picker = newPicker()
-    await picker.render()
+    await newPicker().render()
 
-    exportButton(EXPORTED).click()
-    await settle()
+    await pressExport(EXPORTED)
 
     expect((await readEditorState()).exported?.[EXPORTED]).toBeDefined()
     expect(metaLine()).toContain("exported just now")

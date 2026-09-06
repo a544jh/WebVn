@@ -130,14 +130,18 @@ export const confirmDestroyingProject = (
 // A second question rather than a louder version of the first - a rename or an import is a decision
 // about the project in front of the author, and this is a decision about a different one.
 export const confirmOverwritingProject = (
-  id: string,
+  // **The directory**, which is what both callers are about to write into and what the folder below
+  // names - not the id of the project being destroyed, which may disagree with it and is not what is
+  // at stake. The two happen to be the same word in both callers, because a rename's destination is
+  // the id its manifest declares and an import's is the id the archive's manifest declares.
+  directory: string,
   folder: string,
   // The gerund of what is landing on it: "renaming", "importing".
   by: string,
   ...also: string[]
 ): Promise<boolean> =>
   confirmDestroyingProject(
-    `Overwrite "${id}"?`,
+    `Overwrite "${directory}"?`,
     `A project is already filed under ${folder}, and ${by} onto it destroys that project - its script, its manifest, every asset and its saves.`,
     "Overwrite",
     ...also

@@ -46,6 +46,19 @@ import "./picker.css"
 // every reason said "Close it there" under "there is no project called that".
 export type OpenProject = (directory: string) => Promise<RefusalNotice | null>
 
+// What the panel is saying about itself right now, and in which of the two tones this page has. A
+// **refusal** is orange, because something did not happen; a **result** is neither orange nor green,
+// because it is news rather than a status - and `design.md` is explicit that the status colours are
+// not decoration and spending one here would cost what they mean.
+//
+// One field rather than two, because the panel says one thing at a time: the last thing that
+// happened is the thing worth reading.
+type Tone = "refusal" | "result"
+
+interface Announcement extends RefusalNotice {
+  readonly tone: Tone
+}
+
 // A row's own line, and what the list is ordered by. `openedAt` is undefined for a project nobody
 // has opened yet, which is a thing to say rather than a zero; `createdAt` is undefined for one that
 // predates this file recording it.
@@ -87,12 +100,21 @@ export class ProjectPicker {
   // Every other banner it shows, it produced. A parameter rather than a setter because a picker is
   // built fresh for each showing and rendered immediately after, so a setter could only ever be
   // called in the one line between the two.
-  constructor(
-    private root: HTMLElement,
-    private openProject: OpenProject,
-    private refusal: RefusalNotice | null = null
-  ) {
+  constructor(private root: HTMLElement, private openProject: OpenProject, refusal: RefusalNotice | null = null) {
+    this.announcement = refusal === null ? null : { ...refusal, tone: "refusal" }
     this.watchForDrops()
+  }
+
+  private announcement: Announcement | null
+
+  // The two ways this page has of saying something, so no call site has to remember which tone goes
+  // with which kind of news.
+  private refuse(lead: string, detail: string): void {
+    this.announcement = { lead, detail, tone: "refusal" }
+  }
+
+  private report(lead: string, detail: string): void {
+    this.announcement = { lead, detail, tone: "result" }
   }
 
   // Walk the store and draw what it holds. Called to show the picker and again after anything that
@@ -133,7 +155,7 @@ export class ProjectPicker {
     panel.appendChild(this.drawPanelBar(projects))
     // Inside the panel and under its title strip, because it is news about this list rather than
     // about the page - the artboard puts it there and it is right: the row it names is under it.
-    if (this.refusal !== null) panel.appendChild(banner(this.refusal))
+    if (this.announcement !== null) panel.appendChild(banner(this.announcement))
     panel.appendChild(this.drawList(projects))
     page.appendChild(panel)
 
@@ -324,7 +346,7 @@ export class ProjectPicker {
     // editor that replaced it is exactly what the generation guard above is for, and `stop()` has
     // bumped it.
     if (refusal === null) return
-    this.refusal = refusal
+    this.announcement = { ...refusal, tone: "refusal" }
     await this.render()
   }
 
@@ -334,15 +356,15 @@ export class ProjectPicker {
   private async addDemo(): Promise<void> {
     const lock = await takeProjectLock(demoManifest.id)
     if (lock === null) {
-      this.refusal = {
-        lead: `${demoManifest.title} is open in another tab.`,
-        detail: "The demo was not written. Close it there and try again.",
-      }
+      this.refuse(
+        `${demoManifest.title} is open in another tab.`,
+        "The demo was not written. Close it there and try again."
+      )
       await this.render()
       return
     }
     try {
-      this.refusal = null
+      this.announcement = null
       await seedDemoProject()
     } finally {
       await lock.release()
@@ -369,7 +391,7 @@ export class ProjectPicker {
     if (chosen === null) return
 
     if ((await taken()).has(chosen.id)) {
-      this.refusal = { lead: `"${chosen.id}" already names a project.`, detail: "Nothing was created." }
+      this.refuse(`"${chosen.id}" already names a project.`, "Nothing was created.")
       await this.render()
       return
     }
@@ -379,7 +401,7 @@ export class ProjectPicker {
     if (refusal === null) return
     // The one place the refusal's own advice is overridden, because there is something more specific
     // to say: what the author asked for did happen, and only the opening did not.
-    this.refusal = { ...refusal, detail: `"${chosen.id}" was created, but not opened.` }
+    this.announcement = { ...refusal, detail: `"${chosen.id}" was created, but not opened.`, tone: "refusal" }
     await this.render()
   }
 
@@ -408,12 +430,12 @@ export class ProjectPicker {
 
     const lock = await takeProjectLock(project.directory)
     if (lock === null) {
-      this.refusal = { lead: `${name} is open in another tab.`, detail: "It was not deleted." }
+      this.refuse(`${name} is open in another tab.`, "It was not deleted.")
       await this.render()
       return
     }
     try {
-      this.refusal = null
+      this.announcement = null
       await deleteProject(project.directory)
       // The bookkeeping goes with the tree, in both places it lives. An entry that outlives its
       // directory is inherited by the next project to reuse the id: from `editor.yaml` that means
@@ -450,11 +472,19 @@ export class ProjectPicker {
     }).catch(broke("imported", "Whatever was written is not a project, and the library tidies it away."))
 
     // A cancelled overwrite is not news: the author decided, nothing happened, and the render below
-    // is only there to put the button back.
-    this.refusal =
-      result.kind === "refused"
-        ? { lead: `${file.name} was not imported: ${result.problem}.`, detail: result.advice }
-        : null
+    // is only there to put the button back. An import that landed **is** news, and saying so is not
+    // decoration: on an overwrite no row arrives, so the only thing that changes on the page is a
+    // date in a muted line, and the one import an author is most anxious about would otherwise report
+    // nothing at all.
+    if (result.kind === "refused") this.refuse(`${file.name} was not imported: ${result.problem}.`, result.advice)
+    else if (result.kind === "imported") {
+      this.report(
+        `${file.name} was imported.`,
+        result.overwrote
+          ? `"${result.title}" replaced what was filed under ${projectFolder(result.directory)}.`
+          : `"${result.title}" is in your library.`
+      )
+    } else this.announcement = null
     await this.render()
   }
 
@@ -464,20 +494,22 @@ export class ProjectPicker {
   // lock already and flushes its storer instead.
   private async exportRow(project: ListedProject): Promise<void> {
     const name = project.title ?? project.directory
-    this.busy(`.vn-picker-export[data-vn-project="${cssValue(project.directory)}"]`, null)
+    this.busy(`.vn-picker-export[data-vn-project="${cssValue(project.directory)}"]`, "Exporting\u2026")
 
     const lock = await takeProjectLock(project.directory)
     if (lock === null) {
-      this.refusal = { lead: `${name} is open in another tab.`, detail: "It was not exported. Close it there." }
+      this.refuse(`${name} is open in another tab.`, "It was not exported. Close it there.")
       await this.render()
       return
     }
     try {
       const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
       if (result.kind === "refused") {
-        this.refusal = { lead: `${name} was not exported: ${result.problem}.`, detail: result.advice }
+        this.refuse(`${name} was not exported: ${result.problem}.`, result.advice)
       } else {
-        this.refusal = null
+        // Said rather than left to the row's own line: "exported just now" appears down among the
+        // dates, and what an author wants confirmed is that a file left the browser.
+        this.report(`${name} was exported.`, `Your browser is saving ${result.filename}.`)
         downloadBlob(result.blob, result.filename)
       }
     } finally {
@@ -488,18 +520,22 @@ export class ProjectPicker {
     await this.render()
   }
 
-  // A control that is working: disabled, and saying so where it has room to. No progress bar - the
+  // A control that is working: disabled, and saying so wherever it has room to. No progress bar - the
   // honest unit of progress here (entries) is not the one the author perceives (bytes) - but a click
   // that appears to do nothing for three seconds gets clicked again.
   //
-  // Nothing puts it back: every path through the two callers ends in a render, which draws the
-  // control fresh.
-  private busy(selector: string, label: string | null): void {
+  // A labelled action says it in place of its label; a row's icon control has nowhere to put it but
+  // its tooltip, which is the difference between the two kinds of button on this page rather than a
+  // difference between importing and exporting.
+  //
+  // Nothing puts it back: every path through both callers ends in a render, which draws the control
+  // fresh.
+  private busy(selector: string, saying: string): void {
     const control = this.root.querySelector<HTMLButtonElement>(selector)
     if (control === null) return
     control.disabled = true
-    if (label === null) control.title = "Exporting\u2026"
-    else control.replaceChildren(document.createTextNode(label))
+    control.title = saying
+    if (control.classList.contains("vn-picker-action")) control.replaceChildren(document.createTextNode(saying))
   }
 
   // **The whole page is the drop target**, not a zone inside it: an author dragging an archive at the
@@ -567,10 +603,7 @@ export class ProjectPicker {
   private async dropped(files: File[]): Promise<void> {
     if (files.length === 0) return
     if (files.length > 1) {
-      this.refusal = {
-        lead: `${files.length} files were dropped.`,
-        detail: "Import takes one archive at a time. Nothing was written.",
-      }
+      this.refuse(`${files.length} files were dropped.`, "Import takes one archive at a time. Nothing was written.")
       await this.render()
       return
     }
@@ -697,18 +730,24 @@ export interface RefusalNotice {
   readonly detail: string
 }
 
-// Orange, because the work still runs: the author is on the list, looking at what they have, and
-// nothing was lost. Red is for a write that failed or a document that did not parse. Orange takes
-// black text - it is light enough that white on it fails to read, which editor.css says outright.
-const banner = (notice: RefusalNotice): HTMLElement => {
+// A refusal is **orange**, because the work still runs: the author is on the list, looking at what
+// they have, and nothing was lost. Red is for a write that failed or a document that did not parse.
+// Orange takes black text - it is light enough that white on it fails to read, which editor.css says
+// outright.
+//
+// A result is **neither**, and that is the point: green means stored, and spending it on "this
+// happened" would cost what it means. It is the panel's own white, marked out by a rule and by the
+// weight the lead already carries.
+const banner = (announcement: Announcement): HTMLElement => {
   const elem = document.createElement("p")
-  elem.classList.add("vn-picker-refusal")
+  elem.classList.add("vn-picker-banner")
+  elem.classList.add(announcement.tone === "refusal" ? "vn-picker-refusal" : "vn-picker-result")
   elem.setAttribute("role", "status")
 
   const lead = document.createElement("span")
-  lead.classList.add("vn-picker-refusal-lead")
-  lead.textContent = notice.lead
-  elem.append(lead, ` ${notice.detail}`)
+  lead.classList.add("vn-picker-banner-lead")
+  lead.textContent = announcement.lead
+  elem.append(lead, ` ${announcement.detail}`)
   return elem
 }
 

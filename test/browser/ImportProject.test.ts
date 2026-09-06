@@ -157,10 +157,12 @@ describe("importing onto a project that is already there", () => {
     expect(state.exported?.[IMPORTED]).toBeUndefined()
   })
 
-  it("refuses while another tab holds the destination, rather than writing under it", async () => {
+  it("refuses while another tab holds the destination, without asking about it first", async () => {
+    // The lock before the question: an author must not agree to destroy a project and only then be
+    // told the import could not have happened anyway. `neverAsked` is what pins that ordering.
     const lock = await takeProjectLock(IMPORTED)
 
-    const result = await importArchive(await zipOf(archiveOf(IMPORTED)), allow)
+    const result = await importArchive(await zipOf(archiveOf(IMPORTED)), neverAsked)
 
     expect(result).toMatchObject({ kind: "refused" })
     expect(await readImported("script.yaml")).toEqual(SCRIPT)
@@ -171,13 +173,16 @@ describe("importing onto a project that is already there", () => {
 describe("an import that never finished", () => {
   // Stopped between step 3 and step 4 - files written, manifest not - which is the only crash state
   // the ordering can leave behind, and the one the sweep already knows how to remove.
+  const holding = (text: string) => (destination: WritableStream<Uint8Array>) =>
+    new Blob([text]).stream().pipeTo(destination)
+
   const crashing = (id: string): ArchiveEntry[] => [
-    { path: "manifest.yaml", size: 40, blob: () => Promise.resolve(new Blob([manifestNaming(id, "Half Written")])) },
-    { path: "script.yaml", size: SCRIPT.length, blob: () => Promise.resolve(new Blob([SCRIPT])) },
+    { path: "manifest.yaml", size: 40, writeTo: holding(manifestNaming(id, "Half Written")) },
+    { path: "script.yaml", size: SCRIPT.length, writeTo: holding(SCRIPT) },
     {
       path: "assets/backgrounds/room.png",
       size: 4,
-      blob: () => Promise.reject(new Error("the archive was truncated")),
+      writeTo: () => Promise.reject(new Error("the archive was truncated")),
     },
   ]
 
@@ -270,6 +275,25 @@ describe("the picker's import surface", () => {
     expect(panel().classList.contains("vn-picker-dropping")).toBe(false)
     // Nothing to announce: the row arriving is the confirmation, exactly as Add demo project.
     expect(refusalText()).toEqual("")
+  })
+
+  it("says an import landed, because on an overwrite no new row arrives to say it", async () => {
+    await createProject(IMPORTED, {
+      manifestText: manifestNaming(IMPORTED, "The One Already Here"),
+      scriptText: SCRIPT,
+    })
+    await newPicker().render()
+
+    drag("drop", carrying(await archiveFile("story.webvn.zip")))
+    await waitFor("the overwrite dialog", () => document.querySelector("dialog.vn-dialog") !== null)
+    ;(document.querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
+    await waitFor("the result", () => pickerRoot.querySelector(".vn-picker-result") !== null)
+
+    const said = pickerRoot.querySelector(".vn-picker-result")?.textContent ?? ""
+    expect(said).toContain("story.webvn.zip was imported")
+    expect(said).toContain("replaced what was filed under")
+    // News, not a status: none of the three status colours is spent on it.
+    expect(pickerRoot.querySelector(".vn-picker-refusal")).toBeNull()
   })
 
   it("names the file that was refused, in the banner the rest of the picker refuses in", async () => {

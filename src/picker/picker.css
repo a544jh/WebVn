@@ -202,19 +202,30 @@
 }
 
 /* Inside the panel, under its title strip and above the rows, because it is news about this list
-   rather than about the page - the row it names is directly under it. Orange takes black text:
-   editor.css says outright that orange is light enough for white on it to fail. */
-.vn-picker-refusal {
+   rather than about the page - the row it names is directly under it. */
+.vn-picker-banner {
   margin: 8px 8px 0;
   padding: 8px 10px;
   border-radius: 3px;
-  background: var(--vn-editor-status-warning);
   color: black;
   font-size: 13px;
   line-height: 1.45;
 }
 
-.vn-picker-refusal-lead {
+/* Orange takes black text: editor.css says outright that orange is light enough for white on it to
+   fail. */
+.vn-picker-refusal {
+  background: var(--vn-editor-status-warning);
+}
+
+/* Something happened, which is news rather than a status - so it takes the panel's own white and a
+   hairline, and none of the three status colours. Green would say "stored", which this is not. */
+.vn-picker-result {
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.vn-picker-banner-lead {
   font-weight: 600;
 }
 

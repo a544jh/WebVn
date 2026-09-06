@@ -231,14 +231,22 @@ the whole browser project running. `CLAUDE.md` has the story.
 covers the writing, the overwrite, the picker surface and the crash.
 
 **The seam is a listing rather than an `AsyncIterable`, and the ticket's own ordering is why.**
-`ArchiveEntry` is `{ path, size, blob(): Promise<Blob> }` and `planImport` takes an array of them.
+`ArchiveEntry` is `{ path, size, writeTo(stream) }` and `planImport` takes an array of them.
 Two of the things step 0 has to settle **before a byte is written** cannot be asked of a one-pass
 iterable without buffering the archive it exists to avoid buffering: what the whole thing sums to,
 which is what makes the caps arithmetic rather than a race with the quota, and what the manifest says,
 which this ticket asks to be read "by random access". Lazy bytes keep everything the seam was for - a
-refused archive still inflates nothing at all, one entry is materialized at a time, and the whole back
-half is reachable from `test/unit/` with no zip and no OPFS. `design-docs/PROJECT_STORAGE.md`'s
-paragraph specifying the iterable is amended to match.
+refused archive still inflates nothing at all, and the whole back half is reachable from `test/unit/`
+with no zip and no OPFS. `design-docs/PROJECT_STORAGE.md`'s paragraph specifying the iterable is
+amended to match.
+
+**The entry writes itself into a stream rather than handing a Blob back**, which review is what
+restored: the first version was `blob(): Promise<Blob>` piped into `writeProjectFile`, which is
+exactly the materialize-then-write shape `unzipit` was rejected for, so the 24 KB `spec.md` paid for
+`entry.getData(await handle.createWritable())` was buying nothing. The manifest is the one entry read
+rather than written, through the platform's own `Response(stream).text()`, because its text is what
+decides whether anything is written at all. `openWritable` in `opfs.ts` is the primitive, and its
+comment says why it is the one write that does not go through `writeFile`.
 
 **The id gate turned out to be the manifest schema's, so there is no second check.** The ticket lists
 "the id fails `validateProjectId`" as its own refusal; `parseManifest` validates `id` with that exact
@@ -267,6 +275,23 @@ are on the picker's root, which is the host's element and outlives every picker 
 superseded picker that kept them would answer drops over a project that had since opened. That
 controller's comment said outright it was insurance until such a listener arrived; it has.
 
-**Nothing says "imported" on success.** The row arriving is the confirmation, exactly as **Add demo
-project** works - the banner is for refusals, and a green one would spend a status colour this chrome
-means something else by.
+**The picker's status line says an import landed, in a tone this page did not have before.** The
+first version said nothing, on the reasoning that the row arriving is the confirmation - which is how
+**Add demo project** works and is true of a *fresh* import. Review caught that it is exactly false in
+the case an author is most anxious about: an overwrite adds no row, so the only thing that changed
+was a date in a muted line. So the banner grew a second tone - `refusal` orange and `result` the
+panel's own white with a hairline - and neither green nor orange is spent on "this happened", which
+`design.md` is explicit about. `ImportResult` carries `overwrote` so the line can say which of the
+two it was. The picker's export control reports the same way.
+
+**Two orderings moved after review, and both were the ticket's to begin with.** The lock is taken
+**before** the overwrite question, per step 1 - asking first lets an author agree to destroy a project
+and only then be told it is open in another tab, a confirmation collected for nothing. And a failed
+entry's writable stream is **aborted**: an open stream holds a lock on the file, `removeEntry` is
+refused with `NoModificationAllowedError` while it is held, and residue the sweep can never remove is
+the one thing this ordering exists to prevent.
+
+**The path rule refuses a drive letter where a drive letter can be, not a colon anywhere.** The first
+version banned the colon outright, which is a legal POSIX filename character - so an asset called
+`scene: one.png` took the whole archive down with it, which is neither what the ticket asks nor a
+thing to want.

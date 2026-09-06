@@ -171,6 +171,14 @@ Safari are unverified, which is the same coverage the rest of the storage work h
   *Picker - import refused* (the orange banner every refusal lands in), and *Import - id already
   taken*. Read them before building the surfaces, not after.
 
+  The boards that were already there were **redrawn against the shipped UI in the same pass**,
+  having drifted into an idealisation of it: no id line under a title, no storage line under the
+  panel, and a new-project note ticket 04 had made untrue. They are now generated from the values
+  `picker.css` and `chrome.css` ship rather than hand-copied, so a row on a tranche-3 board is the
+  row the picker draws today with one control and one fact added to it. The delete confirmation was
+  drawn for the first time as part of that pass, and two annotations describing behaviour the code
+  had moved past were corrected.
+
   Two things the drawings decide that this file does not. The row keeps **one** meta line, with the
   export fact after a middle dot - "opened 2 days ago &middot; never exported" - rather than growing
   a second line. And a project whose manifest does not parse carries **both** consequences on its

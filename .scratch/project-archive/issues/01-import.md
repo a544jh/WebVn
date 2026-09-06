@@ -134,9 +134,15 @@ The destination directory is the manifest's id. If it is taken: a dialog with **
 which is that a copy under a different directory mints an id/directory disagreement that
 `AppShell.rename` then offers to "fix" by destroying the very project the copy was protecting.
 
-**The dialog names the title and the folder.** The destination is addressed by directory but the
-author knows their project by its title, and the two can disagree. Name the title in the sentence
-and `projectFolder(directory)` underneath, matching how the delete dialog already does it.
+**Ask in the same words the rename's overwrite already asks in.** `AppShell.confirmOverwrite`'s
+comment promised this outright - *"an import that collides with an existing id will ask it in the
+same words"* - so this is not a new dialog to word, it is that one reused: heading `Overwrite
+"<id>"?`, a first paragraph naming `projectFolder(to)` and what is destroyed with it, a second
+saying it cannot be recovered, and `confirmDialog`'s destructive styling. Two differences, both
+because the source is an archive rather than a project being renamed: the recovery clause can add
+that this archive can simply be imported again, and a third line points at the way to keep both -
+cancel, rename the project you have, import again - which is what standing on overwrite-or-cancel
+owes the author.
 
 **Overwrite drops the destination's player saves** - `deleteSaveData(id)`, matching delete. See
 `spec.md` for why keeping them is not safe, and ticket 03 for the `exported` date, which goes the

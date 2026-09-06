@@ -147,6 +147,19 @@ chrome currently spends the word on the thing the glossary says it is not. Note 
 list. `scriptUrl.ts` calls the thing `playerUrl`, so the button now says what the code says. The
 element id changes with it; both `index.html` and `src/index.ts` reference it.
 
+## Two sentences this ticket makes false
+
+Found while redrawing the design canvas against the shipped UI, 2026-09-06. Both dialogs currently
+end on the same line:
+
+> It cannot be recovered. There is no export yet, so nothing outside this browser has a copy.
+
+`ProjectPicker.remove` says it about deleting a project, and `AppShell.confirmOverwrite` about
+renaming onto one. The clause is load-bearing - it is *why* the warning is as strong as it is - and
+this ticket is what makes it untrue. Rewrite both to name the archive instead: a project that was
+exported does have a copy outside the browser, and the row now says when. Leave the "cannot be
+recovered" half alone; that stays true of the copy in OPFS.
+
 ## Feedback
 
 The control disables and reads "Exporting…"; the result goes to the picker's existing status line,

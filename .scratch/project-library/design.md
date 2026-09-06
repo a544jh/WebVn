@@ -7,10 +7,24 @@ Settled 2026-09-05, ahead of ticket 02. The drawings live on a design canvas:
 Seven artboards as of 2026-09-05 - the picker populated, with a project whose manifest does not
 parse, with a switch refused, empty, the new-project dialog, that dialog refusing a taken id, and the
 editor carrying its return button. (This file said five; the last two arrived later, which is the
-rule below working exactly as written.) **Eleven as of 2026-09-06**: tranche 3 added a bottom row of
+rule below working exactly as written.) **Twelve as of 2026-09-06**: tranche 3 added a bottom row of
 four for the archive - export dates and controls, an archive dropped, an import refused, and an id
 already taken - which belong to `.scratch/project-archive/spec.md` rather than to this file, and are
-described there. **That canvas is editable and is not in this repo**, so it is
+described there. The twelfth is the **delete confirmation**, which shipped with ticket 03 and which
+the "Not decided" note below had gone on listing as undrawn.
+
+**The picker artboards were redrawn against the shipped UI on 2026-09-06**, because they had drifted
+into an idealisation of it. What they were missing: the **id line under each title**, which
+`.vn-picker-id` draws in the chrome's monospace and which no artboard had ever shown; the **storage
+line under the panel**, which says what the browser has actually promised; the new-project dialog's
+**Id note**, rewritten when ticket 04 taught a rename to carry saves; and a row that has never been
+opened, which reads "not opened yet" rather than a date. Two annotations were corrected with them -
+the list is ordered by creation date and has been since 2026-09-05, and a rename no longer orphans
+the author's own saves.
+
+They are now generated from the values `picker.css` and `chrome.css` actually ship rather than
+hand-copied, which is what let them drift in the first place. Where the drawings and the code
+disagree from here, the code is the one that moved. **That canvas is editable and is not in this repo**, so it is
 the pixels and this file is the reasoning. Where the two disagree, the canvas is newer and this file
 is wrong; say so rather than quietly following either.
 

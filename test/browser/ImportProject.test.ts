@@ -14,7 +14,6 @@ import {
   writeProjectFile,
 } from "../../src/storage/projectStore"
 import { recoverProjects } from "../../src/storage/recoverProjects"
-import { immediately } from "../helpers/picker"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { manifestNaming } from "../helpers/testManifest"
 import { settle, waitFor } from "../helpers/vnHarness"

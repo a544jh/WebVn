@@ -109,6 +109,10 @@ run over a tree nothing is writing into: Chromium's `createWritable` leaves an e
 the rename suite's one-in-eleven flake, and the rename already waits for its storer before sizing
 for exactly this reason.
 
+The call already exists and the rename already makes it: `session.storing.flush()`, which *"resolves
+once every write the storer has queued has landed, pending or not"*. Do not reach for
+`AppShell.settled()` by mistake - that is the view-swap queue and says nothing about the store.
+
 **For another project, from the picker**: take its project lock for the duration, so a second tab
 cannot be writing into it mid-walk. Refuse with the usual message if it is held.
 
@@ -213,3 +217,12 @@ live storer can demonstrate - type into the buffer, export inside the debounce w
 archive holds the typed text.
 
 Directory names for this suite are its own, per 01.
+
+**Two things no test covers, named so they are known gaps rather than oversights.** The `<a
+download>` itself: the tests assert the archive's *bytes*, because a headless browser will not show
+you a file arriving in Downloads - so the anchor, its `download` attribute and the filename it
+suggests are verified by hand, like `enterFullscreen` and `npm run dev` already are. And the bundle
+split: `spec.md` claims zip.js lands in `app.js` and never in `playerIndex.js`, which holds only as
+long as nothing in the player's import graph reaches `src/storage/archive.ts`. Nothing enforces it;
+`npm run build` prints both bundles' sizes, so check them once when this lands and treat a jump in
+`playerIndex.js` as the symptom.

@@ -22,6 +22,11 @@ exported:
   cat-adventure: 2026-09-06T11:02:31.000Z
 ```
 
+Written by **both** export surfaces - the picker's row control and the editor's Export ZIP button -
+which is one reason the write belongs next to where the archive is built rather than in either
+caller. An author who exports from inside the editor and then goes back to the library must find the
+row already saying so.
+
 Written when the blob is handed to the download anchor. That is not proof the author saved the file
 - a download can be cancelled - and there is no event that is. Recording the attempt is the honest
 approximation, and the failure mode is mild in the direction that matters: a row that says "exported

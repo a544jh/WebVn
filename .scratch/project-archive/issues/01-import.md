@@ -163,7 +163,17 @@ same way and for the same reason.
 2. On overwrite: `removeRecursive` the destination, and `deleteSaveData(id)`.
 3. Write every entry except `README.txt` at the root and except `manifest.yaml`.
 4. **Write `manifest.yaml`. This single atomic write is the commit point.**
-5. Record `created`. Release the lock.
+5. Record `created` **only if the directory is new**. Release the lock.
+
+**An overwriting import keeps the `created` date it found**, and that is a decision rather than an
+omission. The picker sorts by creation, oldest first, precisely so that rows do not move under the
+author - so minting a fresh date would send the overwritten project to the bottom of the library as
+a side effect of replacing its contents. The slot is the same slot; the row stays in it.
+
+Note this is the opposite of what ticket 03 does with `exported`, which an overwrite drops, and the
+two are consistent rather than arbitrary: `created` describes the row's place in the library, which
+has not changed, while `exported` describes a file on disk that is now a copy of a project nobody
+has any more.
 
 **Step 4 is the opposite of `createProject`'s ordering and that is deliberate.** `createProject`
 writes the manifest first so a project being minted never looks like residue; import is a copy, and

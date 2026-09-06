@@ -451,30 +451,37 @@ export class ProjectPicker {
   // deleted and re-made, or if two tabs race the same new id. The project is created but not opened,
   // and the author is left on the picker with the row present.
   //
-  // **The minting is queued and the opening is not**, which is not tidiness: `openProject` queues in
-  // its own right, and asking for a turn from inside one is a chain that cannot resolve. So the job
-  // below ends at the write, and the boot happens after the turn is over - which is also the honest
-  // ordering, since by then the project exists whatever the boot does.
+  // **The dialog is asked before the page goes busy, and the write after** - the shape `remove` already
+  // has. Nothing has been created while the form is still on screen, so labelling the button
+  // "Creating..." there would be premature, and the dialog is modal anyway, so the page behind it needs
+  // no help being inert. It also keeps the ask off the far side of a render, which is latency the
+  // author feels between pressing the button and seeing the form.
+  //
+  // **The minting is queued and the opening is not**, which is not tidiness either: `openProject`
+  // queues in its own right, and asking for a turn from inside one is a chain that cannot resolve. So
+  // the job below ends at the write, and the boot happens after the turn is over - which is also the
+  // honest ordering, since by then the project exists whatever the boot does.
   private async create(): Promise<void> {
+    // Walked as the dialog opens rather than taken from the last render, which may be old - and
+    // walked again below, because another tab can create the id while the dialog is up and
+    // `createProject` writes into projects/<id>/ unconditionally. The dialog's own check is what puts
+    // the message beside the field; this one is what makes it true at the moment of the write.
+    const taken = async (): Promise<Set<string>> => new Set((await listProjects()).map((p) => p.directory))
+    const before = await taken()
+
+    const asked = await askForNewProject((id) => before.has(id))
+    if (asked === null) return
+
     const chosen = await this.work(".vn-picker-new", "Creating\u2026", async () => {
-      // Walked as the dialog opens rather than taken from the last render, which may be old - and
-      // walked again below, because another tab can create the id while the dialog is up and
-      // `createProject` writes into projects/<id>/ unconditionally. The dialog's own check is what
-      // puts the message beside the field; this one is what makes it true at the moment of the write.
-      const taken = async (): Promise<Set<string>> => new Set((await listProjects()).map((p) => p.directory))
-      const before = await taken()
-
-      const asked = await askForNewProject((id) => before.has(id))
-      if (asked === null) return null
-
       if ((await taken()).has(asked.id)) {
         this.refuse(`"${asked.id}" already names a project.`, "Nothing was created.")
         return null
       }
-
       await mintProject(asked.id, asked.title)
       return asked
     })
+    // Null either way: the id was taken by the time the write came round, or the picker was already
+    // busy and never ran the job at all.
     if (chosen === null || chosen === undefined) return
 
     const refusal = await this.openProject(chosen.id)

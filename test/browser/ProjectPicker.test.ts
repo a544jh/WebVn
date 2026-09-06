@@ -80,6 +80,11 @@ const deleteButton = (directory: string): HTMLButtonElement =>
 // reachable from a test at all, and is most of the reason they exist.
 const dialog = (): HTMLDialogElement | null => document.querySelector("dialog.vn-dialog")
 
+// **Waited for, not slept past.** A dialog is opened on the far side of at least one store walk, so a
+// fixed sleep is a bet on how loaded the machine is - and it is a bet this suite lost on CI, with
+// `the dialog has no "Title" field`, after `create` grew one more `await` in front of the ask.
+const openDialog = async (): Promise<void> => waitFor("a dialog to open", () => dialog() !== null)
+
 const dialogText = (): string =>
   [...(dialog()?.querySelectorAll(".vn-dialog-title, .vn-dialog-body") ?? [])].map((elem) => elem.textContent).join(" ")
 
@@ -173,7 +178,7 @@ describe("the picker's list", () => {
     const before = rowDirectories()
 
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "Zebra")
     pressConfirm()
     await sleep(300)
@@ -447,7 +452,7 @@ describe("making a project", () => {
     await newPicker().render()
 
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "The Lighthouse Keeper")
     expect(field("Id").value).toBe("the-lighthouse-keeper")
     pressConfirm()
@@ -463,7 +468,7 @@ describe("making a project", () => {
     await newPicker().render()
 
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "The Lighthouse")
     typeInto(field("Id"), "lighthouse")
     typeInto(field("Title"), "The Lighthouse Keeper")
@@ -477,7 +482,7 @@ describe("making a project", () => {
   it("shows the title the author typed, not the id", async () => {
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "The Lighthouse Keeper")
     pressConfirm()
     await waitFor("the project to be opened", () => opened.length > 0)
@@ -491,7 +496,7 @@ describe("making a project", () => {
     // A project called `project-1` because the slugifier gave up is worse than being asked.
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
 
     typeInto(field("Title"), "...!!!...")
     expect(field("Id").value).toBe("")
@@ -509,7 +514,7 @@ describe("making a project", () => {
     // from the other side.
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
 
     typeInto(field("Id"), "hand-typed")
     pressConfirm()
@@ -523,7 +528,7 @@ describe("making a project", () => {
   it("refuses an id the manifest schema rejects, in the schema's own words", async () => {
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
 
     typeInto(field("Title"), "My Story")
     typeInto(field("Id"), "My Story")
@@ -543,7 +548,7 @@ describe("making a project", () => {
     await make("taken-story", "Taken")
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
 
     typeInto(field("Title"), "Taken Story")
     expect(field("Id").value).toBe("taken-story")
@@ -564,7 +569,7 @@ describe("making a project", () => {
     }
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "New Story")
     pressConfirm()
     await waitFor("the refusal banner", () => refusalText() !== null)
@@ -576,7 +581,7 @@ describe("making a project", () => {
   it("writes nothing when the dialog is dismissed", async () => {
     await newPicker().render()
     newButton()?.click()
-    await settle()
+    await openDialog()
     typeInto(field("Title"), "Never Made")
 
     pressCancel()
@@ -594,7 +599,7 @@ describe("deleting a project", () => {
     await newPicker().render()
 
     deleteButton("doomed").click()
-    await settle()
+    await openDialog()
     expect(dialogText()).toContain("Doomed")
     expect(dialogText()).toContain("cannot be recovered")
 
@@ -616,7 +621,7 @@ describe("deleting a project", () => {
     await newPicker().render()
 
     deleteButton("doomed").click()
-    await settle()
+    await openDialog()
     pressConfirm()
     await waitFor("the row to go", () => rows().length === 0)
 
@@ -628,7 +633,7 @@ describe("deleting a project", () => {
     await newPicker().render()
 
     deleteButton("doomed").click()
-    await settle()
+    await openDialog()
     pressCancel()
     await settle()
 
@@ -644,7 +649,7 @@ describe("deleting a project", () => {
     await newPicker().render()
 
     deleteButton("held-story").click()
-    await settle()
+    await openDialog()
     pressConfirm()
     await waitFor("the refusal banner", () => refusalText() !== null)
 
@@ -662,7 +667,7 @@ describe("deleting a project", () => {
     await newPicker().render()
 
     deleteButton(demoManifest.id).click()
-    await settle()
+    await openDialog()
     pressConfirm()
     await waitFor("an empty library", () => rows().length === 0)
 

@@ -148,9 +148,25 @@ being opened, and a project too broken to work in can still be got out.
 **In the editor**, labelled **Export ZIP**, `#vn-btn-export-zip`, immediately to the right of the
 player-link button in `src/index.html`'s row - the author spends their time there, and sending them
 back to the front door for a backup is friction in the one gesture we most want them to make.
-`AppShell` owns the session, so it is a line of wiring. It carries the arrow icon at 14px like the
-picker's header actions; its two neighbours are plain text and predate the chrome having an icon
-vocabulary at all, so close that gap by giving *them* icons rather than by stripping this one.
+`AppShell` owns the session, so it is a line of wiring.
+
+**One button style for the whole editor chrome, and this ticket is what establishes it.** Today
+`#vn-btn-back` is the only one of these with any CSS at all: `#vn-btn-fullscreen` and
+`#vn-btn-export-url` are styled by nothing and render as browser-default buttons - checked
+2026-09-06, and the design canvas has been drawing them as chrome they never were. Lift
+`#vn-btn-back`'s rule into a class in `chrome.css` and give it to all four: `inline-flex`, a 14px
+icon, `gap: 7px`, `padding: 7px 11px`, `line-height: 1`, `#eee` on a `#ccc` hairline, `#fff` on
+hover.
+
+`line-height: 1` is the part that is about height rather than looks. Text at its default leading is
+about 16px tall and a 14px icon is not, so an iconless button and an icon one sit at different
+heights however alike their borders look - which is what the row does today.
+
+**Icons on all three or none.** One icon among three is not one style, and dropping the export
+arrow would break the pair it makes with the picker's control, so Fullscreen takes Lucide `maximize`
+and the link button takes `link`. With the import/export arrows that is four new entries in
+`src/chrome/icons.ts`, taking it from three vendored icons to seven - which is still "add path data
+per ticket" rather than vendoring a set nobody calls.
 
 "Export ZIP" names the format because it sits beside a button that also emits something - a link -
 and "Export" alone would not say which. That does not soften `CONTEXT.md`'s reservation of *export*

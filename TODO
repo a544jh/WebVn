@@ -89,6 +89,16 @@ that which mattered - so URL import now deletes scaffolding that works, while zi
 "your project can leave the browser" true for the first time. Every destructive dialog in the app
 currently says so out loud: "There is no export yet, so nothing outside this browser has a copy."
 
+Extracted: the asset panel, 2026-09-11, as .scratch/asset-panel/ - three tickets covering a
+panel over the manifest's declarations, an Add asset button that writes into the manifest buffer,
+and a label list that jumps the playhead. **No design doc governs it**, which is unusual enough to
+say out loud: PROJECT_STORAGE.md's remainder is tranche 4, SCRIPT_INCLUDES.md is about N script
+files, and EDITOR.md is about completion and the CM6 migration. The one overlap is EDITOR.md's
+completion table, which wants asset names from the manifest and label names from state.labels -
+this tranche's two data sources, surfaced a second way - so whatever enumerates them here is what
+those completions should later read. Its drawings are page 2 of the design canvas; the spec names
+which artboards are its.
+
 Settled: H, 2026-09-06, by measurement rather than by building anything. @zip.js/zip.js pinned to
 lib/zip-core-custom.js is 30.6KB gzipped for reader and writer, spawns no workers at all, and
 delegates deflate to the platform's Compression Streams; unzipit + client-zip is 6.7KB but cannot

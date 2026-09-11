@@ -13,6 +13,13 @@ already taken - which belong to `.scratch/project-archive/spec.md` rather than t
 described there. The twelfth is the **delete confirmation**, which shipped with ticket 03 and which
 the "Not decided" note below had gone on listing as undrawn.
 
+**The canvas gained a second page on 2026-09-11**, *Asset panel*, and everything above describes the
+first one, *Project library*. The four artboards and six notes on it belong to
+`.scratch/asset-panel/spec.md` rather than to this file and are described there. What touches this
+page: `EditorReturn.dc.html` draws the same session view as they do, so the two pages must not drift
+apart on the chrome they share - its tab bar and store badge were corrected that day to the values
+`editor.css` ships after `7266c8c`, which is the rule below working as written.
+
 **The picker artboards were redrawn against the shipped UI on 2026-09-06**, because they had drifted
 into an idealisation of it. What they were missing: the **id line under each title**, which
 `.vn-picker-id` draws in the chrome's monospace and which no artboard had ever shown; the **storage

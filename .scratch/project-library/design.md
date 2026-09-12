@@ -82,6 +82,20 @@ Today the chrome has no `font-family` at all - `body` sets only `background-colo
 pattern `gg.css` already set, and eight chrome icons do not earn a package against the entrypoint
 size warning the build already prints.
 
+**Reversed on 2026-09-12, by measurement** - see `.scratch/asset-panel/spec.md`, which has the
+table. `src/chrome/icons.ts` now imports from `lucide` per icon. The size half of the argument came
+out at **+193 bytes gzipped for eleven icons**, four of them new, because the package declares
+`sideEffects: false` and ships one ESM module per icon; `playerIndex.js` is byte-identical, since the
+player draws no chrome. The other half turned out backwards: an entry had to be a list of `d` strings
+to be vendored by hand, and `draw` could then emit only `<path>` - so `eye` (which carries a
+`<circle>`) and `replace` (a `<rect>`) were unbuildable, and the four per-group type icons had been
+dropped for the same reason. Lucide's own `IconNode` is a list of `[tag, attributes]` pairs, which is
+exactly the shape the hand-rolled version needed, so importing supplied the generalisation rather
+than requiring one. Two hand-transcribed icons had also drifted from the real geometry by then.
+
+Everything below this paragraph still holds: the split from `gg.css`, the 1.75 stroke width and
+`currentColor` are unchanged.
+
 **css.gg is not replaced.** Its four icons run on the stage at `--ggs: 2.5`, around 55px, where they
 work. The problem was only ever reaching for them at 13px: they are border-drawn, and at fractional
 scale they land on half-pixels and go soft.

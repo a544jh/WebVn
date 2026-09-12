@@ -8,7 +8,13 @@ put it until that exists.
 ## What to build
 
 `Add asset` picks a file, asks what it is, copies it into `assets/`, writes the declaration into the
-manifest buffer, and adopts it. Drawn on `AssetPanel` and, greyed, on `AssetGated`.
+manifest buffer, and adopts it.
+
+**Drawn on the canvas**, bottom row of the *Asset panel* page: `AddAsset` (a background - the common
+path), `AddAssetSprite` (a sprite for an actor that does not exist yet, which is the dialog at its
+tallest), and `AddAssetRefused` (an id already declared, marked on the field). The button itself is
+on `AssetPanel`, and greyed on `AssetGated`. **Read the drawings before building** - the prose below
+is the reasoning and the wiring, and it is not the layout.
 
 ## Why it is two writes and not one
 
@@ -42,6 +48,21 @@ something.
 
 Writing the file first also fails cleanly: nothing is declared, the panel is unchanged, and the
 author is told the copy failed.
+
+## Two things it needs from `src/chrome/dialog.ts`
+
+Drawing it is what made these visible, and both are changes to a file the picker also uses - so this
+is shared machinery with two consumers rather than a local addition.
+
+**`dialogField` only makes text inputs.** Kind and Actor are `<select>`s. The cheapest honest
+version is a field variant that swaps the control and keeps everything else - the 12px muted label
+above, the hint below, the problem treatment - because the whole point of that surface is that a
+rule appears beside the field it is about, and a select field that lost the hint would lose it.
+
+**The dialog grows.** Three fields for a background, five for a sprite whose actor is new. That is
+already supported and the reason is already written down: `dialog.css` sets `margin: 140px auto
+auto` and says why - *"Near the top rather than centred, which is where the drawings put it: a
+dialog that grows a field does not then walk up the page."* Do not centre it.
 
 ## The id, and where its rules live
 
@@ -126,6 +147,7 @@ keystroke, and `ProjectStoring`'s debounce picks it up.
 - a lowercase actor id is refused, with the schema's own message
 - a flow-style manifest is refused rather than spliced, and the document is byte-identical after
 - the button is disabled while the manifest does not parse
+- picking Sprite reveals the Actor field, and picking `New actor...` reveals Actor name
 
 The file write itself wants a scratch OPFS directory named after the suite - `navigator.locks` is
 origin-wide.

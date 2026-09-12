@@ -23,9 +23,10 @@ and nothing about where bytes come from - `AssetResolver` already settled that i
 
 ## The canvas is binding for pixels
 
-<https://claude.ai/code/artifact/c6d9544c-a7dd-49b4-b778-9e22a0e80f71>, page **Asset panel**. Four
-artboards - the panel populated, a declared file that is not there, a project with nothing declared
-yet, and a manifest that does not parse - and six notes carrying the reasoning in more detail than
+<https://claude.ai/code/artifact/c6d9544c-a7dd-49b4-b778-9e22a0e80f71>, page **Asset panel**. Seven
+artboards on two rows - the panel populated, a declared file that is not there, a project with
+nothing declared yet, a manifest that does not parse, and then the Add asset dialog in three states
+(a background, a sprite for a new actor, an id already declared) - and seven notes carrying the reasoning in more detail than
 this file does. Read it before building anything it draws. Where the drawings and the code disagree,
 the code is the one that moved; where this file and the canvas disagree, the canvas is newer.
 
@@ -94,8 +95,8 @@ makes a column beside it safe.
 1. **`01-the-asset-panel.md`** - the column, the layout, the list over the three declarations, the
    two chevron icons, the missing-file and empty states, and what the panel shows while the manifest
    does not parse.
-2. **`02-adding-an-asset.md`** - the button: the file picker, the copy into `assets/`, the
-   declaration written into the manifest buffer, the adoption, and the parse gate. Needs 01.
+2. **`02-adding-an-asset.md`** - the button: the file picker, the dialog, the copy into `assets/`,
+   the declaration written into the manifest buffer, the adoption, and the parse gate. Needs 01.
 3. **`03-the-label-list.md`** - the second panel, and `goToLabel` on `VnEditor`. Needs 01 for the
    column; independent of 02.
 

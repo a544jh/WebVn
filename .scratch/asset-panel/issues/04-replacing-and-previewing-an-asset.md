@@ -66,6 +66,9 @@ project is; replace only changes what a thing looks like.
 
 ## Preview
 
+The control is Lucide's `eye`; replace is Lucide's `replace`. Both need the `icons.ts` shape
+change ticket 01 makes - `eye` carries a `<circle>` and `replace` a `<rect>`.
+
 `window.open(await resolver.resolve(path))`. A blob URL under OPFS, a relative path under the
 player's resolver, and the browser's own image or audio viewer does the rest - no preview UI to
 build, and it works for both kinds of asset.

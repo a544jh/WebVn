@@ -117,15 +117,27 @@ be tweaked once it is on screen** - it is the one part of the panel nobody has s
 label list, which is `.scratch/label-list/` and not this tranche's - the canvas draws it, and its
 note says whose it is. Build the column so landing it later changes a number rather than the layout.
 
-## Icons
+## Icons, and the shape change they force
 
-`chevron-down` and `chevron-right` into `src/chrome/icons.ts`'s `PATHS`. Both are single paths, so
-`draw()` takes them as they stand.
+Five entries for `src/chrome/icons.ts`: `chevron-down` and `chevron-right` for the groups, and
+`eye`, `replace` and `trash-2` for the row controls (the last already exists).
 
-Per-group type icons (image/music/user/tag) were drawn on the canvas and dropped: the group is
-named, so the picture said nothing the word did not, and four of them would have needed `<rect>` and
-`<circle>`, which `draw()` cannot emit. Recorded so the next reader does not re-add them and then
-discover why that file has to change shape first.
+**`PATHS` and `draw()` have to change shape first.** `PATHS` holds a list of `d` strings and `draw()`
+emits only `<path>`; Lucide's `eye` needs a `<circle>` and `replace` needs a `<rect>`. So an entry
+becomes a list of elements rather than a list of paths. This was avoidable while the icons were
+chevrons only and it is not avoidable now, so do it here rather than in whichever ticket reaches for
+an icon first.
+
+It is worth doing properly: the per-group type icons (`image`, `music`, `user`, `tag`) were dropped
+partly for this reason and become possible again afterwards. Nothing else about the file changes -
+`stroke-width: 1.75`, `currentColor`, built-once-and-cloned all stay.
+
+**Copy the path data from Lucide's own output**, not from a drawing or from memory. The canvas's
+version of `eye` is the older two-element form and renders identically at this size, but the installed
+set is the source of truth.
+
+Row controls are **15px**, which is what `.vn-picker-control` already draws its row icons at; the
+chevrons stay 13px.
 
 ## Teardown
 

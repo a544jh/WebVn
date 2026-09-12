@@ -115,6 +115,33 @@ makes a column beside it safe.
   stacked panels, the asset panel taking the remaining height, so landing it changes a number rather
   than the layout.
 
+## Settled by measurement: the icons are imported
+
+**2026-09-12.** `src/chrome/icons.ts` transcribed Lucide path data by hand, on the reasoning that
+"eight chrome icons do not earn a package against the entrypoint size warning the build already
+prints". The panel needs eleven, and two of them - `eye` and `replace` - could not be drawn at all,
+because an entry was a list of `d` strings and `draw` emitted only `<path>` while those icons carry a
+`<circle>` and a `<rect>`.
+
+Measured rather than argued, the way spike H settled zip.js:
+
+| | raw | gzipped |
+| --- | --- | --- |
+| `app.js` before | 587,491 | 178,638 |
+| `app.js` after, **with four icons added** | 588,310 | 178,831 |
+| **cost** | **+819** | **+193** |
+
+`playerIndex.js` is byte-identical at 234,752 - the player draws no chrome, so none of it reaches
+that bundle. 533/533 tests pass. `lucide` declares `sideEffects: false` and ships one ESM module per
+icon, so eleven of roughly fifteen hundred is what webpack keeps.
+
+The size premise was the weaker half of the original reasoning; the stronger half turned out to be
+the opposite of what it looked like. **Lucide's `IconNode` - a list of `[tag, attributes]` pairs - is
+exactly the generalisation the hand-rolled version needed**, so importing supplied the shape change
+rather than requiring one. And the transcription had already gone wrong: the hand-drawn `replace`
+used `rect x=2 y=14 width=8 height=8 rx=2` where Lucide ships `x=3 y=14 width=7 height=7 rx=1`, and
+the `eye` was an older variant entirely. The canvas is now generated from the package's own export.
+
 ## The tickets, in dependency order
 
 1. **`01-the-asset-panel.md`** - the column, the layout, the list over the three declarations, the

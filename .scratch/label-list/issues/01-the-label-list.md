@@ -1,8 +1,10 @@
-# 03: The label list
+# 01: The label list
 
 Status: ready-for-agent
 
-Blocked by: 01 (the asset panel) for the column it sits in. Independent of 02.
+Blocked by: `.scratch/asset-panel/issues/01-the-asset-panel.md`, for the column it sits in - that
+ticket builds the column as two stacked panels with the asset panel taking the remaining height, so
+this one fills a space that is already there.
 
 ## What to build
 

@@ -99,6 +99,24 @@ manifest is `formatVersion`/`id`/`title` and nothing else.
   action rather than a tool in a row of them - which makes it a new metric belonging in
   `assetPanel.css` and not in `chrome.css`.
 
+## The row's controls, and the column's second panel
+
+This ticket builds the **structure** the controls sit in, not the controls - each belongs to the
+ticket that makes it do something (02 has none, 03 has remove, 04 has replace and preview).
+
+**They overlay the filename on hover and on focus.** The filename is reference information you read
+while scanning; the controls are what you want once you have stopped scanning and picked a row, so
+the two never compete for the same pixels. Overlay rather than reflow: a row that changes width
+under the pointer is the flicker `.vn-picker-drop` documents at length. Muted until reached for,
+and remove goes red on hover - `.vn-picker-control`'s treatment exactly.
+
+Three controls on a 280px row is tight and the canvas draws a first attempt at it. **Expect this to
+be tweaked once it is on screen** - it is the one part of the panel nobody has seen working.
+
+**The column is two stacked panels**, with this one taking the remaining height. The second is the
+label list, which is `.scratch/label-list/` and not this tranche's - the canvas draws it, and its
+note says whose it is. Build the column so landing it later changes a number rather than the layout.
+
 ## Icons
 
 `chevron-down` and `chevron-right` into `src/chrome/icons.ts`'s `PATHS`. Both are single paths, so
@@ -127,6 +145,7 @@ and an `AbortController` for anything else.
   says it is stale
 - a declared file that is not there is orange on the leaf and on its group header
 - a manifest with no declarations shows the empty state
+- a row's controls appear on hover and on keyboard focus, and do not change the row's width
 
 Name this suite's OPFS project directories after the suite - `navigator.locks` is origin-wide and
 two browser suites sharing a directory name contend for one lock even in separate scratch roots.

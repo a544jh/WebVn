@@ -1,6 +1,29 @@
-// Lucide (ISC), vendored as inline SVG rather than installed. That is the pattern gg.css already
-// set, and eight chrome icons do not earn a package against the entrypoint size warning the build
-// already prints. Add path data per ticket rather than vendoring a set nobody calls.
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  IconNode,
+  Link,
+  Maximize,
+  Plus,
+  Replace,
+  Trash2,
+  Upload,
+} from "lucide"
+
+// Lucide (ISC), imported per icon rather than transcribed by hand. `lucide` declares
+// `sideEffects: false` and ships one ESM module per icon, so what reaches the bundle is the data for
+// the icons named below and nothing else - which is what the size measurement in
+// `.scratch/asset-panel/` settled, against the earlier reading that "eight chrome icons do not earn
+// a package".
+//
+// **The package's own data shape is the reason this is an import rather than a copy.** An `IconNode`
+// is a list of `[tag, attributes]` pairs - `Eye` is a path and a circle, `Replace` is six paths and a
+// rect - so `draw` below renders whatever element each entry names. The hand-vendored version held a
+// list of `d` strings and could only emit `<path>`, which is why four of the icons this chrome wants
+// were unbuildable and two more were drawn from memory and got their geometry wrong.
 //
 // In src/chrome/ and not src/editor/ because the picker draws a trash and a plus before any editor
 // exists.
@@ -11,37 +34,28 @@
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 
-// One entry per icon, holding its `d` attributes in Lucide's own drawing order.
+// One entry per icon this chrome draws. Naming them individually is what keeps the other ~1500 out
+// of the bundle, so add a name here rather than importing the set.
 //
 // `download` and `upload` are the archive's pair and are read as a pair: the same tray, with the
 // arrow pointing into it for import and out of it for export. **Direction follows the data, not the
 // verb** - a download arrow on export would be naming the browser's file transfer rather than the
 // project leaving the library, and drawn that way round both buttons pointed the same way.
-const PATHS = {
-  "chevron-left": ["m15 18-6-6 6-6"],
-  plus: ["M5 12h14", "M12 5v14"],
-  "trash-2": [
-    "M10 11v6",
-    "M14 11v6",
-    "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
-    "M3 6h18",
-    "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
-  ],
-  download: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"],
-  upload: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M17 8l-5-5-5 5", "M12 3v12"],
-  maximize: [
-    "M8 3H5a2 2 0 0 0-2 2v3",
-    "M21 8V5a2 2 0 0 0-2-2h-3",
-    "M3 16v3a2 2 0 0 0 2 2h3",
-    "M16 21h3a2 2 0 0 0 2-2v-3",
-  ],
-  link: [
-    "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
-    "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
-  ],
-} satisfies Record<string, string[]>
+const ICONS = {
+  "chevron-left": ChevronLeft,
+  "chevron-down": ChevronDown,
+  "chevron-right": ChevronRight,
+  plus: Plus,
+  "trash-2": Trash2,
+  download: Download,
+  upload: Upload,
+  maximize: Maximize,
+  link: Link,
+  eye: Eye,
+  replace: Replace,
+} satisfies Record<string, IconNode>
 
-export type IconName = keyof typeof PATHS
+export type IconName = keyof typeof ICONS
 
 // Built once per name and handed out as a clone, which is the pattern the sub-renderers already use.
 const built = new Map<IconName, SVGElement>()
@@ -78,10 +92,13 @@ const draw = (name: IconName): SVGElement => {
   // what it is with `aria-label` on the control, which is where a screen reader looks anyway.
   svg.setAttribute("aria-hidden", "true")
   svg.classList.add("vn-icon")
-  for (const d of PATHS[name]) {
-    const path = document.createElementNS(SVG_NS, "path")
-    path.setAttribute("d", d)
-    svg.appendChild(path)
+  // Whatever element the entry names - a path, a circle, a rect - with its attributes as given.
+  for (const [tag, attributes] of ICONS[name]) {
+    const child = document.createElementNS(SVG_NS, tag)
+    for (const [attribute, value] of Object.entries(attributes)) {
+      child.setAttribute(attribute, String(value))
+    }
+    svg.appendChild(child)
   }
   return svg
 }

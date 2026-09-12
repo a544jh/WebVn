@@ -117,27 +117,20 @@ be tweaked once it is on screen** - it is the one part of the panel nobody has s
 label list, which is `.scratch/label-list/` and not this tranche's - the canvas draws it, and its
 note says whose it is. Build the column so landing it later changes a number rather than the layout.
 
-## Icons, and the shape change they force
+## Icons - done, ahead of this ticket
 
-Five entries for `src/chrome/icons.ts`: `chevron-down` and `chevron-right` for the groups, and
-`eye`, `replace` and `trash-2` for the row controls (the last already exists).
+`src/chrome/icons.ts` imports from `lucide` per icon rather than carrying transcribed path data, so
+every icon this panel needs already exists: `chevron-down` and `chevron-right` for the groups, `eye`,
+`replace` and `trash-2` for the row controls.
 
-**`PATHS` and `draw()` have to change shape first.** `PATHS` holds a list of `d` strings and `draw()`
-emits only `<path>`; Lucide's `eye` needs a `<circle>` and `replace` needs a `<rect>`. So an entry
-becomes a list of elements rather than a list of paths. This was avoidable while the icons were
-chevrons only and it is not avoidable now, so do it here rather than in whichever ticket reaches for
-an icon first.
+**The package's data shape is why this stopped being work.** An `IconNode` is a list of
+`[tag, attributes]` pairs, so `draw` renders whatever element each entry names. The hand-vendored
+version held a list of `d` strings and could only emit `<path>` - which is why `eye` (a path and a
+circle) and `replace` (six paths and a rect) were unbuildable, and why the four per-group type icons
+were dropped. **They are buildable now**, if the design ever wants them back.
 
-It is worth doing properly: the per-group type icons (`image`, `music`, `user`, `tag`) were dropped
-partly for this reason and become possible again afterwards. Nothing else about the file changes -
-`stroke-width: 1.75`, `currentColor`, built-once-and-cloned all stay.
-
-**Copy the path data from Lucide's own output**, not from a drawing or from memory. The canvas's
-version of `eye` is the older two-element form and renders identically at this size, but the installed
-set is the source of truth.
-
-Row controls are **15px**, which is what `.vn-picker-control` already draws its row icons at; the
-chevrons stay 13px.
+Row controls are **15px**, matching what `.vn-picker-control` already draws its row icons at. The
+chevrons are 13px.
 
 ## Teardown
 

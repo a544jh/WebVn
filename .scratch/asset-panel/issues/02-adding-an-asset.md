@@ -190,3 +190,22 @@ rename revert goes through the same method, where it had been working by luck of
 **The file-size line says KB rather than MB.** `megabytes()` would render the canvas's "412 KB" as
 "0.4 MB"; the formatter is local to the dialog because it has one caller, unlike `megabytes`, whose
 comment says every caller of it is a caller of `availableBytes`.
+
+**Three things found in review.**
+
+`row.hidden` did not hide the Actor and Actor name fields: `.vn-dialog-field` sets `display: flex`,
+which is author-origin and beats the UA's `[hidden]` rule, so both were always on screen - and the
+test asserted the property rather than computed visibility, so it passed. `.vn-dialog-field[hidden]`
+says it in the stylesheet, where any caller hiding a field gets it.
+
+**The file was copied in before the splice was known to be possible.** A manifest no declaration can
+be spliced into left the bytes behind for ever, and it is not a shape only a test writes - the repo's
+own demo manifest declares `Rando: {}`, an actor no sprite can be added to. `VnEditor.canDeclareAsset`
+is asked before the copy now. The ticket's file-first ordering is about the *adoption* not flashing a
+missing-file warning, which still holds.
+
+**`childIndent` followed a comment.** A `# note` at column 0 under `backgrounds:` set the indent for
+the entry going in beneath it, and an entry at the group's own indent is a *sibling* of the group -
+which still parses, because unknown top-level keys are stripped, so the author would be told the
+asset was added and nothing would declare it. Comments are skipped now, and an indent no deeper than
+the group's is refused as well.

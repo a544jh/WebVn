@@ -112,3 +112,15 @@ register from `src/domRenderer/`, so in node every `bg` line is a warning.
 **The confirmation names nothing when nothing names it.** The ticket's wording assumes a count worth
 saying; at zero, "is named on 0 lines" reads as a mistake, so the row says
 "`cliffs` is not named anywhere in `script.yaml`." - which is the useful half of the same fact.
+
+**Found in review, and it was the worst bug in the tranche**: removing an actor's last sprite left
+`sprites:` with nothing under it, which YAML reads as null, and `actorSchema.sprites` was the one
+declaration not wrapped in `declared()` - so the manifest stopped parsing *after* the file had been
+deleted, which is a project the author cannot open to fix. The three top-level groups have always
+read "declaring nothing and declaring emptiness are the same statement"; this one now does too, which
+also fixes an author who types `sprites:` and stops.
+
+`work()` also starts nothing on a stopped panel now. A dialog is modal but a `popstate` is not, so a
+write could begin after `close()` had released the project lock and torn the renderer down. Running
+the panel's jobs in `AppShell.queue` the way the picker's run is the complete answer and is a bigger
+change than this panel.

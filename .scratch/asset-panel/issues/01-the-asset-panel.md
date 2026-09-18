@@ -188,3 +188,10 @@ there was nothing to hover until then. The controls are hidden with `opacity` ra
 
 **`#vn-editor` is now 1280px wide**, which the ticket does not mention and the canvas draws. Without
 it the buffers stretched to the session's new 1572px and stopped lining up under the stage.
+
+**Found in review**: the panel `replaceChildren`es its root on every settle, and one of the things
+that fires a settle is the manifest being adopted on blur - which is what clicking the panel does.
+On the failure path that redraw is synchronous, so a control pressed while the manifest buffer is
+dirty and broken is detached between mousedown and mouseup. What it costs is one lost press of
+preview, the only control live in that state; `ROUGH_EDGES.md` has the mechanism and why a diffing
+draw is not worth building for it.

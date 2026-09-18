@@ -138,3 +138,19 @@ replace rather than Add asset - caught by ticket 02's suite. They are named apar
 
 **`file-up` was not needed.** The canvas's note wondered whether Lucide's `replace` holds up at 15px;
 it reads fine in the running editor, so it stays.
+
+**Found in review: the loader rebuild was not enough, and this ticket's headline requirement was not
+met.** `BackgroundRenderer.render` leaves its canvas alone unless the background moved and
+`SpriteRenderer` remakes an element only when its path changed - and a replace moves nothing. So the
+loader held the new bytes while the scene went on showing the old ones, and the test said it passed
+because it asserted the loader.
+
+Forgetting the committed state was tried first and does not reach it: `state.panTo !== prev?.panTo`
+compares values that are both `undefined` on a still scene, and `shouldTransition` is cleared by
+`advance`, so the branch is skipped either way. What works is an explicit `repaint` on each of the
+two sub-renderers that hold an image, driven from `loadAssets({ rebuild })` - the frame that is
+already there, drawn from the files as they now are, which cannot flash. Audio is deliberately not
+repainted: restarting the music because an author replaced a file is a worse surprise than hearing
+the old track until the next `bgm`.
+
+The tests sample the canvas and the sprite element now, and both fail with the repaint removed.

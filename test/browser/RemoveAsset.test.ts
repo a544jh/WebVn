@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { userEvent } from "@vitest/browser/context"
 import { NoOp } from "../../src/core/commands/NoOp"
 import { ErrorLevel } from "../../src/core/commands/Parser"
@@ -42,11 +42,25 @@ actors:
 // Two lines naming `waves`, so the confirmation has a number worth saying.
 const SCRIPT = "story:\n  - bgm: waves\n  - A line.\n  - bgm: waves\n"
 
-// The store-backed boot below gets a script with no music in it. Chromium's autoplay policy rejects
-// `play()` without a user gesture and `AudioRenderer` does not catch that, so a story that opens on
-// a `bgm` never finishes its first render - which is the stub `CloseProject.test.ts` installs and
-// this suite has no reason to need.
+// The store-backed boot below gets a script with no music in it - it has no reason to name a track,
+// and one fewer thing playing is one fewer thing to stub.
 const SILENT_SCRIPT = "story:\n  - A line.\n"
+
+// **Chromium's autoplay policy rejects `play()` without a user gesture, and `AudioRenderer` does not
+// catch it** - so the story above, which opens on a `bgm`, leaves an unhandled rejection per boot.
+// Vitest counts those as errors and fails the run on them even with every test green, which is what
+// it did in CI: 618 passed, 9 errors, exit 1. The same stub `PauseMenu.test.ts` and
+// `CloseProject.test.ts` install, for the same reason.
+//
+// It did not reproduce locally, because the policy depends on the Chromium build: reproduce it with
+// `--autoplay-policy=user-gesture-required`.
+const realPlay = HTMLMediaElement.prototype.play
+beforeEach(() => {
+  HTMLMediaElement.prototype.play = () => Promise.resolve()
+})
+afterEach(() => {
+  HTMLMediaElement.prototype.play = realPlay
+})
 
 const row = (started: StartedEditor, key: string): HTMLElement | null =>
   started.panelRoot.querySelector(`.vn-asset-row[data-vn-asset="${key}"]`)

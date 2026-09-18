@@ -44,7 +44,7 @@ const pickedFile = (name: string, type = "image/png"): File => new File([new Uin
 
 // Driving the panel's hidden `<input type="file">`, which is the only way a file reaches it.
 const pick = (started: StartedEditor, file: File): void => {
-  const input = started.panelRoot.querySelector(".vn-asset-file-input") as HTMLInputElement
+  const input = started.panelRoot.querySelector(".vn-asset-add-input") as HTMLInputElement
   const transfer = new DataTransfer()
   transfer.items.add(file)
   input.files = transfer.files

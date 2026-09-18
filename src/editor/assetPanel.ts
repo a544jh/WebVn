@@ -1,3 +1,4 @@
+import { AssetResolver } from "../assetLoaders/AssetResolver"
 import { confirmDialog, identifier, noticeDialog } from "../chrome/dialog"
 import { icon, IconName } from "../chrome/icons"
 import { referenceCount } from "../core/commands/references"
@@ -60,6 +61,10 @@ export interface AssetPanelDeps {
   // writes - whose buffer the declaration is spliced into.
   readonly editor: VnEditor
   readonly files: AssetFiles
+  // Where an asset's bytes come from, for preview - which opens a file in a browser tab and is this
+  // interface's second consumer. Going through the loader instead does not work: `getAsset` hands
+  // back a cloned element rather than a URL.
+  readonly resolver: AssetResolver
 }
 
 // **Every write this panel does is gated on the manifest parsing.** While it does not parse the panel
@@ -196,7 +201,7 @@ export class AssetPanel {
     // Said as well as coloured: a filename is the one thing an author cannot check by reading the
     // two documents, so the row says what is wrong rather than only that something is.
     if (gone) row.appendChild(text("span", "vn-asset-note", "not drawn yet"))
-    row.appendChild(this.controls(leaf))
+    row.appendChild(this.controls(leaf, gone))
     return row
   }
 
@@ -205,12 +210,90 @@ export class AssetPanel {
   // sprites directory with it, and the two lowercase actors are the engine's own, where removing the
   // declaration would drop styling and leave the actor exactly where it was. That is a control that
   // means something different on two kinds of row, so there is no control. docs/adr/0006.
-  private controls(leaf: DeclaredLeaf): HTMLElement {
+  private controls(leaf: DeclaredLeaf, gone: boolean): HTMLElement {
     const controls = element("div", "vn-asset-controls")
+    // **Absent, not disabled, on a missing asset**: `resolve` rejects because there is no file, and a
+    // control that can never work on this row should not be drawn as one that is temporarily
+    // unavailable. Which also makes the orange row the one an author can fix from here - its replace
+    // is how they supply the file that was declared.
+    if (!gone) {
+      controls.appendChild(
+        this.control("vn-asset-preview", "eye", `Preview ${leaf.id}`, "Open this file in a new tab", () =>
+          this.preview(leaf)
+        )
+      )
+    }
+    controls.append(...this.replaceControl(leaf))
     controls.appendChild(
       this.control("vn-asset-remove", "trash-2", `Remove ${leaf.id}`, "Remove this asset", () => this.remove(leaf))
     )
     return controls
+  }
+
+  // One hidden input per row, beside its own control rather than shared: which asset a pick is for is
+  // then answered by construction rather than by a field the next draw would replace. The input is
+  // the control's *sibling* for the reason the footer's is - a click on a child input bubbles back to
+  // the button, whose handler clicks the input, which is a loop with no bottom.
+  private replaceControl(leaf: DeclaredLeaf): HTMLElement[] {
+    const input = element("input", "vn-asset-file-input")
+    // **Named apart from the footer's**, which is not tidiness: both are hidden file inputs in the
+    // same root, and one class for the two made "the panel's file input" ambiguous the moment a row
+    // had one - the first match in the document became a row's replace rather than Add asset.
+    input.classList.add("vn-asset-replace-input")
+    input.type = "file"
+    input.addEventListener(
+      "change",
+      () => {
+        const file = input.files?.[0]
+        input.value = ""
+        if (file !== undefined) void this.replace(leaf, file)
+      },
+      { signal: this.listeners.signal }
+    )
+    const button = this.control("vn-asset-replace", "replace", `Replace ${leaf.id}`, "Give this asset new bytes", () =>
+      Promise.resolve(input.click())
+    )
+    return [input, button]
+  }
+
+  // Giving an asset new bytes under the same id and the same filename. The declaration does not
+  // change, so there is nothing to ask and the picked file's own name is ignored.
+  //
+  // **No confirmation, deliberately**, and it is the one write here that does not get one: replacing
+  // art is the iteration loop - export, replace, look at the stage - and a dialog in the middle of it
+  // is friction on the thing this panel exists to make fast. It cannot fire by accident either, since
+  // it takes a row control *and* a file-picker round trip. Remove keeps its confirmation because it
+  // changes what the project is; replace only changes what a thing looks like.
+  private async replace(leaf: DeclaredLeaf, file: File): Promise<void> {
+    await this.work("Replacing\u2026", async () => {
+      try {
+        await this.deps.files.write(leaf.path, file)
+      } catch (e) {
+        console.error("The asset could not be written into the project", e)
+        await noticeDialog("The asset was not replaced", [`${leaf.path} could not be written, so nothing changed.`])
+        return
+      }
+      // **And then the loaders are rebuilt**, which is the whole of this operation and is invisible
+      // from the outside: `loadAsset` early-returns on a path it already holds, before it ever
+      // consults the resolver, so new bytes under an unchanged path would otherwise change nothing on
+      // screen.
+      await this.deps.editor.reloadAssets({ rebuild: true })
+    })
+  }
+
+  // The file itself, in a browser tab: a blob URL under OPFS, a relative path under the player's
+  // resolver, and the browser's own image or audio viewer does the rest - no preview UI to build, and
+  // it works for both kinds of asset. The URL stays valid indefinitely because `OpfsAssetResolver`
+  // never revokes, which is an existing decision paying off sideways.
+  //
+  // Not gated: it writes nothing.
+  private async preview(leaf: DeclaredLeaf): Promise<void> {
+    try {
+      window.open(await this.deps.resolver.resolve(leaf.path), "_blank")
+    } catch (e) {
+      console.error(`${leaf.path} could not be opened`, e)
+      await noticeDialog("The asset could not be opened", [`${leaf.path} is not in this project.`])
+    }
   }
 
   // An icon with no text, so the label a screen reader looks for goes on the control - the same
@@ -229,7 +312,10 @@ export class AssetPanel {
     button.type = "button"
     button.setAttribute("aria-label", label)
     button.appendChild(icon(name, 15))
-    const gated = !this.deps.editor.isManifestValid()
+    // **Preview is the exception, and it is not one to the gate**: it writes nothing, so the gate has
+    // nothing to say about it. The busy state still does - a job in flight disables every control on
+    // the panel, the way `ProjectPicker` does.
+    const gated = name !== "eye" && !this.deps.editor.isManifestValid()
     button.disabled = gated || this.working !== null
     button.title = gated ? GATED : saying
     button.addEventListener("click", () => void onClick(), { signal: this.listeners.signal })
@@ -278,6 +364,7 @@ export class AssetPanel {
     const footer = element("div", "vn-asset-panel-footer")
 
     const input = element("input", "vn-asset-file-input")
+    input.classList.add("vn-asset-add-input")
     input.type = "file"
     input.addEventListener(
       "change",

@@ -8,7 +8,7 @@ import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
 import { seedState, VnManifest } from "../../src/core/manifest"
 import { AssetPanel } from "../../src/editor/assetPanel"
-import { AssetResolver } from "../../src/assetLoaders/AssetResolver"
+import { AssetResolver, RelativePathResolver } from "../../src/assetLoaders/AssetResolver"
 import { VnEditor } from "../../src/editor/editor"
 import { bootEditor, RefusedBoot } from "../../src/editorBoot"
 import { ProjectLock } from "../../src/storage/projectLock"
@@ -248,7 +248,8 @@ export const startEditor = async (
   clearSaves(manifest.id)
 
   const player = new VnPlayer(seedState(manifest))
-  const renderer = new DomRenderer(root, player, { resolver: options.resolver })
+  const resolver = options.resolver ?? new RelativePathResolver()
+  const renderer = new DomRenderer(root, player, { resolver })
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
   // A store-less editor's files: whatever a test handed in, and a write that records rather than
   // lands anywhere. A suite whose subject is the writing boots through the store instead.
@@ -257,6 +258,7 @@ export const startEditor = async (
   const assetPanel = new AssetPanel(panelRoot, {
     player,
     editor,
+    resolver,
     files: {
       list: () => Promise.resolve(new Set(options.taken ?? [])),
       write: (path, data) => {

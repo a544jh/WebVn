@@ -4,7 +4,7 @@ import { loadAllOf } from "./loadAll"
 
 export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
   private assets: Record<string, HTMLImageElement | null> = {}
-  private failed: Set<string> = new Set()
+  private readonly failed: Set<string> = new Set()
   private resolver: AssetResolver
 
   constructor(resolver: AssetResolver = new RelativePathResolver()) {
@@ -49,5 +49,12 @@ export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
 
   public loadAll(): Promise<string[]> {
     return loadAllOf(Object.keys(this.assets), this.failed, this.loadAsset.bind(this))
+  }
+
+  // See `AssetLoader.clear`. Both maps, because a path that failed is remembered as never-retried
+  // and a replace is precisely the author supplying the file that was missing.
+  public clear(): void {
+    this.assets = {}
+    this.failed.clear()
   }
 }

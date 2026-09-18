@@ -150,6 +150,11 @@ export class VnEditor {
   // driven from outside, because what it reports is a write this class knows nothing about.
   private storeStateElem: HTMLSpanElement
 
+  // What the last parse of the manifest buffer said about it. Kept so the gutter can be rebuilt
+  // rather than only added to: `reloadAssets` is the one caller that has to take a marker *off*, and
+  // a gutter can only forget one by being cleared - after which the parse problems have to go back.
+  private manifestProblems: ParserError[] = []
+
   // The declarations whose file the last asset load could not find. Kept because two readers want
   // the same list from one load - the manifest gutter, which marks the line that declared each, and
   // the asset panel, which marks the row - and loading twice to answer twice would be two answers
@@ -259,6 +264,7 @@ export class VnEditor {
 
     const [manifest, errors] = this.parser.parseManifest(manifestText)
     this.clearMarkers("manifest")
+    this.manifestProblems = errors
     this.markErrors("manifest", errors)
     this.setManifestParsed(manifest !== null)
 
@@ -294,6 +300,7 @@ export class VnEditor {
 
     const [manifest, errors] = this.parser.parseManifest(this.manifestDoc.getValue())
     this.clearMarkers("manifest")
+    this.manifestProblems = errors
     this.markErrors("manifest", errors)
 
     if (manifest === null) {
@@ -333,6 +340,27 @@ export class VnEditor {
     // Last, because a host may act on it - a changed id is a rename, which closes this whole session
     // - and everything above has to be settled first either way.
     this.onManifestAdoptedCallbacks.forEach((cb) => cb(manifest))
+  }
+
+  // Re-read the project's assets and re-report what is missing, for the one caller that changed a
+  // *file* without changing either buffer: the asset panel's replace.
+  //
+  // `rebuild` is what makes it show. Without it nothing on screen changes: `loadAsset` early-returns
+  // on a path it already holds, before it ever consults the resolver, so the decoded element under
+  // that key - and, under OPFS, the object URL behind it - is still the old file.
+  //
+  // **The manifest gutter is rebuilt rather than added to**, because a file that has arrived is no
+  // longer missing and a gutter can only forget a marker by being cleared. The parse problems go back
+  // on from what the last parse recorded rather than by parsing again: the buffer may have been typed
+  // into since, and what it says *now* is the next blur's business rather than this write's.
+  public async reloadAssets(options: { rebuild?: boolean } = {}): Promise<void> {
+    const state = this.player.state
+    const failed = await this.renderer.loadAssets(state, options)
+    this.clearMarkers("manifest")
+    this.markErrors("manifest", this.manifestProblems)
+    this.reportMissingFiles(state, failed)
+    this.renderer.render(false)
+    this.settled()
   }
 
   private settled(): void {

@@ -177,9 +177,10 @@ export const bootEditor = async (
   // The editor's resolver: an asset's bytes come out of this project's directory in OPFS. The
   // player keeps relative paths - design-docs/PROJECT_STORAGE.md's "the player and the editor get
   // different resolvers" is the steady state, not a migration.
+  const resolver = new OpfsAssetResolver(directory)
   const renderer = new DomRenderer(elements.vnDiv, player, {
     container: elements.vnDivContainer,
-    resolver: new OpfsAssetResolver(directory),
+    resolver,
   })
 
   const editor = new VnEditor(elements.vnEditorDiv, player, YamlParser, renderer, openWith)
@@ -194,6 +195,9 @@ export const bootEditor = async (
   const assetPanel = new AssetPanel(elements.vnAssetPanelDiv, {
     player,
     editor,
+    // The same resolver the loaders read through, so a preview opens exactly the bytes the stage is
+    // drawing.
+    resolver,
     files: {
       list: async () => {
         const paths = new Set<string>()

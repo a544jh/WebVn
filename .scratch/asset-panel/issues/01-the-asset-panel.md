@@ -1,6 +1,6 @@
 # 01: The asset panel
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -154,3 +154,37 @@ and an `AbortController` for anything else.
 
 Name this suite's OPFS project directories after the suite - `navigator.locks` is origin-wide and
 two browser suites sharing a directory name contend for one lock even in separate scratch roots.
+
+## Comments
+
+**Landed 2026-09-18**, with 02, 03 and 04 on one branch (`89bd759`). `src/editor/assetPanel.ts` plus
+`assetPanel.css`, mounted by `editorBoot` and stopped by its `close()`;
+`test/browser/AssetPanel.test.ts` covers the groups, the redraw, the stale strip, both halves of the
+missing-file state, the empty state and the teardown.
+
+**The enumeration is its own module, `src/editor/declarations.ts`**, which the ticket did not ask for
+and the spec's "whatever this builds to enumerate declarations and labels should be the thing the
+completions later read" does. It is pure and unit-tested (`test/unit/declarations.test.ts`), so a
+completion source can read it without importing a view.
+
+**One thing the state and the manifest disagree about, settled here.** The panel reads
+`player.state.actors` as the ticket says, and `seedActors` merges `default` and `narrator` in on
+*every* boot whether or not the manifest mentions them - so a plain walk drew two actors nobody had
+written down. `declaredGroups` drops the engine's two unless they declare sprites, because at that
+point an author did write them. Worth flagging: this is the one place the state is not simply the
+manifest.
+
+**`VnEditor` grew two seams rather than one.** `onManifestSettledCallbacks` is the panel's single
+redraw signal, and it fires on a *failed* adoption too - which the ticket's trigger list does not
+mention, and has to, because "the manifest stopped parsing" is a change to what the panel is showing
+even though nothing downstream moved. `getMissingAssets()` is the second: the ticket says "hand it to
+both rather than loading twice", and this is that, with `reportMissingFiles` as the one assignment so
+the gutter and the panel cannot describe different loads.
+
+**The hover/focus test landed with 03**, which is the first ticket that puts a control in a row -
+there was nothing to hover until then. The controls are hidden with `opacity` rather than
+`display: none`, because a `display: none` control is not in the tab order and the keyboard half of
+"appears on hover and on focus" could never happen.
+
+**`#vn-editor` is now 1280px wide**, which the ticket does not mention and the canvas draws. Without
+it the buffers stretched to the session's new 1572px and stopped lining up under the stage.

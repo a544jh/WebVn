@@ -307,3 +307,11 @@ The page an author lands on before any project is open, listing what the store e
 whichever is chosen. Distinct from the **library**, which is the collection of projects itself: the
 library is what an author has, the picker is where they see it.
 _Avoid_: library (the collection, not the page), launcher, dashboard, project list, home
+
+**Asset panel**:
+The column to the right of the stage, listing everything `manifest.yaml` declares and adding to it. A
+view of the **manifest** rather than of the store: three groups, one level of nesting under an actor,
+asset ids as leaves, and a file no id answers appearing nowhere at all. Its three writes - add,
+remove, replace - are all gated on the manifest parsing, because while it does not parse the panel is
+showing the last manifest that *was* adopted.
+_Avoid_: asset browser, file tree, explorer, library (that is the collection of projects)

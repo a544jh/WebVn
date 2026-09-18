@@ -1,6 +1,6 @@
 # 03: Removing an asset
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (the asset panel), for the row controls it lives in.
 
@@ -91,3 +91,24 @@ this panel, and the rename revert already has the same asymmetry.
   same index (ADR 0004's guarantee, asserted here because this is what makes removal safe)
 - no remove control on an actor row or a group header
 - the control is disabled while the manifest does not parse
+
+## Comments
+
+**Landed 2026-09-18** (`47f3c7f`). `AssetPanel.remove` plus `undeclareAsset` in
+`src/yamlParser/manifestEdit.ts` and `removeProjectFile` in the store;
+`test/browser/RemoveAsset.test.ts` covers the two writes, the confirmation's wording, the cancel, ADR
+0004's guarantee, the absent control on an actor row, and the gate - with one test through the
+store-backed boot that ships, which is what proves the file really comes off disk.
+
+**`referenceCount` is in `src/core/commands/references.ts`, beside `checkReferences` rather than
+inside it.** The ticket says "the count comes from `checkReferences`", which walks the list looking
+for ids the manifest does *not* answer - the opposite question. Two decisions in it worth recording:
+it counts distinct **lines** rather than commands, because that is what an author counts when they
+look at their script; and it asks a `NoOp` what it replaced, because a command that named this id and
+also named an undeclared one is still a line that will stop drawing. `test/unit/referenceCount.test.ts`
+pins both, and says why no `bg` appears in it - its `transition` is a `z.enum` over transitions that
+register from `src/domRenderer/`, so in node every `bg` line is a warning.
+
+**The confirmation names nothing when nothing names it.** The ticket's wording assumes a count worth
+saying; at zero, "is named on 0 lines" reads as a mistake, so the row says
+"`cliffs` is not named anywhere in `script.yaml`." - which is the useful half of the same fact.

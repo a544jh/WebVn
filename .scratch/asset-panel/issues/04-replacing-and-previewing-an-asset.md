@@ -1,6 +1,6 @@
 # 04: Replacing and previewing an asset
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (the asset panel), for the row controls. Independent of 02 and 03.
 
@@ -106,3 +106,35 @@ Preview is not a write and is not gated.
 - a missing asset's row has no preview control and does have replace
 - replacing a missing asset's file clears the orange, on the row and on the manifest gutter
 - replace is disabled while the manifest does not parse
+
+## Comments
+
+**Landed 2026-09-18** (`b53f428`). `AssetPanel.replace` and `AssetPanel.preview`,
+`Renderer.loadAssets(state?, { rebuild })`, `AssetLoader.clear()` on both loaders, and
+`VnEditor.reloadAssets`; `test/browser/ReplaceAsset.test.ts` is store-backed throughout, because a
+cache this is about is not visible through an in-memory stand-in.
+
+**The option is `rebuild`, not `discard`.** `CONTEXT.md`'s Remove entry puts `discard` on its *Avoid*
+list for taking an asset out of a project, and "discard the loaders" beside "discard the asset" is
+exactly the collision that list exists to prevent. The ticket says "or equivalent".
+
+**The loaders are cleared, not replaced**, which the ticket's "discard them" would read as. The three
+sub-renderers were handed those two objects in their constructors, so minting new ones would leave
+every one of them reading the old.
+
+**The panel calls `VnEditor.reloadAssets` rather than the renderer directly**, which is more than the
+ticket asks and is what the orange-clearing test needs: a file that has arrived is no longer missing,
+and a gutter can only forget a marker by being cleared - so the editor rebuilds it from the parse
+problems the last parse recorded. The panel still never learns which renderer it has, which is the
+property the ticket refuses to give up.
+
+**The regression test was checked by dropping the rebuild**, as the ticket demands of it: "shows the
+new image afterwards" fails, and so does the orange-clearing one.
+
+**Two hidden file inputs in one root turned out to be ambiguous.** The footer's Add input and each
+row's Replace input shared a class at first, and the first match in the document became a row's
+replace rather than Add asset - caught by ticket 02's suite. They are named apart now
+(`.vn-asset-add-input`, `.vn-asset-replace-input`).
+
+**`file-up` was not needed.** The canvas's note wondered whether Lucide's `replace` holds up at 15px;
+it reads fine in the running editor, so it stays.

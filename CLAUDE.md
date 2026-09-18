@@ -99,7 +99,8 @@ src/
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
-  editor/          CodeMirror editor
+  editor/          CodeMirror editor, plus the asset panel beside the stage: the walk of what a
+                   project declares, the panel that draws it, and the Add asset dialog
   picker/          the front door: the project library as a page, shown before any editor
   AppShell.ts      which view is up, the ordering that swap depends on, and the queue it runs in
   projectUrl.ts    which project is open, in the address bar: ?project=<directory>
@@ -189,8 +190,65 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   it is drawn is the normal authoring order. Export is greyed out only while the manifest does not
   *parse*, because that is what the player refuses; a story that declares a file nobody has drawn yet
   still plays.
+- **A programmatic write to a buffer says so, through `changeBuffer`.** `Editor.on("change")` fires
+  only for the doc that is swapped in, and the two writes this class makes - the asset panel's
+  declaration splice and the rename revert - edit the manifest while the *script* tab is usually up.
+  So the storer heard nothing: the file was written, the line was spliced, and neither was stored
+  (measured 2026-09-18). A `Doc`-level listener does not close it either, because CM5 signals a
+  detached doc through `signalLater`, which defers past the `loadingBuffer` guard and would make
+  every boot's own read look like typing.
 - `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
+
+### The asset panel - the column of what a project declares
+`src/editor/assetPanel.ts` plus its own `assetPanel.css`, and `src/editor/declarations.ts` under it.
+`.scratch/asset-panel/`, landed 2026-09-18; the design canvas its spec links is binding for pixels.
+- **A view of the MANIFEST, not of OPFS.** `declarations.ts` is the walk: three fixed groups
+  (Backgrounds, Audio, Actors), one level of nesting under an actor, ids as leaves, read off
+  `VnPlayerState` where `seedState` copied the declarations. A file no id answers appears nowhere at
+  all - that state is what ADR 0004 makes visible in the *script*, and a second place to go looking
+  is what this refuses to be. It is **its own module for one reason**: `design-docs/EDITOR.md`'s
+  completion table wants the same enumeration surfaced a second way, and two walks would come to
+  disagree about what a project contains. The one place the state and the manifest disagree is
+  settled in it - `seedActors` merges `default` and `narrator` in on every boot, so the walk drops
+  the engine's two unless they declare sprites.
+- **Three writes, one rule: every one of them is gated on the manifest parsing.** While it does not
+  parse the panel shows the last manifest that *was* adopted (ADR 0002's other half, said in the
+  title strip), so a row may name a declaration the buffer no longer has - add has nowhere safe to
+  insert, remove would destroy the wrong file, replace would overwrite a file the current manifest
+  does not point at. Preview writes nothing and is not gated. The gate is **a field the draw reads**
+  rather than `src/index.ts`'s `gateOnManifest`: that helper pushes a callback per button, and this
+  panel `replaceChildren`es its own root, so the callback would point at a replaced element and
+  fight the busy state. The busy state is the same field, the way `ProjectPicker`'s is.
+- **`src/storage/` reaches it as three functions, not as an import** (`AssetFiles`), which keeps the
+  store out of `src/editor/` - the division that has `VnEditor` report a rename and `AppShell` act
+  on it. `editorBoot` is where the two meet and the only place that knows the directory.
+- **Add writes the file first and the declaration second; remove is the reverse.** Declaring first
+  would flash the missing-file orange and correct itself, which trains an author to ignore the one
+  colour that means something; a file deleted while its declaration still stands *is* that orange,
+  so removing lands the declaration first and the adopt never sees the gap.
+- **The manifest edit is textual, and it lives in `src/yamlParser/manifestEdit.ts`.** `declareAsset`
+  and `undeclareAsset` locate with the parser and splice with lines, because a round trip through
+  the parser eats the author's comments - the same reason the `?vn=` payload carries the raw buffer.
+  The innermost group that already exists is where an entry goes, at that group's own indent, and
+  anything below it is minted. **It refuses rather than mangles**: a flow-style manifest, or any
+  group whose value shares its line, is `editor.ts`'s rename-revert guard reached from a new
+  direction. Pure, so `test/unit/manifestEdit.test.ts` is where every case lives.
+- **Replace is a cache-invalidation problem, and that is the whole of it.** `loadAsset` early-returns
+  on a path it already holds, *before* it consults the resolver, and `OpfsAssetResolver` never
+  revokes - so new bytes under an unchanged path change nothing on screen. Hence
+  `Renderer.loadAssets(state?, { rebuild })` and `AssetLoader.clear()`, which **clears rather than
+  replaces** the loaders: the three sub-renderers were handed those objects in their constructors.
+  `clear()` is not eviction and revokes nothing - `test/browser/objectUrlLifetime.test.ts` pins why.
+  The panel goes through `VnEditor.reloadAssets` rather than the renderer, so it never learns which
+  renderer it has, and because the manifest gutter has to be *rebuilt*: a file that has arrived is no
+  longer missing, and a gutter can only forget a marker by being cleared.
+- **Preview is `AssetResolver`'s second consumer** - `window.open(await resolver.resolve(path))`.
+  That interface's comment used to say "consulted in exactly one place"; it was a fact about callers
+  rather than a rule about them.
+- Its tests are `test/browser/AssetPanel.test.ts`, `AddAsset.test.ts`, `RemoveAsset.test.ts` and
+  `ReplaceAsset.test.ts`. The last is store-backed throughout, because the cache it is about is
+  invisible through an in-memory stand-in.
 
 ### The URL payload
 - **Not to be confused with `index.html?project=<directory>`**, which names a project in *this*
@@ -265,7 +323,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   layers is a rule that drifts.
 
 ### Renderer contract
-- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?)`.
+- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?, options?)`.
 - **The three throws on an id that will not resolve are invariant guards, not a failure mode.**
   `BackgroundRenderer`, `SpriteRenderer` and `AudioRenderer` still throw on an undeclared id, but the
   parse pass above guarantees none reaches them. All four wordings come from `undeclaredMessage` in
@@ -652,6 +710,13 @@ If you're tempted to import from any of these, don't.
   roughly one run in three, only with the whole browser project running, and never with either suite alone.
   Name a suite's directories after the suite.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
+- **Touch the asset panel**: read "The asset panel" above, then `.scratch/asset-panel/` for the spec,
+  the four tickets and what each landed against them - plus the design canvas the spec links, which
+  is binding for pixels. `src/editor/declarations.ts` is the only walk of the three declarations in
+  tree shape, `src/yamlParser/manifestEdit.ts` is the only place a declaration is spliced into or out
+  of manifest text, and `src/editor/assetPanel.ts` is the only thing that draws them. Nothing covers
+  a preview tab actually opening - `window.open` is stubbed in the suite - so check that by hand,
+  like `enterFullscreen` and `npm run dev`.
 - **Touch the archive**: read "The archive" above, then `.scratch/project-archive/` for the tickets
   and the three decisions taken against the design doc. `src/storage/archive.ts` is the only place
   zip.js is imported and the only place that knows what a `.webvn.zip` holds; `test/unit/archive.test.ts`
@@ -704,6 +769,11 @@ a **story** is the command sequence parsed from it; a command is **applied** to 
 **adopted** by the editor.
 
 The ADRs, newest first:
+- `0006-removing-an-asset-deletes-its-file.md` - the asset panel's remove takes the declaration *and*
+  the file, confirmed and irreversible. Why leaving the bytes is not the safer default: nothing lists
+  a file the manifest does not declare, so one left behind is invisible, permanent, and rides into
+  every archive the author exports. Tolerable because ADR 0004 makes a reference to a removed id a
+  warning rather than a crash.
 - `0005-an-archive-holds-a-project-that-parses.md` — a `.webvn.zip` always contains a manifest that parses and
   a script; export refuses to build one that does not and import refuses to accept one, which is 0002's line
   drawn at the format boundary. Why the archive refuses what the store deliberately tolerates.

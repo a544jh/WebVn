@@ -68,23 +68,25 @@ const heldLockNames = async (): Promise<string[]> =>
 
 let root: HTMLDivElement
 let editorRoot: HTMLDivElement
+let panelRoot: HTMLElement
 
 // The same shape test/helpers/vnHarness.ts's StartedEditor has, so typeCharacter and advanceVn read
 // it - plus the boot's own handles, which is what these tests are about.
 interface OpenProject extends BootedEditor {
   root: HTMLDivElement
   editorRoot: HTMLDivElement
+  panelRoot: HTMLElement
 }
 
 // bootEditor into the elements this suite holds, rather than the harness's fresh ones: a remount
 // into the *same* elements is the thing being tested.
 const open = async (directory: string): Promise<OpenProject> => {
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot, vnAssetPanelDiv: panelRoot }, directory)
   if (booted.kind === "refused") throw new Error("the editor refused to boot: " + booted.reason)
   const firstStop = nextStop(booted.renderer, booted.player)
   await booted.openProject()
   await firstStop
-  opened = { ...booted, root, editorRoot }
+  opened = { ...booted, root, editorRoot, panelRoot }
   return opened
 }
 
@@ -125,7 +127,8 @@ beforeEach(async () => {
 
   root = createVnRoot({ actions: true })
   editorRoot = document.createElement("div")
-  document.body.appendChild(editorRoot)
+  panelRoot = document.createElement("div")
+  document.body.append(editorRoot, panelRoot)
 })
 
 describe("closing a project", () => {

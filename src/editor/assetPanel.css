@@ -1,0 +1,272 @@
+/* The asset panel's own pixels, from the design canvas `.scratch/asset-panel/spec.md` links - read
+   the `AssetPanel`, `AssetMissing`, `AssetEmpty` and `AssetGated` artboards before changing any of
+   them.
+
+   Its font, its status colours and its icons come from src/chrome/. The colour vocabulary is the
+   chrome's and it means the same thing here: orange is "needs attention and the work still runs",
+   red is "did not parse, or a write failed", and **nothing is marked as fine** - spending green on
+   "the file is there" would cost what green means, which is that the project is stored. */
+
+/* The panel keeps the picker's shell - an #eee title strip over a bordered white box - because that
+   is what says where one list ends and the next begins. What is inside it is deliberately *not*
+   `.vn-picker-project`'s bordered cards on grey: a picker row is page-width and holds three lines,
+   and the same treatment in a 280px column reads as a stack of cards rather than a list you scan.
+
+   It takes the column's remaining height. The label list (`.scratch/label-list/`) is the second
+   panel in that column and lands as a fixed height beside this one, so landing it changes a number
+   rather than this layout. */
+.vn-asset-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+.vn-asset-panel-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #eee;
+  border-bottom: 1px solid #ccc;
+}
+
+.vn-asset-panel-caption {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* While the manifest buffer does not parse the panel is showing the last manifest that *was*
+   adopted, which is docs/adr/0002's other half - so it says so, in the muted grey the picker gives a
+   secondary line. Without the line the author reads a stale tree as a current one.
+
+   Deliberately not red. The red is on the manifest tab, where it belongs, and repeating it here
+   would be a second complaint about one problem. */
+.vn-asset-panel-stale {
+  font-size: 12px;
+  color: #555;
+}
+
+/* Contiguous flat rows in one white well, nesting carried by indentation alone. `overflow-x` is
+   hidden rather than auto because a row never wraps and never scrolls sideways: the filename
+   truncates instead, or the list stops being scannable at exactly the long names where scanning
+   matters. */
+.vn-asset-list {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* A group header is `<button aria-expanded>` over a list, which is the whole mechanism: three
+   collapsible groups with one nesting level does not need - and would not be served by - a real
+   `role="tree"`, whose roving tabindex and arrow-key navigation are the parts this shape has no use
+   for. */
+.vn-asset-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: left;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* An actor is a group inside a group: one indent step in, and the same header otherwise. */
+.vn-asset-actor {
+  padding-left: 24px;
+}
+
+/* How many things are under this header, so a collapsed group still says how much it is hiding. */
+.vn-asset-group-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #555;
+}
+
+/* The row is not a button - its controls are its actions, and clicking the row itself does nothing.
+   `position: relative` is what the controls overlay against; see below. */
+.vn-asset-row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 10px 3px 24px;
+}
+
+/* A sprite sits under its actor, which sits under Actors. */
+.vn-asset-row-sprite {
+  padding-left: 38px;
+}
+
+.vn-asset-row:hover,
+.vn-asset-row:focus-within {
+  background: #f5f5f5;
+}
+
+/* **The id leads and holds its width**, in the chrome's own monospace - the face
+   `.vn-picker-identifier` gives an identifier, which is what an asset id is. */
+.vn-asset-id {
+  flex: none;
+  font-family: var(--vn-editor-font-mono);
+  font-size: 13px;
+}
+
+/* The filename trails it, muted, and truncates: it is what is on disk rather than what the script
+   writes. `min-width: 0` is what lets a flex item shrink far enough to ellipsize at all. */
+.vn-asset-file {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--vn-editor-font-mono);
+  font-size: 11px;
+  color: #555;
+}
+
+/* A declared file that is not there. Orange rather than red, and not an error: declaring art before
+   it is drawn is the normal authoring order, the manifest is adopted anyway, and the story plays
+   right up until it reaches the asset. The manifest gutter says which line declared it; this says
+   which asset. */
+.vn-asset-missing .vn-asset-file {
+  color: var(--vn-editor-status-warning);
+}
+
+.vn-asset-note {
+  flex: none;
+  font-size: 11px;
+  color: var(--vn-editor-status-warning);
+}
+
+/* **The header wears the orange too**, so a collapsed group still says something under it needs
+   attention. That is the rule `refreshTab` already applies one level up - a summary wears the worst
+   level of what it summarises - so the two cannot drift. */
+.vn-asset-group.vn-asset-missing {
+  color: var(--vn-editor-status-warning);
+}
+
+/* **An overlay, and every part of that is a decision.** The filename is reference information you
+   read while scanning; the controls are what you want once you have stopped scanning and picked a
+   row, so the two never compete for the same pixels. Out of the flow (`absolute`) so the row cannot
+   change width under the pointer - which is the flicker `.vn-picker-drop` documents at length - and
+   opaque, so the name underneath does not show through.
+
+   Hidden with `opacity` rather than `display: none`, which is what makes the keyboard half work at
+   all: a `display: none` control is not in the tab order, so Tab could never be the thing that
+   brings it into view. `pointer-events` is off while it is invisible so a click cannot land on a
+   control nobody can see - and comes back with the row's own hover, since the pointer being over
+   these pixels is the pointer being over the row. */
+.vn-asset-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  background: #f5f5f5;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vn-asset-row:hover .vn-asset-controls,
+.vn-asset-row:focus-within .vn-asset-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* `.vn-picker-control`'s treatment exactly: muted until it is reached for, no border and no fill -
+   the row is the surface and these are icons on it. */
+.vn-asset-control {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #999;
+  cursor: pointer;
+}
+
+.vn-asset-control:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+/* Preview and replace darken; remove goes red. The colour is the difference between "this shows or
+   re-draws it" and "this destroys it", and it is the one place in the row that says so. */
+.vn-asset-preview:hover:enabled,
+.vn-asset-replace:hover:enabled {
+  color: #333;
+}
+
+.vn-asset-remove:hover:enabled {
+  color: var(--vn-editor-status-error);
+}
+
+/* `.vn-picker-empty`'s treatment, for the same kind of news: a project straight out of
+   `mintProject` declares nothing, and the two ways out of that are the button below and the
+   manifest buffer. */
+.vn-asset-empty {
+  padding: 26px 8px 28px;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+}
+
+.vn-asset-panel-footer {
+  padding: 8px;
+  border-top: 1px solid #ccc;
+}
+
+/* **Deliberately larger than `.vn-chrome-button`** - it is the panel's one action rather than a tool
+   in a row of them - which makes it a new metric and puts it here rather than in chrome.css.
+   `line-height: 1` for the reason chrome.css gives: text at its default leading is ~16px and a 16px
+   icon is not, so the two would sit at different heights. */
+.vn-asset-add {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 11px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #eee;
+  cursor: pointer;
+}
+
+.vn-asset-add:hover:enabled {
+  background: #fff;
+}
+
+/* Greyed rather than hidden, so the gate says what it is gating. The one thing this button does
+   borrow from `.vn-chrome-button` is what disabled looks like, because the two are gated on the
+   same flag and should refuse in the same voice. */
+.vn-asset-add:disabled {
+  color: #999;
+  cursor: default;
+}
+
+/* The platform's own file control, styled by nobody, is not a button this panel can draw - so it is
+   hidden behind one, the way the picker's archive import already is. */
+.vn-asset-file-input {
+  display: none;
+}

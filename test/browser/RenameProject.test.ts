@@ -145,6 +145,7 @@ let elements: {
   sessionDiv: HTMLDivElement
   vnDiv: HTMLDivElement
   vnEditorDiv: HTMLDivElement
+  vnAssetPanelDiv: HTMLDivElement
 }
 let shell: AppShell | null = null
 // The address bar this shell writes to, so a rename can be asked what it did with it.
@@ -167,9 +168,10 @@ const mountPage = (): void => {
   vnDiv.style.width = `${SCENE_WIDTH}px`
   vnDiv.style.height = `${SCENE_HEIGHT}px`
   const vnEditorDiv = document.createElement("div")
-  sessionDiv.append(vnDiv, vnEditorDiv)
+  const vnAssetPanelDiv = document.createElement("div")
+  sessionDiv.append(vnDiv, vnEditorDiv, vnAssetPanelDiv)
   document.body.append(pickerDiv, sessionDiv)
-  elements = { pickerDiv, sessionDiv, vnDiv, vnEditorDiv }
+  elements = { pickerDiv, sessionDiv, vnDiv, vnEditorDiv, vnAssetPanelDiv }
 }
 
 const openShell = async (directory: string): Promise<AppShell> => {

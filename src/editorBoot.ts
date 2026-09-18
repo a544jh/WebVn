@@ -2,6 +2,7 @@ import { seedState, VnManifest } from "./core/manifest"
 import { VnPlayer } from "./core/player"
 import { loadSaveData } from "./core/save"
 import { DomRenderer } from "./domRenderer/DomRenderer"
+import { AssetPanel } from "./editor/assetPanel"
 import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
@@ -42,6 +43,9 @@ export interface BootedEditor {
   readonly player: VnPlayer
   readonly renderer: DomRenderer
   readonly editor: VnEditor
+  // The column beside the stage. Built here because this is the session's composition root and the
+  // panel needs three of the things it already holds; exposed because a test asserts on it.
+  readonly assetPanel: AssetPanel
   readonly storing: ProjectStoring
   // The last step, handed back rather than taken, so a caller can finish wiring before the buffers
   // are filled: the export gate has to be listening before the load reports how the manifest fared.
@@ -60,6 +64,10 @@ export interface BootedEditor {
 export interface EditorElements {
   readonly vnDiv: HTMLDivElement
   readonly vnEditorDiv: HTMLDivElement
+  // The asset panel's root, in the column to the right of the stage. Required rather than optional:
+  // an absent element would be a session with no panel in it and nothing saying so, and there are
+  // only two construction sites - the entry point and the test harness.
+  readonly vnAssetPanelDiv: HTMLElement
   readonly vnDivContainer?: HTMLElement
 }
 
@@ -169,6 +177,10 @@ export const bootEditor = async (
 
   const editor = new VnEditor(elements.vnEditorDiv, player, YamlParser, renderer, openWith)
 
+  // After the editor, because it subscribes to it and draws from the state the editor is about to
+  // fill the buffers from.
+  const assetPanel = new AssetPanel(elements.vnAssetPanelDiv, { player, editor })
+
   // Storing, in the two lines it takes: the editor says what changed, the storer writes it, and the
   // editor shows what the storer reports. Neither imports the other.
   const storing = new ProjectStoring(directory, (state) => editor.setStoreState(state), elements.vnEditorDiv)
@@ -181,6 +193,7 @@ export const bootEditor = async (
     player,
     renderer,
     editor,
+    assetPanel,
     storing,
     openProject: () => editor.loadProject(manifestText, scriptText),
     close: async () => {
@@ -191,6 +204,9 @@ export const bootEditor = async (
       // Leaves the vn root holding the markup it was handed - the action bar is part of the page,
       // not part of the session - so the next renderer over the same element finds it.
       renderer.teardown()
+      // Its root is page markup that outlives every session, so the panel empties what it drew and
+      // takes its listeners off rather than leaving a stopped view answering clicks.
+      assetPanel.stop()
       // The editor filled this one entirely, so emptying it is what "one editor after a remount"
       // means. CodeMirror keeps its DOM inside the wrapper it was given.
       elements.vnEditorDiv.innerHTML = ""

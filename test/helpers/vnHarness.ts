@@ -7,6 +7,8 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
 import { seedState, VnManifest } from "../../src/core/manifest"
+import { AssetPanel } from "../../src/editor/assetPanel"
+import { AssetResolver } from "../../src/assetLoaders/AssetResolver"
 import { VnEditor } from "../../src/editor/editor"
 import { bootEditor, RefusedBoot } from "../../src/editorBoot"
 import { ProjectLock } from "../../src/storage/projectLock"
@@ -195,9 +197,12 @@ export const decisionItems = (root: HTMLDivElement): HTMLDivElement[] =>
 export interface StartedEditor {
   root: HTMLDivElement
   editorRoot: HTMLDivElement
+  // The asset panel's root, so a suite reads the column the way the session draws it.
+  panelRoot: HTMLElement
   player: VnPlayer
   renderer: DomRenderer
   editor: VnEditor
+  assetPanel: AssetPanel
 }
 
 // A root for the editor's own markup, beside the vn root createVnRoot mints.
@@ -207,9 +212,33 @@ const createEditorRoot = (): HTMLDivElement => {
   return editorRoot
 }
 
-export const startEditor = async (manifestText: string, script: string): Promise<StartedEditor> => {
+// And one for the asset panel. It carries the id src/index.html gives it, because the two rules that
+// put the panel in its column are `#vn-asset-panel`'s in chrome.css - the same reason createVnRoot
+// names the stage `vn-div`.
+const createPanelRoot = (): HTMLElement => {
+  const panelRoot = document.createElement("div")
+  panelRoot.id = "vn-asset-panel"
+  document.body.appendChild(panelRoot)
+  return panelRoot
+}
+
+// The resolver a store-less editor suite gets. The editor's own reads out of OPFS and the player's
+// is relative to the page; a test page's URL is vitest's, under which a project-relative path
+// resolves to nothing at all - so a declared file would always be missing and the *present* half of
+// every assertion would be unreachable. This points at what vitest serves out of the repo root, so a
+// test chooses which half it is exercising by naming a file test-assets/ has or has not got.
+export const servedAssets = (): AssetResolver => ({
+  resolve: (path: string) => Promise.resolve("/test-assets/" + path),
+})
+
+export const startEditor = async (
+  manifestText: string,
+  script: string,
+  options: { resolver?: AssetResolver } = {}
+): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
+  const panelRoot = createPanelRoot()
 
   const [manifest, errors] = YamlParser.parseManifest(manifestText)
   expect(errors).toEqual([])
@@ -219,13 +248,14 @@ export const startEditor = async (manifestText: string, script: string): Promise
   clearSaves(manifest.id)
 
   const player = new VnPlayer(seedState(manifest))
-  const renderer = new DomRenderer(root, player)
+  const renderer = new DomRenderer(root, player, { resolver: options.resolver })
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
+  const assetPanel = new AssetPanel(panelRoot, { player, editor })
 
   const firstStop = nextStop(renderer, player)
   await editor.loadProject(manifestText, script)
   await firstStop
-  return { root, editorRoot, player, renderer, editor }
+  return { root, editorRoot, panelRoot, player, renderer, editor, assetPanel }
 }
 
 // The other way in: boot the editor out of the OPFS project store, which is what src/index.ts does.
@@ -265,8 +295,9 @@ export const bootStoredEditor = async (directory: string): Promise<StartedStored
 
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
+  const panelRoot = createPanelRoot()
 
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot, vnAssetPanelDiv: panelRoot }, directory)
   if (booted.kind === "refused") return booted
   heldLock = booted.lock
 
@@ -278,9 +309,11 @@ export const bootStoredEditor = async (directory: string): Promise<StartedStored
     kind: "booted",
     root,
     editorRoot,
+    panelRoot,
     player: booted.player,
     renderer: booted.renderer,
     editor: booted.editor,
+    assetPanel: booted.assetPanel,
     directory: booted.directory,
     storing: booted.storing,
     lock: booted.lock,

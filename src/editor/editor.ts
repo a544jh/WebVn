@@ -129,6 +129,17 @@ export class VnEditor {
   // is. Storage stays out of src/editor/, so this reports and something else acts.
   public onManifestAdoptedCallbacks: Array<(manifest: VnManifest) => void> = []
 
+  // Fires once this editor has finished deciding what the project is described by: a boot, every
+  // adoption attempt - **the failures included**, because a manifest that did not parse is one that
+  // was not adopted, so what a reader is shown afterwards describes a *different* manifest and has
+  // to say so - and an asset reload.
+  //
+  // It exists so the asset panel has one redraw signal rather than three. Separate from
+  // `onManifestStateChangeCallbacks`, which fires mid-adoption the moment the buffer's parse is
+  // settled: the two chrome buttons gated on that want the answer as early as possible, and
+  // anything reading *declarations* then would read the ones the adoption has not swapped in yet.
+  public onManifestSettledCallbacks: Array<() => void> = []
+
   // Fires on every edit, with the buffer that changed and its whole text. What a host page does
   // with it is its own business - storing lives outside src/editor/, the same division as the
   // fullscreen and export-URL buttons.
@@ -137,6 +148,12 @@ export class VnEditor {
   // The indicator above the buffer's right corner. Owned here because it is a pixel in the tab bar;
   // driven from outside, because what it reports is a write this class knows nothing about.
   private storeStateElem: HTMLSpanElement
+
+  // The declarations whose file the last asset load could not find. Kept because two readers want
+  // the same list from one load - the manifest gutter, which marks the line that declared each, and
+  // the asset panel, which marks the row - and loading twice to answer twice would be two answers
+  // that can disagree.
+  private missingAssets: DeclaredAsset[] = []
 
   // `setValue` fires `change` like a keystroke does, so an unguarded handler would write back
   // everything it just read on every boot. Raised around every programmatic write below, and
@@ -253,6 +270,10 @@ export class VnEditor {
     // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
     // through the intro again. The standalone player boots the same story with animations.
     this.renderer.loadStory(state, false)
+
+    // Last, once the story is in the player: anything drawing the declarations reads them off the
+    // player's state, so announcing this before the swap would announce the story that is gone.
+    this.settled()
   }
 
   // Parse the manifest buffer and, if it is a manifest, make it the one the project runs under.
@@ -273,6 +294,9 @@ export class VnEditor {
     if (manifest === null) {
       // Left dirty on purpose: the buffer has not been adopted, so the next blur tries again.
       this.setManifestParsed(false)
+      // Announced as well as flagged: nothing downstream changed, and that is the news - the
+      // declarations on screen now describe a manifest the buffer no longer holds.
+      this.settled()
       return
     }
     this.manifestDoc.markClean()
@@ -299,9 +323,21 @@ export class VnEditor {
     this.player.reloadStory(state)
     this.renderer.render(false)
 
+    this.settled()
+
     // Last, because a host may act on it - a changed id is a rename, which closes this whole session
     // - and everything above has to be settled first either way.
     this.onManifestAdoptedCallbacks.forEach((cb) => cb(manifest))
+  }
+
+  private settled(): void {
+    this.onManifestSettledCallbacks.forEach((cb) => cb())
+  }
+
+  // The declarations whose file the last asset load could not find. The asset panel's second reader
+  // of the list `reportMissingFiles` marks the gutter from.
+  public getMissingAssets(): DeclaredAsset[] {
+    return this.missingAssets
   }
 
   // Put the manifest's `id:` back to what it was, **touching nothing else in the buffer**. That is
@@ -411,6 +447,9 @@ export class VnEditor {
   // Marked without clearing the gutter first - the adoption cleared it before marking the parse
   // problems this is added to, and a boot has nothing to clear.
   private reportMissingFiles(state: VnPlayerState, failed: DeclaredAsset[]): void {
+    // Kept for the panel, which marks the same list a row at a time. Assigned here rather than by
+    // each caller, so the gutter and the panel cannot come to describe different loads.
+    this.missingAssets = failed
     // The buffer is the manifest this state was seeded from, so its keys are the ones to look up.
     const locations = declarationLocations(
       this.manifestDoc.getValue(),

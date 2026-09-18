@@ -22,6 +22,7 @@ export interface AppElements {
   readonly sessionDiv: HTMLElement
   readonly vnDiv: HTMLDivElement
   readonly vnEditorDiv: HTMLDivElement
+  readonly vnAssetPanelDiv: HTMLElement
   readonly vnDivContainer?: HTMLElement
 }
 

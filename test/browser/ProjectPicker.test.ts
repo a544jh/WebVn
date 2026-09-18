@@ -162,7 +162,14 @@ describe("the picker's list", () => {
     await picker.render()
     const before = rowDirectories()
 
-    const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "c-story")
+    const booted = await bootEditor(
+      {
+        vnDiv: createVnRoot(),
+        vnEditorDiv: document.createElement("div"),
+        vnAssetPanelDiv: document.createElement("div"),
+      },
+      "c-story"
+    )
     if (booted.kind === "refused") throw new Error(booted.reason)
     await booted.close()
     document.body.appendChild(pickerRoot)
@@ -221,7 +228,14 @@ describe("the picker's list", () => {
     // line rather than the sort: recency survives as information without moving anything.
     await make("a-story", "A Story")
     await make("z-story", "Z Story")
-    const booted = await bootEditor({ vnDiv: createVnRoot(), vnEditorDiv: document.createElement("div") }, "z-story")
+    const booted = await bootEditor(
+      {
+        vnDiv: createVnRoot(),
+        vnEditorDiv: document.createElement("div"),
+        vnAssetPanelDiv: document.createElement("div"),
+      },
+      "z-story"
+    )
     if (booted.kind === "refused") throw new Error(booted.reason)
     await booted.close()
     document.body.appendChild(pickerRoot)
@@ -389,13 +403,14 @@ describe("picker to editor and back", () => {
 
     const vnDiv = createVnRoot()
     const vnEditorDiv = document.createElement("div")
-    document.body.append(pickerRoot, vnEditorDiv)
+    const vnAssetPanelDiv = document.createElement("div")
+    document.body.append(pickerRoot, vnEditorDiv, vnAssetPanelDiv)
 
     let session: BootedEditor | null = null
     const picker = new ProjectPicker(
       pickerRoot,
       async (directory) => {
-        const booted = await bootEditor({ vnDiv, vnEditorDiv }, directory)
+        const booted = await bootEditor({ vnDiv, vnEditorDiv, vnAssetPanelDiv }, directory)
         if (booted.kind === "refused") return { lead: booted.reason, detail: booted.advice }
         session = booted
         const firstStop = nextStop(booted.renderer, booted.player)

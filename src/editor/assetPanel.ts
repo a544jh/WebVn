@@ -1,6 +1,7 @@
-import { noticeDialog } from "../chrome/dialog"
-import { icon } from "../chrome/icons"
-import { AssetDeclaration, DeclaredAsset } from "../core/manifest"
+import { confirmDialog, identifier, noticeDialog } from "../chrome/dialog"
+import { icon, IconName } from "../chrome/icons"
+import { referenceCount } from "../core/commands/references"
+import { AssetDeclaration, DeclaredAsset, Reference } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { declaredFilePath } from "../domRenderer/assetPaths"
@@ -47,6 +48,7 @@ export interface AssetFiles {
   // asset dialog refuses a filename collision against.
   list(): Promise<Set<string>>
   write(path: string, data: Blob): Promise<void>
+  remove(path: string): Promise<void>
 }
 
 export interface AssetPanelDeps {
@@ -194,7 +196,75 @@ export class AssetPanel {
     // Said as well as coloured: a filename is the one thing an author cannot check by reading the
     // two documents, so the row says what is wrong rather than only that something is.
     if (gone) row.appendChild(text("span", "vn-asset-note", "not drawn yet"))
+    row.appendChild(this.controls(leaf))
     return row
+  }
+
+  // **On asset rows only** - a background, a track, an individual sprite. Not on an actor's row and
+  // not on a group header: an actor is cast rather than an asset, removing one would take a whole
+  // sprites directory with it, and the two lowercase actors are the engine's own, where removing the
+  // declaration would drop styling and leave the actor exactly where it was. That is a control that
+  // means something different on two kinds of row, so there is no control. docs/adr/0006.
+  private controls(leaf: DeclaredLeaf): HTMLElement {
+    const controls = element("div", "vn-asset-controls")
+    controls.appendChild(
+      this.control("vn-asset-remove", "trash-2", `Remove ${leaf.id}`, "Remove this asset", () => this.remove(leaf))
+    )
+    return controls
+  }
+
+  // An icon with no text, so the label a screen reader looks for goes on the control - the same
+  // shape `ProjectPicker.control` already has, at the same 15px.
+  //
+  // Disabled while the manifest does not parse, and while one of the panel's own jobs is in flight.
+  private control(
+    className: string,
+    name: IconName,
+    label: string,
+    saying: string,
+    onClick: () => Promise<void>
+  ): HTMLButtonElement {
+    const button = element("button", "vn-asset-control")
+    button.classList.add(className)
+    button.type = "button"
+    button.setAttribute("aria-label", label)
+    button.appendChild(icon(name, 15))
+    const gated = !this.deps.editor.isManifestValid()
+    button.disabled = gated || this.working !== null
+    button.title = gated ? GATED : saying
+    button.addEventListener("click", () => void onClick(), { signal: this.listeners.signal })
+    return button
+  }
+
+  // Taking an asset out of the project: its declaration out of manifest.yaml and its file off disk,
+  // both. Confirmed and irreversible - docs/adr/0006 is the decision and says why the file goes too.
+  //
+  // **It warns and proceeds; it never refuses.** A script still naming the id is neutralized at its
+  // index rather than broken, so removal destroys bytes and not story - which is what makes one
+  // confirmation enough.
+  private async remove(leaf: DeclaredLeaf): Promise<void> {
+    const named = referenceCount(this.deps.player.state.commands, referenceTo(leaf))
+    if (!(await confirmRemoval(leaf, named))) return
+
+    await this.work("Removing\u2026", async () => {
+      // **The declaration first**, which is the reverse of adding. Adding writes the file first so
+      // the adopt does not flash a missing-file warning; removing has the opposite hazard - a file
+      // deleted while its declaration still stands *is* that warning - so this lands first and the
+      // adopt afterwards never sees the gap.
+      const refused = await this.deps.editor.undeclareAsset(leaf.manifestKey)
+      if (refused !== null) {
+        await noticeDialog("The asset was not removed", [refused, "Nothing was deleted."])
+        return
+      }
+      try {
+        await this.deps.files.remove(leaf.path)
+      } catch (e) {
+        // The asset is out of the project and a stray file is left. Said in the console and left
+        // there: the author's project is in the state they asked for, and sweeping the residue is
+        // somebody else's ticket.
+        console.error(`${leaf.path} could not be deleted, so a file the project no longer declares is left behind`, e)
+      }
+    })
   }
 
   // The panel's one action, and the platform's own file control behind it. The input is the button's
@@ -288,6 +358,36 @@ export class AssetPanel {
     }
   }
 }
+
+// What a row's asset is, as the thing a script would name. The one place a leaf becomes a reference,
+// so what the confirmation counts is what `checkReferences` would look for.
+const referenceTo = (leaf: DeclaredLeaf): Reference =>
+  leaf.kind === "sprite" ? { kind: "sprite", actor: leaf.actor, id: leaf.id } : { kind: leaf.kind, id: leaf.id }
+
+// **Names three things: the id, the file it is about to delete, and how much of the script names the
+// id.** The file is named because the id and the filename are different things and the author picked
+// the row by id - `cliffs` and `cliffs-final-v3.png` are the same row, and only one of them is about
+// to be destroyed.
+//
+// `confirmDestroyingProject`'s shape but not its wording: a project's dialog says the work cannot be
+// recovered, and an asset's should not borrow that weight when re-declaring the id brings back
+// everything the script had. The bytes are gone either way; the story is not.
+const confirmRemoval = (leaf: DeclaredLeaf, named: number): Promise<boolean> =>
+  confirmDialog(
+    "Remove asset",
+    [
+      ["Remove ", identifier(leaf.id), " from this project? Its file ", identifier(leaf.file), " is deleted."],
+      named === 0
+        ? [identifier(leaf.id), " is not named anywhere in ", identifier("script.yaml"), "."]
+        : [
+            identifier(leaf.id),
+            ` is named on ${named} ${named === 1 ? "line" : "lines"} in `,
+            identifier("script.yaml"),
+            ". They will stop drawing anything until you declare it again.",
+          ],
+    ],
+    "Remove"
+  )
 
 // Whether a state already declares what is being asked for, in its own group. The one place the
 // three declarations are asked that question, so a duplicate is refused on the same terms the

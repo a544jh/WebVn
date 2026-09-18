@@ -21,11 +21,10 @@ import { audioFilePath, backgroundFilePath, spriteFilePath } from "../domRendere
 // enumeration surfaced a second way. Whatever enumerates declarations has to be one thing, or the
 // panel and the completion menu come to disagree about what a project contains.
 
-// One declared asset. `file` is what the manifest says and `path` is where that file sits inside the
-// project - **built by `src/domRenderer/assetPaths.ts` and nowhere else**, which is the one place an
-// id becomes a path.
-export interface DeclaredLeaf {
-  readonly kind: AssetKind
+// What every declared asset carries. `file` is what the manifest says and `path` is where that file
+// sits inside the project - **built by `src/domRenderer/assetPaths.ts` and nowhere else**, which is
+// the one place an id becomes a path.
+interface LeafFields {
   readonly id: string
   readonly file: string
   readonly path: string
@@ -33,10 +32,15 @@ export interface DeclaredLeaf {
   // a failed load under. Carrying it is what makes a row findable from a failure and a declaration
   // spliceable from a row.
   readonly manifestKey: (string | number)[]
-  // Whose sprite this is. Only the one kind has an owner - an actor's sprites are declared inside
-  // that actor, so the id alone does not say whose it is.
-  readonly actor?: string
 }
+
+// One declared asset. A sprite is its own member because it has an owner - an actor's sprites are
+// declared inside that actor, so the id alone does not say whose it is - and splitting the union
+// rather than making `actor` optional is what lets a reader reach it without a fallback for a case
+// that cannot happen. Same shape, and the same reason, as `AssetDeclaration`.
+export type DeclaredLeaf =
+  | ({ readonly kind: Exclude<AssetKind, "sprite"> } & LeafFields)
+  | ({ readonly kind: "sprite"; readonly actor: string } & LeafFields)
 
 // A group, or an actor inside the Actors group. One type for both levels because the shape is the
 // same and the nesting is exactly one deep - which is also why this is three collapsible groups

@@ -234,7 +234,7 @@ export const servedAssets = (): AssetResolver => ({
 export const startEditor = async (
   manifestText: string,
   script: string,
-  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob> } = {}
+  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob>; removed?: string[] } = {}
 ): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
@@ -253,6 +253,7 @@ export const startEditor = async (
   // A store-less editor's files: whatever a test handed in, and a write that records rather than
   // lands anywhere. A suite whose subject is the writing boots through the store instead.
   const written = options.written ?? new Map<string, Blob>()
+  const removed = options.removed ?? []
   const assetPanel = new AssetPanel(panelRoot, {
     player,
     editor,
@@ -260,6 +261,11 @@ export const startEditor = async (
       list: () => Promise.resolve(new Set(options.taken ?? [])),
       write: (path, data) => {
         written.set(path, data)
+        return Promise.resolve()
+      },
+      remove: (path) => {
+        written.delete(path)
+        removed.push(path)
         return Promise.resolve()
       },
     },

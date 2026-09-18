@@ -7,7 +7,14 @@ import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { isProject, readProject, recordOpened, walkProject, writeProjectFile } from "./storage/projectStore"
+import {
+  isProject,
+  readProject,
+  recordOpened,
+  removeProjectFile,
+  walkProject,
+  writeProjectFile,
+} from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -194,6 +201,7 @@ export const bootEditor = async (
         return paths
       },
       write: (path, data) => writeProjectFile(directory, path, data),
+      remove: (path) => removeProjectFile(directory, path),
     },
   })
 

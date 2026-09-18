@@ -36,6 +36,32 @@ const undeclaredReferences = (command: Command, manifest: VnManifest): Reference
   return undeclared.filter((r) => !(r.kind === "sprite" && undeclaredActors.includes(r.actor)))
 }
 
+// How many script lines name this reference, for a caller about to take its declaration away: the
+// asset panel's remove confirmation, which says the number so the author decides with it in front of
+// them rather than after. docs/adr/0006.
+//
+// **Distinct lines rather than commands**, because that is what an author counts when they look at
+// their script: a multi-line command naming an id is one place to go and look at.
+//
+// A neutralized command is asked what it *replaced*. One that named this id and also named an id
+// nobody declared is a `NoOp` now, and it is still a line that will stop drawing - which is exactly
+// what `NoOp` carrying the command it replaced is for.
+export const referenceCount = (commands: Command[], reference: Reference): number => {
+  const lines = new Set<number>()
+  for (const command of commands) {
+    const named = (command instanceof NoOp ? command.replaced : command).references()
+    if (named.some((candidate) => sameReference(candidate, reference))) {
+      lines.add(command.getSourceLocation().startLine)
+    }
+  }
+  return lines.size
+}
+
+// A background and an audio track may be declared under the same word, and two actors may declare
+// the same sprite name - so a reference is the same one only when everything about it agrees.
+const sameReference = (a: Reference, b: Reference): boolean =>
+  a.kind === b.kind && a.id === b.id && (a.kind === "sprite" && b.kind === "sprite" ? a.actor === b.actor : true)
+
 export const checkReferences = (commands: Command[], manifest: VnManifest): [Command[], ParserError[]] => {
   const errors: ParserError[] = []
 

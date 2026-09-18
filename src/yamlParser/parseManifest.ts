@@ -123,18 +123,23 @@ const audioAssetSchema = z.preprocess(
 // Strict, like an asset entry and unlike the top level: `sprites` is what makes an actor an entry
 // that declares assets, and a stripped `sprits:` would leave an actor silently declaring none -
 // which is the same failure as a stripped `artistt:` leaving a track with no artist.
+// An author who writes `audioAssets:` and stops means an empty declaration, but YAML hands that over
+// as null. Declaring nothing and declaring emptiness are the same statement, so both take the default.
+const declared = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((value) => value ?? undefined, schema)
+
 const actorSchema = z
   .object({
     name: z.string().optional(),
     nameTagColor: z.string().optional(),
     textColor: z.string().optional(),
-    sprites: z.record(assetIdSchema, z.string().min(1, "must name a file")).optional(),
+    // **`declared` here as well as at the top level**, and for the same reason one line up: an actor
+    // written as `sprites:` with nothing under it has declared no sprites, and YAML hands that over
+    // as null. Without it the panel's remove made a manifest that does not parse - taking an actor's
+    // last sprite out leaves exactly that shape, *after* the file has been deleted, which is a
+    // project an author cannot open to fix.
+    sprites: declared(z.record(assetIdSchema, z.string().min(1, "must name a file")).optional()),
   })
   .strict()
-
-// An author who writes `audioAssets:` and stops means an empty declaration, but YAML hands that over
-// as null. Declaring nothing and declaring emptiness are the same statement, so both take the default.
-const declared = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((value) => value ?? undefined, schema)
 
 // The three declarations default to empty: a project with no audio should not have to write
 // `audioAssets: {}`. Identity does not default - a manifest without it is not a project.

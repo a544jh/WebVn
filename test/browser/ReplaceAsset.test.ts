@@ -4,8 +4,11 @@ import { clearOpfsStore } from "../helpers/opfs"
 import {
   blurEditor,
   editorTab,
+  liveSprites,
   markedLines,
   releaseStoredEditorLock,
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
   StartedEditor,
   startEditorFromStore,
   typeManifest,
@@ -30,21 +33,39 @@ title: Replace Asset
 backgrounds:
   cliffs: cliffs.png
   storm: storm.png
+actors:
+  A1:
+    sprites:
+      idle: idle.png
 `
 
-// One line, no music: Chromium's autoplay policy rejects `play()` without a user gesture and
+// **The story paints `cliffs`**, which is what makes "does the stage show the new bytes" a question
+// this suite can ask at all: with no `bg` the canvas is the default `#FFFFFF` for ever.
+//
+// No music in it: Chromium's autoplay policy rejects `play()` without a user gesture and
 // AudioRenderer does not catch it, so a story that opens on a `bgm` never finishes its first render.
-const SCRIPT = "story:\n  - A line.\n"
+const SCRIPT = `story:
+  - bg:
+      image: cliffs
+      transition: fade
+      duration: 0
+  - show:
+      actor: A1
+      sprite: idle
+  - A line.
+`
 
-// A 1x1 PNG of a named colour, so "did the stage change" is answerable by reading a pixel.
+// A scene-sized PNG of one colour, so "what is the stage painted with" is answerable by reading its
+// middle pixel. Scene-sized rather than 1x1 because the background renderable draws at the image's
+// own size: a tiny one never reaches the middle.
 const pngOf = async (r: number, g: number, b: number): Promise<Blob> => {
   const canvas = document.createElement("canvas")
-  canvas.width = 1
-  canvas.height = 1
+  canvas.width = SCENE_WIDTH
+  canvas.height = SCENE_HEIGHT
   const context = canvas.getContext("2d")
   if (context === null) throw new Error("no 2d context")
   context.fillStyle = `rgb(${r}, ${g}, ${b})`
-  context.fillRect(0, 0, 1, 1)
+  context.fillRect(0, 0, canvas.width, canvas.height)
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
   if (blob === null) throw new Error("toBlob gave nothing")
   return blob
@@ -70,13 +91,35 @@ const pickInto = (started: StartedEditor, key: string, file: File): void => {
   input.dispatchEvent(new Event("change"))
 }
 
-// What the sub-renderer is actually holding for a path, read back off the loader - the nearest thing
-// to "what the stage is drawing" that does not involve sampling a canvas the background renderer
-// paints over several frames.
-const loadedSrc = (started: StartedEditor, path: string): string | undefined => {
-  const assets = (started.renderer as unknown as { imageLoader: { assets: Record<string, HTMLImageElement | null> } })
-    .imageLoader.assets
-  return assets[path]?.src
+// **What the stage is actually drawing**, sampled off the background canvas. The loader holding the
+// new element is not the same question and was the weaker test: `BackgroundRenderer.render` returns
+// without touching its canvas unless the state moved, and a replace moves no state - so the loader
+// can hold the new image while the scene still shows the old one.
+const stagePixel = (started: StartedEditor): [number, number, number] | null => {
+  const canvas = started.root.querySelector("#vn-background-renderer") as HTMLCanvasElement | null
+  const context = canvas?.getContext("2d")
+  if (canvas === null || context === null || context === undefined) return null
+  const [r, g, b] = context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data
+  return [r, g, b]
+}
+
+const stageShows = (started: StartedEditor, colour: [number, number, number]): boolean => {
+  const pixel = stagePixel(started)
+  return pixel !== null && pixel.every((channel, i) => Math.abs(channel - colour[i]) <= 2)
+}
+
+// Sampling a URL until it decodes to the colour expected. **A wait rather than a one-shot
+// assertion**, and both halves of that are earned: a scene-sized PNG takes a moment to decode under
+// a loaded runner, and a file read while its write is still landing comes back partial - Chromium
+// writes through a swap file beside the target - which shows up as a decode failure rather than as
+// a wrong colour. Both flaked only with the whole browser project running.
+const showsColour = async (url: string, colour: [number, number, number]): Promise<boolean> => {
+  try {
+    const pixel = await pixelOf(url)
+    return pixel.every((channel, i) => Math.abs(channel - colour[i]) <= 2)
+  } catch (e) {
+    return false
+  }
 }
 
 const pixelOf = async (src: string): Promise<[number, number, number]> => {
@@ -103,6 +146,7 @@ beforeEach(async () => {
   await createProject(PROJECT, { manifestText: MANIFEST, scriptText: SCRIPT })
   // `cliffs` is there and `storm` is not, which is both halves of the row's own state.
   await writeProjectFile(PROJECT, "assets/backgrounds/cliffs.png", await pngOf(255, 0, 0))
+  await writeProjectFile(PROJECT, "assets/sprites/A1/idle.png", await pngOf(0, 255, 255))
 
   opened = []
   window.open = (url) => {
@@ -120,34 +164,47 @@ describe("replacing an asset", () => {
     const started = await startEditorFromStore(PROJECT)
 
     pickInto(started, "backgrounds/cliffs", await fileOf("whatever-they-called-it.png", await pngOf(0, 0, 255)))
-    await waitFor(
-      "the new bytes to land",
-      async () => (await readProjectFile(PROJECT, "assets/backgrounds/cliffs.png")).size > 0
-    )
 
-    // The declaration does not change, so there is nothing to ask - and the picked file's own name is
-    // ignored.
+    // Under the path the declaration already names, whatever the picked file was called.
+    await waitFor("the new bytes to land under the same path", async () => {
+      const url = URL.createObjectURL(await readProjectFile(PROJECT, "assets/backgrounds/cliffs.png"))
+      const shows = await showsColour(url, [0, 0, 255])
+      URL.revokeObjectURL(url)
+      return shows
+    })
+    // The declaration does not change, so there is nothing to ask.
     expect(started.editor.getManifestText()).toBe(MANIFEST)
-    expect(await pixelOf(URL.createObjectURL(await readProjectFile(PROJECT, "assets/backgrounds/cliffs.png")))).toEqual(
-      [0, 0, 255]
-    )
   })
 
-  // **The regression test for the whole ticket**, and the one that fails if the loader rebuild is
-  // dropped: `loadAsset` early-returns on a path it already holds, so without it the decoded element
-  // - and the object URL behind it - is still the old file.
-  it("shows the new image afterwards", async () => {
+  // **The regression test for the whole ticket**, and it asserts the stage rather than the loader.
+  // Two things have to happen for this to pass, and each fails it on its own: the loaders have to
+  // forget what they hold, because `loadAsset` early-returns on a path it already holds before it
+  // ever consults the resolver; and the previous frame has to be forgotten too, because a replace
+  // changes no state and `BackgroundRenderer.render` returns without touching its canvas unless the
+  // state moved.
+  it("shows the new image on the stage afterwards", async () => {
     const started = await startEditorFromStore(PROJECT)
-    const before = loadedSrc(started, "assets/backgrounds/cliffs.png")
-    expect(await pixelOf(before as string)).toEqual([255, 0, 0])
+    await waitFor("the stage to paint the original", () => stageShows(started, [255, 0, 0]))
 
     pickInto(started, "backgrounds/cliffs", await fileOf("cliffs.png", await pngOf(0, 0, 255)))
 
-    await waitFor("the loader to hold the new image", async () => {
-      const src = loadedSrc(started, "assets/backgrounds/cliffs.png")
-      if (src === undefined || src === before) return false
-      const [r, g, b] = await pixelOf(src)
-      return r === 0 && g === 0 && b === 255
+    await waitFor("the stage to paint the replacement", () => stageShows(started, [0, 0, 255]))
+  })
+
+  // The other half of the repaint, and it fails on its own without it: a sprite element's `src` is an
+  // object URL minted when its bytes were loaded, so the element has to be remade - and `render`
+  // only remakes one whose path changed.
+  it("shows a replaced sprite's new bytes on the stage", async () => {
+    const started = await startEditorFromStore(PROJECT)
+    await waitFor("the sprite to be on screen", () => Object.keys(liveSprites(started.root)).length === 1)
+    const before = liveSprites(started.root).A1.src
+    await waitFor("the sprite to show its original bytes", () => showsColour(before, [0, 255, 255]))
+
+    pickInto(started, "actors/A1/sprites/idle", await fileOf("idle.png", await pngOf(255, 255, 0)))
+
+    await waitFor("the sprite element to be remade with the new bytes", async () => {
+      const src = liveSprites(started.root).A1?.src
+      return src !== undefined && src !== before && (await showsColour(src, [255, 255, 0]))
     })
   })
 
@@ -187,8 +244,7 @@ describe("previewing an asset", () => {
 
     ;(previewControl(started, "backgrounds/cliffs") as HTMLButtonElement).click()
     await waitFor("a tab to be opened", () => opened.length === 1)
-
-    expect(await pixelOf(opened[0])).toEqual([255, 0, 0])
+    await waitFor("the opened file to be the one on the stage", () => showsColour(opened[0], [255, 0, 0]))
   })
 
   // Absent rather than greyed: `resolve` rejects because there is no file, and a control that can

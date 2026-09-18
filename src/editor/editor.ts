@@ -386,6 +386,19 @@ export class VnEditor {
     return this.editManifest(declareAsset(this.manifestDoc.getValue(), declaration))
   }
 
+  // Why that would be refused, or null when it would not. **Asked before the file is copied**, so a
+  // buffer that cannot take the declaration leaves no stray file in the project - the ticket's
+  // file-first ordering is about the *adoption* not flashing a missing-file warning, which still
+  // holds, and there is nothing to be gained from a copy whose declaration was never going to land.
+  //
+  // The edit is computed twice, here and again in `declareAsset`, and that is the point rather than
+  // waste: the buffer may have been typed into while the file was being written, so the write that
+  // happens is the one computed against the document as it then stands.
+  public canDeclareAsset(declaration: AssetDeclaration): string | null {
+    const edit = declareAsset(this.manifestDoc.getValue(), declaration)
+    return edit.kind === "refused" ? edit.problem : null
+  }
+
   // And the other direction, for the panel's remove. The declaration goes before the file does, which
   // is the reverse of adding: adding writes the file first so the adopt does not flash a missing-file
   // warning, and removing has the opposite hazard - a file deleted while its declaration still stands

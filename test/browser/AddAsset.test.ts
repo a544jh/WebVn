@@ -65,6 +65,9 @@ const fieldFor = (label: string): HTMLElement => {
   return row as HTMLElement
 }
 
+// Whether a field is on screen, as a reader sees it rather than as the property says.
+const shown = (label: string): boolean => getComputedStyle(fieldFor(label)).display !== "none"
+
 const inputFor = (label: string): HTMLInputElement => fieldFor(label).querySelector("input") as HTMLInputElement
 const selectFor = (label: string): HTMLSelectElement => fieldFor(label).querySelector("select") as HTMLSelectElement
 const hintOf = (label: string): string =>
@@ -125,17 +128,20 @@ describe("adding an asset", () => {
 
     pick(started, pickedFile("worried.png"))
     await waitForDialog()
-    expect(fieldFor("Actor").hidden).toBe(true)
-    expect(fieldFor("Actor name").hidden).toBe(true)
+    // **Computed, not the property.** `.vn-dialog-field` sets `display: flex`, which is
+    // author-origin and beats the UA's `[hidden]` rule - so asserting `.hidden` passed while both
+    // fields were on screen.
+    expect(shown("Actor")).toBe(false)
+    expect(shown("Actor name")).toBe(false)
 
     choose("Kind", "Sprite")
-    expect(fieldFor("Actor").hidden).toBe(false)
+    expect(shown("Actor")).toBe(true)
     // The actors the panel is drawing, offered in the manifest's own order.
     expect([...selectFor("Actor").options].map((option) => option.value)).toEqual(["A1", "New actor..."])
-    expect(fieldFor("Actor name").hidden).toBe(true)
+    expect(shown("Actor name")).toBe(false)
 
     choose("Actor", "New actor...")
-    expect(fieldFor("Actor name").hidden).toBe(false)
+    expect(shown("Actor name")).toBe(true)
     cancel()
   })
 
@@ -216,9 +222,9 @@ describe("adding an asset", () => {
     cancel()
   })
 
-  // `editor.ts`'s revert guard, carried across: the file is copied, the declaration is refused, and
-  // the author is told to write it by hand rather than having their manifest eaten.
-  it("refuses to splice a flow-style manifest, and leaves it byte-identical", async () => {
+  // `editor.ts`'s revert guard, carried across: a manifest this ate would be worse than a
+  // declaration the author has to type.
+  it("refuses to splice a flow-style manifest, and copies nothing on the way to the refusal", async () => {
     const flow = "{formatVersion: 1, id: add-asset, title: Add Asset}\n"
     const written = new Map<string, Blob>()
     const started = await startEditor(flow, SCRIPT, { written })
@@ -229,11 +235,30 @@ describe("adding an asset", () => {
 
     await waitFor(
       "the refusal to be shown",
-      () => document.querySelector(".vn-dialog-title")?.textContent === "The declaration was not written"
+      () => document.querySelector(".vn-dialog-title")?.textContent === "The asset was not added"
     )
     expect(started.editor.getManifestText()).toBe(flow)
-    // The file went in first, which is what the refusal tells the author.
-    expect([...written.keys()]).toEqual(["assets/backgrounds/jetty.png"])
+    // **Asked before anything is written**, so there is no file the project does not point at.
+    expect([...written.keys()]).toEqual([])
+    ;(document.querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
+  })
+
+  // The repo's own demo manifest declares `Rando: {}`, so this is not a shape only a test writes.
+  it("refuses a sprite for an actor declared in flow style, and copies nothing", async () => {
+    const written = new Map<string, Blob>()
+    const started = await startEditor(MANIFEST + "  Rando: {}\n", SCRIPT, { resolver: servedAssets(), written })
+
+    pick(started, pickedFile("idle.png"))
+    await waitForDialog()
+    choose("Kind", "Sprite")
+    choose("Actor", "Rando")
+    confirm()
+
+    await waitFor(
+      "the refusal to be shown",
+      () => document.querySelector(".vn-dialog-title")?.textContent === "The asset was not added"
+    )
+    expect([...written.keys()]).toEqual([])
     ;(document.querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
   })
 

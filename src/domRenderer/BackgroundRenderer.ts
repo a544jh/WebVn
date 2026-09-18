@@ -105,6 +105,28 @@ export class BackgroundRenderer {
     return Promise.resolve()
   }
 
+  // Repaint what is already on screen, from the assets as they now are.
+  //
+  // **For the one caller that changed an asset's bytes without changing any state**: the asset
+  // panel's replace, through `DomRenderer.loadAssets({ rebuild })`. `render` above cannot do it and
+  // must not be made to - it rebuilds the renderable only when the background moved
+  // (`shouldTransition`, or a pan whose viewbox changed), and a replace moves nothing, which is
+  // exactly what keeps the render loop cheap when a story advances a line of text.
+  //
+  // A colour holds no asset, so there is nothing for new bytes to change about it. A build that
+  // throws is logged rather than raised: this is repainting something that is already on screen, so
+  // the frame that is there is a better outcome than an exception out of a file picker.
+  public repaint(state: Background, backgrounds: Record<string, string>): void {
+    if (this.stopped || isBackgroundColor(state.image)) return
+    try {
+      this.currentRenderable = this.makeRenderable(state, backgrounds, 0)
+    } catch (e) {
+      console.error("The background could not be repainted", e)
+      return
+    }
+    window.requestAnimationFrame(this.renderFrame.bind(this))
+  }
+
   private renderFrame(time: number) {
     if (this.stopped) return
     this.lastTick = time

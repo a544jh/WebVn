@@ -577,6 +577,21 @@ export class DomRenderer implements Renderer {
 
     const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
     const failed = new Set([...imagesFailed, ...audioFailed])
+    // **A rebuild repaints, and a plain load does not.** New bytes under an unchanged path change no
+    // state, so an ordinary `render` leaves the scene exactly as it is: the background canvas is only
+    // redrawn when the background moved, and a sprite element is only remade when its path changed.
+    // Forgetting the committed state does not reach it either - the two conditions compare values
+    // that are both `undefined` on a still scene. So the two sub-renderers that hold an image are
+    // told to repaint what they are showing, which cannot flash, because it is the frame that is
+    // already there drawn from the files as they now are.
+    //
+    // Audio is deliberately not repainted: `AudioRenderer` plays a detached clone, and restarting the
+    // music because an author replaced a file is a worse surprise than hearing the old track until
+    // the next `bgm`.
+    if (options.rebuild === true) {
+      this.backgroundRenderer.repaint(state.animatableState.background, state.backgrounds)
+      this.spriteRenderer.repaint(state.animatableState.sprites, state.actors)
+    }
     return [...images, ...audio].filter((asset) => failed.has(asset.path))
   }
 

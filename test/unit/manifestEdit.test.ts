@@ -41,6 +41,26 @@ describe("declareAsset", () => {
     )
   })
 
+  // A comment sits wherever its author put it. One at column 0 under the group is the dangerous case:
+  // an entry written at the group's own indent is a *sibling* of the group, and an unknown top-level
+  // key is stripped rather than rejected - so the author would be told the asset was added and
+  // nothing would declare it.
+  it("takes its indent from the group's entries and not from a comment among them", () => {
+    const text = HEAD + "backgrounds:\n# a note\n  cliffs: cliffs.png\n"
+    expect(edited(declareAsset(text, { kind: "background", id: "jetty", file: "jetty.png" }))).toBe(
+      HEAD + "backgrounds:\n# a note\n  cliffs: cliffs.png\n  jetty: jetty.png\n"
+    )
+  })
+
+  // An empty group's located lines are its key alone - a trailing comment is not part of its node -
+  // so the entry goes directly under the key and the comment stays exactly where its author left it.
+  it("indents past a group whose only company is a comment", () => {
+    const text = HEAD + "backgrounds:\n# nothing yet\n"
+    expect(edited(declareAsset(text, { kind: "background", id: "jetty", file: "jetty.png" }))).toBe(
+      HEAD + "backgrounds:\n  jetty: jetty.png\n# nothing yet\n"
+    )
+  })
+
   it("adds the first child of an empty group at one indent step in", () => {
     const text = HEAD + "backgrounds:\naudioAssets:\n  waves: waves.ogg\n"
     expect(edited(declareAsset(text, { kind: "background", id: "jetty", file: "jetty.png" }))).toBe(
@@ -178,6 +198,16 @@ describe("undeclareAsset", () => {
   it("refuses a declaration that shares its line with anything else", () => {
     const text = HEAD + "backgrounds: {cliffs: cliffs.png}\n"
     expect(problem(undeclareAsset(text, ["backgrounds", "cliffs"]))).toContain("cliffs:")
+  })
+
+  // Left standing and empty, like a top-level group - and `actorSchema.sprites` is wrapped in
+  // `declared` for exactly this shape, which is what stops the removal making a manifest that does
+  // not parse after the file has already been deleted.
+  it("leaves an actor's sprites map standing and empty when its last sprite goes", () => {
+    const text = HEAD + "actors:\n  Keeper:\n    sprites:\n      idle: idle.png\n"
+    expect(edited(undeclareAsset(text, ["actors", "Keeper", "sprites", "idle"]))).toBe(
+      HEAD + "actors:\n  Keeper:\n    sprites:\n"
+    )
   })
 
   it("refuses a key the manifest does not declare", () => {

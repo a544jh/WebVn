@@ -141,6 +141,23 @@ describe("removing an asset", () => {
     expect(warnings[0].message).toContain("No audio asset is declared as waves")
   })
 
+  // The removal leaves `sprites:` with nothing under it, which YAML reads as null - and until
+  // `actorSchema.sprites` was wrapped in `declared` that stopped the manifest parsing, *after* the
+  // file had gone. A project an author cannot open to fix is the worst outcome this panel has.
+  it("leaves a parsing manifest after an actor's last sprite goes", async () => {
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
+
+    removeControl(started, "actors/A1/sprites/idle").click()
+    await waitForDialog()
+    confirm()
+
+    await waitFor("the row to go", () => row(started, "actors/A1/sprites/idle") === null)
+    expect(started.panelRoot.querySelector(".vn-asset-panel-stale")).toBeNull()
+    const [manifest, errors] = YamlParser.parseManifest(started.editor.getManifestText())
+    expect(errors).toEqual([])
+    expect(manifest?.actors.A1.sprites).toBeUndefined()
+  })
+
   it("puts no remove control on an actor row or a group header", async () => {
     const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
 

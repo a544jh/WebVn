@@ -46,6 +46,14 @@
   gap: 5px;
 }
 
+/* **`hidden` has to be said here**, because the rule above is author-origin and the UA's
+   `[hidden] { display: none }` is not - so `display: flex` wins and a field a caller hid stayed on
+   screen. The Add asset dialog hides Actor and Actor name until the kind is Sprite, and without this
+   both were always up. */
+.vn-dialog-field[hidden] {
+  display: none;
+}
+
 /* Above the field, small and muted: it names the box rather than shouting at it. */
 .vn-dialog-label {
   font-size: 12px;

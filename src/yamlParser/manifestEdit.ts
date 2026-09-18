@@ -149,19 +149,29 @@ const quotings = (key: string): string => {
 // the group when there are none. Following the children rather than imposing two spaces means an
 // author who indents four keeps indenting four.
 const childIndent = (lines: string[], group: SourceLocation): string => {
+  const groupIndent = indentOf(lines[group.startLine - 1] ?? "")
   for (let line = group.startLine; line < group.endLine; line++) {
-    const indent = contentIndent(lines[line] ?? "")
-    if (indent !== null) return indent
+    const indent = entryIndent(lines[line] ?? "")
+    // Deeper than the group, or it is not one of the group's entries. Belt and braces with the
+    // comment rule below, because the failure this guards is silent: an entry written at the group's
+    // own indent is a *sibling* of the group, and an unknown key at the top level is stripped rather
+    // than rejected - so the author would be told the asset was added and nothing would declare it.
+    if (indent !== null && indent.length > groupIndent.length) return indent
   }
-  return indentOf(lines[group.startLine - 1] ?? "") + INDENT_UNIT
+  return groupIndent + INDENT_UNIT
 }
 
 // `indentUnit` is 2 in the editor and `mintedFiles` writes 2, so 2 is what an empty group gets.
 const INDENT_UNIT = "  "
 
-// The indent of a line that has something on it, or null for a blank one - a blank line says nothing
-// about how the group around it is indented. A comment line does, so it counts.
-const contentIndent = (line: string): string | null => (line.trim() === "" ? null : indentOf(line))
+// The indent of a line that declares something, or null for a blank line or a comment. **Neither
+// says anything about how the entries around it are indented** - a `# note` sits wherever its author
+// put it, and one at column 0 under `backgrounds:` would otherwise set the indent for the entry
+// going in beneath it.
+const entryIndent = (line: string): string | null => {
+  const trimmed = line.trim()
+  return trimmed === "" || trimmed.startsWith("#") ? null : indentOf(line)
+}
 
 const indentOf = (line: string): string => /^[^\S\n]*/.exec(line)?.[0] ?? ""
 

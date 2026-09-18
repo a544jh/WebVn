@@ -404,6 +404,15 @@ export class AssetPanel {
     })
     if (declaration === null) return
 
+    // **Asked before anything is written.** The manifest buffer may be one no declaration can be
+    // spliced into - flow style, or a group whose value shares its line - and a copy whose
+    // declaration was never going to land is a file nothing in the project points at.
+    const cannot = this.deps.editor.canDeclareAsset(declaration)
+    if (cannot !== null) {
+      await noticeDialog("The asset was not added", [cannot, "Nothing was copied into the project."])
+      return
+    }
+
     await this.work("Adding\u2026", async () => {
       // **The file first.** Adoption reparses the manifest and reloads the assets, so a declaration
       // whose file is not on disk yet is exactly the missing-file state this panel paints orange -
@@ -421,8 +430,10 @@ export class AssetPanel {
       }
       const refused = await this.deps.editor.declareAsset(declaration)
       if (refused === null) return
-      // The bytes are in and the declaration is not, which is the one outcome that needs saying: the
-      // author has a file the engine cannot see, and the way out is to type the line themselves.
+      // Reachable only when the buffer changed while the file was being written, since the same
+      // question was asked before the copy. The bytes are in and the declaration is not, which is
+      // the one outcome that needs saying: the author has a file the engine cannot see, and the way
+      // out is to type the line themselves.
       await noticeDialog("The declaration was not written", [
         refused,
         `${file.name} was copied into this project, so declaring it by hand in manifest.yaml is all that is left.`,
@@ -434,7 +445,13 @@ export class AssetPanel {
   // whatever it left behind. A second gesture while one is in flight is ignored rather than queued -
   // every control on the panel is already disabled, so the only way to arrive here twice is a race.
   private async work(saying: string, job: () => Promise<void>): Promise<void> {
-    if (this.working !== null) return
+    // **A stopped panel starts nothing.** A dialog is modal but a `popstate` is not, so the author
+    // can navigate away while a confirmation is up - and a write begun after `close()` has released
+    // the project lock and torn the renderer down is a write into a session that is gone. Running
+    // these in `AppShell.queue` the way the picker's jobs do is the complete answer and is a bigger
+    // change than this panel: the queue would have to reach a session's panel, and a job must never
+    // queue from inside a turn.
+    if (this.stopped || this.working !== null) return
     this.working = saying
     this.draw()
     try {

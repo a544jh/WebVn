@@ -81,7 +81,12 @@ hand-written. Anything committed there by hand is gone on the next master push.
   order. A cancelled `git push` is not corrupting either: the ref update is atomic server-side, and
   the newer run deploys regardless.
 - **Host keys come from `api.github.com/meta` over TLS**, not `ssh-keyscan`, so a fresh runner is not
-  trusting whatever answers on port 22.
+  trusting whatever answers on port 22. **That call is authenticated with `github.token`, and it is
+  about rate limiting rather than access**: `/meta` is public and needs no scopes, but an
+  unauthenticated request is on the 60-per-hour limit keyed to the runner's shared IP, and `curl -f`
+  turns the resulting 403 into a failed deploy - which happened on 2026-09-18, where the identical
+  commit deployed on a re-run a minute later. The token is still read-only and still has no access to
+  the demo repo, so `DEMO_DEPLOY_KEY` remains the only thing that can write anything.
 
 ## Top-level layout
 ```

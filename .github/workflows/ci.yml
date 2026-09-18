@@ -138,6 +138,11 @@ jobs:
           # a544jh/webvn-demo. Scoped to that repo and nothing else.
           DEPLOY_KEY: ${{ secrets.DEMO_DEPLOY_KEY }}
           SOURCE_SHA: ${{ github.sha }}
+          # Only to authenticate the api.github.com/meta call below, which needs
+          # no scopes at all. The top-level `permissions:` keeps this read-only
+          # and it has no access to the demo repo, so the deploy key is still
+          # the only thing that can write anything.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -147,8 +152,18 @@ jobs:
 
           # Take GitHub's host keys from the API over TLS rather than trusting
           # whatever ssh-keyscan happens to answer on a fresh runner.
+          #
+          # **Authenticated, which is about rate limiting rather than access.**
+          # /meta is public and needs no scopes, but an unauthenticated call is
+          # on the 60-per-hour limit keyed to the runner's IP - shared with every
+          # other job on that machine - and `curl -f` turns the resulting 403
+          # into a failed deploy. It did, on 2026-09-18, and the identical commit
+          # deployed on a re-run a minute later. A token lifts the limit to
+          # 1,000/hour for this repository.
           known="$RUNNER_TEMP/known_hosts"
-          curl -fsS https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com \(.)"' > "$known"
+          curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" \
+               https://api.github.com/meta \
+            | jq -r '.ssh_keys[] | "github.com \(.)"' > "$known"
           export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$known"
 
           git clone --depth 1 git@github.com:a544jh/webvn-demo.git demo

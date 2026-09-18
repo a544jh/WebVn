@@ -79,6 +79,18 @@ load can tell - which is what makes it a different problem from an undeclared on
 degree of it.
 _Avoid_: broken asset, unloaded asset, bad asset
 
+**Remove**:
+Taking an asset out of a project: its declaration out of the manifest and its file off disk, both.
+Confirmed and irreversible. A script still naming the id is warned rather than broken - the command
+is neutralized at its index and comes back when the id is declared again - so removal destroys bytes
+and not story. An actor is cast rather than an asset and cannot be removed this way.
+_Avoid_: delete (a project is deleted; an asset is removed), discard, unlink
+
+**Replace**:
+Giving an asset new bytes under the same id and the same filename. The declaration does not change,
+so nothing that names the id notices; only what it looks like does.
+_Avoid_: update, swap, re-import
+
 **Script**:
 The YAML text an author writes. What a Story is parsed *from*.
 _Avoid_: source, code

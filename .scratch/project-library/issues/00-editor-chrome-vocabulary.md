@@ -122,3 +122,13 @@ Two decisions worth recording:
 - **Form controls get `font-family: inherit`.** A `<button>` renders in the browser's own UI font
   whatever `body` says, and the chrome is mostly buttons, so the face would otherwise have landed on
   the labels and nothing else.
+
+**Superseded 2026-09-12, the "do not add a dependency" half only.** `src/chrome/icons.ts` imports
+from `lucide` per icon now. Measured at +193 bytes gzipped for eleven icons - four more than this
+chrome had - with `playerIndex.js` byte-identical; `.scratch/asset-panel/spec.md` has the table and
+the reasoning. This ticket's standing argument (the entrypoint size warning) was sound and simply
+did not survive contact with tree-shaking: the package declares `sideEffects: false` and ships one
+module per icon, so a name here is what reaches the bundle rather than a set.
+
+The rest of this ticket is untouched - `src/chrome/` as the home, Lucide over `gg.css` for the
+chrome, 1.75 rather than 2, and `currentColor` on the wrapper all still hold.

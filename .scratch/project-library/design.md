@@ -13,6 +13,13 @@ already taken - which belong to `.scratch/project-archive/spec.md` rather than t
 described there. The twelfth is the **delete confirmation**, which shipped with ticket 03 and which
 the "Not decided" note below had gone on listing as undrawn.
 
+**The canvas gained a second page on 2026-09-11**, *Asset panel*, and everything above describes the
+first one, *Project library*. The four artboards and six notes on it belong to
+`.scratch/asset-panel/spec.md` rather than to this file and are described there. What touches this
+page: `EditorReturn.dc.html` draws the same session view as they do, so the two pages must not drift
+apart on the chrome they share - its tab bar and store badge were corrected that day to the values
+`editor.css` ships after `7266c8c`, which is the rule below working as written.
+
 **The picker artboards were redrawn against the shipped UI on 2026-09-06**, because they had drifted
 into an idealisation of it. What they were missing: the **id line under each title**, which
 `.vn-picker-id` draws in the chrome's monospace and which no artboard had ever shown; the **storage
@@ -74,6 +81,20 @@ Today the chrome has no `font-family` at all - `body` sets only `background-colo
 **Lucide** (lucide-static, ISC), **vendored as inline SVG rather than installed.** That is the
 pattern `gg.css` already set, and eight chrome icons do not earn a package against the entrypoint
 size warning the build already prints.
+
+**Reversed on 2026-09-12, by measurement** - see `.scratch/asset-panel/spec.md`, which has the
+table. `src/chrome/icons.ts` now imports from `lucide` per icon. The size half of the argument came
+out at **+193 bytes gzipped for eleven icons**, four of them new, because the package declares
+`sideEffects: false` and ships one ESM module per icon; `playerIndex.js` is byte-identical, since the
+player draws no chrome. The other half turned out backwards: an entry had to be a list of `d` strings
+to be vendored by hand, and `draw` could then emit only `<path>` - so `eye` (which carries a
+`<circle>`) and `replace` (a `<rect>`) were unbuildable, and the four per-group type icons had been
+dropped for the same reason. Lucide's own `IconNode` is a list of `[tag, attributes]` pairs, which is
+exactly the shape the hand-rolled version needed, so importing supplied the generalisation rather
+than requiring one. Two hand-transcribed icons had also drifted from the real geometry by then.
+
+Everything below this paragraph still holds: the split from `gg.css`, the 1.75 stroke width and
+`currentColor` are unchanged.
 
 **css.gg is not replaced.** Its four icons run on the stage at `--ggs: 2.5`, around 55px, where they
 work. The problem was only ever reaching for them at 13px: they are border-drawn, and at fractional

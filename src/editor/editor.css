@@ -16,7 +16,15 @@
 }
 
 .vn-editor-tab {
-  font: inherit;
+  /* 13px - the size .vn-chrome-button names - rather than `font: inherit`.
+
+     That shorthand was this tab's own fix for a `<button>` rendering in the browser's UI font, from
+     before there was a src/chrome/ at all: `body` had no `font-family` then, so inheriting was how a
+     control joined the page. chrome.css now does that job for every control, and its comment states
+     the rule this broke - `font-family` rather than the `font` shorthand, "so a control keeps the
+     size it was given". The shorthand resets `font-size` too, and `body` names none, so the tab bar
+     was rendering at the browser's 16px while every other element in the chrome sat at 13-15. */
+  font-size: 13px;
   border: 1px solid #ccc;
   border-bottom: none;
   background: #eee;
@@ -57,7 +65,10 @@
   align-self: flex-end;
   padding: 2px 8px;
   border-radius: 3px;
-  font-size: 0.85em;
+  /* 12px, the size picker.css gives a line that sits under a louder one. It was `0.85em`, which
+     resolved against the tab bar's inherited 16px rather than against the tabs - so the badge came
+     out at 13.6px and was the largest thing in the row it is meant to sit quietly at the end of. */
+  font-size: 12px;
   /* White on green and on red, black on orange: orange is light enough that white text on it fails
      to be readable, which is the whole point of the change. */
   color: white;

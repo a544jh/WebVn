@@ -50,6 +50,7 @@
     "@zip.js/zip.js": "^2.11.2",
     "codemirror": "^5.61.0",
     "js-base64": "^3.7.5",
+    "lucide": "^1.45.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "yaml": "^2.9.0",

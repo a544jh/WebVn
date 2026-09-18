@@ -1,7 +1,7 @@
 import { Document, isMap, isNode, isScalar, LineCounter, YAMLMap } from "yaml"
 import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
-import { VnManifest } from "../core/manifest"
+import { AssetKind, VnManifest } from "../core/manifest"
 import { DEFAULT_ACTOR_ID, isBackgroundColor, NARRATOR_ACTOR_ID, STOP_AUDIO_ID } from "../core/state"
 import { composeDocuments, documentLines, FIRST_LINE, getLines, multiDocumentError, yamlProblems } from "./yamlDocument"
 
@@ -32,6 +32,33 @@ const idSchema = z
 export const validateProjectId = (id: string): string | null => {
   const result = idSchema.safeParse(id)
   return result.success ? null : result.error.issues[0].message
+}
+
+// The asset-id rules, for a caller that has an id but no manifest around it: the `Add asset` dialog,
+// which has to say what is wrong with one beside the field it was typed in. Reused rather than
+// restated, exactly as `validateProjectId` is and for the reason its comment gives - a second copy
+// of a rule is a rule that drifts.
+export const validateAssetId = (kind: AssetKind, id: string): string | null =>
+  problemWith(
+    kind === "audio" ? audioIdSchema : kind === "background" ? backgroundIdSchema : assetIdSchema,
+    "An id",
+    id
+  )
+
+// The actor-casing rule, same terms. Its own function because an actor is cast rather than an asset,
+// which is a distinction CONTEXT.md draws and this schema is the one place it is stated as data.
+export const validateActorId = (id: string): string | null => problemWith(actorIdSchema, "An actor name", id)
+
+// A complete sentence, because the caller puts it beside a field with nothing to add. **Most of
+// these schemas' messages are written as continuations** of the key they hang off - `issueMessage`
+// builds "actors.a1: must be capitalized ..." out of one - so a subject goes in front of them. The
+// two that stand alone name a value first (`"stop" is reserved ...`), and a message that does not
+// begin with a lowercase letter is taken to be one of those.
+const problemWith = (schema: z.ZodTypeAny, subject: string, value: string): string | null => {
+  const result = schema.safeParse(value)
+  if (result.success) return null
+  const message = result.error.issues[0].message
+  return /^[a-z]/.test(message) ? `${subject} ${message}` : message
 }
 
 // YamlParser decides a `Name: "text"` line is a Say by testing the key's casing, so an actor
@@ -191,11 +218,21 @@ export const parseManifest = (text: string): [VnManifest | null, ParserError[]] 
 export const declarationLocations = (text: string, keys: (string | number)[][]): SourceLocation[] => {
   const [docs, lineCounter] = composeDocuments(text)
   const doc = docs[0]
-  return keys.map((key) => {
-    const parent = key.length === 1 ? doc.contents : doc.getIn(key.slice(0, -1), true)
-    const lines = isMap(parent) ? entryLines(parent, key[key.length - 1], lineCounter) : undefined
-    return lines ?? FIRST_LINE
-  })
+  return keys.map((key) => locateDeclaration(doc, key, lineCounter) ?? FIRST_LINE)
+}
+
+// The same lookup, for the one caller that needs "the manifest does not declare this" told apart
+// from "it is on line 1": `src/yamlParser/manifestEdit.ts`, which decides whether to insert a
+// declaration or to mint the group it would go in. The plural above keeps its fallback because a
+// gutter marker has to land somewhere; a write has to know.
+export const declarationLocation = (text: string, key: (string | number)[]): SourceLocation | null => {
+  const [docs, lineCounter] = composeDocuments(text)
+  return locateDeclaration(docs[0], key, lineCounter)
+}
+
+const locateDeclaration = (doc: Document, key: (string | number)[], lc: LineCounter): SourceLocation | null => {
+  const parent = key.length === 1 ? doc.contents : doc.getIn(key.slice(0, -1), true)
+  return (isMap(parent) ? entryLines(parent, key[key.length - 1], lc) : undefined) ?? null
 }
 
 // Zod's own message says what is wrong but not where in the document, so the path goes in front of

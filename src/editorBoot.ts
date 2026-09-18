@@ -7,7 +7,7 @@ import { VnEditor } from "./editor/editor"
 import { OpfsAssetResolver } from "./storage/OpfsAssetResolver"
 import { isSupported } from "./storage/opfs"
 import { areLocksSupported, ProjectLock, takeProjectLock } from "./storage/projectLock"
-import { isProject, readProject, recordOpened } from "./storage/projectStore"
+import { isProject, readProject, recordOpened, walkProject, writeProjectFile } from "./storage/projectStore"
 import { ProjectStoring } from "./storage/ProjectStoring"
 import { YamlParser } from "./yamlParser/YamlParser"
 
@@ -179,7 +179,23 @@ export const bootEditor = async (
 
   // After the editor, because it subscribes to it and draws from the state the editor is about to
   // fill the buffers from.
-  const assetPanel = new AssetPanel(elements.vnAssetPanelDiv, { player, editor })
+  //
+  // **The store reaches it as three functions rather than as an import**, which is what keeps
+  // src/storage/ out of src/editor/ - the same division that has VnEditor report a rename and
+  // AppShell act on it. This is the composition root, so this is the one place that knows which
+  // directory the panel's writes land in.
+  const assetPanel = new AssetPanel(elements.vnAssetPanelDiv, {
+    player,
+    editor,
+    files: {
+      list: async () => {
+        const paths = new Set<string>()
+        for await (const file of walkProject(directory)) paths.add(file.path)
+        return paths
+      },
+      write: (path, data) => writeProjectFile(directory, path, data),
+    },
+  })
 
   // Storing, in the two lines it takes: the editor says what changed, the storer writes it, and the
   // editor shows what the storer reports. Neither imports the other.

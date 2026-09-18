@@ -4,7 +4,8 @@ import { codeMirror } from "./codeMirror"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { stringify } from "yaml"
 import { declarationLocations } from "../yamlParser/parseManifest"
-import { DeclaredAsset, VnManifest } from "../core/manifest"
+import { declareAsset, ManifestEdit, undeclareAsset } from "../yamlParser/manifestEdit"
+import { AssetDeclaration, DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { VnPath } from "../core/vnPath"
@@ -215,6 +216,10 @@ export class VnEditor {
     })
     // Which buffer changed comes from the doc, not from `activeBuffer`: they agree today, but the
     // active tab is UI state and the doc is the thing that actually changed.
+    //
+    // **This hears the author and nothing else.** `Editor.on("change")` fires only for the doc that
+    // is swapped in, so a programmatic write to the buffer that is *not* on screen reaches nobody
+    // here - which is what every write below goes through `changeBuffer` for.
     this.vnEditor.on("change", (instance) => {
       if (this.loadingBuffer) return
       const doc = instance.getDoc()
@@ -340,6 +345,34 @@ export class VnEditor {
     return this.missingAssets
   }
 
+  // Add a declaration to the manifest buffer and adopt it. The asset panel's half of `Add asset`:
+  // copying a file into `assets/` is the other half, and an undeclared file is invisible to the
+  // engine.
+  //
+  // **Adopted directly rather than waited for.** Adoption is normally what a blur does, and the
+  // author did not type this - so no blur is coming, and the panel would sit under a manifest that
+  // has changed.
+  //
+  // Resolves with why nothing was written, or null when it was.
+  public declareAsset(declaration: AssetDeclaration): Promise<string | null> {
+    return this.editManifest(declareAsset(this.manifestDoc.getValue(), declaration))
+  }
+
+  // And the other direction, for the panel's remove. The declaration goes before the file does, which
+  // is the reverse of adding: adding writes the file first so the adopt does not flash a missing-file
+  // warning, and removing has the opposite hazard - a file deleted while its declaration still stands
+  // *is* that warning - so this lands first and the adopt never sees the gap.
+  public undeclareAsset(manifestKey: (string | number)[]): Promise<string | null> {
+    return this.editManifest(undeclareAsset(this.manifestDoc.getValue(), manifestKey))
+  }
+
+  private async editManifest(edit: ManifestEdit): Promise<string | null> {
+    if (edit.kind === "refused") return edit.problem
+    this.changeBuffer("manifest", edit.text)
+    await this.adoptManifest()
+    return null
+  }
+
   // Put the manifest's `id:` back to what it was, **touching nothing else in the buffer**. That is
   // what declining a rename means: the author edited one field, and every other edit they made in
   // the same sitting is still theirs.
@@ -372,11 +405,9 @@ export class VnEditor {
     }
     lines.splice(location.startLine - 1, location.endLine - location.startLine + 1, stringify({ id }).trimEnd())
 
-    // **Not** through `setBuffer`: that guard exists so reading a project in is not mistaken for the
-    // author typing, and this is the opposite - a real change to their document, which the storer
-    // has to hear about. Without the event the store would keep the id they just declined, and the
-    // next boot would ask them about the same rename again.
-    this.manifestDoc.setValue(lines.join("\n"))
+    // Through `changeBuffer`: the store has to hear about this. Without it the store would keep the
+    // id they just declined, and the next boot would ask them about the same rename again.
+    this.changeBuffer("manifest", lines.join("\n"))
     await this.adoptManifest()
   }
 
@@ -387,6 +418,22 @@ export class VnEditor {
     this.loadingBuffer = true
     doc.setValue(text)
     this.loadingBuffer = false
+  }
+
+  // A write this class makes that **is** a real change to the author's document: the asset panel's
+  // declaration splice, and the rename revert. The store has to hear about each, or the author's own
+  // edit is the one thing the project store does not have.
+  //
+  // It says so rather than relying on the `change` event, and that is the fix for a measured bug.
+  // Two things conspire: `Editor.on("change")` fires only for the doc that is swapped in, and an
+  // edit to the manifest buffer normally happens while the *script* tab is up - so a detached doc's
+  // splice reached nobody. And a `Doc`-level listener does not close it either: CM5 signals a
+  // detached doc's change through `signalLater`, which defers past the `loadingBuffer` guard below
+  // and would make every boot's own read look like typing. Telling the callbacks directly is the one
+  // version with no timing in it.
+  private changeBuffer(buffer: BufferName, text: string): void {
+    this.setBuffer(this.docFor(buffer), text)
+    this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, text))
   }
 
   // Driven by whoever does the writing. Called after each write resolves or rejects, and on the

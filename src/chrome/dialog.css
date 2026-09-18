@@ -69,6 +69,13 @@
   font-size: 13px;
 }
 
+/* An identifier inside a sentence - an id, a filename, the line a script would write. The same face
+   the field above gives what was typed into it, and the same rule `.vn-picker-identifier` states for
+   a row: the chrome says which of the two kinds of word it is showing. */
+.vn-dialog-identifier {
+  font-family: var(--vn-editor-font-mono);
+}
+
 /* The field is marked as well as the message written, so which field is wrong is visible before the
    sentence is read. */
 .vn-dialog-input-problem {

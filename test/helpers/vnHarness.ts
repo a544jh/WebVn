@@ -234,7 +234,7 @@ export const servedAssets = (): AssetResolver => ({
 export const startEditor = async (
   manifestText: string,
   script: string,
-  options: { resolver?: AssetResolver } = {}
+  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob> } = {}
 ): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
@@ -250,7 +250,20 @@ export const startEditor = async (
   const player = new VnPlayer(seedState(manifest))
   const renderer = new DomRenderer(root, player, { resolver: options.resolver })
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
-  const assetPanel = new AssetPanel(panelRoot, { player, editor })
+  // A store-less editor's files: whatever a test handed in, and a write that records rather than
+  // lands anywhere. A suite whose subject is the writing boots through the store instead.
+  const written = options.written ?? new Map<string, Blob>()
+  const assetPanel = new AssetPanel(panelRoot, {
+    player,
+    editor,
+    files: {
+      list: () => Promise.resolve(new Set(options.taken ?? [])),
+      write: (path, data) => {
+        written.set(path, data)
+        return Promise.resolve()
+      },
+    },
+  })
 
   const firstStop = nextStop(renderer, player)
   await editor.loadProject(manifestText, script)

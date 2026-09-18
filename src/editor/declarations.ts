@@ -1,3 +1,4 @@
+import { AssetKind } from "../core/manifest"
 import { DEFAULT_ACTOR_ID, NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { audioFilePath, backgroundFilePath, spriteFilePath } from "../domRenderer/assetPaths"
 
@@ -19,10 +20,6 @@ import { audioFilePath, backgroundFilePath, spriteFilePath } from "../domRendere
 // "asset names from the manifest" for an `image:`/`sprite:`/`audio:` value, which is this same
 // enumeration surfaced a second way. Whatever enumerates declarations has to be one thing, or the
 // panel and the completion menu come to disagree about what a project contains.
-
-// Which of the three declarations a leaf came out of. The panel needs it to know which controls a
-// row gets and which path function built its path; `Add asset` asks the author for it.
-export type AssetKind = "background" | "audio" | "sprite"
 
 // One declared asset. `file` is what the manifest says and `path` is where that file sits inside the
 // project - **built by `src/domRenderer/assetPaths.ts` and nowhere else**, which is the one place an
@@ -94,31 +91,32 @@ export const declaredGroups = (state: VnPlayerState): DeclaredBranch[] => [
       manifestKey: ["audioAssets", id],
     })),
   },
-  {
-    name: "Actors",
-    key: "actors",
-    leaves: [],
-    branches: Object.entries(state.actors)
-      // **`default` and `narrator` are the engine's own**, and `seedActors` merges both in on every
-      // boot whether or not the manifest mentions them - so a walk of the state would otherwise draw
-      // two actors nobody declared. They are kept only when they declare sprites, because at that
-      // point an author did write them down. This is the one place the state and the manifest
-      // disagree about what a project declares, and it is settled in favour of the manifest.
-      .filter(([id, actor]) => !isEngineActor(id) || Object.keys(actor.sprites ?? {}).length > 0)
-      .map(([actor, declared]) => ({
-        name: actor,
-        key: leafKey(["actors", actor]),
-        branches: [],
-        leaves: Object.entries(declared.sprites ?? {}).map(([id, file]) => ({
-          kind: "sprite" as const,
-          actor,
-          id,
-          file,
-          path: spriteFilePath(actor, file),
-          manifestKey: ["actors", actor, "sprites", id],
-        })),
-      })),
-  },
+  { name: "Actors", key: "actors", leaves: [], branches: actorBranches(state) },
 ]
+
+// The cast, each with its own sprites under it. Exported as well as used above, for the one caller
+// that wants the actors and not the tree: `Add asset`'s Actor select, which has to offer exactly the
+// actors the panel is drawing or the two come to disagree about who is in the project.
+export const actorBranches = (state: VnPlayerState): DeclaredBranch[] =>
+  Object.entries(state.actors)
+    // **`default` and `narrator` are the engine's own**, and `seedActors` merges both in on every
+    // boot whether or not the manifest mentions them - so a walk of the state would otherwise draw
+    // two actors nobody declared. They are kept only when they declare sprites, because at that
+    // point an author did write them down. This is the one place the state and the manifest disagree
+    // about what a project declares, and it is settled in favour of the manifest.
+    .filter(([id, actor]) => !isEngineActor(id) || Object.keys(actor.sprites ?? {}).length > 0)
+    .map(([actor, declared]) => ({
+      name: actor,
+      key: leafKey(["actors", actor]),
+      branches: [],
+      leaves: Object.entries(declared.sprites ?? {}).map(([id, file]) => ({
+        kind: "sprite" as const,
+        actor,
+        id,
+        file,
+        path: spriteFilePath(actor, file),
+        manifestKey: ["actors", actor, "sprites", id],
+      })),
+    }))
 
 const isEngineActor = (id: string): boolean => id === DEFAULT_ACTOR_ID || id === NARRATOR_ACTOR_ID

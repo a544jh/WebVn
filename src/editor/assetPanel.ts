@@ -1,7 +1,19 @@
+import { noticeDialog } from "../chrome/dialog"
 import { icon } from "../chrome/icons"
-import { DeclaredAsset } from "../core/manifest"
+import { AssetDeclaration, DeclaredAsset } from "../core/manifest"
 import { VnPlayer } from "../core/player"
-import { branchCount, DeclaredBranch, DeclaredLeaf, declaredGroups, leafKey, nothingDeclared } from "./declarations"
+import { VnPlayerState } from "../core/state"
+import { declaredFilePath } from "../domRenderer/assetPaths"
+import { askForAsset } from "./addAssetDialog"
+import {
+  actorBranches,
+  branchCount,
+  DeclaredBranch,
+  DeclaredLeaf,
+  declaredGroups,
+  leafKey,
+  nothingDeclared,
+} from "./declarations"
 import { VnEditor } from "./editor"
 import "../chrome/chrome.css"
 import "./assetPanel.css"
@@ -24,6 +36,19 @@ import "./assetPanel.css"
 // player, the renderer, the editor and the storer. Not by `src/index.ts`: the entry point self-boots
 // on import and looks its elements up by id, so nothing put there can be reached by a test.
 
+// The project's own files, as the operations this panel needs on them.
+//
+// **Functions handed in rather than `src/storage/` imported**, which is what keeps the store out of
+// `src/editor/` - the same division that has `VnEditor` *report* a rename and `AppShell` act on it.
+// `editorBoot` is the composition root and is where the two meet, so it is also the one place that
+// knows which directory these land in.
+export interface AssetFiles {
+  // Every file inside the project, by its path within it - `assets/backgrounds/a.png`. What the Add
+  // asset dialog refuses a filename collision against.
+  list(): Promise<Set<string>>
+  write(path: string, data: Blob): Promise<void>
+}
+
 export interface AssetPanelDeps {
   // Where the declarations come from: `seedState` copied them onto the state and `advance` never
   // writes them, so this is as authoritative as the manifest and is the thing already threaded
@@ -32,7 +57,16 @@ export interface AssetPanelDeps {
   // What adopted that manifest, what knows whether the buffer parses, and - for the panel's three
   // writes - whose buffer the declaration is spliced into.
   readonly editor: VnEditor
+  readonly files: AssetFiles
 }
+
+// **Every write this panel does is gated on the manifest parsing.** While it does not parse the panel
+// is showing the last manifest that *was* adopted, so a row may name a declaration the buffer no
+// longer has: Add has nowhere safe to insert a line, remove would destroy the wrong file, and
+// replace would overwrite a file the current manifest does not point at. One sentence a reader can
+// hold, rather than two rules and an exception - and ADR 0002 says a manifest that does not validate
+// has no identity at all. Preview writes nothing and is not gated.
+const GATED = "manifest.yaml does not parse - there is nowhere safe to insert a declaration until it does"
 
 export class AssetPanel {
   // Everything this view listens to, so `stop()` takes it all off at once. The callbacks it puts on
@@ -49,6 +83,12 @@ export class AssetPanel {
   // Which headers are folded away. Held here rather than read off the DOM because the draw replaces
   // the DOM: a collapse that lived in the markup would spring open on the next adoption.
   private collapsed = new Set<string>()
+
+  // What the panel is doing that has to finish before anything else on it moves, or null when it is
+  // idle. **A field the draw reads, not a poke at a live control** - the same shape `ProjectPicker`
+  // arrived at, and for the same reason: a state written onto a button is a casualty of the next
+  // draw.
+  private working: string | null = null
 
   constructor(private root: HTMLElement, private deps: AssetPanelDeps) {
     // The one redraw signal: the editor has finished deciding what the project is described by.
@@ -157,14 +197,109 @@ export class AssetPanel {
     return row
   }
 
+  // The panel's one action, and the platform's own file control behind it. The input is the button's
+  // *sibling* rather than its child, which is not a layout preference: a click on a child input
+  // bubbles back to the button, whose handler clicks the input, which is a loop with no bottom.
+  //
+  // `<input type="file">` and not `showOpenFilePicker()`, for the reason the archive's `<a download>`
+  // gives: being the mechanism the platform offers everywhere is the whole justification, and
+  // `showOpenFilePicker` is Chromium-only while the editor is not.
   private footer(): HTMLElement {
     const footer = element("div", "vn-asset-panel-footer")
+
+    const input = element("input", "vn-asset-file-input")
+    input.type = "file"
+    input.addEventListener(
+      "change",
+      () => {
+        const file = input.files?.[0]
+        // Cleared so picking the same file twice in a row still fires a change.
+        input.value = ""
+        if (file !== undefined) void this.add(file)
+      },
+      { signal: this.listeners.signal }
+    )
+
     const add = element("button", "vn-asset-add")
     add.type = "button"
     add.appendChild(icon("plus", 16))
-    add.appendChild(document.createTextNode("Add asset"))
-    footer.appendChild(add)
+    add.appendChild(document.createTextNode(this.working ?? "Add asset"))
+    // Greyed rather than hidden, so the gate says what it is gating.
+    add.disabled = this.working !== null || !this.deps.editor.isManifestValid()
+    if (!this.deps.editor.isManifestValid()) add.title = GATED
+    add.addEventListener("click", () => input.click(), { signal: this.listeners.signal })
+
+    footer.append(input, add)
     return footer
+  }
+
+  // `Add asset`: a file on disk, **and** a line in manifest.yaml. The second half is the one with all
+  // the difficulty in it - an undeclared file is invisible to the engine, so copying bytes in and
+  // stopping would leave the author with a file no script can reach and nothing on screen saying why.
+  private async add(file: File): Promise<void> {
+    const state = this.deps.player.state
+    const declaration = await askForAsset(file, {
+      // The manifest's own order, and the same walk the list is drawn from - so the actors offered
+      // here cannot come to disagree with the actors shown above.
+      actors: actorBranches(state).map((branch) => branch.name),
+      isDeclared: (asked) => declares(state, asked),
+      taken: await this.deps.files.list(),
+    })
+    if (declaration === null) return
+
+    await this.work("Adding\u2026", async () => {
+      // **The file first.** Adoption reparses the manifest and reloads the assets, so a declaration
+      // whose file is not on disk yet is exactly the missing-file state this panel paints orange -
+      // and declaring first would flash a warning that corrects itself a moment later, training the
+      // author to ignore the one colour that means something. It also fails cleanly this way round:
+      // nothing is declared, the panel is unchanged, and the author is told the copy failed.
+      try {
+        await this.deps.files.write(declaredFilePath(declaration), file)
+      } catch (e) {
+        console.error("The asset could not be written into the project", e)
+        await noticeDialog("The asset was not added", [
+          `${file.name} could not be written into this project, so nothing was declared.`,
+        ])
+        return
+      }
+      const refused = await this.deps.editor.declareAsset(declaration)
+      if (refused === null) return
+      // The bytes are in and the declaration is not, which is the one outcome that needs saying: the
+      // author has a file the engine cannot see, and the way out is to type the line themselves.
+      await noticeDialog("The declaration was not written", [
+        refused,
+        `${file.name} was copied into this project, so declaring it by hand in manifest.yaml is all that is left.`,
+      ])
+    })
+  }
+
+  // Everything the panel does that writes. It shows what is happening, runs the job, and draws
+  // whatever it left behind. A second gesture while one is in flight is ignored rather than queued -
+  // every control on the panel is already disabled, so the only way to arrive here twice is a race.
+  private async work(saying: string, job: () => Promise<void>): Promise<void> {
+    if (this.working !== null) return
+    this.working = saying
+    this.draw()
+    try {
+      await job()
+    } finally {
+      this.working = null
+      this.draw()
+    }
+  }
+}
+
+// Whether a state already declares what is being asked for, in its own group. The one place the
+// three declarations are asked that question, so a duplicate is refused on the same terms the
+// manifest would.
+const declares = (state: VnPlayerState, declaration: AssetDeclaration): boolean => {
+  switch (declaration.kind) {
+    case "background":
+      return state.backgrounds[declaration.id] !== undefined
+    case "audio":
+      return state.audioAssets[declaration.id] !== undefined
+    case "sprite":
+      return state.actors[declaration.actor]?.sprites?.[declaration.id] !== undefined
   }
 }
 

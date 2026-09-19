@@ -29,9 +29,13 @@ export class VnPlayer {
     if (saveData) this.state.seenCommands = ConsecutiveIntegerSet.fromJSON(saveData.seenCommands)
   }
 
+  // Only an advance made from a stop is the author's own, and only one that applied something is one
+  // a replay can walk - `State.appliedAny` is the question `Advance.tryPerform` asks too. Advancing at
+  // the end of the story applies nothing, and so does skipping at the end of a script edited shorter
+  // under a `seenCommands` that still remembers the longer one.
   public advance(): void {
     const newState = State.advance(this.state)
-    if (this.state.stopAfterRender && this.playheadMoved(newState)) {
+    if (this.state.stopAfterRender && State.appliedAny(this.state, newState)) {
       this.path = this.path.advance()
     }
     this.state = newState
@@ -39,30 +43,10 @@ export class VnPlayer {
 
   public advanceUntilStop(): void {
     const newState = State.advanceUntilStop(this.state)
-    if (this.state.stopAfterRender && this.playheadMoved(newState)) {
+    if (this.state.stopAfterRender && State.appliedAny(this.state, newState)) {
       this.path = this.path.advance()
     }
     this.state = newState
-  }
-
-  // Whether the playhead ended somewhere else, which is the only thing worth recording: a path
-  // action the story cannot reproduce is one `Advance.tryPerform` refuses on the next replay, and
-  // `undo` replays.
-  //
-  // The index rather than the state object, because at the end of the story `advance` still hands
-  // back a *fresh* snapshot - it rebuilds one, clearing the frame's transition and sfx flags, before
-  // finding there is no command left to apply - so object identity reads as movement where there was
-  // none. Advancing at the end is how that is reached without editing anything; a script edited
-  // shorter under a `seenCommands` that still remembers the longer one is how the skip button and the
-  // scroll wheel reach it, since both ask `isNextCommandSeen` for permission. Replay compares the
-  // index, so recording compares the index.
-  //
-  // Deliberately not the same question as "did the story move". A loop back to the index it started
-  // on has run the whole loop and is recorded as nothing, which costs an `undo` in a self-looping
-  // story walked by skip mode or the wheel. That is the price of recording and replay asking one
-  // question, and it is a loss where it used to be a throw.
-  private playheadMoved(newState: VnPlayerState): boolean {
-    return newState.commandIndex !== this.state.commandIndex
   }
 
   public makeDecision(id: number): void {

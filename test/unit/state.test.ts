@@ -421,6 +421,43 @@ describe("path replay matches live play", () => {
     expect(player.state.commandIndex).toBe(1) // showing s1
   })
 
+  // Skip mode and the scroll wheel both take one advanceUntilStop from the line, which runs the
+  // jump, the label and the set and parks on the line again - at the index it left.
+  const loopingScript = (): Command[] => [
+    set(["$lap", "=", 0]),
+    say("before"),
+    new Label(loc, "loop"),
+    set(["$lap", "+=", 1]),
+    say("a line"),
+    new Jump(loc, "loop"),
+  ]
+
+  it("records a skip around a loop, though it ends at the index it left", () => {
+    const player = new VnPlayer(makeState(loopingScript()))
+    autorun(player)
+    press(player) // "a line", first lap
+    const firstLap = player.state.commandIndex
+
+    player.advanceUntilStop()
+
+    expect(player.state.commandIndex).toBe(firstLap)
+    expect(player.state.variables).toEqual({ lap: 2 })
+    expect(player.path.toShorthandPath()).toEqual([2])
+  })
+
+  it("undoes exactly one lap of a loop walked by skipping", () => {
+    const player = new VnPlayer(makeState(loopingScript()))
+    autorun(player)
+    press(player)
+    player.advanceUntilStop()
+    player.advanceUntilStop() // third lap
+
+    // replaying what is left has to walk the loop too, so this is the replay's half as well
+    player.undo()
+    expect(player.state.variables).toEqual({ lap: 2 })
+    expect(player.state.animatableState.text?.textNodes[0].text).toBe("a line")
+  })
+
   it("does not skip into a command index seenCommands remembers from a longer script", () => {
     const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3")]))
     autorun(player)

@@ -12,6 +12,9 @@ export interface VnPlayerState {
   readonly backgrounds: Record<string, string>
   readonly audioAssets: Record<string, AudioAsset>
   readonly commandIndex: number
+  // How many commands `advance` has applied on the way here, counted where it applies them. Only its
+  // changes mean anything - see `appliedAny`.
+  readonly commandsApplied: number
   readonly commands: Command[]
   readonly labels: Record<string, number>
   readonly stopAfterRender: boolean
@@ -192,6 +195,7 @@ function advance(state: VnPlayerState): VnPlayerState {
 
   if (newState.commandIndex < newState.commands.length) {
     newState.seenCommands.add(newState.commandIndex)
+    newState.commandsApplied++
     newState = newState.commands[newState.commandIndex].apply(newState)
     // if applied command doesn't change the next command (jumps), go to the next one
     if (newState.commandIndex === state.commandIndex) newState.commandIndex++
@@ -201,6 +205,19 @@ function advance(state: VnPlayerState): VnPlayerState {
   if (newState.commandIndex == newState.commands.length) newState.stopAfterRender = true
 
   return newState
+}
+
+// Whether anything was applied between two states - the one test of whether an advance did
+// something. The recorder (`VnPlayer`) and the replay (`Advance.tryPerform`) both ask it, and they
+// have to ask the same thing: an action recording keeps and replay refuses is a path `undo` throws on.
+//
+// Neither cheaper test answers it. Object identity reads as movement at the end of a story, where
+// `advance` still builds a fresh snapshot, clearing the frame's transition and sfx flags, before
+// finding there is nothing left to apply; that recorded actions no replay could walk. The index reads
+// as standing still around a loop, which comes back to where it started having run every command in
+// it; that dropped a whole lap from the path whenever skip mode or the wheel went round one.
+function appliedAny(before: VnPlayerState, after: VnPlayerState): boolean {
+  return after.commandsApplied !== before.commandsApplied
 }
 
 function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
@@ -354,6 +371,7 @@ function fromShorthandPath(
 
 export const State = {
   advance,
+  appliedAny,
   makeDecision,
   goToCommandDirect,
   goToCommandByReplay,

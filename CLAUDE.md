@@ -131,20 +131,20 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   one project's progress under another's — see ADR 0001's 2026-08-29 amendment before moving it back out.
 - `VnPath` (src/core/vnPath.ts) records *user actions* (`Advance`, `MakeDecision`, `GoToCommand`) — not state snapshots. Saving stores this path in shorthand (decisions + trailing advances). Loading replays from `startingState` by reapplying actions.
 - Consequence: commands must be **pure** with respect to state. Any nondeterminism (random, time, network) breaks replay. If you add one, seed it from state.
-- **An action is recorded only when the playhead ended somewhere else — which is deliberately not the same
-  question as whether the story moved.** `State.advance` hands back a fresh snapshot even at the end of the story
-  — it rebuilds one, clearing the frame's transition and sfx flags, before finding there is no command left — so
-  `newState !== state` reads as movement where there was none. `VnPlayer.playheadMoved` compares the index
-  instead, which is the same test `Advance.tryPerform` uses to decide the replay moved: recording and replay ask
-  one question, so they cannot disagree. They did once — advancing at the end recorded actions no replay could
-  walk, and the next `undo` threw "path does not match the story" out of `VnAction.perform`. Reaching that end
-  without clicking past it takes a script edited shorter under a `seenCommands` that still remembers the longer
-  one, which is why `isNextCommandSeen` is bounded by `commands.length` as well.
-  - **What the index cannot see is a loop back to where it started.** `advanceUntilStop` around a `label`/`jump`
-    pair runs the whole loop and returns to the index it began on, so skip mode and the scroll wheel record
-    nothing there and the next `undo` does nothing. A click is unaffected: `advance` takes a single step, and
-    that step is the `jump`, which lands elsewhere before the automatic run walks back. Losing the action beats
-    the throw it replaced, and it is one more way a looping story misbehaves — ROUGH_EDGES.md has three others.
+- **An action is recorded only when the advance applied a command, and replay asks the same question.**
+  `State.advance` counts the commands it applies into `commandsApplied`, and `State.appliedAny` compares two
+  counts. `VnPlayer` records on it and `Advance.tryPerform` replays on it, so the two cannot disagree - and
+  each cheaper test has been tried and lost something. Object identity: `advance` hands back a fresh snapshot
+  even at the end of the story - it rebuilds one, clearing the frame's transition and sfx flags, before
+  finding no command left - so advancing there recorded actions no replay could walk, and the next `undo`
+  threw "path does not match the story" out of `VnAction.perform`. The index: a loop comes back to the index
+  it left having run every command in it, so skip mode and the scroll wheel going round a `label`/`jump` pair
+  recorded nothing, and the next `undo` stepped over the lap. Reaching the end without clicking past it takes
+  a script edited shorter under a `seenCommands` that still remembers the longer one, which is why
+  `isNextCommandSeen` is bounded by `commands.length` as well.
+  - **`goToCommandByReplay` still tests the index, and that is not the same mistake.** It is asking whether
+    its walk is getting anywhere, and a lap that ends where it began is the "loops, and the target is not on
+    the way" it is looking for. ROUGH_EDGES.md's looping-story entry has what that check misses.
 
 ### Command registration
 - Every command module (e.g. `core/commands/text/TextBox.ts`) calls `registerCommandHandler("textbox", handler)` at import time.

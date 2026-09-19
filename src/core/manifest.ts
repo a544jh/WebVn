@@ -77,6 +77,7 @@ export function seedState(manifest: VnManifest): VnPlayerState {
     backgrounds: { ...manifest.backgrounds },
     audioAssets: { ...manifest.audioAssets },
     commandIndex: 0, // the command to be applied next
+    commandsApplied: 0,
     commands: [],
     labels: {},
     stopAfterRender: false,

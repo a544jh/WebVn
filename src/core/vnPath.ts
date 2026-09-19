@@ -163,10 +163,9 @@ class Advance extends VnAction {
   public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
     let done = 0
     for (let i = 0; i < this.times; i++) {
-      const before = state.commandIndex
       const next = State.advanceUntilStop(state)
       // the story now ends earlier than the path expects
-      if (next.commandIndex === before) break
+      if (!State.appliedAny(state, next)) break
       state = next
       done++
     }

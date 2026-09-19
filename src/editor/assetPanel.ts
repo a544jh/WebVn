@@ -250,7 +250,7 @@ export class AssetPanel {
       },
       { signal: this.listeners.signal }
     )
-    const button = this.control("vn-asset-replace", "replace", `Replace ${leaf.id}`, "Give this asset new bytes", () =>
+    const button = this.control("vn-asset-replace", "replace", `Replace ${leaf.id}`, "Replace file", () =>
       Promise.resolve(input.click())
     )
     return [input, button]

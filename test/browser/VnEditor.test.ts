@@ -35,9 +35,19 @@ story:
 
 const started = () => startEditor(manifestWith("first-id", "Original"), script)
 
+// **Waits for the editor's own "I have finished deciding", not for the task queue to drain.**
+// `adoptManifest` awaits `loadAssets` in the middle, and for a file that is not there that wait ends
+// on an `<img>` error event - whose timing is the browser's, not ours. `settle()` covers it while the
+// runner is quiet and loses to it while the whole browser project is running in parallel, which
+// showed up as the missing-file tests below finding an empty gutter. `onManifestSettledCallbacks`
+// fires after `reportMissingFiles` on every path through the adoption, the failures included, so it
+// is the signal rather than an approximation of one. Registered before the edit, so the fire this
+// waits on is this adoption's.
 const adopt = async (editor: StartedEditor, manifestText: string): Promise<void> => {
+  const settled = new Promise<void>((resolve) => editor.editor.onManifestSettledCallbacks.push(() => resolve()))
   typeManifest(editor, manifestText)
   await blurEditor(editor)
+  await settled
 }
 
 // What a tab is saying: the worst level marked in its own gutter. On the manifest, "error" is a

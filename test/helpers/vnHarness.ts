@@ -294,11 +294,25 @@ export interface StartedStoredEditor extends StartedEditor {
 // watch a refusal takes the lock itself and asserts on `bootStoredEditor`.
 let heldLock: ProjectLock | null = null
 
-// Releases the lock the last store-backed boot took, which a real tab does by going away. A suite
-// that takes the lock itself, to watch a boot be refused, has to call this first.
+// **And the previous boot's storer, for the same reason and a second one.** Every suite calls this
+// before `clearOpfsStore`, and `removeRecursive` over a tree with a write still open in it is
+// refused with `NoModificationAllowedError` - so a test that ended on a blur (which flushes) could
+// take down the *next* test's setup. Measured at roughly one run in twelve in
+// `test/browser/ReplaceAsset.test.ts`, whose gate test types into the manifest and blurs, and whose
+// next test is the first of a fresh `describe`. Note the flush is not about anything still *pending*
+// - the blur already queued it - but about the write in flight: with an empty queue `flush()` hands
+// back the chained promise, which is exactly the write that has to land before the tree can go.
+let heldStorer: ProjectStoring | null = null
+
+// Releases the lock the last store-backed boot took, which a real tab does by going away, once its
+// writes have landed. A suite that takes the lock itself, to watch a boot be refused, has to call
+// this first.
 export const releaseStoredEditorLock = async (): Promise<void> => {
+  const storer = heldStorer
   const lock = heldLock
+  heldStorer = null
   heldLock = null
+  if (storer !== null) await storer.flush()
   if (lock !== null) await lock.release()
 }
 
@@ -321,6 +335,7 @@ export const bootStoredEditor = async (directory: string): Promise<StartedStored
   const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot, vnAssetPanelDiv: panelRoot }, directory)
   if (booted.kind === "refused") return booted
   heldLock = booted.lock
+  heldStorer = booted.storing
 
   const firstStop = nextStop(booted.renderer, booted.player)
   await booted.openProject()

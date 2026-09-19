@@ -1,6 +1,6 @@
 # Record what `advance` applied, not where the playhead landed
 
-Status: ready-for-agent
+Status: done
 
 `VnPlayer.playheadMoved` asks "did `commandIndex` end somewhere else?" as a stand-in for "did this
 advance do anything worth recording?". A loop returns to the index it left having run every command
@@ -102,3 +102,29 @@ reason `advance` grows for doing nothing, neither site has to learn about it.
   existing tests in `test/unit/state.test.ts` cover this and must stay green.
 - `CLAUDE.md`'s path-replay note and `ROUGH_EDGES.md`'s fourth looping failure mode are updated or
   removed to match.
+
+## Comments
+
+**Built 2026-09-19** on `claude/path-recording`, as prescribed: `commandsApplied` on `VnPlayerState`,
+seeded to `0` and bumped in `State.advance` inside the guard that applies a command. Three things
+differ from the ticket's text:
+
+- **The comparison is one function, `State.appliedAny(before, after)`**, rather than the same
+  expression written at both sites. The ticket's argument is that recording and replay must ask one
+  question, and a named function is that argument made literal; the reasoning `playheadMoved` carried
+  moved onto it, and `playheadMoved` is gone.
+- **`fromShorthandPath` has no `commandIndex` progress check.** "Watch out for" says it does. It
+  has a count cap on its search for the next decision and nothing at all on its trailing advances.
+  Nothing to change here either way.
+- **`goToCommandByReplay`'s index check stays, deliberately.** There the question is whether the walk
+  is getting anywhere, and a lap that ends where it began is exactly the "loops, and the target is not
+  on the way" it is looking for; switching it to `appliedAny` would send a single-stop loop to the
+  10000 cap as well. CLAUDE.md says so beside the path-replay note, so it is not "fixed" to match.
+
+Covered by two tests in `test/unit/state.test.ts` (`path replay matches live play`): a skip round a
+`label`/`set`/`jump` loop records an advance though it ends on the index it left, and `undo` from the
+third lap lands on the second - which replays a lap, so it covers `Advance.tryPerform` too. Both
+failed first, with the path missing the lap and `undo` landing back on the line before the loop. The
+end-of-story tests stayed green unchanged. `npm test`, `npm run typecheck` and `npm run test:demo` pass.
+CLAUDE.md's path-replay note is rewritten, and ROUGH_EDGES.md's looping entry is down to three
+failure modes.

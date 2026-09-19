@@ -134,7 +134,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **An action is recorded only when the advance applied a command, and replay asks the same question.**
   `State.advance` counts the commands it applies into `commandsApplied`, and `State.appliedAny` compares two
   counts. `VnPlayer` records on it and `Advance.tryPerform` replays on it, so the two cannot disagree - and
-  each cheaper test has been tried and lost something. Object identity: `advance` hands back a fresh snapshot
+  loading a save refuses on it, since a saved advance that applies nothing is one the next `undo` could not
+  replay. Each cheaper test has been tried and lost something. Object identity: `advance` hands back a fresh snapshot
   even at the end of the story - it rebuilds one, clearing the frame's transition and sfx flags, before
   finding no command left - so advancing there recorded actions no replay could walk, and the next `undo`
   threw "path does not match the story" out of `VnAction.perform`. The index: a loop comes back to the index

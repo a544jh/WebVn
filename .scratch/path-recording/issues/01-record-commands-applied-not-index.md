@@ -115,7 +115,12 @@ differ from the ticket's text:
   moved onto it, and `playheadMoved` is gone.
 - **`fromShorthandPath` has no `commandIndex` progress check.** "Watch out for" says it does. It
   has a count cap on its search for the next decision and nothing at all on its trailing advances.
-  Nothing to change here either way.
+  This bullet first said that left nothing to change, which was wrong - corrected the same day. With
+  no check, a save made against a longer script loaded without complaint, parked at the new end
+  holding advances no replay could walk, and the undo after it threw. Both loops now refuse through
+  `appliedAny` with `"Saved path runs past the end of the story"`, and a refused load leaves the
+  player where it was. That also turned a save waiting on a decision that never comes from ten
+  thousand empty advances and an "infinite loop" message into the same refusal.
 - **`goToCommandByReplay`'s index check stays, deliberately.** There the question is whether the walk
   is getting anywhere, and a lap that ends where it began is exactly the "loops, and the target is not
   on the way" it is looking for; switching it to `appliedAny` would send a single-stop loop to the

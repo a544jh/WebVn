@@ -336,6 +336,16 @@ function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
   return state
 }
 
+// One recorded advance of a saved path. An advance that applies nothing is the save running past the
+// end of a story that has got shorter since it was made - it expected a decision that is no longer
+// there, or more lines than are left - and that is refused. Kept, it would load and leave the next
+// undo to throw, since `Advance.tryPerform` asks the same `appliedAny` and would not walk it.
+function savedAdvance(state: VnPlayerState): VnPlayerState {
+  const next = advanceUntilStop(state)
+  if (!appliedAny(state, next)) throw new Error("Saved path runs past the end of the story")
+  return next
+}
+
 function fromShorthandPath(
   startingState: VnPlayerState,
   decisions: number[],
@@ -346,7 +356,7 @@ function fromShorthandPath(
   for (const id of decisions) {
     let advances = 0
     while (state.decision === null) {
-      state = advanceUntilStop(state)
+      state = savedAdvance(state)
       path = path.advance()
       advances++
       if (advances > 10000) {
@@ -362,7 +372,7 @@ function fromShorthandPath(
     state = advanceUntilStop(decided)
   }
   while (remainingAdvances > 0) {
-    state = advanceUntilStop(state)
+    state = savedAdvance(state)
     path = path.advance()
     remainingAdvances--
   }

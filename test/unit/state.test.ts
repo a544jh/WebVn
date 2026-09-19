@@ -619,9 +619,33 @@ describe("path replay matches live play", () => {
     expect(State.fromPath(start, player.path)).toEqual(player.state)
   })
 
-  it("throws instead of hanging when a saved path expects a decision that never comes", () => {
+  it("refuses a saved path that expects a decision the story never reaches", () => {
     const start = makeState([say("s1"), say("s2"), say("s3"), say("s4")])
-    expect(() => State.fromShorthandPath(start, [0], 0)).toThrow(/infinite loop/)
+    expect(() => State.fromShorthandPath(start, [0], 0)).toThrow(/past the end of the story/)
+  })
+
+  it("refuses a saved path whose advances run past the end of the story", () => {
+    // saved on s4 of four lines, which the author has since cut to two
+    const start = makeState([say("s1"), say("s2")])
+    expect(() => State.fromShorthandPath(start, [], 3)).toThrow(/past the end of the story/)
+  })
+
+  it("leaves the player where it was when it refuses a load", () => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
+    autorun(player)
+    press(player)
+    press(player)
+    press(player)
+    player.saveToSlot(0)
+
+    player.reloadStory(makeState([say("s1"), say("s2")]))
+    const [state, path] = [player.state, player.path]
+
+    // Loading this used to succeed, parked on s2 with three advances in hand, and the undo after it
+    // threw - the two it could not replay were still in the path.
+    expect(() => player.loadFromSlot(0)).toThrow(/past the end of the story/)
+    expect(player.state).toBe(state)
+    expect(player.path).toBe(path)
   })
 
   it("throws on an out-of-range decision id in a saved path", () => {

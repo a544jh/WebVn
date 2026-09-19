@@ -35,3 +35,19 @@ Real issues that actively confuse new contributors. If you touch the area, consi
   one control, but it is here so the next person to see it does not go looking for a broken handler.
 - **Nothing verifies what CodeMirror 5 leaves behind when its wrapper is removed.** `close()` empties the editor's root, which takes the CM wrapper with it, and `VnEditor` holds no teardown because CM5 exposes no `destroy()`. Whether CM5 keeps document-level handlers or a registry that outlives a discarded instance was **not established** in the 2026-09-05 sweep - it is unverified rather than known-good, and it is called out here so nobody reads the sweep as having cleared it. The CM6 migration (`design-docs/EDITOR.md`) settles it either way, since a `view.destroy()` exists there and would simply be called.
 
+- **`listProjects` reads "I could not open this manifest" as "this is not a project".** The walk
+  `readText`s each `projects/<dir>/manifest.yaml` and `.catch(() => null)`s straight into a
+  `continue`, which is right for the residue a crashed rename leaves and wrong for a file that is
+  merely busy: Chromium writes through a `.crswap` beside the target, and `getFile()` on the target is
+  refused with `NotReadableError` for as long as both exist. So a walk that overlaps a write to a
+  manifest drops that project out of the library entirely - not a row with a missing name, no row at
+  all. Nothing in the app reaches it today, because every path that lists projects goes through
+  `close()` first and that awaits the storer; the one live window is two tabs, one editing and one
+  sitting on the picker, since the picker re-walks on every render and a project open elsewhere is
+  still listed. Harmless and self-correcting - the next render has it back - but it is the same
+  hazard `walk` already carries a comment about, one level up, and the fix is the same shape:
+  distinguish absent from unreadable (`exists` answers through `getFileHandle`, which a busy file
+  does not refuse) rather than treating every failure as absence. Found 2026-09-19 through
+  `test/browser/RenameProject.test.ts`, where storing the rename revert at once rather than after the
+  debounce put the suite's own listing inside that window; the helper there flushes first and says
+  so.

@@ -41,7 +41,17 @@ const makeProject = async (id: string): Promise<void> => {
   await writeFile(await storeRoot(SCRATCH), `projects/${id}/assets/backgrounds/a.png`, new Blob(["pretend-png"]))
 }
 
-const directories = async (): Promise<string[]> => (await listProjects()).map((p) => p.directory).sort()
+// **The store's own listing has to be asked when nothing is being written into it.** `listProjects`
+// reads each `manifest.yaml`, Chromium refuses a read while that file's write is still open, and the
+// catch there reads a refusal as "not a project" - so a list taken mid-write silently loses a
+// project that is sitting right in front of it. Declining a rename puts every test in that window:
+// the revert is a write the editor made itself, so it is stored at once rather than after a
+// debounce. Flushing first rather than retrying the list, because what the storer hands back *is*
+// the in-flight write.
+const directories = async (): Promise<string[]> => {
+  await shell?.getSession()?.storing.flush()
+  return (await listProjects()).map((p) => p.directory).sort()
+}
 
 beforeEach(async () => {
   await releaseStoredEditorLock()

@@ -4,7 +4,7 @@ import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
 import { STORE_DEBOUNCE_MS } from "../../src/storage/ProjectStoring"
 import { createProject, listProjects, readProject, writeProjectFile } from "../../src/storage/projectStore"
 import { seedDemoProject } from "../../src/storage/seedDemoProject"
-import { clearOpfsStore } from "../helpers/opfs"
+import { clearOpfsStore, storedManifest } from "../helpers/opfs"
 import {
   SCENE_HEIGHT,
   SCENE_WIDTH,
@@ -19,6 +19,7 @@ import {
   textBoxText,
   typeCharacter,
   typeManifest,
+  waitFor,
 } from "../helpers/vnHarness"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
@@ -140,6 +141,26 @@ describe("the editor over the project store", () => {
 
     await pastDebounce()
     expect(storeStateOf(started.editorRoot)).toBe("stored")
+  })
+
+  // **A debounce exists to coalesce keystrokes, and a write the editor made itself is not
+  // keystrokes.** The asset panel's declaration splice is the caller: while it waited out the
+  // interval, the *file* was on disk and the declaration was not.
+  it("stores a write the author did not type at once, and never calls it unstored", async () => {
+    await storeMyStory()
+    const started = await startEditorFromStore("my-story")
+
+    const states: string[] = []
+    started.editor.onManifestSettledCallbacks.push(() => states.push(storeStateOf(started.editorRoot) ?? ""))
+    await started.editor.declareAsset({ kind: "background", id: "cliffs", file: "cliffs.png" })
+
+    // Polled rather than read once: `storedManifest` tolerates a read that lands while the write is
+    // still open, which is exactly the window an immediate store puts a test in.
+    await waitFor("the declaration to reach the store", async () =>
+      ((await storedManifest("my-story")) ?? "").includes("cliffs: cliffs.png")
+    )
+    expect(storeStateOf(started.editorRoot)).toBe("stored")
+    expect(states).not.toContain("unstored")
   })
 
   it("flushes what is pending when the editor loses focus", async () => {

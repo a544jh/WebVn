@@ -1,5 +1,5 @@
 import { opfsRoot, removeRecursive } from "../../src/storage/opfs"
-import { setStoreRoot } from "../../src/storage/projectStore"
+import { readProject, setStoreRoot } from "../../src/storage/projectStore"
 
 // OPFS is per-origin and outlives a test file, and the browser suites run their files in parallel
 // against one origin - so a suite that writes into it needs both a clean slate and a corner of its
@@ -34,3 +34,18 @@ export const clearOpfsStore = async (name: string): Promise<FileSystemDirectoryH
 // suite gave `clearOpfsStore`.
 export const storeRoot = async (name: string): Promise<FileSystemDirectoryHandle> =>
   (await opfsRoot()).getDirectoryHandle(name, { create: true })
+
+// A project's stored manifest, or null if it could not be read. **For polling a write that is
+// landing underneath**, which is what every "did this reach the store" assertion now does: a write
+// the editor makes itself is stored at once rather than after a flush, so a test reads while
+// Chromium has a `.crswap` file open beside the target, and `getFile()` is refused with
+// `NotReadableError` for as long as both exist. A poll that let that reject would fail on the very
+// write it was waiting for. Read `walk`'s comment in src/storage/opfs.ts for the other half of the
+// same hazard.
+export const storedManifest = async (directory: string): Promise<string | null> => {
+  try {
+    return (await readProject(directory)).manifestText
+  } catch {
+    return null
+  }
+}

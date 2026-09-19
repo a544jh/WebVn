@@ -196,7 +196,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   So the storer heard nothing: the file was written, the line was spliced, and neither was stored
   (measured 2026-09-18). A `Doc`-level listener does not close it either, because CM5 signals a
   detached doc through `signalLater`, which defers past the `loadingBuffer` guard and would make
-  every boot's own read look like typing.
+  every boot's own read look like typing. **The callbacks also hear whether the author typed it**, and
+  that flag is why telling them directly rather than through an event is the right shape twice over:
+  an event cannot say who raised it, and the host needs the answer to know whether there is anything
+  to coalesce - see `ProjectStoring`'s `storeNow` under Project storage.
 - `import * as CodeMirror from "codemirror"` is a namespace object under vite/esbuild and the callable
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 
@@ -226,7 +229,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **Add writes the file first and the declaration second; remove is the reverse.** Declaring first
   would flash the missing-file orange and correct itself, which trains an author to ignore the one
   colour that means something; a file deleted while its declaration still stands *is* that orange,
-  so removing lands the declaration first and the adopt never sees the gap.
+  so removing lands the declaration first and the adopt never sees the gap. **Both orderings are
+  about the project on disk, so the declaration half must not be debounced** - it goes through
+  `ProjectStoring.storeNow`, and before that it sat in memory for 2000ms while the file half was
+  already written.
 - **The manifest edit is textual, and it lives in `src/yamlParser/manifestEdit.ts`.** `declareAsset`
   and `undeclareAsset` locate with the parser and splice with lines, because a round trip through
   the parser eats the author's comments - the same reason the `?vn=` payload carries the raw buffer.
@@ -388,7 +394,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   hidden, and on `pagehide` (never `unload`). **The debounce is the guarantee and every flush is a
   bonus** — no unload-time hook can promise an async OPFS write completes, so do not lengthen the
   interval on the theory that the flushes cover it. It stores **the buffer, not the parse**: a manifest
-  that does not parse is still the author's work and is the edit they most want back. Its indicator is a
+  that does not parse is still the author's work and is the edit they most want back. **A keystroke
+  coalesces and a write the editor made itself does not**: `changed` debounces and announces
+  `unstored`, `storeNow` does neither, and the asset panel's splice and the rename revert take the
+  second because there is no next keystroke to wait for. Each of those is half of a pair whose other
+  half is already on disk, so debouncing it put the project in exactly the state the panel's add-then-
+  declare and declare-then-remove orderings exist to prevent, for two seconds, on every add and
+  remove (reported 2026-09-19 as the badge going orange, which was the symptom). Its indicator is a
   filled badge, not coloured text - green stored, `orange` unstored, `red` failed, the two problem
   colours being the literal ones `setErrorMarker` paints the gutter with. **It never removes its page
   listeners**, which is fine while one page load means one storer and is a data-loss bug the moment

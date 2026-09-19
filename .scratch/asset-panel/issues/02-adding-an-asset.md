@@ -136,6 +136,10 @@ than hidden, so the gate says what it is gating.
 Nothing extra is needed for storing: the buffer change fires `onBufferChangeCallbacks` like a
 keystroke, and `ProjectStoring`'s debounce picks it up.
 
+> **Amended 2026-09-19, and the amendment is the interesting half.** That was true of the wiring and
+> wrong about the behaviour: it is stored *at once* now, not debounced. See the Comments.
+
+
 ## Tests
 
 `test/browser/`, through `startEditor`:
@@ -209,3 +213,26 @@ the entry going in beneath it, and an entry at the group's own indent is a *sibl
 which still parses, because unknown top-level keys are stripped, so the author would be told the
 asset was added and nothing would declare it. Comments are skipped now, and an indent no deeper than
 the group's is refused as well.
+
+**The storing paragraph above is wrong, and the author caught it in use.** Reported as "after adding
+or deleting an asset the editor goes into the unstored state - I thought we saved immediately". The
+wiring was exactly as the ticket said, which is why nothing failed: the splice fired
+`onBufferChangeCallbacks` like a keystroke, so it waited out the 2000ms debounce with the badge
+orange.
+
+The badge was the symptom and not the bug. **An add writes the file first and the declaration
+second, and a remove does the reverse, precisely so the project is never in the half state the other
+order leaves** - and a debounce over the second half puts it in that state anyway, for two seconds,
+on every add and every remove. Within that window a closed tab or a crash keeps a file nothing
+declares, which ADR 0006 argues is the invisible-and-permanent state, or a declaration whose file is
+gone, which is the missing-file orange. The orderings were correct in memory and untrue on disk.
+
+`ProjectStoring` grew `storeNow` beside `changed`: same pending map, same chained write, no timer
+and no `unstored` announcement. `VnEditor.onBufferChangeCallbacks` carries a third argument saying
+whether the author typed the change - `true` from the `change` event, `false` from `changeBuffer` -
+and `editorBoot`'s one wiring line branches on it. A failure still reports `failed` from `write`, so
+what the badge gives up is only the claim that a write already on its way has not happened yet.
+
+The rename revert gets the same fix for free, being the other caller of `changeBuffer`: declining a
+rename used to leave the declined id in the buffer and out of the store for two seconds, with
+nothing but a blur to land it.

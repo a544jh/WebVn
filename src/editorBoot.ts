@@ -209,10 +209,16 @@ export const bootEditor = async (
     },
   })
 
-  // Storing, in the two lines it takes: the editor says what changed, the storer writes it, and the
-  // editor shows what the storer reports. Neither imports the other.
+  // Storing, in the few lines it takes: the editor says what changed, the storer writes it, and the
+  // editor shows what the storer reports. Neither imports the other, and this wiring is also what
+  // stops `StoreState` and `BufferName`, spelled once on each side, drifting apart in silence.
+  //
+  // The editor says whether the author typed the change, and that is the whole of the branch: typing
+  // coalesces, a write the editor made itself goes down now.
   const storing = new ProjectStoring(directory, (state) => editor.setStoreState(state), elements.vnEditorDiv)
-  editor.onBufferChangeCallbacks.push((buffer, text) => storing.changed(buffer, text))
+  editor.onBufferChangeCallbacks.push((buffer, text, typed) =>
+    typed ? storing.changed(buffer, text) : storing.storeNow(buffer, text)
+  )
 
   return {
     kind: "booted",

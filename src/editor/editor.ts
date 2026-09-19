@@ -58,8 +58,8 @@ const INITIAL_BUFFER: BufferName = "script"
 // is for lib.dom augmentations) plus an `import type` idiom this repo uses nowhere, to save five
 // words - but it is the honest alternative, not an impossible one.
 //
-// What makes the duplication safe is that neither side can drift in silence. The two wiring lines in
-// src/editorBoot.ts assign one side to the other, so widening or narrowing either union on one side
+// What makes the duplication safe is that neither side can drift in silence. The wiring in
+// src/editorBoot.ts assigns one side to the other, so widening or narrowing either union on one side
 // alone is a compile error there. Verified by doing it, not assumed.
 export type StoreState = "stored" | "unstored" | "failed"
 
@@ -141,10 +141,16 @@ export class VnEditor {
   // anything reading *declarations* then would read the ones the adoption has not swapped in yet.
   public onManifestSettledCallbacks: Array<() => void> = []
 
-  // Fires on every edit, with the buffer that changed and its whole text. What a host page does
-  // with it is its own business - storing lives outside src/editor/, the same division as the
-  // fullscreen and export-URL buttons.
-  public onBufferChangeCallbacks: Array<(buffer: BufferName, text: string) => void> = []
+  // Fires on every edit, with the buffer that changed, its whole text, and whether the author typed
+  // it. What a host page does with it is its own business - storing lives outside src/editor/, the
+  // same division as the fullscreen and export-URL buttons.
+  //
+  // **`typed` is there because a host that coalesces has to know what it is coalescing.** The two
+  // writes this class makes itself (`changeBuffer` below) are whole edits the moment they happen -
+  // there is no next keystroke to wait for, and each is one half of a pair whose other half is
+  // already on disk - so a debounce over them is two seconds of a project in a state its author
+  // never asked for. Nothing else distinguishes them: the text is the same shape either way.
+  public onBufferChangeCallbacks: Array<(buffer: BufferName, text: string, typed: boolean) => void> = []
 
   // The indicator above the buffer's right corner. Owned here because it is a pixel in the tab bar;
   // driven from outside, because what it reports is a write this class knows nothing about.
@@ -229,7 +235,7 @@ export class VnEditor {
       if (this.loadingBuffer) return
       const doc = instance.getDoc()
       const buffer: BufferName = doc === this.manifestDoc ? "manifest" : "script"
-      this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, doc.getValue()))
+      this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, doc.getValue(), true))
     })
     this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
       // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
@@ -471,10 +477,11 @@ export class VnEditor {
   // splice reached nobody. And a `Doc`-level listener does not close it either: CM5 signals a
   // detached doc's change through `signalLater`, which defers past the `loadingBuffer` guard below
   // and would make every boot's own read look like typing. Telling the callbacks directly is the one
-  // version with no timing in it.
+  // version with no timing in it - and it is also what lets the flag above be honest, since an event
+  // cannot say who raised it.
   private changeBuffer(buffer: BufferName, text: string): void {
     this.setBuffer(this.docFor(buffer), text)
-    this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, text))
+    this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, text, false))
   }
 
   // Driven by whoever does the writing. Called after each write resolves or rejects, and on the

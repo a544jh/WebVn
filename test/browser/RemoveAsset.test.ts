@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { userEvent } from "@vitest/browser/context"
 import { NoOp } from "../../src/core/commands/NoOp"
 import { ErrorLevel } from "../../src/core/commands/Parser"
-import { createProject, readProject } from "../../src/storage/projectStore"
+import { createProject } from "../../src/storage/projectStore"
 import { exists } from "../../src/storage/opfs"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
-import { clearOpfsStore, storeRoot } from "../helpers/opfs"
+import { clearOpfsStore, storedManifest, storeRoot } from "../helpers/opfs"
 import {
   blurEditor,
   releaseStoredEditorLock,
@@ -14,6 +14,7 @@ import {
   StartedEditor,
   startEditor,
   startEditorFromStore,
+  storeStateOf,
   typeManifest,
   waitFor,
 } from "../helpers/vnHarness"
@@ -264,7 +265,12 @@ describe("removing an asset from a stored project", () => {
       exists(root, `projects/${PROJECT}/assets/backgrounds/a.png`).then((it) => !it)
     )
 
-    await started.storing.flush()
-    expect((await readProject(PROJECT)).manifestText).not.toContain("cliffs: a.png")
+    // Without a flush: the file is already gone, so a declaration still sitting in memory is a
+    // project that reopens complaining about a missing asset.
+    await waitFor("the declaration to leave the store on its own", async () => {
+      const manifest = await storedManifest(PROJECT)
+      return manifest !== null && !manifest.includes("cliffs: a.png")
+    })
+    expect(storeStateOf(started.editorRoot)).toBe("stored")
   })
 })

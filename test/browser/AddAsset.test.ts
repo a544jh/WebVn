@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { createProject, readProject, readProjectFile } from "../../src/storage/projectStore"
-import { clearOpfsStore } from "../helpers/opfs"
+import { createProject, readProjectFile } from "../../src/storage/projectStore"
+import { clearOpfsStore, storedManifest } from "../helpers/opfs"
 import {
   blurEditor,
   releaseStoredEditorLock,
@@ -9,6 +9,7 @@ import {
   StartedEditor,
   startEditor,
   startEditorFromStore,
+  storeStateOf,
   typeManifest,
   waitFor,
 } from "../helpers/vnHarness"
@@ -308,9 +309,14 @@ describe("adding an asset to a stored project", () => {
     const blob = await readProjectFile(PROJECT, "assets/backgrounds/jetty.png")
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
 
-    // The buffer change fires onBufferChangeCallbacks like a keystroke, so the storer picks it up -
-    // flushed here rather than waited out, because the debounce is 2000ms.
-    await started.storing.flush()
-    expect((await readProject(PROJECT)).manifestText).toContain("jetty: jetty.png")
+    // **Without a flush, and that is the assertion.** The author did not type this, so there is
+    // nothing for a debounce to coalesce - and while it waited, the file was on disk and the
+    // declaration that makes it reachable was not, which is the invisible undeclared file ADR 0006
+    // argues against, arrived at by closing the tab within two seconds.
+    await waitFor("the declaration to reach the store on its own", async () =>
+      ((await storedManifest(PROJECT)) ?? "").includes("jetty: jetty.png")
+    )
+    // And the badge never has to claim the work is unstored, because nothing is waiting.
+    expect(storeStateOf(started.editorRoot)).toBe("stored")
   })
 })

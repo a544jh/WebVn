@@ -410,9 +410,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   declare and declare-then-remove orderings exist to prevent, for two seconds, on every add and
   remove (reported 2026-09-19 as the badge going orange, which was the symptom). Its indicator is a
   filled badge, not coloured text - green stored, `orange` unstored, `red` failed, the two problem
-  colours being the literal ones `setErrorMarker` paints the gutter with. **It never removes its page
-  listeners**, which is fine while one page load means one storer and is a data-loss bug the moment
-  project switching remounts in place - its constructor comment has the reproduction.
+  colours being the literal ones `setErrorMarker` paints the gutter with. **Its three page listeners
+  come off in `stop()`**, which `editorBoot`'s `close()` calls on every Back to projects and every
+  rename: one page load meant one storer until the picker brought a second boot into the same page,
+  and a superseded storer that kept listening loses the newer text under the older one. Its
+  constructor comment has the measurement.
 - **`projectLock.ts` takes a `navigator.locks` lock keyed on the directory, before the boot writes
   anything.** A second tab is refused rather than racing the first one's writes. Ordering is the point:
   the picker's walk writes nothing, the lock is taken, and only then is `lastOpened` recorded.

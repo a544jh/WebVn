@@ -154,3 +154,11 @@ repainted: restarting the music because an author replaced a file is a worse sur
 the old track until the next `bgm`.
 
 The tests sample the canvas and the sprite element now, and both fail with the repaint removed.
+
+**Preview was verified by hand on 2026-09-19 and opens the file.** The one thing in this ticket no
+suite can answer - `window.open` is stubbed, so `AssetPanel`'s tests prove the URL is the one the
+stage is drawing and nothing more - and it is now a check that has been done rather than a check that
+is owed. The standing instruction does not change: a headless browser still will not show you a tab,
+so a change to `preview` or to `OpfsAssetResolver` wants the same look again, the way `enterFullscreen`
+and the archive's `<a download>` do.
+

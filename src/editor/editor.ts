@@ -8,7 +8,6 @@ import { declareAsset, ManifestEdit, undeclareAsset } from "../yamlParser/manife
 import { AssetDeclaration, DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
-import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
 // The editor is one thing wearing the chrome and the picker is another, so each names the shared
 // vocabulary itself rather than relying on the other having been evaluated first. That incidental

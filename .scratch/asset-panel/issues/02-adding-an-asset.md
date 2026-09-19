@@ -1,6 +1,6 @@
 # 02: Adding an asset
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (the asset panel). The button is drawn in the panel's footer and there is nowhere to
 put it until that exists.
@@ -136,6 +136,10 @@ than hidden, so the gate says what it is gating.
 Nothing extra is needed for storing: the buffer change fires `onBufferChangeCallbacks` like a
 keystroke, and `ProjectStoring`'s debounce picks it up.
 
+> **Amended 2026-09-19, and the amendment is the interesting half.** That was true of the wiring and
+> wrong about the behaviour: it is stored *at once* now, not debounced. See the Comments.
+
+
 ## Tests
 
 `test/browser/`, through `startEditor`:
@@ -151,3 +155,84 @@ keystroke, and `ProjectStoring`'s debounce picks it up.
 
 The file write itself wants a scratch OPFS directory named after the suite - `navigator.locks` is
 origin-wide.
+
+## Comments
+
+**Landed 2026-09-18** (`2661289`). `src/yamlParser/manifestEdit.ts` is the splice,
+`src/editor/addAssetDialog.ts` is the dialog, and `AssetPanel.add` is the wiring;
+`test/unit/manifestEdit.test.ts` covers every case and refusal of the text edit and
+`test/browser/AddAsset.test.ts` drives the dialog, including one test through the store-backed boot
+that ships.
+
+**The splice is its own pure module rather than a method on `VnEditor`.** The ticket describes the
+mechanism without saying where it lives; putting it beside `declarationLocations` means the whole of
+it is unit-testable in node, with no DOM, no CodeMirror and no store in the way.
+`declarationLocations` gained a singular `declarationLocation` that answers null for a key the
+manifest does not declare - the plural keeps its first-line fallback, because a gutter marker has to
+land somewhere and a write has to know.
+
+**`gateOnManifest` is not what gates the button, and that is a departure.** That helper pushes a
+callback per button, which suits `src/index.ts`'s two page-chrome buttons and not a panel that
+`replaceChildren`es its own root: the callback would point at a replaced element, accumulate one per
+draw, and fight the busy state - an adoption *during* an Add would re-enable the button mid-job. The
+panel implements the same rule as a field the draw reads, which is what the ticket asks for two
+paragraphs earlier for the busy state, with the same reason string in the same `title`.
+
+**`chrome/dialog.ts` grew a third thing beyond the two the ticket names.** `dialogSelect` and the
+growing dialog were both expected; `DialogText` was not. The newer artboards write identifiers into
+sentences and hints - `Stored as assets/backgrounds/keepers-grave.png`, `bg: keepers-grave` - and
+`textContent` cannot carry a face change. The older dialogs still pass plain strings.
+
+**A measured bug this ticket is what found**: a programmatic write to the buffer that is not on
+screen reached the storer not at all. `Editor.on("change")` fires only for the attached doc, and a
+manifest splice happens while the author is on the script tab - so the file was written, the line was
+spliced, and neither was stored. `VnEditor.changeBuffer` now tells the callbacks directly; a
+`Doc`-level listener does not close it, because CM5 signals a detached doc through `signalLater`,
+which defers past the `loadingBuffer` guard and makes every boot's own read look like typing. The
+rename revert goes through the same method, where it had been working by luck of which tab was up.
+
+**The file-size line says KB rather than MB.** `megabytes()` would render the canvas's "412 KB" as
+"0.4 MB"; the formatter is local to the dialog because it has one caller, unlike `megabytes`, whose
+comment says every caller of it is a caller of `availableBytes`.
+
+**Three things found in review.**
+
+`row.hidden` did not hide the Actor and Actor name fields: `.vn-dialog-field` sets `display: flex`,
+which is author-origin and beats the UA's `[hidden]` rule, so both were always on screen - and the
+test asserted the property rather than computed visibility, so it passed. `.vn-dialog-field[hidden]`
+says it in the stylesheet, where any caller hiding a field gets it.
+
+**The file was copied in before the splice was known to be possible.** A manifest no declaration can
+be spliced into left the bytes behind for ever, and it is not a shape only a test writes - the repo's
+own demo manifest declares `Rando: {}`, an actor no sprite can be added to. `VnEditor.canDeclareAsset`
+is asked before the copy now. The ticket's file-first ordering is about the *adoption* not flashing a
+missing-file warning, which still holds.
+
+**`childIndent` followed a comment.** A `# note` at column 0 under `backgrounds:` set the indent for
+the entry going in beneath it, and an entry at the group's own indent is a *sibling* of the group -
+which still parses, because unknown top-level keys are stripped, so the author would be told the
+asset was added and nothing would declare it. Comments are skipped now, and an indent no deeper than
+the group's is refused as well.
+
+**The storing paragraph above is wrong, and the author caught it in use.** Reported as "after adding
+or deleting an asset the editor goes into the unstored state - I thought we saved immediately". The
+wiring was exactly as the ticket said, which is why nothing failed: the splice fired
+`onBufferChangeCallbacks` like a keystroke, so it waited out the 2000ms debounce with the badge
+orange.
+
+The badge was the symptom and not the bug. **An add writes the file first and the declaration
+second, and a remove does the reverse, precisely so the project is never in the half state the other
+order leaves** - and a debounce over the second half puts it in that state anyway, for two seconds,
+on every add and every remove. Within that window a closed tab or a crash keeps a file nothing
+declares, which ADR 0006 argues is the invisible-and-permanent state, or a declaration whose file is
+gone, which is the missing-file orange. The orderings were correct in memory and untrue on disk.
+
+`ProjectStoring` grew `storeNow` beside `changed`: same pending map, same chained write, no timer
+and no `unstored` announcement. `VnEditor.onBufferChangeCallbacks` carries a third argument saying
+whether the author typed the change - `true` from the `change` event, `false` from `changeBuffer` -
+and `editorBoot`'s one wiring line branches on it. A failure still reports `failed` from `write`, so
+what the badge gives up is only the claim that a write already on its way has not happened yet.
+
+The rename revert gets the same fix for free, being the other caller of `changeBuffer`: declining a
+rename used to leave the declined id in the buffer and out of the store for two seconds, with
+nothing but a blur to land it.

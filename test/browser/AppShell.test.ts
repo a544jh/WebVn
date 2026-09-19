@@ -41,6 +41,7 @@ let elements: {
   sessionDiv: HTMLDivElement
   vnDiv: HTMLDivElement
   vnEditorDiv: HTMLDivElement
+  vnAssetPanelDiv: HTMLDivElement
 }
 
 // The shape src/index.html has: a picker div, and a session div that starts `hidden` with the stage
@@ -61,10 +62,11 @@ const mountPage = (): void => {
   vnDiv.style.height = `${SCENE_HEIGHT}px`
 
   const vnEditorDiv = document.createElement("div")
-  sessionDiv.append(vnDiv, vnEditorDiv)
+  const vnAssetPanelDiv = document.createElement("div")
+  sessionDiv.append(vnDiv, vnEditorDiv, vnAssetPanelDiv)
   document.body.append(pickerDiv, sessionDiv)
 
-  elements = { pickerDiv, sessionDiv, vnDiv, vnEditorDiv }
+  elements = { pickerDiv, sessionDiv, vnDiv, vnEditorDiv, vnAssetPanelDiv }
 }
 
 // The address bar the shell in the test is driving. A fake rather than the real one: this suite runs

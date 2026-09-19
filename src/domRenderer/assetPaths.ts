@@ -1,4 +1,4 @@
-import { DeclaredAsset } from "../core/manifest"
+import { AssetDeclaration, DeclaredAsset } from "../core/manifest"
 import { Actor, AudioAsset, SpriteInstance, VnPlayerState } from "../core/state"
 
 // Where an asset id becomes a path under the project directory. The script names ids; the manifest
@@ -41,6 +41,18 @@ export const spriteAssetPath = (actors: Record<string, Actor>, instance: SpriteI
   const file = actors[instance.actor]?.sprites?.[instance.sprite]
   return file === undefined ? undefined : spriteFilePath(instance.actor, file)
 }
+
+// Where a declaration's file sits. The third question this module answers, and the one an *edit* has
+// rather than a render: `Add asset` holds a kind and a filename before any id is declared, so
+// `xFilePath` alone does not say which directory and `xAssetPath` needs a declaration that is not
+// there yet. Defined in terms of the three above, like everything else here, so the prefixes stay
+// written once.
+export const declaredFilePath = (declaration: AssetDeclaration): string =>
+  declaration.kind === "sprite"
+    ? spriteFilePath(declaration.actor, declaration.file)
+    : declaration.kind === "audio"
+    ? audioFilePath(declaration.file)
+    : backgroundFilePath(declaration.file)
 
 // Every asset a state declares, whether or not the story reaches it - the manifest is the file
 // index. The one walk of the three declarations: `DomRenderer.loadAssets` preloads what it yields

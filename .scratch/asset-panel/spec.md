@@ -158,3 +158,8 @@ the `eye` was an older variant entirely. The canvas is now generated from the pa
 destruction and the interface change each land alone and none rides in on another. **01 can land by
 itself** - a read-only list of what a project declares is worth having before anything can write to
 it, and it is the surface the other three hang from.
+
+All four landed 2026-09-18. **`05-a-thumbnail-on-the-row.md` is not one of them**: filed 2026-09-19
+out of using the panel, it is the first thing the row would draw that is neither the manifest's text
+nor a fixed glyph, and it wants an artboard and three decisions before any code. Its own file says
+which.

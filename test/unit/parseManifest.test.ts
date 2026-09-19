@@ -352,6 +352,17 @@ audioAssets:
       expect(errors).toHaveLength(1)
     })
 
+    // Declaring nothing and declaring emptiness are the same statement, which the three top-level
+    // groups have always said and this one did not. **The asset panel's remove is what made it
+    // matter**: taking an actor's last sprite out leaves exactly this shape, and the manifest then
+    // refusing to parse is a project the author cannot open to fix - after the file has gone.
+    it("reads an actor whose sprites map is empty as one that declares none", () => {
+      const [manifest, errors] = parse(withId("cast") + "actors:\n  A1:\n    sprites:\n")
+
+      expect(errors).toEqual([])
+      expect(manifest?.actors.A1.sprites).toBeUndefined()
+    })
+
     // `sprites` is what makes an actor an entry that declares assets, so the strict rule reaches it:
     // a stripped `sprits:` would leave an actor silently declaring no sprites at all.
     it("rejects an unknown key inside an actor, rather than stripping it", () => {

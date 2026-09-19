@@ -356,6 +356,16 @@ export const readProjectFile = async (directory: string, path: string): Promise<
 export const writeProjectFile = async (directory: string, path: string, data: Blob | string): Promise<void> =>
   writeFile(await root(), projectPath(directory, path), data)
 
+// And taking one away, which is the other half of the asset panel's remove: the declaration comes out
+// of the manifest and the file comes off disk. docs/adr/0006 is why the file goes too - nothing in
+// the editor lists a file the manifest does not declare, so one left behind is invisible, permanent,
+// and rides into every archive the author exports.
+//
+// Through `removeRecursive` because a path that is already gone is not an error there, which is what
+// a delete after a write that may not have landed wants.
+export const removeProjectFile = async (directory: string, path: string): Promise<void> =>
+  removeRecursive(await root(), projectPath(directory, path))
+
 // The same file, opened for a caller that has bytes arriving rather than bytes in hand - an import,
 // which pipes an archive entry straight in. `openWritable` in opfs.ts says why that is the one write
 // not routed through `writeFile`, and why it is safe only under a lock.

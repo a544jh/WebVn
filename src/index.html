@@ -20,16 +20,27 @@
         <button id="vn-btn-back" class="vn-chrome-button" type="button">Back to projects</button>
         <span id="vn-session-title"></span>
       </div>
-      <div id="vn-div-container">
-        <div id="vn-div">
-          <div id="vn-actions">
-            <div role="button" class="vn-action vn-action-back"><i class="gg-back-button"></i>Back</div>
-            <div role="button" class="vn-action vn-action-menu"><i class="gg-menu"></i>Menu</div>
-            <div role="button" class="vn-action vn-action-auto">Auto<i class="gg-play-button"></i></div>
-            <div role="button" class="vn-action vn-action-skip">
-              Skip<span style="width: 20px; transform: translateX(14px)"><i class="gg-play-forwards"></i></span>
+      <!-- The stage and the column beside it. The session gets WIDER rather than the stage smaller:
+           the stage is a fixed 1280x720 and three sub-renderers measure it in their constructors, so
+           anything that made its size depend on a sibling would reopen the 0x0-canvas bug AppShell
+           orders its swap around. The page scrolls sideways on a narrow window instead. -->
+      <div id="vn-session-stage">
+        <div id="vn-div-container">
+          <div id="vn-div">
+            <div id="vn-actions">
+              <div role="button" class="vn-action vn-action-back"><i class="gg-back-button"></i>Back</div>
+              <div role="button" class="vn-action vn-action-menu"><i class="gg-menu"></i>Menu</div>
+              <div role="button" class="vn-action vn-action-auto">Auto<i class="gg-play-button"></i></div>
+              <div role="button" class="vn-action vn-action-skip">
+                Skip<span style="width: 20px; transform: translateX(14px)"><i class="gg-play-forwards"></i></span>
+              </div>
             </div>
           </div>
+        </div>
+        <!-- Two stacked panels, of which one exists: the asset panel takes the remaining height and
+             the label list (.scratch/label-list/) lands above or below it as a fixed one. -->
+        <div id="vn-session-column">
+          <div id="vn-asset-panel"></div>
         </div>
       </div>
       <!-- What the session can do with the project that is open. "Export ZIP" names the format

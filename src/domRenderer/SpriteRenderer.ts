@@ -18,6 +18,28 @@ export class SpriteRenderer {
     this.sceneHeight = this.root.clientHeight
   }
 
+  // The sprites on screen, rebuilt from the assets as they now are - `BackgroundRenderer.repaint`'s
+  // half of the same job, and for the same caller. An element's `src` is an object URL minted when
+  // its bytes were loaded, so a sprite whose file was replaced goes on showing the old one until the
+  // element itself is remade; `render` only remakes one whose *path* changed, and a replace changes
+  // no path.
+  //
+  // A sprite that cannot be built is logged and left as it is, one at a time: a replace of one file
+  // should not take the rest of the scene down with it.
+  public repaint(sprites: Record<string, SpriteInstance>, actors: Record<string, Actor>): void {
+    for (const id in sprites) {
+      const spriteElem = this.getSpriteElem(id)
+      if (spriteElem === null) continue
+      try {
+        const newElem = this.createSpriteElem(id, sprites[id], actors)
+        this.setPosition(newElem, sprites[id])
+        spriteElem.replaceWith(newElem)
+      } catch (e) {
+        console.error(`The sprite ${id} could not be repainted`, e)
+      }
+    }
+  }
+
   // `actors` is what a sprite's declared name resolves through: the instance says "A1, happy" and
   // the actor's declaration says which file that is.
   public async render(

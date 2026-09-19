@@ -1,7 +1,12 @@
 // Where an asset's bytes come from. One interface between "a logical path inside a project" and
-// "something an element can load", consulted in exactly one place - `AssetLoader.loadAsset` - so
-// that swapping the storage backend under the editor is a constructor argument rather than a change
-// to the render path. design-docs/PROJECT_STORAGE.md, "The player and the editor get different
+// "something an element can load", so that swapping the storage backend under the editor is a
+// constructor argument rather than a change to the render path.
+//
+// **`AssetLoader.loadAsset` is where it is consulted on the render path, and the asset panel's
+// preview is the second caller** - it opens a file in a browser tab, which is a path resolved to a
+// URL and nothing else. Going through the loader instead would not work: `getAsset` hands back a
+// cloned element rather than a URL. This comment said "consulted in exactly one place" and that was
+// a fact about callers rather than a rule about them. design-docs/PROJECT_STORAGE.md, "The player and the editor get different
 // resolvers".
 //
 // This is not a replacement for `src/domRenderer/assetPaths.ts`, which is the tempting reading of

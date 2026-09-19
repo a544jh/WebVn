@@ -558,13 +558,40 @@ export class DomRenderer implements Renderer {
   // sub-renderer throws on the null, so the caller is told at load time instead. Scoped to what this
   // state declares, since the loaders keep every path they have ever been handed and an old typo is
   // not this story's.
-  public async loadAssets(state: VnPlayerState = this.player.state): Promise<DeclaredAsset[]> {
+  public async loadAssets(
+    state: VnPlayerState = this.player.state,
+    options: { rebuild?: boolean } = {}
+  ): Promise<DeclaredAsset[]> {
+    // **Cleared rather than replaced**, because the three sub-renderers were handed these two
+    // objects in their constructors: minting new loaders here would leave every one of them reading
+    // the old ones. Every asset then reloads, which is a cost the session already pays on every
+    // manifest adoption - these are local reads - and the overlapping-render hazard is covered by
+    // `renderGeneration`.
+    if (options.rebuild === true) {
+      this.imageLoader.clear()
+      this.audioLoader.clear()
+    }
     const { images, audio } = declaredAssets(state)
     images.forEach((asset) => this.imageLoader.registerAsset(asset.path))
     audio.forEach((asset) => this.audioLoader.registerAsset(asset.path))
 
     const [imagesFailed, audioFailed] = await Promise.all([this.imageLoader.loadAll(), this.audioLoader.loadAll()])
     const failed = new Set([...imagesFailed, ...audioFailed])
+    // **A rebuild repaints, and a plain load does not.** New bytes under an unchanged path change no
+    // state, so an ordinary `render` leaves the scene exactly as it is: the background canvas is only
+    // redrawn when the background moved, and a sprite element is only remade when its path changed.
+    // Forgetting the committed state does not reach it either - the two conditions compare values
+    // that are both `undefined` on a still scene. So the two sub-renderers that hold an image are
+    // told to repaint what they are showing, which cannot flash, because it is the frame that is
+    // already there drawn from the files as they now are.
+    //
+    // Audio is deliberately not repainted: `AudioRenderer` plays a detached clone, and restarting the
+    // music because an author replaced a file is a worse surprise than hearing the old track until
+    // the next `bgm`.
+    if (options.rebuild === true) {
+      this.backgroundRenderer.repaint(state.animatableState.background, state.backgrounds)
+      this.spriteRenderer.repaint(state.animatableState.sprites, state.actors)
+    }
     return [...images, ...audio].filter((asset) => failed.has(asset.path))
   }
 

@@ -4,10 +4,10 @@ import { codeMirror } from "./codeMirror"
 import { ErrorLevel, ParserError, SourceLocation, VnParser } from "../core/commands/Parser"
 import { stringify } from "yaml"
 import { declarationLocations } from "../yamlParser/parseManifest"
-import { DeclaredAsset, VnManifest } from "../core/manifest"
+import { declareAsset, ManifestEdit, undeclareAsset } from "../yamlParser/manifestEdit"
+import { AssetDeclaration, DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
-import { VnPath } from "../core/vnPath"
 import { Renderer } from "../Renderer"
 // The editor is one thing wearing the chrome and the picker is another, so each names the shared
 // vocabulary itself rather than relying on the other having been evaluated first. That incidental
@@ -57,8 +57,8 @@ const INITIAL_BUFFER: BufferName = "script"
 // is for lib.dom augmentations) plus an `import type` idiom this repo uses nowhere, to save five
 // words - but it is the honest alternative, not an impossible one.
 //
-// What makes the duplication safe is that neither side can drift in silence. The two wiring lines in
-// src/editorBoot.ts assign one side to the other, so widening or narrowing either union on one side
+// What makes the duplication safe is that neither side can drift in silence. The wiring in
+// src/editorBoot.ts assigns one side to the other, so widening or narrowing either union on one side
 // alone is a compile error there. Verified by doing it, not assumed.
 export type StoreState = "stored" | "unstored" | "failed"
 
@@ -129,14 +129,42 @@ export class VnEditor {
   // is. Storage stays out of src/editor/, so this reports and something else acts.
   public onManifestAdoptedCallbacks: Array<(manifest: VnManifest) => void> = []
 
-  // Fires on every edit, with the buffer that changed and its whole text. What a host page does
-  // with it is its own business - storing lives outside src/editor/, the same division as the
-  // fullscreen and export-URL buttons.
-  public onBufferChangeCallbacks: Array<(buffer: BufferName, text: string) => void> = []
+  // Fires once this editor has finished deciding what the project is described by: a boot, every
+  // adoption attempt - **the failures included**, because a manifest that did not parse is one that
+  // was not adopted, so what a reader is shown afterwards describes a *different* manifest and has
+  // to say so - and an asset reload.
+  //
+  // It exists so the asset panel has one redraw signal rather than three. Separate from
+  // `onManifestStateChangeCallbacks`, which fires mid-adoption the moment the buffer's parse is
+  // settled: the two chrome buttons gated on that want the answer as early as possible, and
+  // anything reading *declarations* then would read the ones the adoption has not swapped in yet.
+  public onManifestSettledCallbacks: Array<() => void> = []
+
+  // Fires on every edit, with the buffer that changed, its whole text, and whether the author typed
+  // it. What a host page does with it is its own business - storing lives outside src/editor/, the
+  // same division as the fullscreen and export-URL buttons.
+  //
+  // **`typed` is there because a host that coalesces has to know what it is coalescing.** The two
+  // writes this class makes itself (`changeBuffer` below) are whole edits the moment they happen -
+  // there is no next keystroke to wait for, and each is one half of a pair whose other half is
+  // already on disk - so a debounce over them is two seconds of a project in a state its author
+  // never asked for. Nothing else distinguishes them: the text is the same shape either way.
+  public onBufferChangeCallbacks: Array<(buffer: BufferName, text: string, typed: boolean) => void> = []
 
   // The indicator above the buffer's right corner. Owned here because it is a pixel in the tab bar;
   // driven from outside, because what it reports is a write this class knows nothing about.
   private storeStateElem: HTMLSpanElement
+
+  // What the last parse of the manifest buffer said about it. Kept so the gutter can be rebuilt
+  // rather than only added to: `reloadAssets` is the one caller that has to take a marker *off*, and
+  // a gutter can only forget one by being cleared - after which the parse problems have to go back.
+  private manifestProblems: ParserError[] = []
+
+  // The declarations whose file the last asset load could not find. Kept because two readers want
+  // the same list from one load - the manifest gutter, which marks the line that declared each, and
+  // the asset panel, which marks the row - and loading twice to answer twice would be two answers
+  // that can disagree.
+  private missingAssets: DeclaredAsset[] = []
 
   // `setValue` fires `change` like a keystroke does, so an unguarded handler would write back
   // everything it just read on every boot. Raised around every programmatic write below, and
@@ -198,11 +226,15 @@ export class VnEditor {
     })
     // Which buffer changed comes from the doc, not from `activeBuffer`: they agree today, but the
     // active tab is UI state and the doc is the thing that actually changed.
+    //
+    // **This hears the author and nothing else.** `Editor.on("change")` fires only for the doc that
+    // is swapped in, so a programmatic write to the buffer that is *not* on screen reaches nobody
+    // here - which is what every write below goes through `changeBuffer` for.
     this.vnEditor.on("change", (instance) => {
       if (this.loadingBuffer) return
       const doc = instance.getDoc()
       const buffer: BufferName = doc === this.manifestDoc ? "manifest" : "script"
-      this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, doc.getValue()))
+      this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, doc.getValue(), true))
     })
     this.vnEditor.on("scrollCursorIntoView", (instance, event) => {
       // this prevents the whole window from scrolling for some reason, but the editor itself is still scrolled
@@ -237,6 +269,7 @@ export class VnEditor {
 
     const [manifest, errors] = this.parser.parseManifest(manifestText)
     this.clearMarkers("manifest")
+    this.manifestProblems = errors
     this.markErrors("manifest", errors)
     this.setManifestParsed(manifest !== null)
 
@@ -253,6 +286,10 @@ export class VnEditor {
     // Unanimated: an author reloading a script wants to be back at the first stop, not to sit
     // through the intro again. The standalone player boots the same story with animations.
     this.renderer.loadStory(state, false)
+
+    // Last, once the story is in the player: anything drawing the declarations reads them off the
+    // player's state, so announcing this before the swap would announce the story that is gone.
+    this.settled()
   }
 
   // Parse the manifest buffer and, if it is a manifest, make it the one the project runs under.
@@ -268,11 +305,15 @@ export class VnEditor {
 
     const [manifest, errors] = this.parser.parseManifest(this.manifestDoc.getValue())
     this.clearMarkers("manifest")
+    this.manifestProblems = errors
     this.markErrors("manifest", errors)
 
     if (manifest === null) {
       // Left dirty on purpose: the buffer has not been adopted, so the next blur tries again.
       this.setManifestParsed(false)
+      // Announced as well as flagged: nothing downstream changed, and that is the news - the
+      // declarations on screen now describe a manifest the buffer no longer holds.
+      this.settled()
       return
     }
     this.manifestDoc.markClean()
@@ -299,9 +340,83 @@ export class VnEditor {
     this.player.reloadStory(state)
     this.renderer.render(false)
 
+    this.settled()
+
     // Last, because a host may act on it - a changed id is a rename, which closes this whole session
     // - and everything above has to be settled first either way.
     this.onManifestAdoptedCallbacks.forEach((cb) => cb(manifest))
+  }
+
+  // Re-read the project's assets and re-report what is missing, for the one caller that changed a
+  // *file* without changing either buffer: the asset panel's replace.
+  //
+  // `rebuild` is what makes it show. Without it nothing on screen changes: `loadAsset` early-returns
+  // on a path it already holds, before it ever consults the resolver, so the decoded element under
+  // that key - and, under OPFS, the object URL behind it - is still the old file.
+  //
+  // **The manifest gutter is rebuilt rather than added to**, because a file that has arrived is no
+  // longer missing and a gutter can only forget a marker by being cleared. The parse problems go back
+  // on from what the last parse recorded rather than by parsing again: the buffer may have been typed
+  // into since, and what it says *now* is the next blur's business rather than this write's.
+  public async reloadAssets(options: { rebuild?: boolean } = {}): Promise<void> {
+    const state = this.player.state
+    const failed = await this.renderer.loadAssets(state, options)
+    this.clearMarkers("manifest")
+    this.markErrors("manifest", this.manifestProblems)
+    this.reportMissingFiles(state, failed)
+    this.renderer.render(false)
+    this.settled()
+  }
+
+  private settled(): void {
+    this.onManifestSettledCallbacks.forEach((cb) => cb())
+  }
+
+  // The declarations whose file the last asset load could not find. The asset panel's second reader
+  // of the list `reportMissingFiles` marks the gutter from.
+  public getMissingAssets(): DeclaredAsset[] {
+    return this.missingAssets
+  }
+
+  // Add a declaration to the manifest buffer and adopt it. The asset panel's half of `Add asset`:
+  // copying a file into `assets/` is the other half, and an undeclared file is invisible to the
+  // engine.
+  //
+  // **Adopted directly rather than waited for.** Adoption is normally what a blur does, and the
+  // author did not type this - so no blur is coming, and the panel would sit under a manifest that
+  // has changed.
+  //
+  // Resolves with why nothing was written, or null when it was.
+  public declareAsset(declaration: AssetDeclaration): Promise<string | null> {
+    return this.editManifest(declareAsset(this.manifestDoc.getValue(), declaration))
+  }
+
+  // Why that would be refused, or null when it would not. **Asked before the file is copied**, so a
+  // buffer that cannot take the declaration leaves no stray file in the project - the ticket's
+  // file-first ordering is about the *adoption* not flashing a missing-file warning, which still
+  // holds, and there is nothing to be gained from a copy whose declaration was never going to land.
+  //
+  // The edit is computed twice, here and again in `declareAsset`, and that is the point rather than
+  // waste: the buffer may have been typed into while the file was being written, so the write that
+  // happens is the one computed against the document as it then stands.
+  public canDeclareAsset(declaration: AssetDeclaration): string | null {
+    const edit = declareAsset(this.manifestDoc.getValue(), declaration)
+    return edit.kind === "refused" ? edit.problem : null
+  }
+
+  // And the other direction, for the panel's remove. The declaration goes before the file does, which
+  // is the reverse of adding: adding writes the file first so the adopt does not flash a missing-file
+  // warning, and removing has the opposite hazard - a file deleted while its declaration still stands
+  // *is* that warning - so this lands first and the adopt never sees the gap.
+  public undeclareAsset(manifestKey: (string | number)[]): Promise<string | null> {
+    return this.editManifest(undeclareAsset(this.manifestDoc.getValue(), manifestKey))
+  }
+
+  private async editManifest(edit: ManifestEdit): Promise<string | null> {
+    if (edit.kind === "refused") return edit.problem
+    this.changeBuffer("manifest", edit.text)
+    await this.adoptManifest()
+    return null
   }
 
   // Put the manifest's `id:` back to what it was, **touching nothing else in the buffer**. That is
@@ -336,11 +451,9 @@ export class VnEditor {
     }
     lines.splice(location.startLine - 1, location.endLine - location.startLine + 1, stringify({ id }).trimEnd())
 
-    // **Not** through `setBuffer`: that guard exists so reading a project in is not mistaken for the
-    // author typing, and this is the opposite - a real change to their document, which the storer
-    // has to hear about. Without the event the store would keep the id they just declined, and the
-    // next boot would ask them about the same rename again.
-    this.manifestDoc.setValue(lines.join("\n"))
+    // Through `changeBuffer`: the store has to hear about this. Without it the store would keep the
+    // id they just declined, and the next boot would ask them about the same rename again.
+    this.changeBuffer("manifest", lines.join("\n"))
     await this.adoptManifest()
   }
 
@@ -351,6 +464,23 @@ export class VnEditor {
     this.loadingBuffer = true
     doc.setValue(text)
     this.loadingBuffer = false
+  }
+
+  // A write this class makes that **is** a real change to the author's document: the asset panel's
+  // declaration splice, and the rename revert. The store has to hear about each, or the author's own
+  // edit is the one thing the project store does not have.
+  //
+  // It says so rather than relying on the `change` event, and that is the fix for a measured bug.
+  // Two things conspire: `Editor.on("change")` fires only for the doc that is swapped in, and an
+  // edit to the manifest buffer normally happens while the *script* tab is up - so a detached doc's
+  // splice reached nobody. And a `Doc`-level listener does not close it either: CM5 signals a
+  // detached doc's change through `signalLater`, which defers past the `loadingBuffer` guard below
+  // and would make every boot's own read look like typing. Telling the callbacks directly is the one
+  // version with no timing in it - and it is also what lets the flag above be honest, since an event
+  // cannot say who raised it.
+  private changeBuffer(buffer: BufferName, text: string): void {
+    this.setBuffer(this.docFor(buffer), text)
+    this.onBufferChangeCallbacks.forEach((cb) => cb(buffer, text, false))
   }
 
   // Driven by whoever does the writing. Called after each write resolves or rejects, and on the
@@ -411,6 +541,9 @@ export class VnEditor {
   // Marked without clearing the gutter first - the adoption cleared it before marking the parse
   // problems this is added to, and a boot has nothing to clear.
   private reportMissingFiles(state: VnPlayerState, failed: DeclaredAsset[]): void {
+    // Kept for the panel, which marks the same list a row at a time. Assigned here rather than by
+    // each caller, so the gutter and the panel cannot come to describe different loads.
+    this.missingAssets = failed
     // The buffer is the manifest this state was seeded from, so its keys are the ones to look up.
     const locations = declarationLocations(
       this.manifestDoc.getValue(),

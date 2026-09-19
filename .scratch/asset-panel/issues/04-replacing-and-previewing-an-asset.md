@@ -1,6 +1,6 @@
 # 04: Replacing and previewing an asset
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 01 (the asset panel), for the row controls. Independent of 02 and 03.
 
@@ -106,3 +106,59 @@ Preview is not a write and is not gated.
 - a missing asset's row has no preview control and does have replace
 - replacing a missing asset's file clears the orange, on the row and on the manifest gutter
 - replace is disabled while the manifest does not parse
+
+## Comments
+
+**Landed 2026-09-18** (`b53f428`). `AssetPanel.replace` and `AssetPanel.preview`,
+`Renderer.loadAssets(state?, { rebuild })`, `AssetLoader.clear()` on both loaders, and
+`VnEditor.reloadAssets`; `test/browser/ReplaceAsset.test.ts` is store-backed throughout, because a
+cache this is about is not visible through an in-memory stand-in.
+
+**The option is `rebuild`, not `discard`.** `CONTEXT.md`'s Remove entry puts `discard` on its *Avoid*
+list for taking an asset out of a project, and "discard the loaders" beside "discard the asset" is
+exactly the collision that list exists to prevent. The ticket says "or equivalent".
+
+**The loaders are cleared, not replaced**, which the ticket's "discard them" would read as. The three
+sub-renderers were handed those two objects in their constructors, so minting new ones would leave
+every one of them reading the old.
+
+**The panel calls `VnEditor.reloadAssets` rather than the renderer directly**, which is more than the
+ticket asks and is what the orange-clearing test needs: a file that has arrived is no longer missing,
+and a gutter can only forget a marker by being cleared - so the editor rebuilds it from the parse
+problems the last parse recorded. The panel still never learns which renderer it has, which is the
+property the ticket refuses to give up.
+
+**The regression test was checked by dropping the rebuild**, as the ticket demands of it: "shows the
+new image afterwards" fails, and so does the orange-clearing one.
+
+**Two hidden file inputs in one root turned out to be ambiguous.** The footer's Add input and each
+row's Replace input shared a class at first, and the first match in the document became a row's
+replace rather than Add asset - caught by ticket 02's suite. They are named apart now
+(`.vn-asset-add-input`, `.vn-asset-replace-input`).
+
+**`file-up` was not needed.** The canvas's note wondered whether Lucide's `replace` holds up at 15px;
+it reads fine in the running editor, so it stays.
+
+**Found in review: the loader rebuild was not enough, and this ticket's headline requirement was not
+met.** `BackgroundRenderer.render` leaves its canvas alone unless the background moved and
+`SpriteRenderer` remakes an element only when its path changed - and a replace moves nothing. So the
+loader held the new bytes while the scene went on showing the old ones, and the test said it passed
+because it asserted the loader.
+
+Forgetting the committed state was tried first and does not reach it: `state.panTo !== prev?.panTo`
+compares values that are both `undefined` on a still scene, and `shouldTransition` is cleared by
+`advance`, so the branch is skipped either way. What works is an explicit `repaint` on each of the
+two sub-renderers that hold an image, driven from `loadAssets({ rebuild })` - the frame that is
+already there, drawn from the files as they now are, which cannot flash. Audio is deliberately not
+repainted: restarting the music because an author replaced a file is a worse surprise than hearing
+the old track until the next `bgm`.
+
+The tests sample the canvas and the sprite element now, and both fail with the repaint removed.
+
+**Preview was verified by hand on 2026-09-19 and opens the file.** The one thing in this ticket no
+suite can answer - `window.open` is stubbed, so `AssetPanel`'s tests prove the URL is the one the
+stage is drawing and nothing more - and it is now a check that has been done rather than a check that
+is owed. The standing instruction does not change: a headless browser still will not show you a tab,
+so a change to `preview` or to `OpfsAssetResolver` wants the same look again, the way `enterFullscreen`
+and the archive's `<a download>` do.
+

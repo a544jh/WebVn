@@ -7,6 +7,8 @@ import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { DomRenderer } from "../../src/domRenderer/DomRenderer"
 import { TEST_MANIFEST } from "./testManifest"
 import { seedState, VnManifest } from "../../src/core/manifest"
+import { AssetPanel } from "../../src/editor/assetPanel"
+import { AssetResolver, RelativePathResolver } from "../../src/assetLoaders/AssetResolver"
 import { VnEditor } from "../../src/editor/editor"
 import { bootEditor, RefusedBoot } from "../../src/editorBoot"
 import { ProjectLock } from "../../src/storage/projectLock"
@@ -195,9 +197,12 @@ export const decisionItems = (root: HTMLDivElement): HTMLDivElement[] =>
 export interface StartedEditor {
   root: HTMLDivElement
   editorRoot: HTMLDivElement
+  // The asset panel's root, so a suite reads the column the way the session draws it.
+  panelRoot: HTMLElement
   player: VnPlayer
   renderer: DomRenderer
   editor: VnEditor
+  assetPanel: AssetPanel
 }
 
 // A root for the editor's own markup, beside the vn root createVnRoot mints.
@@ -207,9 +212,42 @@ const createEditorRoot = (): HTMLDivElement => {
   return editorRoot
 }
 
-export const startEditor = async (manifestText: string, script: string): Promise<StartedEditor> => {
+// And one for the asset panel. It carries the id src/index.html gives it, because the two rules that
+// put the panel in its column are `#vn-asset-panel`'s in chrome.css - the same reason createVnRoot
+// names the stage `vn-div`.
+//
+// **Inside a `#vn-session-column`, which is the other half of the same argument.** Those two rules
+// are `flex: 1; min-height: 0`, and both of them mean nothing outside a flex column with a height -
+// mounted straight onto `body` the panel was as tall as its content, so no suite could see whether
+// the list scrolls or whether the panel stays the height of the scene. The column's own rule is what
+// supplies the height, so no stage is needed here to get it.
+const createPanelRoot = (): HTMLElement => {
+  const column = document.createElement("div")
+  column.id = "vn-session-column"
+  const panelRoot = document.createElement("div")
+  panelRoot.id = "vn-asset-panel"
+  column.appendChild(panelRoot)
+  document.body.appendChild(column)
+  return panelRoot
+}
+
+// The resolver a store-less editor suite gets. The editor's own reads out of OPFS and the player's
+// is relative to the page; a test page's URL is vitest's, under which a project-relative path
+// resolves to nothing at all - so a declared file would always be missing and the *present* half of
+// every assertion would be unreachable. This points at what vitest serves out of the repo root, so a
+// test chooses which half it is exercising by naming a file test-assets/ has or has not got.
+export const servedAssets = (): AssetResolver => ({
+  resolve: (path: string) => Promise.resolve("/test-assets/" + path),
+})
+
+export const startEditor = async (
+  manifestText: string,
+  script: string,
+  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob>; removed?: string[] } = {}
+): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
+  const panelRoot = createPanelRoot()
 
   const [manifest, errors] = YamlParser.parseManifest(manifestText)
   expect(errors).toEqual([])
@@ -219,13 +257,35 @@ export const startEditor = async (manifestText: string, script: string): Promise
   clearSaves(manifest.id)
 
   const player = new VnPlayer(seedState(manifest))
-  const renderer = new DomRenderer(root, player)
+  const resolver = options.resolver ?? new RelativePathResolver()
+  const renderer = new DomRenderer(root, player, { resolver })
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
+  // A store-less editor's files: whatever a test handed in, and a write that records rather than
+  // lands anywhere. A suite whose subject is the writing boots through the store instead.
+  const written = options.written ?? new Map<string, Blob>()
+  const removed = options.removed ?? []
+  const assetPanel = new AssetPanel(panelRoot, {
+    player,
+    editor,
+    resolver,
+    files: {
+      list: () => Promise.resolve(new Set(options.taken ?? [])),
+      write: (path, data) => {
+        written.set(path, data)
+        return Promise.resolve()
+      },
+      remove: (path) => {
+        written.delete(path)
+        removed.push(path)
+        return Promise.resolve()
+      },
+    },
+  })
 
   const firstStop = nextStop(renderer, player)
   await editor.loadProject(manifestText, script)
   await firstStop
-  return { root, editorRoot, player, renderer, editor }
+  return { root, editorRoot, panelRoot, player, renderer, editor, assetPanel }
 }
 
 // The other way in: boot the editor out of the OPFS project store, which is what src/index.ts does.
@@ -243,11 +303,25 @@ export interface StartedStoredEditor extends StartedEditor {
 // watch a refusal takes the lock itself and asserts on `bootStoredEditor`.
 let heldLock: ProjectLock | null = null
 
-// Releases the lock the last store-backed boot took, which a real tab does by going away. A suite
-// that takes the lock itself, to watch a boot be refused, has to call this first.
+// **And the previous boot's storer, for the same reason and a second one.** Every suite calls this
+// before `clearOpfsStore`, and `removeRecursive` over a tree with a write still open in it is
+// refused with `NoModificationAllowedError` - so a test that ended on a blur (which flushes) could
+// take down the *next* test's setup. Measured at roughly one run in twelve in
+// `test/browser/ReplaceAsset.test.ts`, whose gate test types into the manifest and blurs, and whose
+// next test is the first of a fresh `describe`. Note the flush is not about anything still *pending*
+// - the blur already queued it - but about the write in flight: with an empty queue `flush()` hands
+// back the chained promise, which is exactly the write that has to land before the tree can go.
+let heldStorer: ProjectStoring | null = null
+
+// Releases the lock the last store-backed boot took, which a real tab does by going away, once its
+// writes have landed. A suite that takes the lock itself, to watch a boot be refused, has to call
+// this first.
 export const releaseStoredEditorLock = async (): Promise<void> => {
+  const storer = heldStorer
   const lock = heldLock
+  heldStorer = null
   heldLock = null
+  if (storer !== null) await storer.flush()
   if (lock !== null) await lock.release()
 }
 
@@ -265,10 +339,12 @@ export const bootStoredEditor = async (directory: string): Promise<StartedStored
 
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
+  const panelRoot = createPanelRoot()
 
-  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot }, directory)
+  const booted = await bootEditor({ vnDiv: root, vnEditorDiv: editorRoot, vnAssetPanelDiv: panelRoot }, directory)
   if (booted.kind === "refused") return booted
   heldLock = booted.lock
+  heldStorer = booted.storing
 
   const firstStop = nextStop(booted.renderer, booted.player)
   await booted.openProject()
@@ -278,9 +354,11 @@ export const bootStoredEditor = async (directory: string): Promise<StartedStored
     kind: "booted",
     root,
     editorRoot,
+    panelRoot,
     player: booted.player,
     renderer: booted.renderer,
     editor: booted.editor,
+    assetPanel: booted.assetPanel,
     directory: booted.directory,
     storing: booted.storing,
     lock: booted.lock,

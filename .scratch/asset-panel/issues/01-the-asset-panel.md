@@ -1,6 +1,6 @@
 # 01: The asset panel
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
@@ -154,3 +154,59 @@ and an `AbortController` for anything else.
 
 Name this suite's OPFS project directories after the suite - `navigator.locks` is origin-wide and
 two browser suites sharing a directory name contend for one lock even in separate scratch roots.
+
+## Comments
+
+**Landed 2026-09-18**, with 02, 03 and 04 on one branch (`89bd759`). `src/editor/assetPanel.ts` plus
+`assetPanel.css`, mounted by `editorBoot` and stopped by its `close()`;
+`test/browser/AssetPanel.test.ts` covers the groups, the redraw, the stale strip, both halves of the
+missing-file state, the empty state and the teardown.
+
+**The enumeration is its own module, `src/editor/declarations.ts`**, which the ticket did not ask for
+and the spec's "whatever this builds to enumerate declarations and labels should be the thing the
+completions later read" does. It is pure and unit-tested (`test/unit/declarations.test.ts`), so a
+completion source can read it without importing a view.
+
+**One thing the state and the manifest disagree about, settled here.** The panel reads
+`player.state.actors` as the ticket says, and `seedActors` merges `default` and `narrator` in on
+*every* boot whether or not the manifest mentions them - so a plain walk drew two actors nobody had
+written down. `declaredGroups` drops the engine's two unless they declare sprites, because at that
+point an author did write them. Worth flagging: this is the one place the state is not simply the
+manifest.
+
+**`VnEditor` grew two seams rather than one.** `onManifestSettledCallbacks` is the panel's single
+redraw signal, and it fires on a *failed* adoption too - which the ticket's trigger list does not
+mention, and has to, because "the manifest stopped parsing" is a change to what the panel is showing
+even though nothing downstream moved. `getMissingAssets()` is the second: the ticket says "hand it to
+both rather than loading twice", and this is that, with `reportMissingFiles` as the one assignment so
+the gutter and the panel cannot describe different loads.
+
+**The hover/focus test landed with 03**, which is the first ticket that puts a control in a row -
+there was nothing to hover until then. The controls are hidden with `opacity` rather than
+`display: none`, because a `display: none` control is not in the tab order and the keyboard half of
+"appears on hover and on focus" could never happen.
+
+**`#vn-editor` is now 1280px wide**, which the ticket does not mention and the canvas draws. Without
+it the buffers stretched to the session's new 1572px and stopped lining up under the stage.
+
+**Found in review**: the panel `replaceChildren`es its root on every settle, and one of the things
+that fires a settle is the manifest being adopted on blur - which is what clicking the panel does.
+On the failure path that redraw is synchronous, so a control pressed while the manifest buffer is
+dirty and broken is detached between mousedown and mouseup. What it costs is one lost press of
+preview, the only control live in that state; `ROUGH_EDGES.md` has the mechanism and why a diffing
+draw is not worth building for it.
+
+**The column's remaining height was never bounded, so a long list grew the page.** Reported
+2026-09-19: the asset list should have a fixed height and scroll. The panel had the right two
+declarations from the start - the list is `flex: 1; min-height: 0; overflow-y: auto` - and the height
+they were remaining out of did not exist. `#vn-session-stage` relied on `align-items: stretch` to
+give the column the stage's height, which is not what stretch does: a flex line's cross size is the
+*largest* of its items' content heights, so a column taller than the scene grew the row rather than
+being bounded by it. Measured at 1956px for 82 declarations. `#vn-session-column` now says
+`height: 720px`, a literal for the reason `#vn-editor`'s `width: 1280px` beside it is one, and the
+list scrolls inside a panel that ends level with the bottom of the scene.
+
+It was invisible to every suite because `createPanelRoot` mounted the panel straight onto `body`,
+where `flex: 1` and `min-height: 0` mean nothing - so the harness now puts it in a
+`#vn-session-column` the way `src/index.html` does, and `AssetPanel.test.ts` pins the panel's 720px
+and the list's overflow. Verified by deleting the height and watching that test go red.

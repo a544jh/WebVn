@@ -23,6 +23,20 @@ export interface VnManifest {
   readonly audioAssets: Record<string, AudioAsset>
 }
 
+// Which of the three declarations an asset came out of. A manifest-level concept rather than any one
+// reader's: the asset panel asks it of a row, `Add asset` asks it of the author, the id rules in
+// `parseManifest.ts` differ by it, and `manifestEdit.ts` splices a different shape for each.
+export type AssetKind = "background" | "audio" | "sprite"
+
+// What is being declared, for the two writes that put a declaration into a manifest or take one out.
+// A sprite is its own member rather than the three kinds being spelled flat, so narrowing on
+// `kind === "sprite"` reaches `actor`: a union-valued discriminant across three members would
+// collapse the two that share a shape and take the narrowing with it. The kinds come from
+// `AssetKind` rather than being restated, so a fourth would be a compile error here.
+export type AssetDeclaration =
+  | { readonly kind: Exclude<AssetKind, "sprite">; readonly id: string; readonly file: string }
+  | { readonly kind: "sprite"; readonly actor: string; readonly id: string; readonly file: string }
+
 // One asset a manifest declares: the path it resolves to, and the key path the manifest addresses it
 // by. The second is what lets a failed load be reported against the line that declared it - nothing
 // else survives the trip, because a loader only ever sees a path.

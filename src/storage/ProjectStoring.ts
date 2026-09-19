@@ -1,16 +1,17 @@
 import { requestPersistence } from "./persistence"
 import { writeManifest, writeScript } from "./projectStore"
 
-// What turns the editor's keystrokes into files in the project store: a debounce, the three flushes
-// that try to catch a tab going away, and the state the indicator shows.
+// What turns the editor's buffers into files in the project store: a debounce over the author's
+// keystrokes, an immediate write for the edits the editor makes itself, the three flushes that try
+// to catch a tab going away, and the state the indicator shows.
 //
 // Vocabulary: the editor *stores* the author's project and the store *writes* files. A **save** is
 // the player's - a save slot holding a path through a story - and the two are unrelated. CONTEXT.md
 // has the entry, with "autosave" on its _Avoid_ list.
 //
 // It is deliberately not a member of VnEditor and does not import it: storage stays out of
-// src/editor/, the pixel stays in the tab bar, and neither imports the other. Both entry points wire
-// the two together in the two lines it takes.
+// src/editor/, the pixel stays in the tab bar, and neither imports the other. src/editorBoot.ts is
+// where the two are wired together, in the few lines it takes.
 
 // The three values src/editor/editor.ts's `StoreState` spells, and below it that module's
 // `BufferName`. See `StoreState` there for why both are written in two places rather than shared,
@@ -83,15 +84,34 @@ export class ProjectStoring {
     await this.flush()
   }
 
-  // One buffer's whole text, as it stands. Stored as the buffer rather than as a parse: a manifest
-  // that does not parse is still the author's work, and reloading gives it back with the gutter
-  // marked, which is what ADR 0002 already does in-session. Gating the write on a successful parse
-  // would mean the one edit an author most wants back after a crash is the one not written.
+  // One buffer's whole text, as the author has just typed it. Stored as the buffer rather than as a
+  // parse: a manifest that does not parse is still the author's work, and reloading gives it back
+  // with the gutter marked, which is what ADR 0002 already does in-session. Gating the write on a
+  // successful parse would mean the one edit an author most wants back after a crash is the one not
+  // written.
   public changed(buffer: StoredBuffer, text: string): void {
     this.pending.set(buffer, text)
     this.onStateChange("unstored")
     if (this.timer !== null) window.clearTimeout(this.timer)
     this.timer = window.setTimeout(() => void this.flush(), STORE_DEBOUNCE_MS)
+  }
+
+  // The same, for a buffer the **editor** rewrote rather than the author typed into - the asset
+  // panel's declaration splice, and the rename revert. It goes to the store at once.
+  //
+  // **The debounce exists to coalesce keystrokes, and there are none here to coalesce.** Waiting out
+  // the interval on one of these writes leaves the project on disk in the half state the panel's own
+  // ordering is built to avoid: an add has written the file and nothing declares it, a remove has
+  // dropped the declaration and the file is still there. Two seconds of that is two seconds in which
+  // a crash, or a close, keeps the wrong half.
+  //
+  // It does not announce `unstored` either, which is the other half of what an author sees. The
+  // badge means "your typing is not on disk yet, do not close the tab"; a write already on its way
+  // before they could act on it has nothing to tell them, and an orange flash on every add trains
+  // them to ignore the one colour that means something. A failure still reports, from `write`.
+  public storeNow(buffer: StoredBuffer, text: string): void {
+    this.pending.set(buffer, text)
+    void this.flush()
   }
 
   // Write whatever is pending now. Safe to call when nothing is: it resolves without touching the

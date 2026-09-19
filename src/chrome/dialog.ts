@@ -15,10 +15,35 @@ import "./dialog.css"
 // backdrop, the top layer, the focus trap and Escape-to-dismiss, and every one of those is a thing
 // this codebase would otherwise get subtly wrong. Escape resolves false, like Cancel.
 
+// A sentence, or a sentence with identifiers in it: `["Remove ", identifier("cliffs"), " from this
+// project?"]`. The asset panel's dialogs name an id and the file behind it in one breath, and the
+// two have to *look* like the two kinds of word they are - which `textContent` cannot do, and which
+// `.vn-picker-identifier` already states as a rule for a row.
+//
+// Plain strings still work everywhere they did, so nothing that only has a sentence has to know this
+// type exists.
+export type DialogText = string | ReadonlyArray<string | Node>
+
+// An identifier inside a sentence: an id, a filename, a path, a line a script would write. The
+// chrome's own monospace, which is the face it gives an identifier everywhere else.
+export const identifier = (text: string): HTMLElement => {
+  const elem = document.createElement("span")
+  elem.classList.add("vn-dialog-identifier")
+  elem.textContent = text
+  return elem
+}
+
+// Whatever a caller gave, put into an element. One place, so a hint, a paragraph and a problem
+// message cannot come to accept different things.
+const fill = (elem: HTMLElement, text: DialogText): void => {
+  if (typeof text === "string") elem.textContent = text
+  else elem.replaceChildren(...text)
+}
+
 export interface DialogOptions {
   readonly title: string
   // Paragraphs, in order. Say what will happen, and say what cannot be undone.
-  readonly body?: string[]
+  readonly body?: DialogText[]
   // Whatever goes between the body and the buttons - a form, a field. The caller keeps its own
   // references and reads them back after this resolves.
   readonly content?: HTMLElement
@@ -49,7 +74,7 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
   for (const paragraph of options.body ?? []) {
     const elem = document.createElement("p")
     elem.classList.add("vn-dialog-body")
-    elem.textContent = paragraph
+    fill(elem, paragraph)
     dialog.appendChild(elem)
   }
 
@@ -93,7 +118,7 @@ export const openDialog = (options: DialogOptions): Promise<boolean> => {
 
 // Nothing to decide, so one button. A refusal that offered "Cancel" beside "Close" would be asking
 // a question it has no answer for.
-export const noticeDialog = (title: string, body: string[]): Promise<boolean> =>
+export const noticeDialog = (title: string, body: DialogText[]): Promise<boolean> =>
   openDialog({ title, body, confirmLabel: "Close", dismissOnly: true })
 
 // Destroying a project, which three dialogs ask about in the same breath: deleting one, renaming onto
@@ -151,23 +176,60 @@ export const confirmOverwritingProject = (
 // confirmation is nearly always for here - deleting a project, overwriting one.
 export const confirmDialog = (
   title: string,
-  body: string[],
+  body: DialogText[],
   confirmLabel: string,
   destructive = true
 ): Promise<boolean> => openDialog({ title, body, confirmLabel, destructive })
 
-// One labelled text field with its own note underneath, which is the shape both fields of the
-// new-project dialog take. Returned rather than appended, so a caller lays its own form out.
-export interface DialogField {
+// One labelled control with its own note underneath, which is the shape every field in this chrome
+// takes. Returned rather than appended, so a caller lays its own form out.
+export interface DialogRow<C extends HTMLElement> {
   readonly row: HTMLElement
-  readonly input: HTMLInputElement
+  readonly control: C
   // Marks the field and replaces its note with the reason, or clears both. **Beside the field it
   // belongs to** - a validation message about an id has nowhere useful to go if it is not there,
   // which is the argument against `window.prompt` stated as a method.
   setProblem(message: string | null): void
+  // Rewrite what the field says it is for. The `Add asset` dialog's hints quote the line a script
+  // would write and the path a file will be stored at, so they change as the author types - and a
+  // field has to remember its current hint anyway, because clearing a problem puts it back.
+  setHint(hint: DialogText | undefined): void
 }
 
-export const dialogField = (label: string, hint?: string): DialogField => {
+// The text-input field, which is what both fields of the new-project dialog are. `input` is kept as
+// well as `control` so the callers written before there was a second kind of field read unchanged.
+export interface DialogField extends DialogRow<HTMLInputElement> {
+  readonly input: HTMLInputElement
+}
+
+export const dialogField = (label: string, hint?: DialogText): DialogField => {
+  const input = document.createElement("input")
+  input.type = "text"
+  input.classList.add("vn-dialog-input")
+  const row = dialogRow(label, input, hint)
+  return { ...row, input: row.control }
+}
+
+// **The select field, which is what made this a shape rather than a function.** `Add asset` asks
+// what kind of asset a file is and which actor a sprite belongs to, and both are a choice from a
+// list. The cheapest honest version swaps the control and keeps everything else - the 12px muted
+// label above, the note below, the problem treatment - because the whole point of this surface is
+// that a rule appears beside the field it is about, and a select that lost the note would lose it.
+export const dialogSelect = (label: string, options: string[], hint?: DialogText): DialogRow<HTMLSelectElement> => {
+  const select = document.createElement("select")
+  select.classList.add("vn-dialog-input")
+  for (const value of options) {
+    const option = document.createElement("option")
+    option.value = value
+    option.textContent = value
+    select.appendChild(option)
+  }
+  return dialogRow(label, select, hint)
+}
+
+// The label, the control and the note, in that order. One function, because the two kinds of field
+// differ by exactly one element and a second copy of the rest is the copy that drifts.
+const dialogRow = <C extends HTMLElement>(label: string, control: C, hint?: DialogText): DialogRow<C> => {
   const row = document.createElement("label")
   row.classList.add("vn-dialog-field")
 
@@ -176,30 +238,37 @@ export const dialogField = (label: string, hint?: string): DialogField => {
   caption.textContent = label
   row.appendChild(caption)
 
-  const input = document.createElement("input")
-  input.type = "text"
-  input.classList.add("vn-dialog-input")
-  row.appendChild(input)
+  row.appendChild(control)
 
   // One element for both, because a field says either what it is for or what is wrong with it, and
   // never both at once: the problem is the more urgent answer to the same question.
   const note = document.createElement("span")
   note.classList.add("vn-dialog-hint")
-  note.textContent = hint ?? ""
-  note.hidden = hint === undefined
   row.appendChild(note)
+
+  let current = hint
+  const show = (problem: string | null) => {
+    control.classList.toggle("vn-dialog-input-problem", problem !== null)
+    note.classList.toggle("vn-dialog-hint-problem", problem !== null)
+    const text = problem ?? current ?? ""
+    if (typeof text === "string") note.textContent = text
+    else note.replaceChildren(...text)
+    note.hidden = note.textContent === ""
+    // Only once it is wrong, so a screen reader is not read the hint as an alert on every open.
+    if (problem === null) note.removeAttribute("role")
+    else note.setAttribute("role", "alert")
+  }
+  show(null)
 
   return {
     row,
-    input,
-    setProblem: (message) => {
-      input.classList.toggle("vn-dialog-input-problem", message !== null)
-      note.classList.toggle("vn-dialog-hint-problem", message !== null)
-      note.textContent = message ?? hint ?? ""
-      note.hidden = note.textContent === ""
-      // Only once it is wrong, so a screen reader is not read the hint as an alert on every open.
-      if (message === null) note.removeAttribute("role")
-      else note.setAttribute("role", "alert")
+    control,
+    setProblem: show,
+    setHint: (next) => {
+      current = next
+      // Only when nothing is wrong: a hint that overwrote a problem would take the complaint off the
+      // field while the author is still looking at it.
+      if (!note.classList.contains("vn-dialog-hint-problem")) show(null)
     },
   }
 }

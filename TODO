@@ -99,7 +99,10 @@ this tranche's two data sources, surfaced a second way - so whatever enumerates 
 those completions should later read. Its drawings are page 2 of the design canvas; the spec names
 which artboards are its. docs/adr/0006 records why removing an asset deletes its file, and
 CONTEXT.md gains `remove` and `replace` - `remove` explicitly apart from the `delete` that ends a
-project.
+project. **All four tickets landed 2026-09-18**; the enumeration EDITOR.md's completions should read
+is `src/editor/declarations.ts`, which is its own pure module for exactly that reason, and the
+label list is still `.scratch/label-list/` with the column built to take it as a number rather than
+a layout change.
 
 Settled: H, 2026-09-06, by measurement rather than by building anything. @zip.js/zip.js pinned to
 lib/zip-core-custom.js is 30.6KB gzipped for reader and writer, spawns no workers at all, and

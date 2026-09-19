@@ -28,6 +28,7 @@ const sessionDiv = document.getElementById("vn-session") as HTMLDivElement
 const vnDivContainer = document.getElementById("vn-div-container") as HTMLDivElement
 const vnDiv = document.getElementById("vn-div") as HTMLDivElement
 const vnEditorDiv = document.getElementById("vn-editor") as HTMLDivElement
+const vnAssetPanelDiv = document.getElementById("vn-asset-panel") as HTMLDivElement
 const backButton = document.getElementById("vn-btn-back") as HTMLButtonElement
 const sessionTitle = document.getElementById("vn-session-title") as HTMLSpanElement
 
@@ -40,7 +41,7 @@ let wiring = new AbortController()
 // self-boots on import and looks its elements up by id, so nothing can exercise it, and the ordering
 // that swap depends on is load-bearing. What is left here is what a test could not run anyway.
 const shell = new AppShell(
-  { pickerDiv, sessionDiv, vnDiv, vnEditorDiv, vnDivContainer },
+  { pickerDiv, sessionDiv, vnDiv, vnEditorDiv, vnAssetPanelDiv, vnDivContainer },
   {
     onOpen: (booted) => {
       const { player, renderer, editor } = booted

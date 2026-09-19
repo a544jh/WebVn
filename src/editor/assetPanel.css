@@ -53,7 +53,13 @@
 /* Contiguous flat rows in one white well, nesting carried by indentation alone. `overflow-x` is
    hidden rather than auto because a row never wraps and never scrolls sideways: the filename
    truncates instead, or the list stops being scannable at exactly the long names where scanning
-   matters. */
+   matters.
+
+   **This is the part that scrolls, and the height it scrolls within is the column's.** `flex: 1` and
+   `min-height: 0` make it the panel's remaining space, so the bar and the footer stay put and a long
+   list moves under them - but only because `#vn-session-column` in chrome.css has a height to
+   remain out of. Read that rule before touching either declaration: without it these two are inert
+   and the whole panel grows down the page instead. */
 .vn-asset-list {
   flex: 1;
   min-height: 0;

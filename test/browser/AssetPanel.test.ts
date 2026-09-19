@@ -171,6 +171,35 @@ describe("the asset panel", () => {
     expect(groupHeaders(started)).not.toContain("narrator")
   })
 
+  // **A long list scrolls rather than growing the page**, which is what the whole column's height
+  // exists to make true: the panel ends level with the bottom of the scene and the list is what
+  // moves. It used to rely on `align-items: stretch` in the row to bound it, and stretch takes the
+  // *largest* item, so a list past 720px pushed the panel down the page and nothing ever overflowed.
+  //
+  // Asserted on the offsets rather than on viewport rects, because a scroll container is exactly the
+  // thing that makes the two disagree.
+  it("keeps the panel the height of the scene and scrolls a list too long for it", async () => {
+    // Under `backgrounds:`, where the group already is - appended to the whole manifest these would
+    // land under `actors:` instead, and be 80 complaints about an actor key that is not capitalized.
+    const many = Array.from({ length: 80 }, (_, n) => `  bg${n}: a.png`).join("\n")
+    const started = await startEditor(MANIFEST.replace("  jetty: b.png", `  jetty: b.png\n${many}`), SCRIPT, {
+      resolver: servedAssets(),
+    })
+    const panel = started.panelRoot.querySelector(".vn-asset-panel") as HTMLElement
+    const list = started.panelRoot.querySelector(".vn-asset-list") as HTMLElement
+
+    expect(rowKeys(started).length).toBeGreaterThan(80)
+    expect(panel.offsetHeight).toBe(720)
+    // The list is what has more in it than fits, and the panel is not: a footer scrolled off the
+    // bottom would be the same overflow in the wrong element.
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+    expect(panel.scrollHeight).toBe(panel.clientHeight)
+    // The Add asset button is still on screen, which is the point of the footer being outside the
+    // scroll container.
+    const add = started.panelRoot.querySelector(".vn-asset-add") as HTMLElement
+    expect(add.offsetTop + add.offsetHeight).toBeLessThanOrEqual(panel.offsetTop + 720)
+  })
+
   it("draws nothing once it is stopped, whatever the editor goes on reporting", async () => {
     const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
     started.assetPanel.stop()

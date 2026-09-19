@@ -76,9 +76,7 @@ textarea {
   margin-bottom: 12px;
 }
 
-/* The stage, and the column of panels beside it. `align-items: stretch` is the default and is the
-   point: the column has no height of its own and takes the stage's, which is what lets the asset
-   panel inside it be `flex: 1` and end level with the bottom of the scene.
+/* The stage, and the column of panels beside it.
 
    `#vn-div-container` is `flex: none` because it is the element fullscreen scales *into* - it must
    stay the size of the stage it holds rather than absorbing whatever the row has left over. */
@@ -92,9 +90,24 @@ textarea {
 }
 
 /* 280px, and the number is a decision: see `.scratch/asset-panel/spec.md`'s fifth, which is the
-   0x0-canvas hazard reached from a new direction. */
+   0x0-canvas hazard reached from a new direction.
+
+   **The height is the stage's, said rather than inherited, and that is the fix for a real bug.** It
+   used to rely on `align-items: stretch` to take the stage's height, which is not what stretch does:
+   a flex line's cross size is the *largest* of its items' content heights, so a column taller than
+   the scene grew the whole row instead of being bounded by it. An asset list long enough to overflow
+   therefore pushed the panel past the bottom of the scene and down the page, and the list's own
+   `overflow-y: auto` never got to do anything, because nothing above it had a height to overflow.
+   With a definite height here the panel is `flex: 1` of a known 720px and the list scrolls inside it.
+
+   720px is `#vn-div`'s height in src/domRenderer/defaultTheme.css, spelled again rather than read
+   from a token, for the reason `#vn-editor`'s `width: 1280px` below is also a literal: `--vn-*` is
+   the *stage's* namespace, and a chrome rule reading one is what lets a theme swap move the editor
+   around. The stage being a fixed 1280x720 is the same assumption three sub-renderers already make
+   in their constructors. */
 #vn-session-column {
   width: 280px;
+  height: 720px;
   flex: none;
   display: flex;
   flex-direction: column;

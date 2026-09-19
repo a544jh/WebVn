@@ -215,10 +215,19 @@ const createEditorRoot = (): HTMLDivElement => {
 // And one for the asset panel. It carries the id src/index.html gives it, because the two rules that
 // put the panel in its column are `#vn-asset-panel`'s in chrome.css - the same reason createVnRoot
 // names the stage `vn-div`.
+//
+// **Inside a `#vn-session-column`, which is the other half of the same argument.** Those two rules
+// are `flex: 1; min-height: 0`, and both of them mean nothing outside a flex column with a height -
+// mounted straight onto `body` the panel was as tall as its content, so no suite could see whether
+// the list scrolls or whether the panel stays the height of the scene. The column's own rule is what
+// supplies the height, so no stage is needed here to get it.
 const createPanelRoot = (): HTMLElement => {
+  const column = document.createElement("div")
+  column.id = "vn-session-column"
   const panelRoot = document.createElement("div")
   panelRoot.id = "vn-asset-panel"
-  document.body.appendChild(panelRoot)
+  column.appendChild(panelRoot)
+  document.body.appendChild(column)
   return panelRoot
 }
 

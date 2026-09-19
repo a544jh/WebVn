@@ -226,6 +226,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **`src/storage/` reaches it as three functions, not as an import** (`AssetFiles`), which keeps the
   store out of `src/editor/` - the division that has `VnEditor` report a rename and `AppShell` act
   on it. `editorBoot` is where the two meet and the only place that knows the directory.
+- **The list scrolls, and the height it scrolls within is `#vn-session-column`'s in `chrome.css`.**
+  The panel's own `flex: 1; min-height: 0; overflow-y: auto` is inert without a definite height above
+  it, and `align-items: stretch` does not supply one: a flex line's cross size is the *largest* of
+  its items' content heights, so the column grew the row rather than being bounded by it and a long
+  list ran down the page (measured 1956px, reported 2026-09-19). The column says `height: 720px`, a
+  literal mirroring `#vn-div` for the reason `#vn-editor`'s `width: 1280px` is one - `--vn-*` is the
+  stage's namespace. `createPanelRoot` mounts the panel in that column, because on `body` those
+  three declarations mean nothing and no suite could see the bug.
 - **Add writes the file first and the declaration second; remove is the reverse.** Declaring first
   would flash the missing-file orange and correct itself, which trains an author to ignore the one
   colour that means something; a file deleted while its declaration still stands *is* that orange,

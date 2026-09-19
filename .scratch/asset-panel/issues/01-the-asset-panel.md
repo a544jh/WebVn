@@ -195,3 +195,18 @@ On the failure path that redraw is synchronous, so a control pressed while the m
 dirty and broken is detached between mousedown and mouseup. What it costs is one lost press of
 preview, the only control live in that state; `ROUGH_EDGES.md` has the mechanism and why a diffing
 draw is not worth building for it.
+
+**The column's remaining height was never bounded, so a long list grew the page.** Reported
+2026-09-19: the asset list should have a fixed height and scroll. The panel had the right two
+declarations from the start - the list is `flex: 1; min-height: 0; overflow-y: auto` - and the height
+they were remaining out of did not exist. `#vn-session-stage` relied on `align-items: stretch` to
+give the column the stage's height, which is not what stretch does: a flex line's cross size is the
+*largest* of its items' content heights, so a column taller than the scene grew the row rather than
+being bounded by it. Measured at 1956px for 82 declarations. `#vn-session-column` now says
+`height: 720px`, a literal for the reason `#vn-editor`'s `width: 1280px` beside it is one, and the
+list scrolls inside a panel that ends level with the bottom of the scene.
+
+It was invisible to every suite because `createPanelRoot` mounted the panel straight onto `body`,
+where `flex: 1` and `min-height: 0` mean nothing - so the harness now puts it in a
+`#vn-session-column` the way `src/index.html` does, and `AssetPanel.test.ts` pins the panel's 720px
+and the list's overflow. Verified by deleting the height and watching that test go red.

@@ -12,7 +12,7 @@ An author presses **Publish** in the editor and gets `<project-id>-published.zip
 folder, ready to upload to itch.io as an HTML game or extract onto any static host, where its
 `index.html` plays the story. It holds the player, the manifest, the script and exactly the files
 the manifest declares - nothing the author has lying around undeclared. Publish refuses while any
-declared file is missing, and names every one. Importing that zip back with Import project yields
+declared file is missing, and names every one. Importing that zip back with Import ZIP yields
 exactly the project it was built from.
 
 Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the completeness rule.
@@ -51,7 +51,7 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 - [ ] A missing declared file is refused with every missing file named, and nothing is downloaded.
 - [ ] A manifest that does not parse greys the control, and is refused if reached.
 - [ ] A sentence typed just before pressing Publish is in the zip - the flush.
-- [ ] The round trip: the published zip through Import project yields a project holding exactly
+- [ ] The round trip: the published zip through Import ZIP yields a project holding exactly
       the published files and no player files.
 - [ ] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
 - [ ] `editor.yaml`'s `exported` is unchanged by a publish.

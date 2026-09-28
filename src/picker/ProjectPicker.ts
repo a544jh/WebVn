@@ -257,7 +257,7 @@ export class ProjectPicker {
     return bar
   }
 
-  // **Import project, beside New project**, with a hidden file input behind it - the platform's own
+  // **Import ZIP, beside New project**, with a hidden file input behind it - the platform's own
   // control, styled by nobody, is not a button this page can draw. `accept` is a hint to the file
   // dialog and nothing more: what an archive actually is, `importArchive` decides by sniffing the
   // magic bytes.
@@ -281,7 +281,7 @@ export class ProjectPicker {
     )
 
     bar.appendChild(input)
-    bar.appendChild(this.action("vn-picker-import", "download", "Import project", () => input.click()))
+    bar.appendChild(this.action("vn-picker-import", "download", "Import ZIP", () => input.click()))
   }
 
   private drawList(projects: ListedProject[]): HTMLElement {
@@ -539,7 +539,7 @@ export class ProjectPicker {
     )
   }
 
-  // An archive arriving, from either gesture: the Import project button's file input, or a drop.
+  // An archive arriving, from either gesture: the Import ZIP button's file input, or a drop.
   //
   // **The author stays on the picker afterwards, with the new row visible**, exactly as Add demo
   // project does - populating a library and starting work are different intents, and after an import

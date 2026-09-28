@@ -104,7 +104,7 @@ errors or undeclared references publishes and imports freely.
 8. As an author, I want the published zip to include what I typed a moment ago, so that the build is never missing my last sentence.
 9. As an author, I want the Publish control greyed out while my manifest does not parse, as Export ZIP is, so that I know before I click.
 10. As an author, I want the published zip to carry a short README saying how to host it and how to work on it again, so that the file explains itself when I find it months later.
-11. As an author, I want a published zip to be importable with Import project, so that a build I kept is also a way back into the library.
+11. As an author, I want a published zip to be importable with Import ZIP, so that a build I kept is also a way back into the library.
 12. As an author, I want importing a published zip to leave the player's files out of my project, so that they do not sit in it invisibly and ride into every archive I export.
 13. As an author, I want the published zip's filename to differ from the archive's, so that I can tell my backup from my build in Downloads.
 14. As an author, I want to be told when the player's own files could not be fetched, so that publishing never produces a zip that cannot play.
@@ -304,7 +304,7 @@ errors or undeclared references publishes and imports freely.
   failure the picker shows for an archive that threw. The only refusals the back half gives are the
   taken id and the lock, and those must read correctly for both sources. Anything there that says
   "archive" or "unpacks" is reworded rather than duplicated.
-- **The surface is a new control in the picker's bar**, beside Import project, labelled "Import from
+- **The surface is a new control in the picker's bar**, beside Import ZIP, labelled "Import from
   URL" pending the canvas. It opens a chrome dialog with one field. Its busy state, its place in the
   `InTurn` queue, its orange refusal banner and its success report ("… was imported") are exactly the
   archive import's, and the author stays on the picker. The host name stands in for the filename those

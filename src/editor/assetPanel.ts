@@ -200,7 +200,7 @@ export class AssetPanel {
     row.appendChild(text("span", "vn-asset-file", leaf.file))
     // Said as well as coloured: a filename is the one thing an author cannot check by reading the
     // two documents, so the row says what is wrong rather than only that something is.
-    if (gone) row.appendChild(text("span", "vn-asset-note", "not drawn yet"))
+    if (gone) row.appendChild(text("span", "vn-asset-note", "file missing"))
     row.appendChild(this.controls(leaf, gone))
     return row
   }

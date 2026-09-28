@@ -297,10 +297,10 @@ describe("the picker's import surface", () => {
     tail = Promise.resolve()
   })
 
-  it("offers Import project beside New project", async () => {
+  it("offers Import ZIP beside New project", async () => {
     await newPicker().render()
 
-    expect(pickerRoot.querySelector(".vn-picker-import")?.textContent).toEqual("Import project")
+    expect(pickerRoot.querySelector(".vn-picker-import")?.textContent).toEqual("Import ZIP")
   })
 
   it("says what a drop would do while an archive is over the page", async () => {

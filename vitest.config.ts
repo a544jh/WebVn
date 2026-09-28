@@ -21,6 +21,16 @@ const browserConfig = () => ({
   instances: [{ browser: "chromium", launch: { args: chromiumArgs } }],
 })
 
+// **A server that answers without CORS headers**, for the one browser suite that has to meet one: Import
+// from URL tells "that site does not send CORS headers" apart from "that site could not be reached".
+// Vite sends the headers to any localhost origin by default, so every fixture was readable from any
+// port or host name. Off for the browser project only - then a page on `localhost` reading the same
+// server addressed as `127.0.0.1` is a real cross-origin request to a host that sends no CORS
+// headers, which is test/browser/UrlImport.test.ts's `crossOrigin`. A plugin rather than the
+// project's `server` block, because the browser server is built with a `server` block of vitest's
+// own that replaces it; a plugin's config is merged in after.
+const withoutCors = { name: "webvn:without-cors", config: () => ({ server: { cors: false } }) }
+
 export default defineConfig({
   test: {
     projects: [
@@ -32,6 +42,7 @@ export default defineConfig({
         },
       },
       {
+        plugins: [withoutCors],
         test: {
           name: "browser",
           include: ["test/browser/**/*.test.ts"],

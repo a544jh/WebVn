@@ -143,3 +143,36 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 **Checked by hand by the maintainer, 2026-09-28**, against the branch: the import of the deployed demo
 from its GitHub Pages address, cross-origin, end to end - which closes the one hand check this ticket had
 left open - along with `npm run dev`, and a published VN served locally by `python -m http.server`.
+
+**The two network refusals split, 2026-09-28**, at the maintainer's request after testing an import
+from one `localhost` port to another. The canvas's single banner - "could not be reached, or it does not
+let other sites read its files" - claimed a page cannot tell the two apart. The *request* cannot; a
+second one can. Measured in headless Chromium from a page on `127.0.0.1:8781` against a
+`python -m http.server` on `:8782`, which sends no CORS headers, and against `:8783`, where nothing
+listens:
+
+| request | server with no CORS headers | nothing listening |
+|---|---|---|
+| default mode | `TypeError: Failed to fetch` | `TypeError: Failed to fetch` |
+| `mode: "no-cors"` | resolves, `opaque`, status 0 | `TypeError: Failed to fetch` |
+| `mode: "no-cors"`, a file that is not there | resolves, `opaque`, status 0 | - |
+
+So a failed manifest request is asked again in `no-cors` mode (`answers` in `src/storage/urlImport.ts`),
+and the banner is one of:
+
+- "<host> was not imported: it could not be reached." / "Nothing was written. Check the address, and
+  that the site is up."
+- "<host> was not imported: it answered, but without CORS headers, so there is no telling whether a
+  manifest.yaml is there." / "Nothing was written. Check the address. If it is right, the site has to
+  send an Access-Control-Allow-Origin header before a story on it can be imported."
+
+The second says both things on purpose: an opaque response hides a 404 exactly as it hides a 200, so a
+wrong address on a host without CORS headers reads the same as a right one. The probe runs only on the
+manifest - past it the site has been read from, and a failure is a file that stopped arriving - and under
+the same stall timer. **These wordings supersede the canvas's first banner**, which still draws the
+combined one.
+
+To reach the second case from a suite, the browser test project runs vite with CORS off - a plugin in
+`vitest.config.ts`, since vitest builds the browser server with a `server` block of its own - and
+`test/browser/UrlImport.test.ts` reads its fixtures under the server's other host name. Vite otherwise
+sends CORS headers to any localhost origin, which is why every fixture was readable from anywhere.

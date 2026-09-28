@@ -272,6 +272,12 @@ errors or undeclared references publishes and imports freely.
      does not let other sites read it*. The two are indistinguishable from inside a page, so the
      message names both. A non-OK response, or one served as `text/html`, is *no `manifest.yaml`
      there*.
+     **Amended 2026-09-28, after landing:** they are indistinguishable to the request, not to the
+     page. A second request in `no-cors` mode resolves whenever the host answered, so a failed
+     manifest request is asked again and refused as one of two: *could not be reached*, or *answered
+     without CORS headers, so there is no telling whether a manifest.yaml is there* - naming
+     `Access-Control-Allow-Origin`. That second banner cannot rule out a missing manifest, since an
+     opaque response hides the status. Ticket 02's comments have the measurement.
   2. Parse it. If it does not parse, refuse with the parser's first error, exactly as archive import
      does.
   3. Fetch `script.yaml` the same way. If it is missing, refuse on its own terms, as the archive does.

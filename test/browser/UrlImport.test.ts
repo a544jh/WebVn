@@ -31,6 +31,15 @@ const COMPLETE = "url-import-complete"
 const FIXTURES = new URL("/test/fixtures/published/", location.href).href
 const folder = (name: string): string => `${FIXTURES}${name}/`
 
+// **The same folder, from another origin that sends no CORS headers.** It is the test server under its
+// other host name - `127.0.0.1` for `localhost` - and the browser project runs that server with CORS
+// off (vitest.config.ts), so a page on one name cannot read it under the other.
+const crossOrigin = (address: string): string => {
+  const url = new URL(address)
+  url.hostname = url.hostname === "localhost" ? "127.0.0.1" : "localhost"
+  return url.href
+}
+
 // Every file a project holds, as paths inside it - which is what "exactly these files" is asserted
 // over, rather than a list of the ones a test thought to check.
 const filesOf = async (directory: string): Promise<string[]> => {
@@ -151,13 +160,35 @@ describe("a published folder refused", () => {
     expect(refusal.advice).toMatch(/^Nothing was written\. Line \d+: /)
   })
 
-  it("refuses an address nothing answers, naming both things that look like that from inside a page", async () => {
+  it("refuses an address nothing answers as unreachable", async () => {
     const refusal = await expectRefused("http://127.0.0.1:1/some-story/")
 
-    expect(refusal.problem).toBe("it could not be reached, or it does not let other sites read its files")
-    expect(refusal.advice).toBe(
-      "Nothing was written. Check the address. If it is right, that site does not allow importing."
+    expect(refusal.problem).toBe("it could not be reached")
+    expect(refusal.advice).toBe("Nothing was written. Check the address, and that the site is up.")
+  })
+
+  it("refuses a site that answers without CORS headers, and says a missing manifest looks the same", async () => {
+    // Read from another origin, a complete published folder is unreadable without the headers - and the
+    // response a page may see in its place is opaque, so a folder that exists cannot be told apart
+    // from an address with nothing at it. The banner has to say both.
+    const refusal = await expectRefused(crossOrigin(folder("complete")))
+
+    expect(refusal.problem).toBe(
+      "it answered, but without CORS headers, so there is no telling whether a manifest.yaml is there"
     )
+    expect(refusal.advice).toBe(
+      "Nothing was written. Check the address. If it is right, the site has to send an " +
+        "Access-Control-Allow-Origin header before a story on it can be imported."
+    )
+  })
+
+  it("cannot tell a folder with no manifest from one without CORS headers, and says so for both", async () => {
+    const withManifest = await expectRefused(crossOrigin(folder("complete")))
+    const withNothing = await expectRefused(crossOrigin(folder("no-manifest")))
+
+    expect(withNothing).toEqual(withManifest)
+    // And it is the CORS refusal both times: a host that answered is not one that could not be reached.
+    expect(withNothing.problem).toContain("without CORS headers")
   })
 
   it("keeps the saves filed under the id, since nothing claimed it", async () => {

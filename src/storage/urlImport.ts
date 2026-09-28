@@ -41,13 +41,19 @@ const STALL_MS = 30_000
 // "<host> was not imported: <problem>." and then the advice.
 const WHAT_IT_HOLDS = `${NOTHING_WRITTEN} A published story holds a manifest, a script and the assets they name.`
 
-// **Unreachable and a host that does not send CORS headers are one message**, because a page cannot
-// tell them apart: both reject as the same `TypeError`, by design, so that a page cannot probe what
-// another origin would have said. A redirect without the header - GitHub Pages' own `/name` to
+// **A host that sends no CORS headers and a host that is not there fail the same way** - the same
+// `TypeError`, by design, so that a page cannot probe what another origin would have said - and are
+// told apart afterwards by `answers`. A redirect without the header - GitHub Pages' own `/name` to
 // `/name/` - fails the same way, which is why `publishedFolderAt` never requests that address.
-const UNREACHABLE = refuse(
-  "it could not be reached, or it does not let other sites read its files",
-  `${NOTHING_WRITTEN} Check the address. If it is right, that site does not allow importing.`
+const UNREACHABLE = refuse("it could not be reached", `${NOTHING_WRITTEN} Check the address, and that the site is up.`)
+
+// **Said so as not to claim more than is known.** The host answered, but a response without CORS headers
+// is opaque to this page: no status, no body. A folder with a manifest in it and an address with nothing
+// at it look exactly the same from here, so the banner says the address may be wrong as well as naming
+// the header the site would have to send.
+const WITHOUT_CORS = refuse(
+  "it answered, but without CORS headers, so there is no telling whether a manifest.yaml is there",
+  `${NOTHING_WRITTEN} Check the address. If it is right, the site has to send an Access-Control-Allow-Origin header before a story on it can be imported.`
 )
 
 const NO_MANIFEST = refuse(
@@ -169,6 +175,30 @@ const fetchText = async (address: string, allowance: Allowance): Promise<Fetched
   }
 }
 
+// Whether anything answered at an address, asked again once a request to it has failed.
+//
+// **`no-cors` is what makes the difference visible.** In that mode a request resolves with an opaque
+// response - no status, no headers, no body - whenever the host answered at all, CORS headers or none,
+// and rejects only when nothing could be reached. Measured 2026-09-28 in Chromium: a server with no
+// CORS headers rejects a normal request with `TypeError: Failed to fetch` and resolves this one as
+// `opaque` with status 0, for a file that is there and for one that is not alike, while an address
+// nothing listens on rejects both. So it learns nothing a page is not allowed to know - not even
+// whether the file exists - which is why `WITHOUT_CORS` cannot say either.
+//
+// One more request, and only on the way to a refusal. Under the same stall timer as every other, so a
+// host that takes the connection and then says nothing cannot hold the picker either.
+const answers = async (address: string): Promise<boolean> => {
+  const watchdog = new Watchdog(STALL_MS)
+  try {
+    return await fetch(address, { mode: "no-cors", signal: watchdog.signal }).then(
+      () => true,
+      () => false
+    )
+  } finally {
+    watchdog.stop()
+  }
+}
+
 // A file already in hand, written into the stream the back half opened. The manifest and the script:
 // they had to be read to decide anything at all, so they are not fetched a second time.
 // Their bytes were counted as they arrived, so they carry no size for the back half to count again.
@@ -237,8 +267,11 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
         )
       : refuse(`it passed ${sizeLabel(allowance.limit)}, which is the limit`, WHAT_IT_HOLDS)
 
-  const manifestFile = await fetchText(new URL(MANIFEST_FILE, address.url).href, allowance)
-  if (manifestFile.kind === "unreachable") return UNREACHABLE
+  const manifestAddress = new URL(MANIFEST_FILE, address.url).href
+  const manifestFile = await fetchText(manifestAddress, allowance)
+  // Only here, on the first request: past the manifest the site has already been read from, so a
+  // request that fails later is a file that stopped arriving rather than a question about the site.
+  if (manifestFile.kind === "unreachable") return (await answers(manifestAddress)) ? WITHOUT_CORS : UNREACHABLE
   if (manifestFile.kind === "stalled") return stalled(MANIFEST_FILE)
   if (manifestFile.kind === "over") return over()
   if (manifestFile.kind === "missing") return NO_MANIFEST

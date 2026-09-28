@@ -684,9 +684,15 @@ things touching it share. ADR 0007 is its invariant: it is complete.
 - **What an address means is a pure function** (`publishedFolderAt`), refused beside the dialog's
   field; what the network says lands in the picker's banner, under the site's host name where an
   archive's filename goes. Both wordings are the design canvas's *Published folder* page.
-- **Unreachable and "no CORS headers" are one message**: a page cannot tell them apart. So is a
-  redirect without the header, which is why a typed `/name` gets its `/` before anything is fetched -
-  GitHub Pages' own `/name` to `/name/` redirect carries none.
+- **A host without CORS headers and a host that is not there fail as the same `TypeError`**, by
+  design, so a failed manifest request is asked again in `no-cors` mode (`answers`): that resolves,
+  opaque, whenever the host answered at all, and rejects only when nothing could be reached. The two
+  banners follow. **The CORS one cannot say whether a manifest is there** - an opaque response hides a
+  404 as well as a 200 - so it says the address may be wrong and names `Access-Control-Allow-Origin`.
+  A redirect without the header fails the same way, which is why a typed `/name` gets its `/` before
+  anything is fetched: GitHub Pages' own `/name` to `/name/` redirect carries none. **The browser
+  test project runs vite with CORS off** (`vitest.config.ts`), so a fixture read under the server's
+  other host name - `127.0.0.1` for `localhost` - is a real host that answers without the headers.
 - Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
   named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
   and then nothing), and a real cross-origin import from GitHub Pages.

@@ -69,7 +69,7 @@ measurement is in that spec - and `@zip.js/zip.js` is pinned to lib/zip-core-cus
 src/storage/archive.ts, which is the only file that imports it.
 
 What is left of design-docs/PROJECT_STORAGE.md is the publishing half: URL import, the static folder,
-the linked folder and the nag, which is tranche 4 and unspecced. seedDemoProject survives this
+the linked folder and the nag. Tranche 4 is now specced - see "Extracted: tranche 4" below. seedDemoProject survives this
 tranche - its deletion condition is URL import, not zip - and the nag is deliberately not built: the
 row saying "never exported" is most of its value in the place the author is already looking.
 
@@ -88,6 +88,16 @@ URL import first was that it would retire seedDemoProject, and tranche 2 already
 that which mattered - so URL import now deletes scaffolding that works, while zip is what makes
 "your project can leave the browser" true for the first time. Every destructive dialog in the app
 currently says so out loud: "There is no export yet, so nothing outside this browser has a copy."
+
+Extracted: tranche 4, 2026-09-28, as .scratch/published-folder/ - four tickets after one grilling:
+the player plays the folder it is served from, importing from a URL, the demo as a URL import, and
+publishing a project. One noun ties them together, the published folder, and docs/adr/0007 is its
+invariant: publish will not write one missing a declared file and URL import will not read one. Two
+decisions go against the design doc. A URL import never overwrites - a taken id is refused, which is
+what lets it stream straight into a new directory with the crash sweep as its cleanup - and Add demo
+project is always shown, a second press being that refusal rather than a free "reset to pristine".
+The linked folder and the nag stay unbuilt, and tranche 5 is the linked folder. The spec's canvas
+boards are page 3 of the design canvas.
 
 Extracted: the asset panel, 2026-09-11, as .scratch/asset-panel/ - three tickets covering a
 panel over the manifest's declarations, an Add asset button that writes into the manifest buffer,
@@ -201,14 +211,19 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     id. Landed on one branch, import first, and the
              |     |     exported date tranche 2 deferred came with them.
              |     |     ADR 0005 is its invariant.
-             |     +-> publish: static folder                       M
+             |     +-> [tranche 4] publish: static folder            M
              |     |     The demo is the first one, laid out in dist/
              |     |     in the OPFS shape. URL import reads it back.
-             |     +-> URL import + "load the demo" button          M
+             |     |     .scratch/published-folder/ tickets 01 and 04:
+             |     |     the player plays its own folder, and Publish
+             |     |     writes one as a zip. ADR 0007 is its invariant.
+             |     +-> [tranche 4] URL import + "load the demo" button M
              |     |     Same-origin first, so CORS is not a variable
              |     |     in the first attempt. The manifest is the file
              |     |     index; a partial fetch fails the whole import.
              |     |     This is what finally deletes seedDemoProject.
+             |     |     .scratch/published-folder/ tickets 02 and 03.
+             |     |     Never overwrites: a taken id is refused.
              |     +-> single-file HTML export
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)

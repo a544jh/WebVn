@@ -792,6 +792,11 @@ a **story** is the command sequence parsed from it; a command is **applied** to 
 **adopted** by the editor.
 
 The ADRs, newest first:
+- `0007-a-published-folder-is-complete.md` - publish refuses to write a published folder missing a
+  declared file, and URL import refuses to read one. Why that is not a contradiction of 0005, which
+  lets an archive carry exactly that: a backup is the author's, a published folder is for other
+  people, and the round trip - what publish writes, import reads back - is the reason that covers
+  every declared file.
 - `0006-removing-an-asset-deletes-its-file.md` - the asset panel's remove takes the declaration *and*
   the file, confirmed and irreversible. Why leaving the bytes is not the safer default: nothing lists
   a file the manifest does not declare, so one left behind is invisible, permanent, and rides into

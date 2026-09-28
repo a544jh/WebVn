@@ -136,16 +136,31 @@ _Avoid_: bundle, package, backup (that is what it is *for*, not what it is), pro
 
 **Export**:
 Writing a project out of the library as an archive. Distinct from a **payload**, which is a link
-carrying no assets, and from publishing, which puts a playable project on a host. What the author
+carrying no assets, and from **publish**, which produces a folder a reader can play. What the author
 does so that losing the browser does not lose the work.
 _Avoid_: download (that is how the file arrives, not what was done), save, publish
 
 **Import**:
-Reading an archive into the library, as a new project or over an existing one. Additive: it never
-replaces "the project you were working on", because there is a library rather than one loaded
-project. The manifest inside decides the identity, so importing a renamed file yields the project
-its manifest names.
+Reading an archive or a published folder into the library. An archive may land as a new project or
+over an existing one; a published folder, read from its address, only ever lands as a new one, and a
+taken id is refused. Additive: it never replaces "the project you were working on", because there is
+a library rather than one loaded project. The manifest inside decides the identity, so importing a
+renamed file, or a folder at any address, yields the project its manifest names.
 _Avoid_: load, open (those are what the editor does with a project already in the library), upload
+
+**Published folder**:
+A project as a reader receives it: `manifest.yaml`, `script.yaml` and every file the manifest
+declares, with the player beside them as `index.html`, laid out so that any static web host serves
+it as a playable story. Only what the manifest declares - an undeclared file in the project never
+reaches a reader. Always complete: publish will not write one missing a declared file, and import
+will not read one. The manifest is its index, since a host offers no directory listing.
+_Avoid_: build, dist, site, deployment, export (that is the archive)
+
+**Publish**:
+Writing a project out as a published folder, delivered as one zip for the author to put on a host.
+Publishing produces the folder; putting it on a host is the author's step, not the app's. Distinct
+from **export**, which is the author's backup and carries everything, undeclared files included.
+_Avoid_: deploy, release, build, export
 
 **Payload**:
 A project's manifest and script, minus its assets, encoded into a URL so a story can be shared as a

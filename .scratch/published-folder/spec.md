@@ -484,7 +484,8 @@ errors or undeclared references publishes and imports freely.
 
 ## Further Notes
 
-- **Suggested slicing: four tickets, as confirmed.**
+- **Four tickets, as confirmed, cut 2026-09-28 into `issues/01` to `issues/04`.** ADR 0007 and the
+  `CONTEXT.md` entries were written with them.
   1. **The player plays the folder it is served from.** Blocked by nothing.
   2. **Importing from a URL.** Blocked by nothing.
   3. **The demo is a URL import.** Blocked by 02.
@@ -493,7 +494,8 @@ errors or undeclared references publishes and imports freely.
 
   **Unlike tranche 3's pair, nothing here has to merge together.** 01 changes nothing for the deployed
   demo, and 02 is useful on the demo alone.
-- **The canvas goes first, as tranche 3's four artboards did.** Needed:
+- **The canvas goes first, as tranche 3's four artboards did.** Drawn 2026-09-28 as the canvas's
+  third page, *Published folder*, for review. Needed:
   - the Import from URL control in the picker's bar and its dialog, including the dialog refusing an
     address beside the field;
   - a URL import refused, which uses the existing banner with new wording, including a taken id;

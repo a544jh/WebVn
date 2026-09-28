@@ -1,0 +1,61 @@
+# 04: Publishing a project
+
+**Status:** ready-for-agent
+
+**Blocked by:** 01 (The player plays the folder it is served from), because a published folder has
+to play; and 02 (Importing from a URL), because the published-file list is 02's. Read the design
+canvas's *Published folder* page before building the control.
+
+## What to build
+
+An author presses **Publish** in the editor and gets `<project-id>-published.zip`: a published
+folder, ready to upload to itch.io as an HTML game or extract onto any static host, where its
+`index.html` plays the story. It holds the player, the manifest, the script and exactly the files
+the manifest declares - nothing the author has lying around undeclared. Publish refuses while any
+declared file is missing, and names every one. Importing that zip back with Import project yields
+exactly the project it was built from.
+
+Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the completeness rule.
+
+- **In the editor's chrome, beside Export ZIP**, and not on the picker's rows: the editor already
+  marks each missing file orange on the manifest line that declared it, so the refusal lands where
+  the fix is. A fourth tool button, so it takes an icon - "icons on all three tools or none".
+- **Gated as Export ZIP is**, through `gateOnManifest`: greyed while the manifest does not parse.
+  Missing files are a refusal on click, not a greyed control.
+- **The order:** flush the storer; read and parse the manifest, refusing as export does; check the
+  script is present; check **every file on the published list is in the store**, refusing with all
+  the missing ones named; fetch the player's files; build the zip - `README.txt`, then `index.html`
+  and the player bundle, then the published files, with `storesWhole` unchanged; deliver it through
+  the existing download anchor and report in the chrome's message line.
+- **The host tells publish where the player's files are.** In production: `player.html`, written
+  into the zip as `index.html`, and `playerIndex.js`, from the document's own directory. Suites hand
+  it small stand-ins. The player's file names are written down once. **Copied byte for byte, never
+  templated** - the title is the player's job (ticket 01).
+- **Written by the module that already writes archives**, which stays the only one importing
+  zip.js.
+- **The README** follows the archive README's rules - no architecture, an instruction rather than a
+  prohibition, the app URL hardcoded - and says: put these files on any static web host and open the
+  folder's address; opening `index.html` from the disk does not work; to work on the project, open
+  the app and import this zip.
+- **Nothing is recorded in `editor.yaml`.** A published zip carries declared files only, so it is not
+  the backup the picker's "never exported" line is about.
+- **Zip import skips `index.html` and `playerIndex.js` at the archive root by exact path**, beside
+  `README.txt`. The list only ever grows: a zip published by an older build still carries that
+  build's player, so a name that leaves the publish side stays on the skip side.
+- **Version skew is accepted.** A published zip carries the player the editor was deployed with.
+
+## Acceptance criteria
+
+- [ ] Browser suite, shaped like the export suite - build the zip and read it back with zip.js: the
+      exact path set, player stand-ins included, with an undeclared project file absent.
+- [ ] A missing declared file is refused with every missing file named, and nothing is downloaded.
+- [ ] A manifest that does not parse greys the control, and is refused if reached.
+- [ ] A sentence typed just before pressing Publish is in the zip - the flush.
+- [ ] The round trip: the published zip through Import project yields a project holding exactly
+      the published files and no player files.
+- [ ] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
+- [ ] `editor.yaml`'s `exported` is unchanged by a publish.
+- [ ] By hand: a real build's Publish fetches the player; the zip, extracted onto a static server,
+      plays; uploaded to itch.io as an HTML game, plays.
+- [ ] `CLAUDE.md`'s hand checks gain the player-file list: if the build ever splits the player into
+      more chunks, the list must follow, and nothing automated would notice.

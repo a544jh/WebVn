@@ -14,7 +14,10 @@ one-tab lock. **Tranche 2 landed 2026-09-05**: the picker, new and deleted proje
 crash recovery, and the open project in the URL - `.scratch/project-library/` holds its six tickets and
 its design decisions. What is left of this document is import, export, the linked folder and the nag.
 **Tranche 3 is specced at `.scratch/project-archive/`** - zip export and import, and only those - and it
-takes three decisions against what this document says; each is marked where it is said. `.scratch/project-storage/`
+takes three decisions against what this document says; each is marked where it is said.
+**Tranche 4 is specced at `.scratch/published-folder/`** - the player playing its own folder, URL
+import, the demo as a URL import, and publish - and it too departs from this document in places,
+marked where each is said; `docs/adr/0007-a-published-folder-is-complete.md` is its invariant. `.scratch/project-storage/`
 holds tranche 1's six tickets and that spec lists what had already landed under them; expect the rest of the
 details here to move as they get built.
 
@@ -358,6 +361,12 @@ Four ways a project reaches the library: the file picker, drag and drop, "load t
 published VN from a URL. They share their whole back half - validate the manifest, write the tree into OPFS,
 raise the collision dialog if the id is taken - and differ only in where the bytes come from.
 
+**Not for URL import: tranche 4 refuses a taken id instead of raising the collision dialog.** A host
+can fail halfway and stay down, while the import back half clears the destination before it writes,
+so an overwrite from a URL could cost the author the project they had for nothing. Refusing keeps
+the destination new, which is what lets the import stream with the crash sweep as its cleanup. The
+archive keeps the dialog. `.scratch/published-folder/spec.md`, "URL import never overwrites".
+
 **That difference is one interface, and it is not `SourceLoader`. Corrected 2026-09-06.** This
 section used to say import was written against [SCRIPT_INCLUDES.md](./SCRIPT_INCLUDES.md)'s
 `SourceLoader` - `load(path): Promise<string>` - "and against nothing else". That cannot be true: a
@@ -397,6 +406,12 @@ will not load an undeclared asset either, but it is now load-bearing in a second
 folder import can half-succeed - thirty-seven assets fetched and three returning 404. Fail the whole import
 and name the missing files. Landing a project with silent holes in it is the same state the rename recovery
 exists to prevent, and it would be perverse to let import create it deliberately.
+
+**Tranche 4 carries this to publish, and names one file rather than all.** Publish refuses to write a
+folder missing a declared file, so what it writes is always what URL import will read back -
+`docs/adr/0007-a-published-folder-is-complete.md`. URL import streams, so it stops at the first
+file that fails and names that one; knowing every missing file would mean fetching the rest to
+count them. Publish checks the local store and names them all.
 
 **Copy into OPFS; do not reference.** `AssetResolver` makes the alternative cheap - keep the manifest and
 script, leave the assets remote behind a base-URL resolver - and it is instant and free of copying. It also
@@ -445,6 +460,11 @@ Pressing it twice is just the id collision dialog, so "reset the demo to pristin
 does sharpen the collision policy though: "I tinkered with the demo and want a clean one *too*" is the
 natural case, and overwrite-or-cancel forces losing one of them. It is the strongest argument for offering
 rename-on-import.
+
+**Not taken in tranche 4 either.** The button is always shown, but because a URL import refuses a
+taken id, a second press is that refusal - delete the demo first - rather than the collision
+dialog. Resetting the demo is delete, then add. `.scratch/published-folder/spec.md`, "The demo is a
+URL import".
 
 **Not taken in tranche 3, which ships overwrite-or-cancel.** A copy written under a different directory
 while its manifest still names the original mints exactly the id/directory disagreement the rename exists
@@ -627,6 +647,12 @@ the demo's two documents sit at the dist root rather than in a subdirectory - a 
 deliberate rather than accidental. Import needs no rule for the extra files: it reads `manifest.yaml` and
 fetches exactly what the manifest declares, so `player.html` and the bundle are skipped by the same rule that
 skips everything else undeclared.
+
+**Tranche 4 names the player `index.html` in a published folder**, not `player.html`: itch.io requires
+an `index.html`, and a folder's own address should play. The deployed demo keeps `player.html`,
+because its `index.html` is the editor; URL import reads either, being manifest-driven. A published
+zip imported as an archive skips `index.html` and `playerIndex.js` at its root, as it skips
+`README.txt`. `.scratch/published-folder/spec.md`, "Publishing".
 
 **Whether the player can also load a VN hosted somewhere else is open**, and deliberately not decided here.
 The mechanism would be a base URL on the relative resolver - a few lines - but the substance is CORS and what

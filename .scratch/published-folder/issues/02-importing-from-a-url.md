@@ -1,6 +1,6 @@
 # 02: Importing from a URL
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** None (can start immediately). Read the design canvas's *Published folder* page
 before building the surface - it draws the control, the dialog and both refusals.
@@ -59,20 +59,20 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 
 ## Acceptance criteria
 
-- [ ] Unit: URL normalisation, every accepted shape, the player-link refusal, the non-http refusal.
-- [ ] Unit: the published-file list - sprites under their actor, audio, deduplication, script and
+- [x] Unit: URL normalisation, every accepted shape, the player-link refusal, the non-http refusal.
+- [x] Unit: the published-file list - sprites under their actor, audio, deduplication, script and
       manifest always present.
-- [ ] Browser, real fetch and real OPFS: the served `test-assets/` folder imports as a project
+- [x] Browser, real fetch and real OPFS: the served `test-assets/` folder imports as a project
       holding exactly its manifest, script and declared files, with its saves dropped.
-- [ ] Browser, fixture folders beside it: a declared file missing (refused, named); no
+- [x] Browser, fixture folders beside it: a declared file missing (refused, named); no
       `manifest.yaml`; no `script.yaml`; a manifest that does not parse; a declared file served as
       `text/html`; an address nothing answers. Each refused in its own words.
-- [ ] A taken id is refused with the existing project intact and none of the folder's assets fetched.
-- [ ] A file failing mid-stream leaves no directory once the picker has redrawn.
-- [ ] The picker suite drives the dialog through the DOM, including a refusal beside the field.
-- [ ] Every banner reads as the canvas's *Picker - every URL import banner* board draws it: that
+- [x] A taken id is refused with the existing project intact and none of the folder's assets fetched.
+- [x] A file failing mid-stream leaves no directory once the picker has redrawn.
+- [x] The picker suite drives the dialog through the DOM, including a refusal beside the field.
+- [x] Every banner reads as the canvas's *Picker - every URL import banner* board draws it: that
       board is the exact wording for each refusal and for the success report.
-- [ ] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
+- [x] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
 - [x] Checked 2026-09-28: the test server serves `.yaml` as `200 text/yaml`, and a missing file as
       a bare `404` with no `content-type` - so the `text/html` fixture declares a real `.html` file.
 - [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
@@ -80,7 +80,43 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
       another origin fetches the demo's `manifest.yaml` and `script.yaml` (`200`, `text/yaml`), every
       response carries `Access-Control-Allow-Origin: *`, a missing file is a real `404`, and
       responses are cached for ten minutes.
-- [ ] A redirect without `Access-Control-Allow-Origin` - GitHub Pages' own `301` from `…/name` to
+- [x] A redirect without `Access-Control-Allow-Origin` - GitHub Pages' own `301` from `…/name` to
       `…/name/` is one - is refused as unreachable, not followed. The address rule keeps the
       trailing-slash case from ever fetching the redirecting URL; a unit case pins that.
-- [ ] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.
+- [x] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.
+
+## Comments
+
+**Landed 2026-09-28** on `claude/laughing-bell-erlp50`.
+
+- `publishedFiles` and `publishedFolderAt` are in `src/publishedFolder.ts`, pinned by
+  `test/unit/publishedFolder.test.ts`. The producer is `src/storage/urlImport.ts`, `importFromUrl`,
+  with its two stream guards (`metered`, `Watchdog`) exported for `test/unit/urlImport.test.ts`, since
+  a static test server never trips either. The dialog is `src/picker/urlImportDialog.ts`.
+- **The back half's option is `{ refuseTaken: true }`**, beside `{ confirmOverwrite }`, and a taken id
+  comes back as a result kind of its own, `taken`, carrying the directory and the title rather than a
+  worded refusal: Add demo project (ticket 03) words the same fact differently, per the canvas.
+- **One refusal the spec did not list**: a manifest may declare a filename with `..` in it, since a
+  filename is free text, and the back half would refuse the resulting path in an archive's words. The
+  producer refuses it first: "it declares a file outside its folder". Filenames are also URL-encoded
+  one segment at a time, so a `#` or `?` in one is not read as a fragment or a query.
+- **Two wordings are not on the canvas's banner board and were written here**: the byte cap as
+  opposed to free space ("it passed 2000.0 MB, which is the limit", with the entry cap's advice), and a
+  file whose request *fails* past the manifest, which says "stopped arriving" like a stall - the folder
+  was reachable a moment ago. Sizes are `megabytes()`, as every other size the app states is; the
+  board's "1.4 GB" is an illustration. Quotes are straight, as the archive's shipped banners are,
+  where the canvas draws curly ones.
+- The "none of the folder's assets fetched" assertion reads resource timing. Checked by mutation that
+  it is not vacuous: an asset fetched and read before the lock turns it red. (A fetch whose body is
+  never read makes no entry, so it is read-to-the-end fetches that it sees - which is every one the
+  producer makes.)
+- **Checked by hand 2026-09-28: the 30-second stall.** `dist/` behind a local Python server with one
+  folder whose declared PNG sends its headers and 1KB and then nothing: the picker reported
+  "127.0.0.1:8766 was not imported: assets/backgrounds/slow.png stopped arriving. Nothing was written.
+  The site may be busy - try again later." after 30.1s, and no directory was left behind.
+- **Not checked: the real cross-origin import from GitHub Pages end to end.** In this cloud session
+  headless Chromium does not trust the egress proxy's interception CA, and putting it into the
+  browser's NSS store was not permitted, so the fetch fails as a certificate error - which the import
+  reports, correctly, as "could not be reached". The spec's own probe (headless Chromium, 2026-09-28)
+  already showed the two YAML fetches succeeding cross-origin with `Access-Control-Allow-Origin: *`;
+  what remains is one import of `https://a544jh.github.io/webvn-demo/` from a local build, by hand.

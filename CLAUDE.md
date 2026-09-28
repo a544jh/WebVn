@@ -651,6 +651,34 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   **Checked by hand, since nothing automated opens a page from disk**: `npm run build`, open
   `dist/player.html` from `file:`, and read that message. Also by hand: serve `dist/` statically and
   open `player.html` - the demo plays and the tab says "WebVn Demo".
+- **One list serves both directions**: `publishedFiles(manifest)` is the manifest, the script and every
+  declared path, deduplicated. Publish writes exactly it and URL import fetches exactly it, so a
+  third kind of file - an included script - joins in one place.
+- **URL import is a producer, not a second import.** `src/storage/urlImport.ts` turns an address into
+  the `ArchiveEntry` listing the zip reader makes from a file and hands it to `importProject`, which
+  is where the lock, the save drop, the manifest-last commit and `created` stay written once. It
+  imports no zip.js. It asks for the back half's one option, `{ refuseTaken: true }`: **a URL import
+  never overwrites**, and a taken id comes back as its own result kind, `taken`, because the two
+  surfaces that reach it word it differently. That refusal is what makes streaming safe - the
+  destination is always new, so a host failing halfway has destroyed nothing, and what it wrote is a
+  manifest-less directory the picker's `recoverProjects` sweeps on its next render. No new cleanup.
+- **The order is the spec's and it is load-bearing**: `manifest.yaml`, its parse, `script.yaml`, the
+  entry cap - all before the back half, and all refused in URL import's own words. The back half then
+  takes the lock and checks the id **before any declared file is fetched**; each file is fetched by
+  its entry's `writeTo`, against the manifest response's final URL, piped straight into OPFS through
+  `metered` - a running byte total across the whole import, since a host does not reliably say sizes
+  up front - and a `Watchdog` that abandons a file delivering nothing for 30 seconds. The first file
+  that fails ends the import and is the only one named. A 200 served as `text/html` is a missing
+  file: that is a single-page-app host answering with its front page.
+- **What an address means is a pure function** (`publishedFolderAt`), refused beside the dialog's
+  field; what the network says lands in the picker's banner, under the site's host name where an
+  archive's filename goes. Both wordings are the design canvas's *Published folder* page.
+- **Unreachable and "no CORS headers" are one message**: a page cannot tell them apart. So is a
+  redirect without the header, which is why a typed `/name` gets its `/` before anything is fetched -
+  GitHub Pages' own `/name` to `/name/` redirect carries none.
+- Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
+  named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
+  and then nothing), and a real cross-origin import from GitHub Pages.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.

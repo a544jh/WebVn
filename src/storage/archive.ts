@@ -143,11 +143,18 @@ export interface ImportPlan {
   readonly files: readonly ArchiveEntry[]
 }
 
-export interface ImportOptions {
-  // Asked when the destination directory already holds a project. UI-free: the picker opens the
-  // dialog and this only learns the answer.
-  readonly confirmOverwrite: (plan: ImportPlan) => Promise<boolean>
-}
+// What happens when the destination directory already holds a project. **The one thing the two
+// sources of an import disagree about**, and it is the only option the back half takes.
+export type ImportOptions =
+  // Asked, for an archive. UI-free: the picker opens the dialog and this only learns the answer. An
+  // archive is a file on the author's disk, so an overwrite that fails halfway can be run again.
+  | { readonly confirmOverwrite: (plan: ImportPlan) => Promise<boolean> }
+  // **Refused, for a published folder read from its address**, which never overwrites. A host can
+  // fail halfway and stay down, and the destination is cleared before anything is written - so
+  // refusing a taken id is what makes it safe to stream from the network straight into the library:
+  // the destination is always a new directory, and a failure has destroyed nothing. Still asked with
+  // the lock held, so the answer stays true long enough to act on.
+  | { readonly refuseTaken: true }
 
 export type ImportResult =
   // `overwrote` because the two outcomes look different to an author and read differently on the
@@ -158,6 +165,10 @@ export type ImportResult =
   // The author said no to the overwrite. Not a refusal: nothing went wrong, and there is nothing to
   // put on a banner.
   | { readonly kind: "cancelled" }
+  // The id is filed already and the import was told not to ask. Its own kind rather than a refusal
+  // with words in it, because the two surfaces that reach it word it differently - URL import names
+  // the site, and Add demo project names the demo - and both need the title and the directory to do it.
+  | { readonly kind: "taken"; readonly directory: string; readonly title: string }
   | ArchiveRefusal
 
 export type ExportResult =
@@ -173,7 +184,7 @@ export type ExportResult =
 // banning the colon outright. A colon is a legal character in a POSIX filename, so the blanket rule
 // took down a whole archive over an asset called `scene: one.png` - which is a file an author can
 // perfectly well have, and which means nothing about where the entry lands.
-const isPlainRelativePath = (path: string): boolean => {
+export const isPlainRelativePath = (path: string): boolean => {
   if (path === "" || path.startsWith("/") || path.includes("\\")) return false
   if (/^[A-Za-z]:/.test(path)) return false
   // eslint-disable-next-line no-control-regex
@@ -210,7 +221,7 @@ const firstError = (errors: ParserError[]): ParserError | undefined =>
 // **The clause only**, with the caller supplying the sentence in front of it: import says nothing was
 // written and export says nothing was exported, and a helper that supplied one of them made the other
 // read "Nothing was exported. Nothing was written."
-const parserClause = (errors: ParserError[]): string => {
+export const parserClause = (errors: ParserError[]): string => {
   const error = firstError(errors)
   return error === undefined ? "" : ` Line ${error.location.startLine}: ${error.message}`
 }
@@ -317,8 +328,14 @@ export const planImport = async (
 // reach it. It takes the lock on what it deletes, which is why step 1 is not optional.
 //
 // **A failed import loses nothing**, which is what makes this ordering enough. Unlike a rename, whose
-// source is destroyed as part of the operation, the archive is still on disk: re-running the import
-// is the recovery, and the author already accepted the destruction in the overwrite dialog.
+// source is destroyed as part of the operation, the source is still there: an archive is on the
+// author's disk and re-running the import is the recovery, and the author already accepted the
+// destruction in the overwrite dialog. A published folder is on a host that may not come back, which
+// is why that source is never allowed to overwrite anything - see `ImportOptions`.
+//
+// **Two sources feed this**, and its own refusals - the lock, below - have to read correctly for
+// either: `importArchive` in this file, and `importFromUrl` in `urlImport.ts`, which turns an address
+// into the same listing and refuses everything else in its own words before it gets here.
 export const importProject = async (
   entries: readonly ArchiveEntry[],
   options: ImportOptions
@@ -341,9 +358,15 @@ export const importProject = async (
   }
 
   const taken = await isProject(directory)
-  if (taken && !(await options.confirmOverwrite(plan))) {
-    await lock.release()
-    return { kind: "cancelled" }
+  if (taken) {
+    if ("refuseTaken" in options) {
+      await lock.release()
+      return { kind: "taken", directory, title: plan.title }
+    }
+    if (!(await options.confirmOverwrite(plan))) {
+      await lock.release()
+      return { kind: "cancelled" }
+    }
   }
 
   try {

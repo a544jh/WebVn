@@ -18,7 +18,9 @@ import {
 } from "../storage/projectStore"
 import { recoverProjects } from "../storage/recoverProjects"
 import { seedDemoProject } from "../storage/seedDemoProject"
+import { importFromUrl } from "../storage/urlImport"
 import { askForNewProject } from "./newProjectDialog"
+import { askForPublishedFolder } from "./urlImportDialog"
 import "../chrome/chrome.css"
 import "./picker.css"
 
@@ -252,6 +254,10 @@ export class ProjectPicker {
     if (!projects.some((project) => project.directory === demoManifest.id)) {
       bar.appendChild(this.action("vn-picker-demo", null, "Add demo project", () => void this.addDemo()))
     }
+    // **Between Add demo project and Import ZIP**, so the two imports sit together. Its icon is
+    // Lucide's link, because what the author pastes is one - the same glyph as the editor's Copy
+    // player link, on a different page.
+    bar.appendChild(this.action("vn-picker-import-url", "link", "Import from URL", () => void this.importUrl()))
     this.drawImport(bar)
     bar.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
     return bar
@@ -575,6 +581,38 @@ export class ProjectPicker {
           : `"${result.title}" is in your library.`
       )
     } else this.announcement = null
+  }
+
+  // **A published folder arriving from its address**, the other import. Everything that follows the
+  // dialog is exactly the archive's - the busy state, the turn in the host's queue, the orange refusal
+  // banner, the "... was imported" report, and staying on the picker with the new row visible - with
+  // the site's host name where an archive's filename goes.
+  //
+  // **There is no overwrite question**, and so no "replaced what was filed under ..." report: a URL
+  // import never overwrites. A taken id is refused before anything the folder declares is fetched,
+  // and the author deletes or renames the project they have if they want this one instead.
+  //
+  // The dialog is asked before the page goes busy, and the import after, for `create`'s reason.
+  private async importUrl(): Promise<void> {
+    const folder = await askForPublishedFolder()
+    if (folder === null) return
+    const host = new URL(folder).host
+    await this.work(".vn-picker-import-url", `Importing from ${host}\u2026`, () => this.readFolder(folder, host))
+  }
+
+  private async readFolder(folder: string, host: string): Promise<void> {
+    const result = await importFromUrl(folder).catch(
+      broke("imported", "Whatever was written is not a project, and the library tidies it away.")
+    )
+
+    if (result.kind === "refused") this.refuse(`${host} was not imported: ${result.problem}.`, result.advice)
+    else if (result.kind === "taken") {
+      this.refuse(
+        `${host} was not imported: "${result.title}" is already in your library, under ${result.directory}.`,
+        "Nothing was written. To import it, delete or rename the existing project."
+      )
+    } else if (result.kind === "imported") this.report(`${host} was imported.`, `"${result.title}" is in your library.`)
+    else this.announcement = null
   }
 
   // A project leaving, from the row rather than from inside the editor - so **the lock is this

@@ -70,6 +70,8 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 - [ ] A taken id is refused with the existing project intact and none of the folder's assets fetched.
 - [ ] A file failing mid-stream leaves no directory once the picker has redrawn.
 - [ ] The picker suite drives the dialog through the DOM, including a refusal beside the field.
+- [ ] Every banner reads as the canvas's *Picker - every URL import banner* board draws it: that
+      board is the exact wording for each refusal and for the success report.
 - [ ] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
 - [x] Checked 2026-09-28: the test server serves `.yaml` as `200 text/yaml`, and a missing file as
       a bare `404` with no `content-type` - so the `text/html` fixture declares a real `.html` file.

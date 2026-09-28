@@ -71,11 +71,14 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 - [ ] A file failing mid-stream leaves no directory once the picker has redrawn.
 - [ ] The picker suite drives the dialog through the DOM, including a refusal beside the field.
 - [ ] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
-- [ ] Checked early: the test server hands a `.yaml` fetch out as text.
-- [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin import from
-      GitHub Pages. Already known from curl against the deployed demo (2026-09-28): `.yaml` is served
-      `200` as `text/yaml`, every response carries `Access-Control-Allow-Origin: *`, a missing file is
-      a real `404` as `text/html`, and everything is cached for ten minutes. What is left to see is a
-      browser page's own `fetch` succeeding. The answer to which hosts are reachable is written back into
-      `design-docs/PROJECT_STORAGE.md`'s open question.
+- [x] Checked 2026-09-28: the test server serves `.yaml` as `200 text/yaml`, and a missing file as
+      a bare `404` with no `content-type` - so the `text/html` fixture declares a real `.html` file.
+- [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
+      GitHub Pages end to end. Already probed 2026-09-28 (spec, "Probed" in Further Notes): a page on
+      another origin fetches the demo's `manifest.yaml` and `script.yaml` (`200`, `text/yaml`), every
+      response carries `Access-Control-Allow-Origin: *`, a missing file is a real `404`, and
+      responses are cached for ten minutes.
+- [ ] A redirect without `Access-Control-Allow-Origin` - GitHub Pages' own `301` from `…/name` to
+      `…/name/` is one - is refused as unreachable, not followed. The address rule keeps the
+      trailing-slash case from ever fetching the redirecting URL; a unit case pins that.
 - [ ] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.

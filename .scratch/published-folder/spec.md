@@ -138,7 +138,7 @@ errors or undeclared references publishes and imports freely.
 36. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
 37. As an author, I want a published folder too large for my storage, or over the import caps, refused the moment it passes the limit, with what it wrote removed, so that one import cannot starve the library.
 38. As an author, I want to stay on the picker afterwards with the new row visible, as after an archive import, so that I can see the project arrived.
-39. As an author, I want a folder whose address redirects to be imported from where it actually lives, so that a missing trailing slash or a moved site does not break the import.
+39. As an author, I want a folder whose address redirects to be imported from where it actually lives when the host allows it, and refused as unreachable when it does not, so that a moved site either works or says why.
 40. As an author, I want reloading the page mid-import to leave nothing in my library, so that giving up on a slow host is free.
 
 ### The demo
@@ -280,7 +280,8 @@ errors or undeclared references publishes and imports freely.
   5. Hand the listing to `importProject`, with the refuse-on-taken option. It takes the destination's
      lock and refuses a taken id **before any asset is fetched**. It then writes the entries one at a
      time, as it does for an archive. Each entry's `writeTo` fetches its file, resolved against the
-     manifest response's **final** URL after redirects rather than against what was typed, and pipes
+     manifest response's **final** URL after redirects rather than against what was typed (a redirect
+     the browser could not follow never gets this far - see "Probed" in Further Notes), and pipes
      the response body straight into the stream the back half opened.
      - **The bytes are counted as they pass.** The running total aborts the import the moment it
        passes the byte cap or the free space measured at the start, whichever is lower. A host does
@@ -435,8 +436,11 @@ errors or undeclared references publishes and imports freely.
       once the picker has redrawn;
     - saves dropped under the imported id.
 
-    Check early that the test server serves a `.yaml` fetch as plain text; the PNG fetches the
-    existing suites make suggest it does.
+    **The test server, probed 2026-09-28:** vitest serves `/test-assets/*.yaml` as `200 text/yaml`,
+    so URL import can fetch its fixtures as they are. A missing file is a real `404` with **no**
+    `content-type` and an empty body - never an HTML page with a 200 - so the `text/html` fixture
+    has to declare a file that really is HTML (a background named `page.html`, say) for the
+    single-page-app rule to be reached.
   - **Pure functions, unit suite.** URL normalisation: every accepted shape, the player-link refusal,
     the non-http refusal. The published-file list: sprites under their actor, audio, deduplication,
     script and manifest always present. `planImport` keeps its existing unit seam, and the root-level
@@ -546,14 +550,31 @@ errors or undeclared references publishes and imports freely.
     every ingestion path. The archive keeps the dialog.
   - **A refused URL import names the first file that failed**, not every missing file as the doc's
     "fail the whole import and name the missing files" has it.
-- **GitHub Pages answers the design doc's open question about reach**, checked 2026-09-28 with curl
-  against the deployed demo: `manifest.yaml` and `script.yaml` come back `200` as `text/yaml`, every
-  response - a `404` included - carries `Access-Control-Allow-Origin: *`, and a missing file is a real
-  `404` served as `text/html`, not a single-page-app fallback. Everything is `Cache-Control:
-  max-age=600`, so a folder re-published and imported within ten minutes can arrive stale. Not
-  checked: a real cross-origin `fetch` from a page, which ticket 02 still does by hand, and itch.io
-  and Neocities, which stay open and still decide whether the dialog says "from a host that allows
-  it".
+- **Probed 2026-09-28, against the deployed demo and in headless Chromium.** Four findings:
+  1. **GitHub Pages can be imported from.** A page on another origin (`http://localhost`) fetched
+     `manifest.yaml` and `script.yaml` from `https://a544jh.github.io/webvn-demo/`: `200`,
+     `text/yaml`, full bodies. Curl shows why: every response, a `404` included, carries
+     `Access-Control-Allow-Origin: *`. A missing file is a real `404` served as `text/html`, readable
+     by the page, not a single-page-app fallback. Everything is `Cache-Control: max-age=600`, so a
+     folder re-published and imported within ten minutes can arrive stale.
+  2. **GitHub Pages' redirects cannot be followed from another origin.** `…/webvn-demo` answers
+     `301` to `…/webvn-demo/` **without** `Access-Control-Allow-Origin`, and a browser refuses a
+     cross-origin redirect that lacks it: the fetch fails as `Failed to fetch`, indistinguishable from
+     an unreachable host. The address rule sidesteps the common case - a last segment with no dot
+     gets its `/` before anything is fetched - but a moved site, a custom domain, or http-to-https
+     behind a redirect without the header is a refusal, not a redirect followed. Resolving against
+     the final URL still matters for hosts whose redirects carry the header.
+  3. **A page opened from `file:` cannot fetch its neighbours.** `fetch("manifest.yaml")` from a
+     `file://` page throws `Failed to fetch`, while `new Image()` loads `assets/…` beside it. So the
+     player's `file:` refusal is right, and it is the YAML fetch, not the assets, that needs a web
+     host. Chromium only; Firefox and Safari not tried.
+  4. **The test server** serves `.yaml` as `text/yaml` and a missing file as a bare `404` - see
+     Testing Decisions.
+
+  itch.io and Neocities are still unprobed, and still decide whether the dialog says "from a host
+  that allows it". To repeat the browser probes in a cloud session, Chromium has to trust the
+  session proxy's CA: add the interception certificates from its bundle to `~/.pki/nssdb` with
+  `certutil` rather than turning certificate checks off.
 - **One non-guarantee now reaches readers.** Player saves are `vn-save-<id>` in localStorage, and
   localStorage is per origin. Every GitHub Pages site under one user, and possibly every itch.io HTML
   game (unverified), shares one origin. So two published VNs with the same id on such a host share

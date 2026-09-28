@@ -800,9 +800,11 @@ resolution is async (it is, and it resolves paths rather than ids), and whether 
   `Access-Control-Allow-Origin` cannot be imported from at all. GitHub Pages is believed fine; itch.io and
   Neocities are unverified. This does not change the design but it decides how the feature is described, and
   whether "import from URL" needs to say "from a host that allows it". **GitHub Pages answered
-  2026-09-28**, by curl against the deployed demo: every response carries
-  `Access-Control-Allow-Origin: *`, `.yaml` is served as `text/yaml`, and a missing file is a real
-  `404`. itch.io and Neocities are still open. `.scratch/published-folder/spec.md` has the detail.
+  2026-09-28**, by curl and by a real cross-origin `fetch` in Chromium against the deployed demo:
+  every response carries `Access-Control-Allow-Origin: *`, `.yaml` is served as `text/yaml`, and a
+  missing file is a real `404`. Its `301` redirects do **not** carry the header, so a redirect cannot
+  be followed from another origin. itch.io and Neocities are still open.
+  `.scratch/published-folder/spec.md` has the detail.
 - **Re-encoding on import.** A 12MP phone photo as a background is the common case and a non-developer will
   not think to resize it. Offer, force, or ignore?
 - **Content-addressed assets** (SHA-256 via SubtleCrypto, manifest maps logical name to hash). Gives dedupe

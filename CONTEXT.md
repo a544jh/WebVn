@@ -76,7 +76,7 @@ _Avoid_: disabled, stripped, dropped (a dropped command would shift every index 
 **Missing asset**:
 A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed
 load can tell - which is what makes it a different problem from an undeclared one rather than a
-degree of it.
+degree of it. The asset panel marks its row "file missing" and offers **Add file** on it.
 _Avoid_: broken asset, unloaded asset, bad asset
 
 **Remove**:
@@ -88,7 +88,9 @@ _Avoid_: delete (a project is deleted; an asset is removed), discard, unlink
 
 **Replace**:
 Giving an asset new bytes under the same id and the same filename. The declaration does not change,
-so nothing that names the id notices; only what it looks like does.
+so nothing that names the id notices; only what it looks like does. On a **missing asset** there is
+nothing to replace, so the same control says **Add file** instead: the same write, supplying the
+file the declaration was waiting for. Not *Add asset*, which declares a new id and its file together.
 _Avoid_: update, swap, re-import
 
 **Script**:

@@ -214,8 +214,8 @@ export class AssetPanel {
     const controls = element("div", "vn-asset-controls")
     // **Absent, not disabled, on a missing asset**: `resolve` rejects because there is no file, and a
     // control that can never work on this row should not be drawn as one that is temporarily
-    // unavailable. Which also makes the orange row the one an author can fix from here - its replace
-    // is how they supply the file that was declared.
+    // unavailable. Which also makes the orange row the one an author can fix from here - its control
+    // says Add file rather than Replace, and it is how they supply the file that was declared.
     if (!gone) {
       controls.appendChild(
         this.control("vn-asset-preview", "eye", `Preview ${leaf.id}`, "Open this file in a new tab", () =>
@@ -223,7 +223,7 @@ export class AssetPanel {
         )
       )
     }
-    controls.append(...this.replaceControl(leaf))
+    controls.append(...this.replaceControl(leaf, gone))
     controls.appendChild(
       this.control("vn-asset-remove", "trash-2", `Remove ${leaf.id}`, "Remove this asset", () => this.remove(leaf))
     )
@@ -234,7 +234,12 @@ export class AssetPanel {
   // then answered by construction rather than by a field the next draw would replace. The input is
   // the control's *sibling* for the reason the footer's is - a click on a child input bubbles back to
   // the button, whose handler clicks the input, which is a loop with no bottom.
-  private replaceControl(leaf: DeclaredLeaf): HTMLElement[] {
+  //
+  // **On a missing asset it says Add file, with a plus**, because there is nothing to replace: the
+  // declaration stands and its file does not. It is the same write either way - bytes to the path
+  // the manifest names - so only the words and the icon change, and the class stays the one control.
+  // Not "Add" alone, which the footer's Add asset has spent on declaring a new id.
+  private replaceControl(leaf: DeclaredLeaf, gone: boolean): HTMLElement[] {
     const input = element("input", "vn-asset-file-input")
     // **Named apart from the footer's**, which is not tidiness: both are hidden file inputs in the
     // same root, and one class for the two made "the panel's file input" ambiguous the moment a row
@@ -246,13 +251,14 @@ export class AssetPanel {
       () => {
         const file = input.files?.[0]
         input.value = ""
-        if (file !== undefined) void this.replace(leaf, file)
+        if (file !== undefined) void this.replace(leaf, file, gone)
       },
       { signal: this.listeners.signal }
     )
-    const button = this.control("vn-asset-replace", "replace", `Replace ${leaf.id}`, "Replace file", () =>
-      Promise.resolve(input.click())
-    )
+    const click = () => Promise.resolve(input.click())
+    const button = gone
+      ? this.control("vn-asset-replace", "plus", `Add a file for ${leaf.id}`, "Add file", click)
+      : this.control("vn-asset-replace", "replace", `Replace ${leaf.id}`, "Replace file", click)
     return [input, button]
   }
 
@@ -264,13 +270,15 @@ export class AssetPanel {
   // is friction on the thing this panel exists to make fast. It cannot fire by accident either, since
   // it takes a row control *and* a file-picker round trip. Remove keeps its confirmation because it
   // changes what the project is; replace only changes what a thing looks like.
-  private async replace(leaf: DeclaredLeaf, file: File): Promise<void> {
-    await this.work("Replacing\u2026", async () => {
+  private async replace(leaf: DeclaredLeaf, file: File, gone: boolean): Promise<void> {
+    await this.work(gone ? "Adding\u2026" : "Replacing\u2026", async () => {
       try {
         await this.deps.files.write(leaf.path, file)
       } catch (e) {
         console.error("The asset could not be written into the project", e)
-        await noticeDialog("The asset was not replaced", [`${leaf.path} could not be written, so nothing changed.`])
+        await noticeDialog(gone ? "The file was not added" : "The asset was not replaced", [
+          `${leaf.path} could not be written, so nothing changed.`,
+        ])
         return
       }
       // **And then the loaders are rebuilt**, which is the whole of this operation and is invisible

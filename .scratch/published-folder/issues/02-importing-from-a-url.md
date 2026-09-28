@@ -75,7 +75,7 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 - [x] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
 - [x] Checked 2026-09-28: the test server serves `.yaml` as `200 text/yaml`, and a missing file as
       a bare `404` with no `content-type` - so the `text/html` fixture declares a real `.html` file.
-- [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
+- [x] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
       GitHub Pages end to end. Already probed 2026-09-28 (spec, "Probed" in Further Notes): a page on
       another origin fetches the demo's `manifest.yaml` and `script.yaml` (`200`, `text/yaml`), every
       response carries `Access-Control-Allow-Origin: *`, a missing file is a real `404`, and
@@ -135,7 +135,11 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
   the picker as a failure.
 - The two YAML files go through the same meter and stall timer as every other file, so the timer is
   fed per chunk rather than being a 30-second deadline, and their bytes count toward the limit.
-- **Still by hand, and still open**: the GitHub Pages import above. A body that errors partway through
+- **Still by hand**: the GitHub Pages import above - closed below. A body that errors partway through
   is not reachable from a static test server either - the browser suite's "file failing partway"
   case is a later file 404ing after an earlier one was written, and the mid-body abort is the unit
   suite's `metered` case.
+
+**Checked by hand by the maintainer, 2026-09-28**, against the branch: the import of the deployed demo
+from its GitHub Pages address, cross-origin, end to end - which closes the one hand check this ticket had
+left open - along with `npm run dev`, and a published VN served locally by `python -m http.server`.

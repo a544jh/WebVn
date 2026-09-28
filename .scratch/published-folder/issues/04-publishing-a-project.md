@@ -120,3 +120,6 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
   was back to Publish and enabled. That zip, extracted and served by `python3 -m http.server`, played
   from the folder's own address: the tab read "WebVn Demo", every declared file was requested with a
   200, and a click reached the demo's first line.
+
+**Also checked by hand by the maintainer, 2026-09-28**: Publish under `npm run dev`, and a published VN
+served locally by `python -m http.server`.

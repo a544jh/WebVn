@@ -9,8 +9,8 @@ before building the surface - it draws the control, the dialog and both refusals
 
 An author pastes the address of a published VN into the picker and it arrives in their library as a
 new project, assets included. **A URL import never overwrites**: if the manifest's id is already
-filed, it is refused before anything is downloaded, and the author deletes that project first if
-they want to import again. Because the destination is always new, the files stream straight into it
+filed, it is refused before anything is downloaded, and the author deletes that project, or renames
+it to a new id, if they want to import again. Because the destination is always new, the files stream straight into it
 and nothing is at risk while the network is involved.
 
 Spec: `.scratch/published-folder/spec.md`, "Importing from a URL" and "The published folder and its

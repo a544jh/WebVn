@@ -29,8 +29,8 @@ pixels and has nothing for this tranche. See "Further Notes".
 
 **Changed:**
 
-4. **URL import never overwrites.** A taken id is refused, and the author deletes the existing project
-   first if they want to import again. This is what makes streaming safe: the destination is always a
+4. **URL import never overwrites.** A taken id is refused, and the author deletes the existing project,
+   or renames it to a new id, if they want to import again. This is what makes streaming safe: the destination is always a
    new directory, so a failure mid-download destroys nothing, and the existing crash sweep removes the
    half-written directory. It replaces the proposal to download everything before writing anything.
    As a consequence, a failed import names only the first file that failed rather than every missing
@@ -133,7 +133,7 @@ errors or undeclared references publishes and imports freely.
 31. As an author, I want a host that answers a missing file with its index page and a 200 to be caught, so that a web page is never stored as my background.
 32. As an author, I want a host that cannot be reached, or that does not let other sites read it, to be refused with a message saying either may be the cause.
 33. As an author, I want a refused import to leave my library exactly as it was, so that a bad connection never costs me a project.
-34. As an author, I want an import whose id is already in my library to be refused before anything is downloaded, telling me to delete that project first if I want to import again, so that a host that fails halfway can never have cost me the project I had.
+34. As an author, I want an import whose id is already in my library to be refused before anything is downloaded, telling me to delete that project or rename it to a new id if I want to import again, so that a host that fails halfway can never have cost me the project I had.
 35. As an author, I want the imported project filed under its manifest's id whatever the address says, so that identity works the way it does everywhere else.
 36. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
 37. As an author, I want a published folder too large for my storage, or over the import caps, refused the moment it passes the limit, with what it wrote removed, so that one import cannot starve the library.
@@ -244,7 +244,9 @@ errors or undeclared references publishes and imports freely.
   **The option is to refuse a taken id instead of asking.** `importProject` takes the destination's
   lock and then asks `confirmOverwrite` if a project is filed there. URL import asks it to refuse
   instead, still with the lock held, so the answer stays true long enough to act on. The refusal says
-  the project is already in the library, and that deleting it is how to import it again.
+  the project is already in the library, and names both ways to import it again: delete yours, or
+  rename it by giving it a new id in its `manifest.yaml`, which keeps it as well. The exact wording
+  is on the canvas's *Picker - every URL import banner* board.
 - **URL import never overwrites.** An archive is a file on the author's disk, so an overwrite that
   fails halfway can be run again. A host can fail halfway and stay down, and `importProject` clears
   the destination before it writes. Refusing a taken id means the destination is always a new

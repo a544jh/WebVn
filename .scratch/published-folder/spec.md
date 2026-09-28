@@ -1,6 +1,6 @@
 # The published folder: publishing a project, and reading one back by URL
 
-Status: ready-for-agent
+Status: done - all four tickets landed 2026-09-28; see each ticket's Comments.
 
 Tranche 4 of `design-docs/PROJECT_STORAGE.md`, and the last of its import/export half. Synthesised
 2026-09-19 from the design doc, `TODO`, and tranches 2 and 3 as they landed. The maintainer confirmed

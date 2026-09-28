@@ -43,9 +43,28 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 - **Written by the module that already writes archives**, which stays the only one importing
   zip.js.
 - **The README** follows the archive README's rules - no architecture, an instruction rather than a
-  prohibition, the app URL hardcoded - and says: put these files on any static web host and open the
-  folder's address; opening `index.html` from the disk does not work; to work on the project, open
-  the app and import this zip.
+  prohibition, the app URL hardcoded - and is **exactly this text**, beside `readmeText`:
+
+  ```
+  This is "<title>" (<id>), a visual
+  novel made with WebVn.
+
+  To play it, put everything in this zip on any static web host, keeping
+  the folders as they are, and open the folder's address in a browser.
+  It has to be served from a web host: opening index.html straight from
+  your computer will not start it.
+
+  To work on it, open <APP_URL> and import
+  this zip file.
+
+  WebVn is free and open source: <SOURCE_URL>
+
+  Published <YYYY-MM-DD> by WebVn.
+  ```
+
+  `<title>`, `<id>` and the date come from the manifest and the day of publishing; `<APP_URL>` and
+  `<SOURCE_URL>` are the archive README's constants. The spec's "Publishing" section says why each
+  line is there.
 - **Nothing is recorded in `editor.yaml`.** A published zip carries declared files only, so it is not
   the backup the picker's "never exported" line is about.
 - **Zip import skips `index.html` and `playerIndex.js` at the archive root by exact path**, beside
@@ -66,6 +85,7 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
       the published files and no player files.
 - [ ] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
 - [ ] `editor.yaml`'s `exported` is unchanged by a publish.
+- [ ] Unit: the published README is the text above, with the title, id and date filled in.
 - [ ] By hand: a real build's Publish fetches the player; the zip, extracted onto a static server,
       plays.
 - [ ] `CLAUDE.md`'s hand checks gain the player-file list: if the build ever splits the player into

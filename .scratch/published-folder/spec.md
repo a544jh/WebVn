@@ -389,12 +389,37 @@ errors or undeclared references publishes and imports freely.
 - **The filename is `<project-id>-published.zip`.** It differs from `<project-id>.webvn.zip` so that
   Downloads tells a build from a backup. Windows hides the known extension and shows it as
   `my-story-published`.
-- **The README is its own text under the archive README's rules.** It outlives the design, so it
-  describes no architecture. It is phrased as an instruction, not a prohibition, and the app URL is
-  hardcoded. It says:
-  - to put these files on any static web host and open the folder's address;
-  - that opening `index.html` from the disk does not work;
-  - that to work on the project, open the app and import this zip.
+- **The README is its own text under the archive README's rules.** It ships inside every published
+  zip and cannot be corrected later, so it describes no architecture, is phrased as an instruction
+  rather than a prohibition, and hardcodes the app URL. **This is the exact text:**
+
+  ```
+  This is "<title>" (<id>), a visual
+  novel made with WebVn.
+
+  To play it, put everything in this zip on any static web host, keeping
+  the folders as they are, and open the folder's address in a browser.
+  It has to be served from a web host: opening index.html straight from
+  your computer will not start it.
+
+  To work on it, open <APP_URL> and import
+  this zip file.
+
+  WebVn is free and open source: <SOURCE_URL>
+
+  Published <YYYY-MM-DD> by WebVn.
+  ```
+
+  `<title>`, `<id>` and the date come from the manifest and the day of publishing; `<APP_URL>` and
+  `<SOURCE_URL>` are the constants the archive README already uses. The line breaks are the ones
+  above, not reflowed around a long title, as the archive README does. Three choices in it, settled
+  2026-09-28:
+  - **It speaks to whoever opens the zip** - usually the author, sometimes a reader who downloaded the
+    build - and the first paragraph serves both.
+  - **"will not start it" stays true forever for this zip**, even if single-file export or `story.js`
+    later makes a folder open from the disk: each zip carries the player it was published with.
+  - **"keeping the folders as they are"** is there because uploading the files flat, losing `assets/`,
+    is the likeliest way to break a published folder.
 - **Publishing records nothing in `editor.yaml`.** `exported` is still the archive's. A published zip
   carries declared files only, so it is not the backup the picker's "never exported" line is about.
 - **Zip import skips the player's files at the archive root by exact path**, as it already skips

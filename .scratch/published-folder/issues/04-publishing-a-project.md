@@ -9,7 +9,7 @@ canvas's *Published folder* page before building the control.
 ## What to build
 
 An author presses **Publish** in the editor and gets `<project-id>-published.zip`: a published
-folder, ready to upload to itch.io as an HTML game or extract onto any static host, where its
+folder, ready to put on any static web host, where its
 `index.html` plays the story. It holds the player, the manifest, the script and exactly the files
 the manifest declares - nothing the author has lying around undeclared. Publish refuses while any
 declared file is missing, and names every one. Importing that zip back with Import ZIP yields
@@ -29,10 +29,10 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
   the existing download anchor and open the hosting dialog.
 - **Both outcomes are chrome dialogs**, `noticeDialog`s with one Close button, not the message line
   Export ZIP reports in:
-  - **published** - the zip is on its way; put the files on any static web host or upload the zip to
-    itch.io as an HTML game, then open the folder's address; opening `index.html` from the disk does
+  - **published** - the zip is on its way; put the files on any static web host, then open the
+    folder's address; opening `index.html` from the disk does
     not work;
-  - **refused** - every missing declared file listed by path, and the fix: replace it in the asset
+  - **refused** - every missing declared file listed by path, and the fix: add it in the asset
     panel, or remove its declaration.
 
   The picker's URL import keeps its orange banner; this is the editor only.
@@ -67,6 +67,6 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 - [ ] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
 - [ ] `editor.yaml`'s `exported` is unchanged by a publish.
 - [ ] By hand: a real build's Publish fetches the player; the zip, extracted onto a static server,
-      plays; uploaded to itch.io as an HTML game, plays.
+      plays.
 - [ ] `CLAUDE.md`'s hand checks gain the player-file list: if the build ever splits the player into
       more chunks, the list must follow, and nothing automated would notice.

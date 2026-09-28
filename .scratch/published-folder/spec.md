@@ -78,7 +78,7 @@ is the shape `dist/` already has, and it is what a static host serves. Three thi
   `manifest.yaml` and `script.yaml` from its own directory. The deployed demo keeps working unchanged,
   because `dist/` already is such a folder.
 - **Publish** writes a project out as a published folder. It arrives as one zip that the author
-  uploads to itch.io, GitHub Pages or Neocities, or extracts onto any static host. It is a control in
+  puts on any static web host. It is a control in
   the editor, beside Export ZIP.
 - **Import from URL** reads a published folder into the library as a new project. It never overwrites
   one. This is the publish format read backwards. **Add demo project** becomes a URL import of the
@@ -95,13 +95,13 @@ errors or undeclared references publishes and imports freely.
 ### Publishing
 
 1. As an author, I want to publish my project from the editor, so that people without WebVn can read my story.
-2. As an author, I want publishing to produce one zip file, so that I can upload it to itch.io as an HTML game without assembling anything by hand.
+2. As an author, I want publishing to produce one zip file, so that I can put it on a static web host without assembling anything by hand.
 3. As an author, I want the zip's `index.html` to be the player, so that the folder's own address plays the story on any static host.
 4. As an author, I want a published folder to hold only my manifest, my script and the files my manifest declares, so that files I forgot about are not shipped to readers.
 5. As an author, I want publishing to refuse when a declared file is missing, and to name every one, so that no reader reaches a scene that breaks on art I never drew.
 6. As an author, I want publishing to refuse a manifest that does not parse, in the same terms Export ZIP uses, so that one rule governs both.
 7. As an author, I want a script with parse errors or undeclared references to publish anyway, so that the published story behaves exactly like the preview I have been playing.
-8. As an author who has just published, I want to be told what to do with the zip - put it on a static host or upload it to itch.io, and not open `index.html` from my disk - so that I am not left holding a file I do not know how to use.
+8. As an author who has just published, I want to be told what to do with the zip - put it on a static web host, and not open `index.html` from my disk - so that I am not left holding a file I do not know how to use.
 9. As an author whose publish was refused, I want the missing files listed in a dialog I have to dismiss, so that the list is not a line of text I can miss beside the buttons.
 10. As an author, I want the published zip to include what I typed a moment ago, so that the build is never missing my last sentence.
 11. As an author, I want the Publish control greyed out while my manifest does not parse, as Export ZIP is, so that I know before I click.
@@ -367,10 +367,10 @@ errors or undeclared references publishes and imports freely.
   first draft, which put them in the unstyled line beside the buttons that Export ZIP and Copy player
   link report in. Both are `noticeDialog`s, a single Close button, so no new dialog machinery.
   - **Published:** says the zip is on its way and what it is for - put the files on any static web
-    host, or upload the zip to itch.io as an HTML game, then open the folder's address - and that
+    host, then open the folder's address - and that
     opening `index.html` from the disk does not work. This is the README's advice at the moment it is
     needed; the README is for the author who finds the zip months later.
-  - **Refused:** lists every missing declared file, each by its path, and says to replace it in the
+  - **Refused:** lists every missing declared file, each by its path, and says to add it in the
     asset panel or remove its declaration. A list is the reason: the message line holds one sentence,
     and a project with five undrawn backgrounds needs five lines. A manifest that does not parse or a
     missing script, reachable only if the gate is raced, uses the same dialog.
@@ -540,8 +540,8 @@ errors or undeclared references publishes and imports freely.
   Publish is a fourth tool button, and `CLAUDE.md`'s rule is "icons on all three tools or none". It
   therefore needs an icon, vendored per ticket as `icons.ts` already does.
 - **Departures from `design-docs/PROJECT_STORAGE.md`, to be marked where the doc says the opposite:**
-  - **The player is `index.html` in a published folder, not `player.html`.** itch.io requires an
-    `index.html`, and a folder's own address should play. The deployed demo keeps `player.html`,
+  - **The player is `index.html` in a published folder, not `player.html`.** A static host serves a
+    folder's own address from its `index.html`, so that address is what plays. The deployed demo keeps `player.html`,
     because its `index.html` is the editor. URL import handles both, being manifest-driven.
   - **A second press of the demo button is refused**, rather than reaching the collision dialog. The
     button is always shown, but "reset the demo to pristine" does not arrive for free.
@@ -571,13 +571,16 @@ errors or undeclared references publishes and imports freely.
   4. **The test server** serves `.yaml` as `text/yaml` and a missing file as a bare `404` - see
      Testing Decisions.
 
-  itch.io and Neocities are still unprobed, and still decide whether the dialog says "from a host
-  that allows it". To repeat the browser probes in a cloud session, Chromium has to trust the
+  **Internal note: other hosts' CORS is unverified.** Only GitHub Pages has been probed. itch.io,
+  Neocities and the rest may or may not send `Access-Control-Allow-Origin`, and a host that does not
+  cannot be imported from at all. That decides whether the Import from URL dialog has to say "from a
+  host that allows it". The user-facing text names no host - it says "any static web host" - so none
+  of this reaches an author; it is here for whoever answers the next "why did my import fail". To repeat the browser probes in a cloud session, Chromium has to trust the
   session proxy's CA: add the interception certificates from its bundle to `~/.pki/nssdb` with
   `certutil` rather than turning certificate checks off.
 - **One non-guarantee now reaches readers.** Player saves are `vn-save-<id>` in localStorage, and
-  localStorage is per origin. Every GitHub Pages site under one user, and possibly every itch.io HTML
-  game (unverified), shares one origin. So two published VNs with the same id on such a host share
+  localStorage is per origin. Every GitHub Pages site under one user shares one origin, and other
+  hosts that put several sites on one domain may too. So two published VNs with the same id on such a host share
   saves. The design doc accepts per-library id uniqueness as a non-guarantee, and this is where it
   first costs a reader something. Not fixed here, but worth one sentence in the design doc.
 - **When this lands:** `TODO`'s STORAGE section, the design doc's Landed markers, and `CLAUDE.md`'s

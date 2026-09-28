@@ -648,8 +648,8 @@ deliberate rather than accidental. Import needs no rule for the extra files: it 
 fetches exactly what the manifest declares, so `player.html` and the bundle are skipped by the same rule that
 skips everything else undeclared.
 
-**Tranche 4 names the player `index.html` in a published folder**, not `player.html`: itch.io requires
-an `index.html`, and a folder's own address should play. The deployed demo keeps `player.html`,
+**Tranche 4 names the player `index.html` in a published folder**, not `player.html`: a static host
+serves a folder's own address from its `index.html`, so that address is what plays. The deployed demo keeps `player.html`,
 because its `index.html` is the editor; URL import reads either, being manifest-driven. A published
 zip imported as an archive skips `index.html` and `playerIndex.js` at its root, as it skips
 `README.txt`. `.scratch/published-folder/spec.md`, "Publishing".

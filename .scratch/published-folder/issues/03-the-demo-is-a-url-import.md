@@ -9,7 +9,7 @@
 **Add demo project** becomes a URL import of the demo the app is deployed beside, and
 `seedDemoProject` is deleted - the deletion condition its own file has named since tranche 1. The
 button is **always shown**. Once the demo is in the library, pressing it again is URL import's
-taken-id refusal, which tells the author to delete their copy first. With no reason left to know the
+taken-id refusal, which tells the author to delete their copy or rename it. With no reason left to know the
 demo's id, the picker stops importing the demo module, and neither bundle carries the demo's YAML.
 
 Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
@@ -22,8 +22,9 @@ Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
   another tab is refused through `importProject`'s own lock refusal.
 - **Always shown** reverses tranche 2's "shown only while the demo is absent". Tranche 2's reasons
   were the collision and the signal; the collision now has a refusal, and the row arriving plus the
-  "… was imported" line are the signal. Getting a clean demo is delete, then add - as before, but now
-  the page says so. The picker's comment on the button says this rather than the old reasoning.
+  "… was imported" line are the signal. Getting a clean demo is delete, then add; keeping a
+  tinkered copy as well is rename (a new id in its `manifest.yaml`), then add. The refusal names
+  both. The picker's comment on the button says this rather than the old reasoning.
 - **Behaviour changes, all accepted:**
   - A declared demo file that will not arrive fails the whole add. The seed skipped it with a warning.
   - Adding the demo drops the saves filed under its id, including a reader's saves from
@@ -34,8 +35,9 @@ Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
 
 - [ ] Add demo project, driven through the picker's DOM against the served `test-assets/` folder,
       lands the demo with every asset and leaves the author on the picker with its row visible.
-- [ ] Pressed again with the demo listed, it is refused with the delete-first advice, and the demo is
-      untouched.
+- [ ] Pressed again with the demo listed, it is refused with advice naming both ways out - delete the
+      copy, or rename it with a new id in its `manifest.yaml` - and the demo is untouched. The
+      wording is the canvas's *Add demo project with the demo already listed* board.
 - [ ] Pressed while the demo is open in another tab, it is refused through the back half's lock.
 - [ ] `seedDemoProject` is gone; its test callers import the demo by URL instead.
 - [ ] No shipped code imports the demo module - checked against `npm run build`'s two bundles.

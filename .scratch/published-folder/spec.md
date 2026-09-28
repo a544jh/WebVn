@@ -36,7 +36,7 @@ pixels and has nothing for this tranche. See "Further Notes".
    As a consequence, a failed import names only the first file that failed rather than every missing
    one.
 5. **Add demo project is always shown.** A second press reaches URL import's taken-id refusal, which
-   tells the author to delete the demo first. The design doc's "reset the demo to pristine for free"
+   tells the author to delete the demo first or rename theirs. The design doc's "reset the demo to pristine for free"
    is therefore still not had, but the button no longer needs the demo's id, so the demo's YAML leaves
    the editor bundle entirely.
 
@@ -147,7 +147,7 @@ errors or undeclared references publishes and imports freely.
 42. As an author, I want the demo in my library to come from the demo the app is deployed beside, so that what I edit is what I can play.
 43. As an author whose demo is open in another tab, I want Add demo project refused with that reason, so that two tabs never write one project.
 44. As an author, I want a demo whose art will not arrive to fail whole, as any import does, so that the library never holds a demo with silent holes. The seed skipped such files with a console warning.
-45. As an author who already has the demo, I want Add demo project to tell me to delete my copy first, so that getting a clean demo is two steps I can see rather than a button that vanished.
+45. As an author who already has the demo, I want Add demo project to tell me to delete my copy or rename it, so that I can get a clean demo in steps I can see - and keep the copy I tinkered with, if I rename it - rather than face a button that vanished.
 
 ### Maintaining it
 
@@ -329,10 +329,12 @@ errors or undeclared references publishes and imports freely.
   editor bundle stops importing `src/demoStory.ts` and carries no copy of the demo at all. Before
   this, a manifest bundled into the editor had to agree with the one the import fetches.
 - **A second press is refused**, through URL import's taken-id refusal: the demo is already in the
-  library, and deleting it first is how to add it again. The design doc's *"pressing it twice is just
-  the id collision dialog, so 'reset the demo to pristine' arrives for free"* is therefore still not
-  had. Getting a clean demo is delete, then add, as it was when the button was hidden, but now the
-  page says so.
+  library, and there are two ways to add it again, which the refusal names both of: **delete** the
+  copy, or **rename** it by giving it a new id in its `manifest.yaml`, which the existing rename then
+  follows with its directory. The design doc's *"pressing it twice is just the id collision dialog,
+  so 'reset the demo to pristine' arrives for free"* is therefore still not had - but renaming
+  answers the case that doc raised against overwrite-or-cancel, *"I tinkered with the demo and want a
+  clean one too"*, with no new mechanism: rename the tinkered one, then add.
 - **The project lock moves into `importProject`.** Add demo project no longer takes it itself. A demo
   open in another tab is refused through the back half's own lock refusal.
 - **Two behaviour changes, both accepted:**

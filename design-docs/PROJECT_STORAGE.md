@@ -462,8 +462,9 @@ natural case, and overwrite-or-cancel forces losing one of them. It is the stron
 rename-on-import.
 
 **Not taken in tranche 4 either.** The button is always shown, but because a URL import refuses a
-taken id, a second press is that refusal - delete the demo first - rather than the collision
-dialog. Resetting the demo is delete, then add. `.scratch/published-folder/spec.md`, "The demo is a
+taken id, a second press is that refusal - delete the demo, or rename it with a new id - rather than
+the collision dialog. Resetting the demo is delete, then add; keeping a tinkered copy *and* a clean
+one is rename, then add, which answers the rename-on-import argument above without a new mechanism. `.scratch/published-folder/spec.md`, "The demo is a
 URL import".
 
 **Not taken in tranche 3, which ships overwrite-or-cancel.** A copy written under a different directory

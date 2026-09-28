@@ -4,12 +4,41 @@ Status: ready-for-agent
 
 Tranche 4 of `design-docs/PROJECT_STORAGE.md`, and the last of its import/export half. Synthesised
 2026-09-19 from the design doc, `TODO`, and tranches 2 and 3 as they landed. The maintainer confirmed
-the scope and the test seams the same day. **Unlike tranches 2 and 3, it has not been grilled**, so
-the decisions below are proposals that triage can overturn, and each one gives its reasoning so an
-overturn can see what it is trading.
+the scope and the test seams the same day. **Grilled 2026-09-28** on the five decisions that are
+expensive to reverse once built. What survived and what changed is below, and the rest of this file
+has been brought into line with it.
 
 The drawings are not done yet. The canvas `.scratch/project-library/design.md` links is binding for
 pixels and has nothing for this tranche. See "Further Notes".
+
+## What the grilling settled
+
+**Survived as proposed:**
+
+1. **A published folder is complete (ADR 0007).** Publish refuses to write one missing a declared
+   file, and URL import refuses to read one. The reasoning was reordered: it now leads with the round
+   trip rather than with the reader, because the reader argument covers only files a script line
+   uses. See "The published folder and its invariant".
+2. **What a published folder holds.** The player as `index.html`, plus `manifest.yaml`, `script.yaml`
+   and the declared files, and nothing else. One addition: the player sets the page title from the
+   manifest, so a published VN's tab does not say "WebVn". Vendoring the player's font was raised and
+   deferred (see "Out of Scope").
+3. **Zip import skips the player's files by exact path**, as it already skips `README.txt`. A rule
+   keyed on `index.html` at the archive root was proposed instead, to survive a renamed or
+   content-hashed bundle, and turned down as more logic than the case deserves.
+
+**Changed:**
+
+4. **URL import never overwrites.** A taken id is refused, and the author deletes the existing project
+   first if they want to import again. This is what makes streaming safe: the destination is always a
+   new directory, so a failure mid-download destroys nothing, and the existing crash sweep removes the
+   half-written directory. It replaces the proposal to download everything before writing anything.
+   As a consequence, a failed import names only the first file that failed rather than every missing
+   one.
+5. **Add demo project is always shown.** A second press reaches URL import's taken-id refusal, which
+   tells the author to delete the demo first. The design doc's "reset the demo to pristine for free"
+   is therefore still not had, but the button no longer needs the demo's id, so the demo's YAML leaves
+   the editor bundle entirely.
 
 ## Problem Statement
 
@@ -42,9 +71,9 @@ is the shape `dist/` already has, and it is what a static host serves. Three thi
 - **Publish** writes a project out as a published folder. It arrives as one zip that the author
   uploads to itch.io, GitHub Pages or Neocities, or extracts onto any static host. It is a control in
   the editor, beside Export ZIP.
-- **Import from URL** reads a published folder into the library. This is the publish format read
-  backwards. **Add demo project** becomes a URL import of the demo the app is deployed beside, and
-  `seedDemoProject` is deleted.
+- **Import from URL** reads a published folder into the library as a new project. It never overwrites
+  one. This is the publish format read backwards. **Add demo project** becomes a URL import of the
+  demo the app is deployed beside, and `seedDemoProject` is deleted.
 
 **The invariant: a published folder is complete.** It holds every file its manifest declares.
 Publish will not write a folder that is missing one, and URL import will not read one. Both refusals
@@ -75,46 +104,48 @@ errors or undeclared references publishes and imports freely.
 ### Reading a published VN
 
 16. As a reader, I want to open a published VN's address and have it play, so that I need nothing installed.
-17. As a reader, I want my saves in a published VN to be there when I come back, so that I can read it over several visits.
-18. As a reader who opened `index.html` straight from my disk, I want the error to say it has to be opened from a web host, so that I am not left looking at a blank stage.
-19. As a reader, I want a published VN whose `manifest.yaml` or `script.yaml` will not load to say it could not be loaded, rather than playing some other story.
-20. As a reader of the WebVn demo, I want it to keep playing at its address exactly as before, so that nothing I bookmarked broke.
-21. As a reader following a player link, I want `?vn=` links to keep working, so that links already shared still open.
+17. As a reader, I want the browser tab to show the story's title, so that I can find it among my tabs and bookmarks.
+18. As a reader, I want my saves in a published VN to be there when I come back, so that I can read it over several visits.
+19. As a reader who opened `index.html` straight from my disk, I want the error to say it has to be opened from a web host, so that I am not left looking at a blank stage.
+20. As a reader, I want a published VN whose `manifest.yaml` or `script.yaml` will not load to say it could not be loaded, rather than playing some other story.
+21. As a reader of the WebVn demo, I want it to keep playing at its address exactly as before, so that nothing I bookmarked broke.
+22. As a reader following a player link, I want `?vn=` links to keep working, so that links already shared still open.
 
 ### Importing from a URL
 
-22. As an author, I want to import a published VN by pasting its address, so that I can study or remix a story someone published.
-23. As an author, I want to paste whatever address my browser showed while I was playing, ending in `index.html`, `player.html`, `manifest.yaml` or no filename, with or without a trailing slash, and have it understood.
-24. As an author, I want a pasted player link (`?vn=`) refused with the reason that it carries no assets, so that I do not import the host's demo by accident.
-25. As an author, I want an address that is not an `http`/`https` URL refused beside the field I typed it into, so that I can fix it without starting over.
-26. As an author, I want import to fetch only what the manifest declares, so that the player's own files and anything else on the host stay out of my project.
-27. As an author, I want an import where any declared file fails to arrive to be refused, with the missing files named, so that I never land a project with holes in it.
-28. As an author, I want a host that answers a missing file with its index page and a 200 to be caught, so that a web page is never stored as my background.
-29. As an author, I want a host that cannot be reached, or that does not let other sites read it, to be refused with a message saying either may be the cause.
-30. As an author, I want a refused import to leave my library exactly as it was, including any project it would have overwritten, so that a bad connection never costs me a project.
-31. As an author, I want an import whose id is already taken to offer overwrite or cancel, with the same dialog an archive import uses, so that importing works one way whatever the source.
-32. As an author, I want the imported project filed under its manifest's id whatever the address says, so that identity works the way it does everywhere else.
-33. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
-34. As an author, I want a published folder too large for my storage, or over the import caps, refused before it fills anything, so that one import cannot starve the library.
-35. As an author, I want to stay on the picker afterwards with the new row visible, as after an archive import, so that I can see the project arrived.
-36. As an author, I want a folder whose address redirects to be imported from where it actually lives, so that a missing trailing slash or a moved site does not break the import.
-37. As an author, I want reloading the page mid-import to leave nothing behind, so that giving up on a slow host is free.
+23. As an author, I want to import a published VN by pasting its address, so that I can study or remix a story someone published.
+24. As an author, I want to paste whatever address my browser showed while I was playing, ending in `index.html`, `player.html`, `manifest.yaml` or no filename, with or without a trailing slash, and have it understood.
+25. As an author, I want a pasted player link (`?vn=`) refused with the reason that it carries no assets, so that I do not import the host's demo by accident.
+26. As an author, I want an address that is not an `http`/`https` URL refused beside the field I typed it into, so that I can fix it without starting over.
+27. As an author, I want import to fetch only what the manifest declares, so that the player's own files and anything else on the host stay out of my project.
+28. As an author, I want an import where any declared file fails to arrive to be refused, naming the file that failed, so that I never land a project with holes in it.
+29. As an author, I want a host that answers a missing file with its index page and a 200 to be caught, so that a web page is never stored as my background.
+30. As an author, I want a host that cannot be reached, or that does not let other sites read it, to be refused with a message saying either may be the cause.
+31. As an author, I want a refused import to leave my library exactly as it was, so that a bad connection never costs me a project.
+32. As an author, I want an import whose id is already in my library to be refused before anything is downloaded, telling me to delete that project first if I want to import again, so that a host that fails halfway can never have cost me the project I had.
+33. As an author, I want the imported project filed under its manifest's id whatever the address says, so that identity works the way it does everywhere else.
+34. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
+35. As an author, I want a published folder too large for my storage, or over the import caps, refused the moment it passes the limit, with what it wrote removed, so that one import cannot starve the library.
+36. As an author, I want to stay on the picker afterwards with the new row visible, as after an archive import, so that I can see the project arrived.
+37. As an author, I want a folder whose address redirects to be imported from where it actually lives, so that a missing trailing slash or a moved site does not break the import.
+38. As an author, I want reloading the page mid-import to leave nothing in my library, so that giving up on a slow host is free.
 
 ### The demo
 
-38. As a new author, I want Add demo project to give me the same demo it always has, assets included, so that my first minutes are unchanged.
-39. As an author, I want the demo in my library to come from the demo the app is deployed beside, so that what I edit is what I can play.
-40. As an author whose demo is open in another tab, I want Add demo project refused with that reason, so that two tabs never write one project.
-41. As an author, I want a demo whose art will not arrive to fail whole, as any import does, so that the library never holds a demo with silent holes. The seed skipped such files with a console warning.
+39. As a new author, I want Add demo project to give me the same demo it always has, assets included, so that my first minutes are unchanged.
+40. As an author, I want the demo in my library to come from the demo the app is deployed beside, so that what I edit is what I can play.
+41. As an author whose demo is open in another tab, I want Add demo project refused with that reason, so that two tabs never write one project.
+42. As an author, I want a demo whose art will not arrive to fail whole, as any import does, so that the library never holds a demo with silent holes. The seed skipped such files with a console warning.
+43. As an author who already has the demo, I want Add demo project to tell me to delete my copy first, so that getting a clean demo is two steps I can see rather than a button that vanished.
 
 ### Maintaining it
 
-42. As a maintainer, I want publish and URL import to take their file list from one function, so that what one writes and what the other reads cannot come apart.
-43. As a maintainer, I want the player's boot out of its self-booting entry point, so that a suite can boot the path that ships.
-44. As a maintainer, I want URL import to feed the existing import back half, so that the lock, the overwrite dialog, the save drop, the `created` date and the crash sweep stay written once.
-45. As a maintainer, I want `seedDemoProject` gone, so that the demo stops being a special case in the store.
-46. As a maintainer, I want zip.js still imported by exactly one module, so that "does the zip library reach the player bundle?" is still answered by one import list.
-47. As a maintainer, I want the player's bundle to stop carrying the demo's YAML, so that a published build does not ship a story it never plays.
+44. As a maintainer, I want publish and URL import to take their file list from one function, so that what one writes and what the other reads cannot come apart.
+45. As a maintainer, I want the player's boot out of its self-booting entry point, so that a suite can boot the path that ships.
+46. As a maintainer, I want URL import to feed the existing import back half, so that the lock, the taken-id check, the save drop, the `created` date and the crash sweep stay written once.
+47. As a maintainer, I want `seedDemoProject` gone, so that the demo stops being a special case in the store.
+48. As a maintainer, I want zip.js still imported by exactly one module, so that "does the zip library reach the player bundle?" is still answered by one import list.
+49. As a maintainer, I want neither bundle to carry the demo's YAML, so that a published build does not ship a story it never plays and the editor does not keep a second copy of a file it imports.
 
 ## Implementation Decisions
 
@@ -127,11 +158,27 @@ errors or undeclared references publishes and imports freely.
   because on its face it contradicts ADR 0005, which lets an archive carry a manifest declaring files
   nobody has drawn yet, and a later reader will want to "fix" one to match the other. They differ
   because their audiences do. **An archive** is the author's backup of work in progress, and declaring
-  before drawing is the normal authoring order. **A published folder** is for readers, and a missing
-  file is a scene the renderer throws on when the story reaches it. On the import side there is a
-  second reason: a 404 cannot distinguish "never drawn" from "lost in transit", and landing either
-  silently is the project-with-holes that the rename recovery exists to prevent. So both directions
-  refuse and name the files. The script never gates, as in ADR 0005.
+  before drawing is the normal authoring order. **A published folder** is what other people receive.
+  The ADR gives three reasons, **in this order**:
+  1. **The round trip.** What publish writes, URL import reads back. So every refusal URL import
+     gives is about a folder someone else made, never about our own output. This is ADR 0005's third
+     consequence, applied to the second format. It is the only reason that covers *every* declared
+     file.
+  2. **A 404 cannot tell "never drawn" from "lost in transit".** Landing either silently is the
+     project with holes in it that the rename recovery exists to prevent.
+  3. **The reader.** A missing file is a scene the renderer throws on when the story reaches it. This
+     covers only files some script line uses, and it stops holding on the day the renderers learn to
+     survive a missing file, which `CLAUDE.md` names as a separate change. That is why it comes last.
+
+  The script never gates, as in ADR 0005. **The cost goes in the ADR's Consequences:** an author
+  cannot publish while any declaration is ahead of its art, even one no script line uses yet. The
+  fix is to remove that declaration. The asset panel never declares ahead in the first place,
+  because its Add writes the file and the declaration together.
+
+  Considered and refused: completeness meaning "every file the story can reach", so a declared but
+  unused file could travel as a missing asset. It would let a chapter-1 demo publish while chapter 2's
+  sprites are only declared, but it makes `Command.references()` the only thing between a reader and
+  a crash, and it makes import parse the script to judge completeness.
 - **One list serves both directions.** A pure function takes a parsed manifest and returns the
   published files: `manifest.yaml`, `script.yaml`, and every declared path from `declaredAssets`,
   **deduplicated**, since two ids can name one file. Publish writes exactly this list and URL import
@@ -167,17 +214,37 @@ errors or undeclared references publishes and imports freely.
   the folder has to be opened from a web host, because that is the first thing a non-developer tries
   after extracting a zip and it otherwise looks like a bug. The surface stays the existing one-line
   load error. A styled error screen belongs to `.scratch/stage-dialogs/`.
-- **The demo module (`src/demoStory.ts`) survives with less to do.** It still feeds the demo suite
-  its script and the picker the demo's id. Its comment that it "has no reason to exist" once the
-  player parses `manifest.yaml` at boot must be corrected, not left standing.
+- **The player sets the page's title from the manifest's `title`** as it boots, so a published VN's
+  tab shows the story rather than "WebVn". It applies to a `?vn=` payload too, whose manifest carries
+  a title just the same. This is done in the player rather than by publish rewriting `index.html`:
+  **publish copies the player's files byte for byte and never templates them.**
+- **The demo module (`src/demoStory.ts`) survives as a test fixture only.** Once the player fetches
+  its folder and the picker stops needing the demo's id (see "The demo is a URL import"), no shipped
+  code imports it, and it feeds the test suites their copy of the demo. Its comment that it "has no
+  reason to exist" once the player parses `manifest.yaml` at boot must be corrected, not left
+  standing.
 
 ### Importing from a URL
 
-- **A new producer beside the archive feeds the existing back half, `importProject`, unchanged.** It
-  turns a URL into the `ArchiveEntry` listing that the zip reader produces from a file, and it does
-  not import zip.js. The lock, the room check, the overwrite dialog, clearing the destination,
-  dropping the saves, writing the manifest last and recording `created` are all inherited, and so is
-  the crash sweep that takes away a manifest-less directory.
+- **A new producer beside the archive feeds the existing back half, `importProject`, with one option
+  added.** It turns a URL into the `ArchiveEntry` listing that the zip reader produces from a file,
+  and it does not import zip.js. The lock, dropping the saves, writing the manifest last and recording
+  `created` are all inherited, and so is the crash sweep that takes away a manifest-less directory.
+  **The option is to refuse a taken id instead of asking.** `importProject` takes the destination's
+  lock and then asks `confirmOverwrite` if a project is filed there. URL import asks it to refuse
+  instead, still with the lock held, so the answer stays true long enough to act on. The refusal says
+  the project is already in the library, and that deleting it is how to import it again.
+- **URL import never overwrites.** An archive is a file on the author's disk, so an overwrite that
+  fails halfway can be run again. A host can fail halfway and stay down, and `importProject` clears
+  the destination before it writes. Refusing a taken id means the destination is always a new
+  directory, and that is what makes streaming safe: a failure mid-download has destroyed nothing,
+  and what it wrote is a manifest-less directory that the crash sweep removes. The archive keeps
+  overwrite-or-cancel. Considered and refused:
+  - **Downloading everything before writing anything.** Memory, or the browser's disk-backed Blob
+    storage, holds the whole project, and the overwrite question comes only after the whole download.
+  - **Streaming into a staging directory, then moving it into place.** OPFS cannot move a directory
+    (see the design doc's "Renaming"), so the move is a copy. Every file is written twice, and the
+    project needs twice its size in free space.
 - **What the author meant is a pure function of what they typed.**
   - The address must be absolute `http` or `https`.
   - An address carrying a `vn` query parameter is refused as a player link: *it carries a script but
@@ -194,38 +261,46 @@ errors or undeclared references publishes and imports freely.
      there*.
   2. Parse it. If it does not parse, refuse with the parser's first error, exactly as archive import
      does.
-  3. Build the published-file list from the parsed manifest. **Check the entry cap here, before any
+  3. Fetch `script.yaml` the same way. If it is missing, refuse on its own terms, as the archive does.
+     It is fetched up front with the manifest, because both are small text files and these are the
+     two refusals that say the most.
+  4. Build the published-file list from the parsed manifest. **Check the entry cap here, before any
      further fetch.** The count is known the moment the manifest parses.
-  4. Fetch every other file, resolved against the manifest response's **final** URL, after redirects,
-     not against what was typed. At most six requests are in flight at once, which is what a browser
-     allows per host over HTTP/1.1 anyway. Each file is read into a Blob with its bytes counted as
-     they arrive. **The running total aborts the whole import the moment it passes the byte cap**, so
-     a hostile host cannot make the browser buffer without bound. A file that delivers nothing for
-     **30 seconds** is abandoned and counts as missing. A response served as `text/html` counts as
-     missing: a static host configured for a single-page app answers every unknown path with its
-     index page and a 200.
-  5. If `script.yaml` is missing, refuse on its own terms, as the archive does. If any declared file
-     is missing, refuse and name them: the first handful, plus how many more.
-  6. Hand the listing to `importProject`. Each entry's `writeTo` pipes its Blob into the stream the
-     back half opens.
-- **Everything is fetched before anything is written**, and this is the one place the tranche trades
-  away a property the archive has. The archive streams each entry straight into OPFS because its
-  bytes are already on disk and its central directory has already answered every question. A host
-  can fail halfway. `importProject` clears the destination before it writes, so streaming would let a
-  404 on file 37 arrive *after* the author confirmed an overwrite and their project was deleted. The
-  cost is that peak memory, or the browser's disk-backed Blob storage, is the size of the project,
-  bounded by the byte cap. The gains: a reload mid-fetch leaves nothing behind, and the project lock
-  is held only for the write rather than for the whole download.
-- **The producer refuses in its own words wherever it can.** Reachability, the manifest, the parse,
-  the script, the entry count, the byte total and missing files are all settled before the back half
-  is called. The only refusals still reachable in the back half are the room check and the lock, and
-  those must read correctly for both sources. Anything there that says "archive" or "unpacks" is
-  reworded rather than duplicated.
+  5. Hand the listing to `importProject`, with the refuse-on-taken option. It takes the destination's
+     lock and refuses a taken id **before any asset is fetched**. It then writes the entries one at a
+     time, as it does for an archive. Each entry's `writeTo` fetches its file, resolved against the
+     manifest response's **final** URL after redirects rather than against what was typed, and pipes
+     the response body straight into the stream the back half opened.
+     - **The bytes are counted as they pass.** The running total aborts the import the moment it
+       passes the byte cap or the free space measured at the start, whichever is lower. A host does
+       not reliably say how large its files are in advance, so the entries carry no size for the back
+       half's arithmetic check, and the producer enforces the same caps as a running total instead.
+     - A file that delivers nothing for **30 seconds** is abandoned.
+     - A non-OK response, or one served as `text/html`, fails the file. A static host configured for a
+       single-page app answers every unknown path with its index page and a 200.
+     - **The first file that fails ends the import, and the refusal names that file.** Naming every
+       missing file would mean fetching the rest just to count them. The person importing is usually
+       not the author and cannot fix the host, so one name is enough to see what went wrong. Publish,
+       which checks the local store, still names every one.
+  6. On a failure, the back half aborts the open stream and releases the lock, as it already does for a
+     truncated archive. The picker redraws after every import and every redraw runs
+     `recoverProjects`, so the half-written directory is gone by the time the refusal is on screen. A
+     reload mid-import leaves the same directory for the next picker render to remove.
+- **One file at a time is slower than fetching in parallel** on a host serving many small files. It is
+  accepted: parallel writes inside `importProject` would speed up both sources, and are a later
+  optimisation rather than this tranche's.
+- **The producer refuses in its own words.** Reachability, the manifest, the parse and the script are
+  settled before the back half is called. A failed file, the byte cap and a stall are raised by the
+  producer's own `writeTo`, and the producer reports them in its own words rather than as the generic
+  failure the picker shows for an archive that threw. The only refusals the back half gives are the
+  taken id and the lock, and those must read correctly for both sources. Anything there that says
+  "archive" or "unpacks" is reworded rather than duplicated.
 - **The surface is a new control in the picker's bar**, beside Import project, labelled "Import from
   URL" pending the canvas. It opens a chrome dialog with one field. Its busy state, its place in the
-  `InTurn` queue, its orange refusal banner and its success report ("… was imported" / "… replaced
-  what was filed under …") are exactly the archive import's, and the author stays on the picker. The
-  host name stands in for the filename those messages use.
+  `InTurn` queue, its orange refusal banner and its success report ("… was imported") are exactly the
+  archive import's, and the author stays on the picker. The host name stands in for the filename those
+  messages use. There is no "replaced what was filed under …" variant, because a URL import never
+  replaces anything.
 
 ### The demo is a URL import
 
@@ -235,12 +310,17 @@ errors or undeclared references publishes and imports freely.
   it. The entry point passes the document's directory. Suites pass the served `test-assets/` folder.
 - **`seedDemoProject` is deleted**, which is the deletion condition its own file names. Its one test
   caller moves to the URL import.
-- **The button's visibility does not change.** It is hidden while a project filed under the demo's id
-  is listed. The id still comes from the demo manifest bundled into the editor. Within one build that
-  is the same file the import fetches, so the two cannot disagree. The design doc's *"pressing it
-  twice is just the id collision dialog, so 'reset the demo to pristine' arrives for free"* is **not**
-  taken here, because it would reverse a tranche 2 decision and change a drawn surface for a feature
-  nobody has asked for. Deleting the demo and adding it again still works.
+- **The button is always shown.** Tranche 2 hid it while the demo was listed, and gave two reasons:
+  *"a second press would collide with an existing directory; hiding the button once the demo is
+  listed is both the collision fix and the honest signal"*. Tranche 3's collision handling has since
+  answered the first. With the button always shown, the picker no longer needs the demo's id, so the
+  editor bundle stops importing `src/demoStory.ts` and carries no copy of the demo at all. Before
+  this, a manifest bundled into the editor had to agree with the one the import fetches.
+- **A second press is refused**, through URL import's taken-id refusal: the demo is already in the
+  library, and deleting it first is how to add it again. The design doc's *"pressing it twice is just
+  the id collision dialog, so 'reset the demo to pristine' arrives for free"* is therefore still not
+  had. Getting a clean demo is delete, then add, as it was when the button was hidden, but now the
+  page says so.
 - **The project lock moves into `importProject`.** Add demo project no longer takes it itself. A demo
   open in another tab is refused through the back half's own lock refusal.
 - **Two behaviour changes, both accepted:**
@@ -296,7 +376,11 @@ errors or undeclared references publishes and imports freely.
   `README.txt`. That makes a published zip import as exactly the project it was built from, which
   keeps the invariant: what publish writes, import reads back. The accepted cost is the same one
   `README.txt` has: a project cannot carry its own root-level `index.html` or `playerIndex.js`
-  through an archive round trip.
+  through an archive round trip. **The list only ever grows.** A zip published by an older build
+  still carries that build's player, so a name that leaves the publish side stays on the skip side.
+  A rule keyed on `index.html` at the archive root, reading such a zip by the manifest rather than
+  by a list, would also survive a content-hashed bundle. It was considered and turned down, because
+  this is a rare case and two exact paths cover it.
 - **Version skew is accepted.** A published zip carries whichever player the editor was deployed
   with, and publishing again is how a build picks up a newer one.
 
@@ -307,7 +391,7 @@ errors or undeclared references publishes and imports freely.
   named; this project publishes as a zip holding exactly these paths; this folder boots to this first
   stop. It does not count fetches or check internal ordering, except where ordering *is* the
   behaviour. "Nothing is written on a refusal" is asserted by what the library holds afterwards,
-  including an overwrite target that is still intact, not by spying on writes.
+  including a project under the same id that is still intact, not by spying on writes.
 - **The seams, as confirmed.** They use real fetch against folders the test server serves, not an
   injected `fetch`:
   - **URL import, browser suite, real fetch and real OPFS.** `/test-assets/` is already a same-origin
@@ -321,16 +405,21 @@ errors or undeclared references publishes and imports freely.
       fallback rule is reached with a static server;
     - an address nothing answers, for the unreachable refusal.
 
-    Also covered: overwrite, cancel, a refusal leaving an existing project intact, and saves dropped
-    under the imported id. Check early that the test server serves a `.yaml` fetch as plain text; the
-    PNG fetches the existing suites make suggest it does.
+    Also covered:
+    - a taken id, refused with the existing project intact and none of the folder's assets fetched;
+    - a file failing partway through the stream, refused and named, with no directory left behind
+      once the picker has redrawn;
+    - saves dropped under the imported id.
+
+    Check early that the test server serves a `.yaml` fetch as plain text; the PNG fetches the
+    existing suites make suggest it does.
   - **Pure functions, unit suite.** URL normalisation: every accepted shape, the player-link refusal,
     the non-http refusal. The published-file list: sprites under their actor, audio, deduplication,
     script and manifest always present. `planImport` keeps its existing unit seam, and the root-level
     player-file skip is added to its cases.
   - **The player boot, browser suite.** Booted against `/test-assets/`, it reaches the demo's first
-    stop with assets resolved against that folder. Booted against a folder with no manifest, it
-    refuses. With a payload, it plays the payload.
+    stop with assets resolved against that folder, and the page's title is the manifest's. Booted
+    against a folder with no manifest, it refuses. With a payload, it plays the payload.
   - **Publish, browser suite**, shaped like the export suite: build the zip and read it back with
     zip.js.
     - The exact path set, player stand-ins included, with undeclared project files absent.
@@ -340,7 +429,8 @@ errors or undeclared references publishes and imports freely.
     - The round trip: the published zip through archive import yields a project holding exactly the
       published files and no player files.
   - **The picker, browser suite.** Add demo project and the Import from URL dialog are driven through
-    the DOM, as the archive import already is.
+    the DOM, as the archive import already is. That includes a second press of Add demo project,
+    refused with the demo already listed.
 - **Prior art:** the browser suites for archive import and export, the editor-storage suite (which
   seeds the demo today), the picker suite, the unit suite for the archive, and the helpers for OPFS
   scratch roots and the picker.
@@ -375,6 +465,12 @@ errors or undeclared references publishes and imports freely.
 - **The export nag.** Still no evidence for a threshold, and the picker row's "never exported" line
   is still most of its value.
 - **Rename-on-import, and "reset the demo" as its own action.** See tranche 3's decision 2.
+- **Overwriting a project from a URL.** Refused by design; see "URL import never overwrites".
+- **Vendoring the player's font.** `player.html` loads Source Code Pro from `fonts.googleapis.com`,
+  so a published folder is not self-contained. Played offline it falls back to another font, and
+  every reader's IP address goes to Google, which a Munich court ruled in 2022 breaches GDPR. The
+  fix belongs to the player rather than to publish, and is deferred. It is recorded here as a known
+  gap in what a published folder holds.
 - **Import progress and cancellation.** Tranche 3 shipped no progress bar and this follows it. The
   stall timeout is what stops a hung host from holding the picker.
 - **Dropping a link onto the picker.**
@@ -400,7 +496,8 @@ errors or undeclared references publishes and imports freely.
 - **The canvas goes first, as tranche 3's four artboards did.** Needed:
   - the Import from URL control in the picker's bar and its dialog, including the dialog refusing an
     address beside the field;
-  - a URL import refused, which uses the existing banner with new wording;
+  - a URL import refused, which uses the existing banner with new wording, including a taken id;
+  - the picker's bar with Add demo project always present, which redraws a tranche 2 board;
   - the Publish control in the editor's chrome, with a refusal naming missing files.
 
   Publish is a fourth tool button, and `CLAUDE.md`'s rule is "icons on all three tools or none". It
@@ -409,11 +506,13 @@ errors or undeclared references publishes and imports freely.
   - **The player is `index.html` in a published folder, not `player.html`.** itch.io requires an
     `index.html`, and a folder's own address should play. The deployed demo keeps `player.html`,
     because its `index.html` is the editor. URL import handles both, being manifest-driven.
-  - **The demo button stays hidden while the demo is listed**, rather than reaching the collision
-    dialog on a second press.
+  - **A second press of the demo button is refused**, rather than reaching the collision dialog. The
+    button is always shown, but "reset the demo to pristine" does not arrive for free.
   - **The completeness rule reaches publish.** The doc states it only for import.
-  - **URL import fetches everything before writing anything.** The doc assumes a streaming import
-    throughout.
+  - **URL import refuses a taken id** instead of raising the collision dialog that the doc gives
+    every ingestion path. The archive keeps the dialog.
+  - **A refused URL import names the first file that failed**, not every missing file as the doc's
+    "fail the whole import and name the missing files" has it.
 - **The design doc's open question about which hosts URL import can reach stays open.** Ticket 02
   should answer it for GitHub Pages at least, by hand, and write the answer back into the doc. It
   decides whether the dialog has to say "from a host that allows it".

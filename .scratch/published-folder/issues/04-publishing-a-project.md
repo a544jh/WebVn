@@ -26,7 +26,16 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
   script is present; check **every file on the published list is in the store**, refusing with all
   the missing ones named; fetch the player's files; build the zip - `README.txt`, then `index.html`
   and the player bundle, then the published files, with `storesWhole` unchanged; deliver it through
-  the existing download anchor and report in the chrome's message line.
+  the existing download anchor and open the hosting dialog.
+- **Both outcomes are chrome dialogs**, `noticeDialog`s with one Close button, not the message line
+  Export ZIP reports in:
+  - **published** - the zip is on its way; put the files on any static web host or upload the zip to
+    itch.io as an HTML game, then open the folder's address; opening `index.html` from the disk does
+    not work;
+  - **refused** - every missing declared file listed by path, and the fix: replace it in the asset
+    panel, or remove its declaration.
+
+  The picker's URL import keeps its orange banner; this is the editor only.
 - **The host tells publish where the player's files are.** In production: `player.html`, written
   into the zip as `index.html`, and `playerIndex.js`, from the document's own directory. Suites hand
   it small stand-ins. The player's file names are written down once. **Copied byte for byte, never
@@ -48,7 +57,9 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 
 - [ ] Browser suite, shaped like the export suite - build the zip and read it back with zip.js: the
       exact path set, player stand-ins included, with an undeclared project file absent.
-- [ ] A missing declared file is refused with every missing file named, and nothing is downloaded.
+- [ ] A missing declared file is refused in a dialog listing every missing file, and nothing is
+      downloaded.
+- [ ] A successful publish opens the hosting dialog, and closing it leaves the editor as it was.
 - [ ] A manifest that does not parse greys the control, and is refused if reached.
 - [ ] A sentence typed just before pressing Publish is in the zip - the flush.
 - [ ] The round trip: the published zip through Import ZIP yields a project holding exactly

@@ -73,6 +73,9 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 - [ ] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
 - [ ] Checked early: the test server hands a `.yaml` fetch out as text.
 - [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin import from
-      GitHub Pages. The answer to which hosts are reachable is written back into
+      GitHub Pages. Already known from curl against the deployed demo (2026-09-28): `.yaml` is served
+      `200` as `text/yaml`, every response carries `Access-Control-Allow-Origin: *`, a missing file is
+      a real `404` as `text/html`, and everything is cached for ten minutes. What is left to see is a
+      browser page's own `fetch` succeeding. The answer to which hosts are reachable is written back into
       `design-docs/PROJECT_STORAGE.md`'s open question.
 - [ ] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.

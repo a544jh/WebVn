@@ -101,60 +101,62 @@ errors or undeclared references publishes and imports freely.
 5. As an author, I want publishing to refuse when a declared file is missing, and to name every one, so that no reader reaches a scene that breaks on art I never drew.
 6. As an author, I want publishing to refuse a manifest that does not parse, in the same terms Export ZIP uses, so that one rule governs both.
 7. As an author, I want a script with parse errors or undeclared references to publish anyway, so that the published story behaves exactly like the preview I have been playing.
-8. As an author, I want the published zip to include what I typed a moment ago, so that the build is never missing my last sentence.
-9. As an author, I want the Publish control greyed out while my manifest does not parse, as Export ZIP is, so that I know before I click.
-10. As an author, I want the published zip to carry a short README saying how to host it and how to work on it again, so that the file explains itself when I find it months later.
-11. As an author, I want a published zip to be importable with Import ZIP, so that a build I kept is also a way back into the library.
-12. As an author, I want importing a published zip to leave the player's files out of my project, so that they do not sit in it invisibly and ride into every archive I export.
-13. As an author, I want the published zip's filename to differ from the archive's, so that I can tell my backup from my build in Downloads.
-14. As an author, I want to be told when the player's own files could not be fetched, so that publishing never produces a zip that cannot play.
-15. As an author, I want publishing to leave my library's "last exported" line alone, so that a build that dropped my undeclared files never counts as a backup.
+8. As an author who has just published, I want to be told what to do with the zip - put it on a static host or upload it to itch.io, and not open `index.html` from my disk - so that I am not left holding a file I do not know how to use.
+9. As an author whose publish was refused, I want the missing files listed in a dialog I have to dismiss, so that the list is not a line of text I can miss beside the buttons.
+10. As an author, I want the published zip to include what I typed a moment ago, so that the build is never missing my last sentence.
+11. As an author, I want the Publish control greyed out while my manifest does not parse, as Export ZIP is, so that I know before I click.
+12. As an author, I want the published zip to carry a short README saying how to host it and how to work on it again, so that the file explains itself when I find it months later.
+13. As an author, I want a published zip to be importable with Import ZIP, so that a build I kept is also a way back into the library.
+14. As an author, I want importing a published zip to leave the player's files out of my project, so that they do not sit in it invisibly and ride into every archive I export.
+15. As an author, I want the published zip's filename to differ from the archive's, so that I can tell my backup from my build in Downloads.
+16. As an author, I want to be told when the player's own files could not be fetched, so that publishing never produces a zip that cannot play.
+17. As an author, I want publishing to leave my library's "last exported" line alone, so that a build that dropped my undeclared files never counts as a backup.
 
 ### Reading a published VN
 
-16. As a reader, I want to open a published VN's address and have it play, so that I need nothing installed.
-17. As a reader, I want the browser tab to show the story's title, so that I can find it among my tabs and bookmarks.
-18. As a reader, I want my saves in a published VN to be there when I come back, so that I can read it over several visits.
-19. As a reader who opened `index.html` straight from my disk, I want the error to say it has to be opened from a web host, so that I am not left looking at a blank stage.
-20. As a reader, I want a published VN whose `manifest.yaml` or `script.yaml` will not load to say it could not be loaded, rather than playing some other story.
-21. As a reader of the WebVn demo, I want it to keep playing at its address exactly as before, so that nothing I bookmarked broke.
-22. As a reader following a player link, I want `?vn=` links to keep working, so that links already shared still open.
+18. As a reader, I want to open a published VN's address and have it play, so that I need nothing installed.
+19. As a reader, I want the browser tab to show the story's title, so that I can find it among my tabs and bookmarks.
+20. As a reader, I want my saves in a published VN to be there when I come back, so that I can read it over several visits.
+21. As a reader who opened `index.html` straight from my disk, I want the error to say it has to be opened from a web host, so that I am not left looking at a blank stage.
+22. As a reader, I want a published VN whose `manifest.yaml` or `script.yaml` will not load to say it could not be loaded, rather than playing some other story.
+23. As a reader of the WebVn demo, I want it to keep playing at its address exactly as before, so that nothing I bookmarked broke.
+24. As a reader following a player link, I want `?vn=` links to keep working, so that links already shared still open.
 
 ### Importing from a URL
 
-23. As an author, I want to import a published VN by pasting its address, so that I can study or remix a story someone published.
-24. As an author, I want to paste whatever address my browser showed while I was playing, ending in `index.html`, `player.html`, `manifest.yaml` or no filename, with or without a trailing slash, and have it understood.
-25. As an author, I want a pasted player link (`?vn=`) refused with the reason that it carries no assets, so that I do not import the host's demo by accident.
-26. As an author, I want an address that is not an `http`/`https` URL refused beside the field I typed it into, so that I can fix it without starting over.
-27. As an author, I want import to fetch only what the manifest declares, so that the player's own files and anything else on the host stay out of my project.
-28. As an author, I want an import where any declared file fails to arrive to be refused, naming the file that failed, so that I never land a project with holes in it.
-29. As an author, I want a host that answers a missing file with its index page and a 200 to be caught, so that a web page is never stored as my background.
-30. As an author, I want a host that cannot be reached, or that does not let other sites read it, to be refused with a message saying either may be the cause.
-31. As an author, I want a refused import to leave my library exactly as it was, so that a bad connection never costs me a project.
-32. As an author, I want an import whose id is already in my library to be refused before anything is downloaded, telling me to delete that project first if I want to import again, so that a host that fails halfway can never have cost me the project I had.
-33. As an author, I want the imported project filed under its manifest's id whatever the address says, so that identity works the way it does everywhere else.
-34. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
-35. As an author, I want a published folder too large for my storage, or over the import caps, refused the moment it passes the limit, with what it wrote removed, so that one import cannot starve the library.
-36. As an author, I want to stay on the picker afterwards with the new row visible, as after an archive import, so that I can see the project arrived.
-37. As an author, I want a folder whose address redirects to be imported from where it actually lives, so that a missing trailing slash or a moved site does not break the import.
-38. As an author, I want reloading the page mid-import to leave nothing in my library, so that giving up on a slow host is free.
+25. As an author, I want to import a published VN by pasting its address, so that I can study or remix a story someone published.
+26. As an author, I want to paste whatever address my browser showed while I was playing, ending in `index.html`, `player.html`, `manifest.yaml` or no filename, with or without a trailing slash, and have it understood.
+27. As an author, I want a pasted player link (`?vn=`) refused with the reason that it carries no assets, so that I do not import the host's demo by accident.
+28. As an author, I want an address that is not an `http`/`https` URL refused beside the field I typed it into, so that I can fix it without starting over.
+29. As an author, I want import to fetch only what the manifest declares, so that the player's own files and anything else on the host stay out of my project.
+30. As an author, I want an import where any declared file fails to arrive to be refused, naming the file that failed, so that I never land a project with holes in it.
+31. As an author, I want a host that answers a missing file with its index page and a 200 to be caught, so that a web page is never stored as my background.
+32. As an author, I want a host that cannot be reached, or that does not let other sites read it, to be refused with a message saying either may be the cause.
+33. As an author, I want a refused import to leave my library exactly as it was, so that a bad connection never costs me a project.
+34. As an author, I want an import whose id is already in my library to be refused before anything is downloaded, telling me to delete that project first if I want to import again, so that a host that fails halfway can never have cost me the project I had.
+35. As an author, I want the imported project filed under its manifest's id whatever the address says, so that identity works the way it does everywhere else.
+36. As an author, I want a host that stops sending mid-file to fail the import, so that the picker is never left busy forever.
+37. As an author, I want a published folder too large for my storage, or over the import caps, refused the moment it passes the limit, with what it wrote removed, so that one import cannot starve the library.
+38. As an author, I want to stay on the picker afterwards with the new row visible, as after an archive import, so that I can see the project arrived.
+39. As an author, I want a folder whose address redirects to be imported from where it actually lives, so that a missing trailing slash or a moved site does not break the import.
+40. As an author, I want reloading the page mid-import to leave nothing in my library, so that giving up on a slow host is free.
 
 ### The demo
 
-39. As a new author, I want Add demo project to give me the same demo it always has, assets included, so that my first minutes are unchanged.
-40. As an author, I want the demo in my library to come from the demo the app is deployed beside, so that what I edit is what I can play.
-41. As an author whose demo is open in another tab, I want Add demo project refused with that reason, so that two tabs never write one project.
-42. As an author, I want a demo whose art will not arrive to fail whole, as any import does, so that the library never holds a demo with silent holes. The seed skipped such files with a console warning.
-43. As an author who already has the demo, I want Add demo project to tell me to delete my copy first, so that getting a clean demo is two steps I can see rather than a button that vanished.
+41. As a new author, I want Add demo project to give me the same demo it always has, assets included, so that my first minutes are unchanged.
+42. As an author, I want the demo in my library to come from the demo the app is deployed beside, so that what I edit is what I can play.
+43. As an author whose demo is open in another tab, I want Add demo project refused with that reason, so that two tabs never write one project.
+44. As an author, I want a demo whose art will not arrive to fail whole, as any import does, so that the library never holds a demo with silent holes. The seed skipped such files with a console warning.
+45. As an author who already has the demo, I want Add demo project to tell me to delete my copy first, so that getting a clean demo is two steps I can see rather than a button that vanished.
 
 ### Maintaining it
 
-44. As a maintainer, I want publish and URL import to take their file list from one function, so that what one writes and what the other reads cannot come apart.
-45. As a maintainer, I want the player's boot out of its self-booting entry point, so that a suite can boot the path that ships.
-46. As a maintainer, I want URL import to feed the existing import back half, so that the lock, the taken-id check, the save drop, the `created` date and the crash sweep stay written once.
-47. As a maintainer, I want `seedDemoProject` gone, so that the demo stops being a special case in the store.
-48. As a maintainer, I want zip.js still imported by exactly one module, so that "does the zip library reach the player bundle?" is still answered by one import list.
-49. As a maintainer, I want neither bundle to carry the demo's YAML, so that a published build does not ship a story it never plays and the editor does not keep a second copy of a file it imports.
+46. As a maintainer, I want publish and URL import to take their file list from one function, so that what one writes and what the other reads cannot come apart.
+47. As a maintainer, I want the player's boot out of its self-booting entry point, so that a suite can boot the path that ships.
+48. As a maintainer, I want URL import to feed the existing import back half, so that the lock, the taken-id check, the save drop, the `created` date and the crash sweep stay written once.
+49. As a maintainer, I want `seedDemoProject` gone, so that the demo stops being a special case in the store.
+50. As a maintainer, I want zip.js still imported by exactly one module, so that "does the zip library reach the player bundle?" is still answered by one import list.
+51. As a maintainer, I want neither bundle to carry the demo's YAML, so that a published build does not ship a story it never plays and the editor does not keep a second copy of a file it imports.
 
 ## Implementation Decisions
 
@@ -348,19 +350,32 @@ errors or undeclared references publishes and imports freely.
   flush ordering is also the editor's own: flush the storer, then walk.
 - **The gate is Export ZIP's, via `gateOnManifest`.** The control is greyed out while the manifest
   does not parse. Missing files are a refusal on click rather than a greyed-out control. Greying on
-  them would mean wiring the gate to the missing-file report, and one sentence naming the files tells
+  them would mean wiring the gate to the missing-file report, and a dialog naming the files tells
   the author more than a disabled button.
 - **The order:**
   1. Flush the storer.
   2. Read the manifest and parse it, refusing as export does.
   3. Check that the script is present.
   4. Check that **every file on the published list is in the store**, refusing with the missing ones
-     named.
+     named, in a dialog (below).
   5. Fetch the player's files.
   6. Build the zip: `README.txt`, then `index.html` and the player bundle, then the published files.
      The archive's precompressed-media rule (`storesWhole`) applies unchanged.
-  7. Deliver it through the existing download anchor, and report it in the chrome's existing message
-     line.
+  7. Deliver it through the existing download anchor, and open the hosting dialog (below).
+- **Both outcomes are chrome dialogs, not the message line.** Decided 2026-09-28 against the canvas's
+  first draft, which put them in the unstyled line beside the buttons that Export ZIP and Copy player
+  link report in. Both are `noticeDialog`s, a single Close button, so no new dialog machinery.
+  - **Published:** says the zip is on its way and what it is for - put the files on any static web
+    host, or upload the zip to itch.io as an HTML game, then open the folder's address - and that
+    opening `index.html` from the disk does not work. This is the README's advice at the moment it is
+    needed; the README is for the author who finds the zip months later.
+  - **Refused:** lists every missing declared file, each by its path, and says to replace it in the
+    asset panel or remove its declaration. A list is the reason: the message line holds one sentence,
+    and a project with five undrawn backgrounds needs five lines. A manifest that does not parse or a
+    missing script, reachable only if the gate is raced, uses the same dialog.
+
+  The picker keeps its orange banner for URL import's refusals, as archive import does: the two
+  imports sit side by side and must not report in two different ways.
 - **The host tells publish where the player's files are**, as `navigation` and the demo URL are told
   rather than guessed. In production it fetches `player.html`, written into the zip as `index.html`,
   and `playerIndex.js` from the document's own directory. Suites hand it small stand-ins. **The
@@ -524,9 +539,14 @@ errors or undeclared references publishes and imports freely.
     every ingestion path. The archive keeps the dialog.
   - **A refused URL import names the first file that failed**, not every missing file as the doc's
     "fail the whole import and name the missing files" has it.
-- **The design doc's open question about which hosts URL import can reach stays open.** Ticket 02
-  should answer it for GitHub Pages at least, by hand, and write the answer back into the doc. It
-  decides whether the dialog has to say "from a host that allows it".
+- **GitHub Pages answers the design doc's open question about reach**, checked 2026-09-28 with curl
+  against the deployed demo: `manifest.yaml` and `script.yaml` come back `200` as `text/yaml`, every
+  response - a `404` included - carries `Access-Control-Allow-Origin: *`, and a missing file is a real
+  `404` served as `text/html`, not a single-page-app fallback. Everything is `Cache-Control:
+  max-age=600`, so a folder re-published and imported within ten minutes can arrive stale. Not
+  checked: a real cross-origin `fetch` from a page, which ticket 02 still does by hand, and itch.io
+  and Neocities, which stay open and still decide whether the dialog says "from a host that allows
+  it".
 - **One non-guarantee now reaches readers.** Player saves are `vn-save-<id>` in localStorage, and
   localStorage is per origin. Every GitHub Pages site under one user, and possibly every itch.io HTML
   game (unverified), shares one origin. So two published VNs with the same id on such a host share

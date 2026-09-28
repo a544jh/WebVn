@@ -59,7 +59,7 @@ in full.
   ahead in the first place - its Add writes the file and the declaration together - so the case
   arises only from a hand edit, and the editor has already marked every such line orange.
 - **Publish's refusal is a click, not a greyed control.** The control is gated on the manifest
-  parsing, as Export ZIP is; missing files are named when it is pressed, because one sentence naming
+  parsing, as Export ZIP is; missing files are listed in a dialog when it is pressed, because a list naming
   them says more than a disabled button.
 - **URL import names the first file that failed, not every one.** It streams, so knowing them all
   would mean fetching the rest just to count them; the person importing is usually not the author

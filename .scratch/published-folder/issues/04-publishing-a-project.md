@@ -123,3 +123,16 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 
 **Also checked by hand by the maintainer, 2026-09-28**: Publish under `npm run dev`, and a published VN
 served locally by `python -m http.server`.
+
+**A folder published from `npm run dev` reload-looped, 2026-09-28** (reported by the maintainer after
+the check above had passed). Publish copies `playerIndex.js` byte for byte from wherever the editor is
+served, and under the dev server that bundle carried the dev server's client, with `port=8080` written
+into its query. So the published folder, opened from `python -m http.server`, still dialled the dev
+server; while the dev server's build matched the copy nothing happened, which is why the first check
+passed, but after any rebuild the page asked its own host for `playerIndex.<hash>.hot-update.json`, got
+a 404, reloaded, and asked again - 168 reloads in eight seconds, reproduced in headless Chromium. Fixed
+in `webpack.config.js`: the client is added to the editor's entry by hand and to nothing else. After
+the fix the same probe shows the published copy loading once and opening no socket across a rebuild of
+both bundles, the editor still dialling its own dev server and reloading on a save, and
+`dist/playerIndex.js` unchanged. A folder already published from the dev server still carries the old
+client: publish it again. Nothing automated covers it, like the rest of `npm run dev`.

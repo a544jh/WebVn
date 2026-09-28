@@ -104,4 +104,21 @@ module.exports = {
 
 if (isDevServer) {
   module.exports.devtool = "eval-source-map"
+
+  // **The dev server's client goes into the editor's bundle only, never the player's.** Left to itself
+  // the dev server adds its client to every entry, with its own port written into the query, and
+  // Publish copies playerIndex.js byte for byte from wherever the editor is served. So a folder
+  // published from `npm run dev` and opened from any other server still dialled ws://localhost:8080,
+  // and the dev server's first rebuild sent it looking for a hot update its host had never heard of:
+  // a 404, a full reload, the same socket, the same 404 - a reload loop, measured at 168 reloads in
+  // eight seconds. `client: false` and `hot: false` switch the injection off, and the editor gets both
+  // back by hand. With no host or port in its query the client dials the page it is on. The cost is
+  // that player.html under the dev server no longer reloads itself on a save.
+  module.exports.entry.app.unshift(
+    "webpack/hot/dev-server.js",
+    "webpack-dev-server/client/index.js?hot=true&live-reload=true&overlay=true"
+  )
+  module.exports.plugins.push(new webpack.HotModuleReplacementPlugin())
+  module.exports.devServer.client = false
+  module.exports.devServer.hot = false
 }

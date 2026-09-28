@@ -842,16 +842,24 @@ If you're tempted to import from any of these, don't.
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.
-- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Three things about that config are load-bearing:
+- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Four things about that config are load-bearing:
   - `devServer.static: false`. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`, defaulting to `./public` — a directory this repo does not have. Nothing is served off disk: the html goes through `file-loader` via the `import "./index.html"` side effects and `test-assets` through CopyPlugin, so both land in the compilation and are served from memory by webpack-dev-middleware.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
+  - **The dev server's client is in the editor's bundle only**: `client: false` and `hot: false`, with the
+    client, `webpack/hot/dev-server.js` and `HotModuleReplacementPlugin` added to the `app` entry by hand.
+    Left to itself the dev server injects its client into every entry with its own port in the query,
+    and Publish copies `playerIndex.js` byte for byte from wherever the editor is served - so a folder
+    published from `npm run dev` and opened from any other server dialled the dev server, and its first
+    rebuild sent the page after a hot update its host did not have: 404, full reload, repeat (reported
+    2026-09-28). With no host or port in its query the hand-added client dials the page it is on. The
+    cost is that `player.html` under the dev server no longer reloads itself on a save.
 - The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
   work in the build. It matches vite's native `?raw` suffix on purpose, so a module has one spelling that
   works in webpack and in all three vitest projects; the ambient module declaration for it is
   `src/types/yamlRaw.d.ts`. **Dormant since tranche 4**: its one user, `src/demoStory.ts`, became a test
   fixture that no shipped module imports, so nothing in either bundle goes through it.
-- Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
+- Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on for the editor only (above); with no `module.hot` handling in the app a source edit triggers a full page reload.
 - **`import.meta.url` is defined away by `DefinePlugin`**, and that is about zip.js rather than about
   us: `lib/zip-core-base.js` opens with `setDefaultConfiguration({ baseURI: import.meta.url })`, and
   webpack resolves that to an absolute `file://` path on the machine that built the bundle and emits

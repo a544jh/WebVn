@@ -46,8 +46,8 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
   prohibition, the app URL hardcoded - and is **exactly this text**, beside `readmeText`:
 
   ```
-  This is "<title>" (<id>), a visual
-  novel made with WebVn.
+  This is "<title>" (<id>),
+  a visual novel made with WebVn.
 
   To play it, put everything in this zip on any static web host, keeping
   the folders as they are, and open the folder's address in a browser.

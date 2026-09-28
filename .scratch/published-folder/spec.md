@@ -394,8 +394,8 @@ errors or undeclared references publishes and imports freely.
   rather than a prohibition, and hardcodes the app URL. **This is the exact text:**
 
   ```
-  This is "<title>" (<id>), a visual
-  novel made with WebVn.
+  This is "<title>" (<id>),
+  a visual novel made with WebVn.
 
   To play it, put everything in this zip on any static web host, keeping
   the folders as they are, and open the folder's address in a browser.
@@ -411,8 +411,8 @@ errors or undeclared references publishes and imports freely.
   ```
 
   `<title>`, `<id>` and the date come from the manifest and the day of publishing; `<APP_URL>` and
-  `<SOURCE_URL>` are the constants the archive README already uses. The line breaks are the ones
-  above, not reflowed around a long title, as the archive README does. Three choices in it, settled
+  `<SOURCE_URL>` are the constants the archive README already uses. The title line breaks after the
+  id so a long title never pushes the rest of the sentence out; nothing is reflowed. Three choices in it, settled
   2026-09-28:
   - **It speaks to whoever opens the zip** - usually the author, sometimes a reader who downloaded the
     build - and the first paragraph serves both.

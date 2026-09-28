@@ -226,6 +226,23 @@ describe("replacing an asset", () => {
     expect(markedLines(started.editorRoot)).toEqual([])
   })
 
+  // There is nothing to replace on a row with no file, so its one write control offers to add it.
+  it("says Add file on a missing asset and Replace file on one that is there", async () => {
+    const started = await startEditorFromStore(PROJECT)
+    await waitFor("the missing file to be reported", () =>
+      row(started, "backgrounds/storm").classList.contains("vn-asset-missing")
+    )
+
+    expect(replaceControl(started, "backgrounds/storm").getAttribute("aria-label")).toBe("Add a file for storm")
+    expect(replaceControl(started, "backgrounds/cliffs").getAttribute("aria-label")).toBe("Replace cliffs")
+
+    pickInto(started, "backgrounds/storm", await fileOf("storm.png", await pngOf(0, 255, 0)))
+    await waitFor(
+      "the added file to turn the control into Replace",
+      () => replaceControl(started, "backgrounds/storm").getAttribute("aria-label") === "Replace storm"
+    )
+  })
+
   it("is disabled while the manifest does not parse, and says why", async () => {
     const started = await startEditorFromStore(PROJECT)
     expect(replaceControl(started, "backgrounds/cliffs").disabled).toBe(false)

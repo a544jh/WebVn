@@ -466,7 +466,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the lock, so a rename gets it free.
 - **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
   Nothing seeds behind the author: a seed would have to run before the picker could render, when no
-  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 4
+  (`.scratch/published-folder/`, ticket 03).
 - **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
   `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
   restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is
@@ -792,6 +793,11 @@ a **story** is the command sequence parsed from it; a command is **applied** to 
 **adopted** by the editor.
 
 The ADRs, newest first:
+- `0007-a-published-folder-is-complete.md` - publish refuses to write a published folder missing a
+  declared file, and URL import refuses to read one. Why that is not a contradiction of 0005, which
+  lets an archive carry exactly that: a backup is the author's, a published folder is for other
+  people, and the round trip - what publish writes, import reads back - is the reason that covers
+  every declared file.
 - `0006-removing-an-asset-deletes-its-file.md` - the asset panel's remove takes the declaration *and*
   the file, confirmed and irreversible. Why leaving the bytes is not the safer default: nothing lists
   a file the manifest does not declare, so one left behind is invisible, permanent, and rides into

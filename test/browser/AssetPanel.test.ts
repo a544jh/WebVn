@@ -131,7 +131,7 @@ describe("the asset panel", () => {
     expect(inkOf(missing.querySelector(".vn-asset-file") as Element)).toBe(ORANGE)
     // Said as well as coloured: a filename is the one thing an author cannot check by reading the
     // two documents.
-    expect((missing.querySelector(".vn-asset-note") as HTMLElement).textContent).toBe("not drawn yet")
+    expect((missing.querySelector(".vn-asset-note") as HTMLElement).textContent).toBe("file missing")
     // The header wears the worst level under it, which is what makes a folded group still honest.
     expect(inkOf(header(started, "backgrounds"))).toBe(ORANGE)
 

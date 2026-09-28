@@ -244,9 +244,9 @@ errors or undeclared references publishes and imports freely.
   **The option is to refuse a taken id instead of asking.** `importProject` takes the destination's
   lock and then asks `confirmOverwrite` if a project is filed there. URL import asks it to refuse
   instead, still with the lock held, so the answer stays true long enough to act on. The refusal says
-  the project is already in the library, and names both ways to import it again: delete yours, or
-  rename it by giving it a new id in its `manifest.yaml`, which keeps it as well. The exact wording
-  is on the canvas's *Picker - every URL import banner* board.
+  the project is already in the library, and "To import it, delete or rename the existing project."
+  Renaming keeps it: a new id in its `manifest.yaml`, until the picker grows a rename control (see
+  Out of Scope). The exact wording is on the canvas's *Picker - every URL import banner* board.
 - **URL import never overwrites.** An archive is a file on the author's disk, so an overwrite that
   fails halfway can be run again. A host can fail halfway and stay down, and `importProject` clears
   the destination before it writes. Refusing a taken id means the destination is always a new
@@ -541,6 +541,10 @@ errors or undeclared references publishes and imports freely.
 - **Remembering where a project was imported from**, or re-importing to update. The design doc: *"The
   URL is a source, never a live link."*
 - **Publishing from the picker's rows.**
+- **Renaming from the picker's rows.** Both taken-id refusals say "delete or rename the existing
+  project", and today renaming means editing `id:` in the project's `manifest.yaml`, which the
+  existing rename then follows. A rename control on each row, beside export and delete, would make
+  that one click and would drive the same `renameProject`. Raised 2026-09-28; its own ticket.
 - **A styled player error screen** (`.scratch/stage-dialogs/`).
 - **Player-side caching** through the Cache API or a service worker.
 - **A harder rename warning once a project has been published**, which is an open question in the

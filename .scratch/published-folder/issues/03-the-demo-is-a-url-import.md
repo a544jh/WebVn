@@ -35,9 +35,9 @@ Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
 
 - [ ] Add demo project, driven through the picker's DOM against the served `test-assets/` folder,
       lands the demo with every asset and leaves the author on the picker with its row visible.
-- [ ] Pressed again with the demo listed, it is refused with advice naming both ways out - delete the
-      copy, or rename it with a new id in its `manifest.yaml` - and the demo is untouched. The
-      wording is the canvas's *Add demo project with the demo already listed* board.
+- [ ] Pressed again with the demo listed, it is refused - "To add it, delete or rename the existing
+      project." - and the demo is untouched. The wording is the canvas's *Add demo project with the
+      demo already listed* board.
 - [ ] Pressed while the demo is open in another tab, it is refused through the back half's lock.
 - [ ] `seedDemoProject` is gone; its test callers import the demo by URL instead.
 - [ ] No shipped code imports the demo module - checked against `npm run build`'s two bundles.

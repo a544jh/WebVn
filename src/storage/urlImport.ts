@@ -8,7 +8,6 @@ import {
   isPlainRelativePath,
   MAX_ENTRIES,
   MAX_UNPACKED_BYTES,
-  NOTHING_WRITTEN,
   parserClause,
   refuse,
 } from "./archive"
@@ -39,26 +38,27 @@ const STALL_MS = 30_000
 
 // Refusals are the archive's shape, `refuse(problem, advice)`, and the picker draws them the same way:
 // "<host> was not imported: <problem>." and then the advice.
-const WHAT_IT_HOLDS = `${NOTHING_WRITTEN} A published story holds a manifest, a script and the assets they name.`
+const WHAT_IT_HOLDS = "A published story holds a manifest, a script and the assets they name."
 
 // **A host that sends no CORS headers and a host that is not there fail the same way** - the same
 // `TypeError`, by design, so that a page cannot probe what another origin would have said - and are
 // told apart afterwards by `answers`. A redirect without the header - GitHub Pages' own `/name` to
 // `/name/` - fails the same way, which is why `publishedFolderAt` never requests that address.
-const UNREACHABLE = refuse("it could not be reached", `${NOTHING_WRITTEN} Check the address, and that the site is up.`)
+const UNREACHABLE = refuse("it could not be reached", "Check the address, and that the site is up.")
 
-// **Said so as not to claim more than is known.** The host answered, but a response without CORS headers
-// is opaque to this page: no status, no body. A folder with a manifest in it and an address with nothing
-// at it look exactly the same from here, so the banner says the address may be wrong as well as naming
-// the header the site would have to send.
+// **The lead is the part that is certain**: a host that answers without CORS headers refuses other sites
+// every file it has, the manifest or no manifest. What is not certain goes in the advice. A response
+// without the headers is opaque to this page - no status, no body - so a folder with a manifest in it
+// and an address with nothing at it look exactly the same from here, and the advice says the address
+// may be wrong as well as naming the header the site would have to send.
 const WITHOUT_CORS = refuse(
-  "it answered, but without CORS headers, so there is no telling whether a manifest.yaml is there",
-  `${NOTHING_WRITTEN} Check the address. If it is right, the site has to send an Access-Control-Allow-Origin header before a story on it can be imported.`
+  "it does not allow its files to be used by other sites",
+  "It answered without CORS headers, so there is no telling whether a manifest.yaml is at that address either - check it. If it is right, the site has to send an Access-Control-Allow-Origin header before a story on it can be imported."
 )
 
 const NO_MANIFEST = refuse(
   "there is no manifest.yaml at that address",
-  `${NOTHING_WRITTEN} Import from URL takes the address of a published WebVn story - the page that plays it.`
+  "Import from URL takes the address of a published WebVn story - the page that plays it."
 )
 
 // **The first file that fails ends the import, and only it is named.** Naming every missing file would
@@ -73,12 +73,12 @@ const missing = (path: string, answeredWithPage: boolean): ArchiveRefusal =>
   refuse(
     `${path} is missing there`,
     answeredWithPage
-      ? `${NOTHING_WRITTEN} The site answered with a web page instead of that file.`
-      : `${NOTHING_WRITTEN} The story declares that file, but the site does not have it.`
+      ? "The site answered with a web page instead of that file."
+      : "The story declares that file, but the site does not have it."
   )
 
 const stalled = (path: string): ArchiveRefusal =>
-  refuse(`${path} stopped arriving`, `${NOTHING_WRITTEN} The site may be busy - try again later.`)
+  refuse(`${path} stopped arriving`, "The site may be busy - try again later.")
 
 // A refusal raised from inside a file's `writeTo`, where the only way out is to throw - so the
 // back half aborts the stream it opened and releases the lock on the way past, as it already does for
@@ -251,7 +251,7 @@ const fileEntry = (path: string, folder: string, allowance: Allowance, over: () 
 export const importFromUrl = async (typed: string): Promise<ImportResult> => {
   const address = publishedFolderAt(typed)
   if (address.kind === "refused") {
-    return refuse("that is not the address of a published folder", `${NOTHING_WRITTEN} ${address.problem}`)
+    return refuse("that is not the address of a published folder", address.problem)
   }
 
   // The lower of the byte cap and the free space, measured once, at the start - the same pair the back
@@ -263,7 +263,7 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
     byRoom
       ? refuse(
           `it passed ${sizeLabel(allowance.limit)}, which is all the room there is`,
-          `${NOTHING_WRITTEN} Free some space, or delete a project you have finished with, and try again.`
+          "Free some space, or delete a project you have finished with, and try again."
         )
       : refuse(`it passed ${sizeLabel(allowance.limit)}, which is the limit`, WHAT_IT_HOLDS)
 
@@ -278,11 +278,11 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
   const folder = manifestFile.url
 
   const [manifest, errors] = parseManifest(manifestFile.text)
-  if (manifest === null) return refuse("its manifest.yaml does not parse", NOTHING_WRITTEN + parserClause(errors))
+  if (manifest === null) return refuse("its manifest.yaml does not parse", parserClause(errors))
 
   const scriptFile = await fetchText(addressOf(SCRIPT_FILE, folder), allowance)
   if (scriptFile.kind === "missing") {
-    return refuse("it has no script.yaml", `${NOTHING_WRITTEN} A published story holds its script beside its manifest.`)
+    return refuse("it has no script.yaml", "A published story holds its script beside its manifest.")
   }
   if (scriptFile.kind === "over") return over()
   if (scriptFile.kind !== "text") return stalled(SCRIPT_FILE)
@@ -301,7 +301,7 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
   if (escaping !== undefined) {
     return refuse(
       `it declares a file outside its folder: "${escaping}"`,
-      `${NOTHING_WRITTEN} Every file a published story declares has to sit inside its folder.`
+      "Every file a published story declares has to sit inside its folder."
     )
   }
 

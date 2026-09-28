@@ -119,7 +119,7 @@ describe("a published folder refused", () => {
     const refusal = await expectRefused(folder("missing-file"))
 
     expect(refusal.problem).toBe("assets/backgrounds/gone.png is missing there")
-    expect(refusal.advice).toBe("Nothing was written. The story declares that file, but the site does not have it.")
+    expect(refusal.advice).toBe("The story declares that file, but the site does not have it.")
   })
 
   it("leaves nothing in the library once the picker has redrawn", async () => {
@@ -136,7 +136,7 @@ describe("a published folder refused", () => {
     const refusal = await expectRefused(folder("html-file"))
 
     expect(refusal.problem).toBe("assets/backgrounds/page.html is missing there")
-    expect(refusal.advice).toBe("Nothing was written. The site answered with a web page instead of that file.")
+    expect(refusal.advice).toBe("The site answered with a web page instead of that file.")
   })
 
   it("refuses an address with no manifest.yaml", async () => {
@@ -144,7 +144,7 @@ describe("a published folder refused", () => {
 
     expect(refusal.problem).toBe("there is no manifest.yaml at that address")
     expect(refusal.advice).toBe(
-      "Nothing was written. Import from URL takes the address of a published WebVn story - the page that plays it."
+      "Import from URL takes the address of a published WebVn story - the page that plays it."
     )
   })
 
@@ -152,21 +152,21 @@ describe("a published folder refused", () => {
     const refusal = await expectRefused(folder("no-script"))
 
     expect(refusal.problem).toBe("it has no script.yaml")
-    expect(refusal.advice).toBe("Nothing was written. A published story holds its script beside its manifest.")
+    expect(refusal.advice).toBe("A published story holds its script beside its manifest.")
   })
 
   it("refuses a manifest that does not parse, with the parser's first error", async () => {
     const refusal = await expectRefused(folder("unparsed"))
 
     expect(refusal.problem).toBe("its manifest.yaml does not parse")
-    expect(refusal.advice).toMatch(/^Nothing was written\. Line \d+: /)
+    expect(refusal.advice).toMatch(/^Line \d+: /)
   })
 
   it("refuses an address nothing answers as unreachable", async () => {
     const refusal = await expectRefused("http://127.0.0.1:1/some-story/")
 
     expect(refusal.problem).toBe("it could not be reached")
-    expect(refusal.advice).toBe("Nothing was written. Check the address, and that the site is up.")
+    expect(refusal.advice).toBe("Check the address, and that the site is up.")
   })
 
   it("refuses a site that answers without CORS headers, and says a missing manifest looks the same", async () => {
@@ -175,12 +175,11 @@ describe("a published folder refused", () => {
     // from an address with nothing at it. The banner has to say both.
     const refusal = await expectRefused(crossOrigin("complete"))
 
-    expect(refusal.problem).toBe(
-      "it answered, but without CORS headers, so there is no telling whether a manifest.yaml is there"
-    )
+    expect(refusal.problem).toBe("it does not allow its files to be used by other sites")
     expect(refusal.advice).toBe(
-      "Nothing was written. Check the address. If it is right, the site has to send an " +
-        "Access-Control-Allow-Origin header before a story on it can be imported."
+      "It answered without CORS headers, so there is no telling whether a manifest.yaml is at that address " +
+        "either - check it. If it is right, the site has to send an Access-Control-Allow-Origin header before a " +
+        "story on it can be imported."
     )
   })
 
@@ -190,11 +189,11 @@ describe("a published folder refused", () => {
 
     expect(withNothing).toEqual(withManifest)
     // And it is the CORS refusal both times: a host that answered is not one that could not be reached.
-    expect(withNothing.problem).toContain("without CORS headers")
+    expect(withNothing.advice).toContain("without CORS headers")
   })
 
   it("keeps the saves filed under the id, since nothing claimed it", async () => {
-    // "Nothing was written" has to be true of localStorage too: on the deployed site a reader's
+    // A refusal that leaves nothing behind has to leave nothing behind in localStorage too: on the deployed site a reader's
     // playthrough of the published build lives there, and a flaky network is not a reason to lose it.
     const id = "url-import-missing-file"
     saveToLocalStorage(id, { seenCommands: [], saves: [{ timestamp: 1, path: [3] }] } as never)
@@ -247,7 +246,7 @@ describe("an id already in the library", () => {
       const refusal = await expectRefused(folder("complete"))
 
       expect(refusal.problem).toBe(`"${COMPLETE}" is open in another tab`)
-      expect(refusal.advice).toBe("Nothing was imported. Close it there and try again.")
+      expect(refusal.advice).toBe("Close it there and try again.")
     } finally {
       await held?.release()
     }
@@ -325,7 +324,7 @@ describe("the picker's Import from URL", () => {
     await waitFor("the refusal banner", () => banner()?.classList.contains("vn-picker-refusal") ?? false)
     expect(banner()?.textContent).toBe(
       `${location.host} was not imported: assets/backgrounds/gone.png is missing there. ` +
-        "Nothing was written. The story declares that file, but the site does not have it."
+        "The story declares that file, but the site does not have it."
     )
     // Drawn after the sweep, so the half-written directory is already gone.
     expect(await listProjectDirectories()).toEqual([])
@@ -340,7 +339,7 @@ describe("the picker's Import from URL", () => {
     await waitFor("the refusal banner", () => banner()?.classList.contains("vn-picker-refusal") ?? false)
     expect(banner()?.textContent).toBe(
       `${location.host} was not imported: "A Published Story" is already in your library, under ${COMPLETE}. ` +
-        "Nothing was written. To import it, delete or rename the existing project."
+        "To import it, delete or rename the existing project."
     )
   })
 

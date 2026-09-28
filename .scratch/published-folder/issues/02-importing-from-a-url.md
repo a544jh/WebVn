@@ -160,14 +160,16 @@ listens:
 So a failed manifest request is asked again in `no-cors` mode (`answers` in `src/storage/urlImport.ts`),
 and the banner is one of:
 
-- "<host> was not imported: it could not be reached." / "Nothing was written. Check the address, and
-  that the site is up."
-- "<host> was not imported: it answered, but without CORS headers, so there is no telling whether a
-  manifest.yaml is there." / "Nothing was written. Check the address. If it is right, the site has to
-  send an Access-Control-Allow-Origin header before a story on it can be imported."
+- "<host> was not imported: it could not be reached." / "Check the address, and that the site is up."
+- "<host> was not imported: it does not allow its files to be used by other sites." / "It answered
+  without CORS headers, so there is no telling whether a manifest.yaml is at that address either -
+  check it. If it is right, the site has to send an Access-Control-Allow-Origin header before a story
+  on it can be imported."
 
-The second says both things on purpose: an opaque response hides a 404 exactly as it hides a 200, so a
-wrong address on a host without CORS headers reads the same as a right one. The probe runs only on the
+(As reworded later the same day - see the last comment.) The second says both things on purpose: its
+lead is what is certain, since a host answering without CORS headers refuses other sites every file it
+has, and its advice is what is not, since an opaque response hides a 404 exactly as it hides a 200 and
+a wrong address on such a host reads the same as a right one. The probe runs only on the
 manifest - past it the site has been read from, and a failure is a file that stopped arriving - and under
 the same stall timer. **These wordings supersede the canvas's first banner**, which still draws the
 combined one.
@@ -181,3 +183,13 @@ attempt turned vite's CORS off and read its fixtures under the server's other ho
 reached", meaning even the `no-cors` probe found nothing on `127.0.0.1`. The likely cause is `localhost`
 resolving to `::1` on the runner, so vite listened on IPv6 only; this container has no IPv6 to confirm
 it with. An explicit bind and an explicit address does not depend on how `localhost` resolves.
+
+**"Nothing was written." is gone from every refusal that already says "was not <verb>"**, 2026-09-28, at
+the maintainer's request: after "<host> was not imported:" it repeated the news on every banner. That
+covers both imports, Export ZIP's message line and Publish's refused dialog. The advice that was nothing
+but that sentence plus the parser's error is now the parser's error alone ("Line 4: …"), and the
+picker's fallback for an export that threw says "See the console for what went wrong." Two keep a
+sentence of the kind, because their lead does not say it: "<id> already names a project." / "Nothing
+was created.", and "3 files were dropped." / "Import takes one archive at a time. Nothing was written."
+The CORS refusal was reworded in the same change, so that its lead is the part that is certain - the
+two banners above are the current text.

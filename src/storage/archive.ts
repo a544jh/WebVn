@@ -133,11 +133,10 @@ export interface ArchiveRefusal {
 
 export const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "refused", problem, advice })
 
-// Nothing happened, said once per direction. Every refusal below is raised before the first write or
-// the first entry, and an author reading "was not imported" wants to know that in the same breath.
-export const NOTHING_WRITTEN = "Nothing was written."
-const NOTHING_EXPORTED = "Nothing was exported."
-const NOTHING_PUBLISHED = "Nothing was published."
+// **The advice never says that nothing happened.** Every surface leads with "<name> was not imported",
+// "Not exported" or "was not published", which already says it, and "Nothing was written." after that
+// repeated it on every refusal the app gives - dropped everywhere on 2026-09-28. It stays true: each
+// refusal here is raised before the first write, or leaves only what the next picker render sweeps.
 
 // What an archive turned out to hold, once it is known to be importable: where it goes, what it is
 // called, and the files to write. `files` is normalized - a wrapping directory stripped, the
@@ -226,12 +225,11 @@ const firstError = (errors: ParserError[]): ParserError | undefined =>
 // above all for a manifest from a later format, which `parseManifest` reports first and alone by
 // design, so that one message explains itself.
 //
-// **The clause only**, with the caller supplying the sentence in front of it: import says nothing was
-// written and export says nothing was exported, and a helper that supplied one of them made the other
-// read "Nothing was exported. Nothing was written."
+// "Line 4: actors.cat: must be capitalized, like Cat" - the whole of the advice, for every refusal of a
+// manifest that does not parse, whichever way the project was travelling.
 export const parserClause = (errors: ParserError[]): string => {
   const error = firstError(errors)
-  return error === undefined ? "" : ` Line ${error.location.startLine}: ${error.message}`
+  return error === undefined ? "" : `Line ${error.location.startLine}: ${error.message}`
 }
 
 // Everything an import decides before it is allowed to write anything, over a listing rather than
@@ -250,7 +248,7 @@ export const planImport = async (
   if (escaping !== undefined) {
     return refuse(
       `it holds a file outside the project: "${escaping.path}"`,
-      `${NOTHING_WRITTEN} Every file in an archive has to sit inside it.`
+      "Every file in an archive has to sit inside it."
     )
   }
 
@@ -259,20 +257,20 @@ export const planImport = async (
   if (files.length > MAX_ENTRIES) {
     return refuse(
       `it holds ${files.length} files, and the limit is ${MAX_ENTRIES}`,
-      `${NOTHING_WRITTEN} A project archive holds a manifest, a script and the assets they name.`
+      "A project archive holds a manifest, a script and the assets they name."
     )
   }
   const unpacked = files.reduce((total, file) => total + file.size, 0)
   if (unpacked > MAX_UNPACKED_BYTES) {
     return refuse(
       `it unpacks to ${megabytes(unpacked)}, and the limit is ${megabytes(MAX_UNPACKED_BYTES)}`,
-      `${NOTHING_WRITTEN} A project archive holds a manifest, a script and the assets they name.`
+      "A project archive holds a manifest, a script and the assets they name."
     )
   }
   if (available !== null && unpacked > available) {
     return refuse(
       `it unpacks to ${megabytes(unpacked)}, and there is ${megabytes(available)} of room`,
-      `${NOTHING_WRITTEN} Free some space, or delete a project you have finished with, and try again.`
+      "Free some space, or delete a project you have finished with, and try again."
     )
   }
 
@@ -280,7 +278,7 @@ export const planImport = async (
   if (manifest === undefined) {
     return refuse(
       "it has no manifest.yaml",
-      `${NOTHING_WRITTEN} An archive holds a project's manifest.yaml at its root, or in one folder inside it.`
+      "An archive holds a project's manifest.yaml at its root, or in one folder inside it."
     )
   }
   const manifestText = await textOf(manifest)
@@ -289,7 +287,7 @@ export const planImport = async (
   // filename and the save key at once. A manifest that parses therefore always names a directory
   // this can create, and there is no second copy of a filesystem-safety rule to drift.
   const [parsed, errors] = parseManifest(manifestText)
-  if (parsed === null) return refuse("its manifest.yaml does not parse", NOTHING_WRITTEN + parserClause(errors))
+  if (parsed === null) return refuse("its manifest.yaml does not parse", parserClause(errors))
 
   // **Refused because nothing else would catch it.** `recoverProjects` deliberately does not sweep a
   // manifest with no script - that is the state `createProject` passes through between its two
@@ -298,10 +296,7 @@ export const planImport = async (
   // is opening things. Supplying an empty script instead turns "this archive is broken" into "this
   // project mysteriously lost its story", which the author cannot tell apart.
   if (!files.some((file) => file.path === SCRIPT_FILE)) {
-    return refuse(
-      "it has no script.yaml",
-      `${NOTHING_WRITTEN} An archive holds a project's script beside its manifest.`
-    )
+    return refuse("it has no script.yaml", "An archive holds a project's script beside its manifest.")
   }
 
   return {
@@ -362,7 +357,7 @@ export const importProject = async (
   // takes its lock before asking for.
   const lock = await takeProjectLock(directory)
   if (lock === null) {
-    return refuse(`"${directory}" is open in another tab`, "Nothing was imported. Close it there and try again.")
+    return refuse(`"${directory}" is open in another tab`, "Close it there and try again.")
   }
 
   const taken = await isProject(directory)
@@ -395,8 +390,8 @@ export const importProject = async (
     // **When, though, is two moments rather than one.** An overwrite has just destroyed the project
     // those saves described, so they go now, whatever happens next. A fresh directory has claimed
     // nothing until the manifest lands, so its saves go with the commit below: an import that fails
-    // partway - a host that stops answering, a declared file that is not there - has said "Nothing was
-    // written", and on the deployed site the saves under that id are a reader's playthrough of the
+    // partway - a host that stops answering, a declared file that is not there - is reported as not
+    // imported, and on the deployed site the saves under that id are a reader's playthrough of the
     // published build, which a flaky network must not cost them.
     if (taken) deleteSaveData(plan.id)
     await forgetExport(directory)
@@ -448,12 +443,12 @@ const NOT_AN_ARCHIVE = "A project archive is the .webvn.zip that Export ZIP writ
 // `BlobReader` slices, so a disk-backed `File` is never held whole, and the central directory carries
 // a size per entry, so the caps are arithmetic rather than a watch on the quota draining.
 export const importArchive = async (file: Blob, options: ImportOptions): Promise<ImportResult> => {
-  if (!(await isZip(file))) return refuse("it is not a zip file", `${NOTHING_WRITTEN} ${NOT_AN_ARCHIVE}`)
+  if (!(await isZip(file))) return refuse("it is not a zip file", NOT_AN_ARCHIVE)
 
   const reader = new ZipReader(new BlobReader(file))
   try {
     const entries = await reader.getEntries().catch(() => null)
-    if (entries === null) return refuse("it is a zip file this could not read", `${NOTHING_WRITTEN} ${NOT_AN_ARCHIVE}`)
+    if (entries === null) return refuse("it is a zip file this could not read", NOT_AN_ARCHIVE)
     return await importProject(
       entries
         .filter((entry) => !entry.directory)
@@ -529,14 +524,14 @@ export const exportProject = async (directory: string): Promise<ExportResult> =>
   // with a typo in it. What it cannot do is leave the browser - an archive is named after an id and
   // imports into a directory named after one, and a manifest that does not parse has declared no id.
   // The hatch that looks closed is not: fix the typo in the editor, then export.
-  const gated = await gatedManifest(directory, NOTHING_EXPORTED)
+  const gated = await gatedManifest(directory)
   if (gated.kind === "refused") return gated
   const { manifest } = gated
   // Unreachable from anything the app can currently produce, and kept anyway: it costs one `exists`,
   // and it is the half that stops a bad archive existing rather than the half that catches one
   // afterwards.
   if (!(await hasScript(directory))) {
-    return refuse("it has no script.yaml", `${NOTHING_EXPORTED} An archive always holds a script.`)
+    return refuse("it has no script.yaml", "An archive always holds a script.")
   }
 
   const writer = new ZipWriter<Blob>(new BlobWriter("application/zip"))
@@ -565,18 +560,16 @@ export const exportProject = async (directory: string): Promise<ExportResult> =>
 }
 
 // A project's manifest, if it is one that can leave the browser: it is there and it parses. The gate
-// export and publish share, and the one ADR 0005 is about - each says in its own words that nothing
-// left, and in the same words why.
+// export and publish share, and the one ADR 0005 is about - refused in the same words either way.
 const gatedManifest = async (
-  directory: string,
-  nothing: string
+  directory: string
 ): Promise<
   { readonly kind: "gated"; readonly manifest: VnManifest; readonly manifestText: string } | ArchiveRefusal
 > => {
   const manifestText = await readManifest(directory).catch(() => null)
-  if (manifestText === null) return refuse("it has no manifest.yaml", `${nothing} There is no project in that folder.`)
+  if (manifestText === null) return refuse("it has no manifest.yaml", "There is no project in that folder.")
   const [manifest, errors] = parseManifest(manifestText)
-  if (manifest === null) return refuse("its manifest.yaml does not parse", nothing + parserClause(errors))
+  if (manifest === null) return refuse("its manifest.yaml does not parse", parserClause(errors))
   return { kind: "gated", manifest, manifestText }
 }
 
@@ -643,11 +636,11 @@ export const publishedReadmeText = (id: string, title: string, at: Date): string
 // published zip carries declared files only, so it is not the backup the picker's "never exported"
 // line is about.
 export const publishProject = async (directory: string, playerFolder: string): Promise<PublishResult> => {
-  const gated = await gatedManifest(directory, NOTHING_PUBLISHED)
+  const gated = await gatedManifest(directory)
   if (gated.kind === "refused") return gated
   const { manifest, manifestText } = gated
   if (!(await hasScript(directory))) {
-    return refuse("it has no script.yaml", `${NOTHING_PUBLISHED} A published story always holds a script.`)
+    return refuse("it has no script.yaml", "A published story always holds a script.")
   }
 
   const files = await Promise.all(
@@ -671,7 +664,7 @@ export const publishProject = async (directory: string, playerFolder: string): P
   if (players.some((file) => file === null)) {
     return refuse(
       "the player's own files could not be fetched",
-      `${NOTHING_PUBLISHED} Publishing copies the player from where this editor is served - check the connection and try again.`
+      "Publishing copies the player from where this editor is served - check the connection and try again."
     )
   }
 

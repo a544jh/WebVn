@@ -427,8 +427,9 @@ describe("the picker's import surface", () => {
     drag("drop", carrying(new File(["not a zip"], "notes.txt")))
     await waitFor("the refusal", () => refusalText() !== "")
 
-    expect(refusalText()).toContain("notes.txt was not imported")
-    expect(refusalText()).toContain("Nothing was written.")
+    expect(refusalText()).toBe(
+      "notes.txt was not imported: it is not a zip file. A project archive is the .webvn.zip that Export ZIP writes."
+    )
   })
 
   it("refuses a multi-file drop rather than silently picking one of them", async () => {

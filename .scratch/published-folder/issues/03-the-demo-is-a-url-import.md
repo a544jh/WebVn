@@ -63,7 +63,8 @@ Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
   that is the same import of the same fixed id.
 - The success line is "The demo was added." with `"WebVn Demo" is in your library.` - no board draws
   it, and the refusal's "The demo was not added:" is its pair. The lock refusal reads "The demo was
-  not added: "webvn-demo" is open in another tab. Nothing was imported. Close it there and try again."
+  not added: "webvn-demo" is open in another tab. Close it there and try again." (It said "Nothing was
+  imported." before that last sentence until 2026-09-28 - ticket 02's last comment.)
 - **Checked against `npm run build`**: neither `dist/app.js` nor `dist/playerIndex.js` contains the
   demo's script. The one `webvn-demo` left in `app.js` is the archive README's hardcoded app address.
   By hand in the built app: Add demo project lands the demo with no missing file marked, and a second

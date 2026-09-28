@@ -10,8 +10,8 @@ links is binding for pixels, and nothing on it draws a rename control on a row o
 Two refusals shipped with tranche 4 tell the author to rename a project, and there is no rename they can
 find:
 
-- URL import's taken id: "… is already in your library, under cat-adventure. Nothing was written. To
-  import it, delete or rename the existing project."
+- URL import's taken id: "… is already in your library, under cat-adventure. To import it, delete or
+  rename the existing project."
 - Add demo project's second press: "The demo was not added: WebVn Demo is already in your library, under
   webvn-demo. To add it, delete or rename the existing project."
 

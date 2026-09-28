@@ -622,7 +622,7 @@ export class ProjectPicker {
     else if (result.kind === "taken") {
       this.refuse(
         `${host} was not imported: "${result.title}" is already in your library, under ${result.directory}.`,
-        "Nothing was written. To import it, delete or rename the existing project."
+        "To import it, delete or rename the existing project."
       )
     } else if (result.kind === "imported") this.report(`${host} was imported.`, `"${result.title}" is in your library.`)
     else this.announcement = null
@@ -640,7 +640,9 @@ export class ProjectPicker {
       const lock = await takeProjectLock(project.directory)
       if (lock === null) return this.refuse(`${name} is open in another tab.`, "It was not exported. Close it there.")
       try {
-        const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
+        const result = await exportProject(project.directory).catch(
+          broke("exported", "See the console for what went wrong.")
+        )
         if (result.kind === "refused") {
           this.refuse(`${name} was not exported: ${result.problem}.`, result.advice)
         } else {

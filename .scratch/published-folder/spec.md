@@ -485,7 +485,14 @@ errors or undeclared references publishes and imports freely.
   resolver's new base makes it cheap. What it has to decide is CORS and partial failure *for a
   reader*, which the design doc leaves open on purpose.
 - **Single-file HTML export, re-encoding on import, content-addressed assets.** All three are named in
-  the design doc and none is load-bearing here.
+  the design doc and none is load-bearing here. Single-file export is also the answer to "`index.html`
+  does not open from the disk": a page opened from `file:` may not `fetch()` its neighbours (Chrome
+  refuses the scheme, Firefox gives every local file its own origin), so the player's two YAML
+  fetches fail, while `<img>`, `<audio>` and `<script src>` still load. A smaller fix was considered
+  and deferred with it on 2026-09-28: publish also writes the manifest and script into a `story.js`
+  beside `index.html`, which the player reads when present and fetches the YAML otherwise. It costs a
+  script tag in the player, a duplicate of the story in the folder, and a place on the published-file
+  list.
 - **The export nag.** Still no evidence for a threshold, and the picker row's "never exported" line
   is still most of its value.
 - **Rename-on-import, and "reset the demo" as its own action.** See tranche 3's decision 2.

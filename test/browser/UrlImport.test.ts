@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { commands } from "@vitest/browser/context"
+import { beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { saveToLocalStorage } from "../../src/core/save"
 import { ProjectPicker } from "../../src/picker/ProjectPicker"
 import { walk } from "../../src/storage/opfs"
@@ -31,14 +32,15 @@ const COMPLETE = "url-import-complete"
 const FIXTURES = new URL("/test/fixtures/published/", location.href).href
 const folder = (name: string): string => `${FIXTURES}${name}/`
 
-// **The same folder, from another origin that sends no CORS headers.** It is the test server under its
-// other host name - `127.0.0.1` for `localhost` - and the browser project runs that server with CORS
-// off (vitest.config.ts), so a page on one name cannot read it under the other.
-const crossOrigin = (address: string): string => {
-  const url = new URL(address)
-  url.hostname = url.hostname === "localhost" ? "127.0.0.1" : "localhost"
-  return url.href
-}
+// **The same folders, from another origin that sends no CORS headers**: a server of the browser
+// project's own, started in Node by `serveWithoutCors` in vitest.config.ts, on 127.0.0.1 and a port of
+// its own - so a different origin from this page, and one this page cannot read.
+let withoutCors = ""
+const crossOrigin = (name: string): string => `${withoutCors}${name}/`
+
+beforeAll(async () => {
+  withoutCors = await commands.serveWithoutCors()
+})
 
 // Every file a project holds, as paths inside it - which is what "exactly these files" is asserted
 // over, rather than a list of the ones a test thought to check.
@@ -171,7 +173,7 @@ describe("a published folder refused", () => {
     // Read from another origin, a complete published folder is unreadable without the headers - and the
     // response a page may see in its place is opaque, so a folder that exists cannot be told apart
     // from an address with nothing at it. The banner has to say both.
-    const refusal = await expectRefused(crossOrigin(folder("complete")))
+    const refusal = await expectRefused(crossOrigin("complete"))
 
     expect(refusal.problem).toBe(
       "it answered, but without CORS headers, so there is no telling whether a manifest.yaml is there"
@@ -183,8 +185,8 @@ describe("a published folder refused", () => {
   })
 
   it("cannot tell a folder with no manifest from one without CORS headers, and says so for both", async () => {
-    const withManifest = await expectRefused(crossOrigin(folder("complete")))
-    const withNothing = await expectRefused(crossOrigin(folder("no-manifest")))
+    const withManifest = await expectRefused(crossOrigin("complete"))
+    const withNothing = await expectRefused(crossOrigin("no-manifest"))
 
     expect(withNothing).toEqual(withManifest)
     // And it is the CORS refusal both times: a host that answered is not one that could not be reached.
@@ -352,3 +354,10 @@ describe("the picker's Import from URL", () => {
     expect(await listProjectDirectories()).toEqual([])
   })
 })
+
+declare module "@vitest/browser/context" {
+  interface BrowserCommands {
+    // vitest.config.ts: the address of a server that answers without CORS headers.
+    serveWithoutCors: () => Promise<string>
+  }
+}

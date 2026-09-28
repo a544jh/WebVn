@@ -172,7 +172,12 @@ manifest - past it the site has been read from, and a failure is a file that sto
 the same stall timer. **These wordings supersede the canvas's first banner**, which still draws the
 combined one.
 
-To reach the second case from a suite, the browser test project runs vite with CORS off - a plugin in
-`vitest.config.ts`, since vitest builds the browser server with a `server` block of its own - and
-`test/browser/UrlImport.test.ts` reads its fixtures under the server's other host name. Vite otherwise
-sends CORS headers to any localhost origin, which is why every fixture was readable from anywhere.
+To reach the second case from a suite, `vitest.config.ts` has a browser command, `serveWithoutCors`,
+that serves `test/fixtures/published/` from Node with no CORS headers, bound to `127.0.0.1` on a port
+of its own; `test/browser/UrlImport.test.ts` asks it for its address. Vite's own server sends CORS
+headers to any localhost origin, which is why every fixture was readable from anywhere. **The first
+attempt turned vite's CORS off and read its fixtures under the server's other host name** -
+`127.0.0.1` for a page on `localhost` - and passed here and failed on CI: both tests got "could not be
+reached", meaning even the `no-cors` probe found nothing on `127.0.0.1`. The likely cause is `localhost`
+resolving to `::1` on the runner, so vite listened on IPv6 only; this container has no IPv6 to confirm
+it with. An explicit bind and an explicit address does not depend on how `localhost` resolves.

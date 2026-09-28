@@ -690,9 +690,11 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   banners follow. **The CORS one cannot say whether a manifest is there** - an opaque response hides a
   404 as well as a 200 - so it says the address may be wrong and names `Access-Control-Allow-Origin`.
   A redirect without the header fails the same way, which is why a typed `/name` gets its `/` before
-  anything is fetched: GitHub Pages' own `/name` to `/name/` redirect carries none. **The browser
-  test project runs vite with CORS off** (`vitest.config.ts`), so a fixture read under the server's
-  other host name - `127.0.0.1` for `localhost` - is a real host that answers without the headers.
+  anything is fetched: GitHub Pages' own `/name` to `/name/` redirect carries none. **A suite reaches
+  that case through `commands.serveWithoutCors()`**, a browser command in `vitest.config.ts` that
+  serves `test/fixtures/published/` from Node, bound to `127.0.0.1` on a port of its own, with no CORS
+  headers. Not vite's server under its other host name: that passed locally and failed on CI, where
+  `localhost` resolved to `::1` and nothing listened on `127.0.0.1` at all.
 - Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
   named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
   and then nothing), and a real cross-origin import from GitHub Pages.

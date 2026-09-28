@@ -8,8 +8,9 @@ A client-side visual novel engine + authoring tool. TypeScript, webpack. The "re
 Two entry points:
 - `src/index.ts` → editor + live-preview player. Boots a project out of OPFS through `src/editorBoot.ts`;
   a browser without OPFS, or a second tab on the same project, gets a refusal and no editor.
-- `src/playerIndex.ts` → standalone player, can load a script from `?vn=<base64 gzip YAML>`. Never touches
-  OPFS, so it works in any browser.
+- `src/playerIndex.ts` → standalone player. Boots through `src/playerBoot.ts`: with no `?vn=` it plays the
+  published folder it is served from (`manifest.yaml` and `script.yaml` beside it), and with
+  `?vn=<base64 gzip YAML>` it plays the payload. Never touches OPFS, so it works in any browser.
 
 ## Commands
 - `npm install` — install
@@ -96,6 +97,8 @@ src/
   storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver,
                    the .webvn.zip archive (the only file that imports zip.js)
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
+  playerBoot.ts    the standalone player's boot, out of src/playerIndex.ts for the same reason
+  publishedFolder.ts  what a published folder holds, shared by the player, publish and URL import
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
@@ -118,6 +121,8 @@ test/              one directory per vitest project — the directory is what pi
                    opfs.ts (scratch directories, and pointing the store at one),
                    navigation.ts (a fake address bar, which AppShell requires rather than
                    defaulting to the browser's)
+  fixtures/        not a vitest project: small published folders the browser suites fetch, served
+                   from the repo root beside test-assets/ rather than inside it, which CopyPlugin ships
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
 test-assets/       the demo project — manifest.yaml, script.yaml and assets/, copied to dist/ by CopyPlugin
 ```
@@ -281,8 +286,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   correct. Both parsers refuse a multi-document input rather than taking `docs[0]` in silence.
 - The payload carries the **raw manifest buffer text**, not a re-serialisation - round-tripping
   through the parser eats comments.
-- **The demo boots through the same path.** With no `?vn=`, `playerIndex.ts` falls back to the demo as
-  a source of `(manifestText, scriptText)`, so every demo load exercises the payload path.
+- **The demo no longer boots through it.** With no `?vn=` the player fetches the published folder it
+  is served from - see "The published folder" below - and the deployed demo is such a folder. A
+  payload's assets still resolve against that folder.
 
 ### Manifest and the parser contract
 - A project declares itself in `manifest.yaml`: `formatVersion`, `id`, `title`, `actors`, `backgrounds`,
@@ -625,6 +631,26 @@ declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
   because being the mechanism the platform offers everywhere is the archive's whole justification.
   Nothing automated covers the anchor - a headless browser will not show you a file arriving in
   Downloads - so it is verified by hand, like `enterFullscreen` and `npm run dev`.
+
+### The published folder - how a reader gets a project
+Tranche 4 of `design-docs/PROJECT_STORAGE.md`, specified in `.scratch/published-folder/`. A published
+folder is `manifest.yaml`, `script.yaml` and every file the manifest declares, with the player beside
+them as `index.html` - the shape `dist/` already has. `src/publishedFolder.ts` is what the three
+things touching it share. ADR 0007 is its invariant: it is complete.
+- **The player plays the folder it is served from.** `src/playerBoot.ts` is the boot, lifted out of
+  `src/playerIndex.ts` for the reason `editorBoot.ts` was: an entry point that boots itself on import
+  cannot be reached by a suite. It is **told** the folder's address - the page's own directory in
+  production, the served `test-assets/` in `test/browser/PlayerBoot.test.ts` - and hands it to
+  `RelativePathResolver` as its base, so a payload's assets resolve against it too. It returns a
+  booted player or a refusal; the entry point is left with the fullscreen button and the error line.
+- **It sets `document.title` from the manifest**, for a folder and a payload alike, rather than
+  publish templating `index.html` - publish copies the player's files byte for byte.
+- **Three refusals, one line**: `manifest.yaml` or `script.yaml` would not load, or the manifest does
+  not parse. On `file:` the first two say the folder has to be opened from a web host, because a page
+  there may not `fetch()` its neighbours while `<img>` still loads - so the YAML is what fails.
+  **Checked by hand, since nothing automated opens a page from disk**: `npm run build`, open
+  `dist/player.html` from `file:`, and read that message. Also by hand: serve `dist/` statically and
+  open `player.html` - the demo plays and the tab says "WebVn Demo".
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.

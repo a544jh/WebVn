@@ -29,17 +29,23 @@ export interface AssetResolver {
   resolve(path: string): Promise<string>
 }
 
-// The resolver a published VN uses, which is a directory of relative paths: the path already is the
-// URL, and the browser resolves it against the document. Not a placeholder and not a migration
-// step - the standalone player, the deployed demo and every test keep this one permanently, and it
-// is half of the doc's "the player and the editor get different resolvers".
+// The resolver a published VN uses, which is a directory of relative paths: a path inside the
+// project is a URL once it is resolved against the folder the project is served from. Not a
+// placeholder and not a migration step - the standalone player, the deployed demo and every test keep
+// this one permanently, and it is half of the doc's "the player and the editor get different
+// resolvers".
 //
-// A class rather than a bare function or a singleton on purpose. Its anticipated second caller is a
-// player loading a VN from another origin, which needs a base URL - a constructor argument this
-// class has room for. That is deliberately not built here: nothing has a caller for it yet, and the
-// interesting half of an outside origin is CORS and partial failure rather than the base.
+// **The base is the published folder's address**, which the player is told rather than working out
+// (`src/playerBoot.ts`): in production it is the page's own directory, which is what a bare relative
+// path resolved against anyway, and in a suite it is the served `test-assets/` folder, which the
+// runner's own page is not. Without one the path is handed back as it stands and the browser resolves
+// it against the document, which is what the loaders' default wants. A base is also most of a player
+// for a VN hosted on another origin - what that still has to decide is CORS and partial failure,
+// which is why it is not built.
 export class RelativePathResolver implements AssetResolver {
+  constructor(private base?: string) {}
+
   public resolve(path: string): Promise<string> {
-    return Promise.resolve(path)
+    return Promise.resolve(this.base === undefined ? path : new URL(path, this.base).href)
   }
 }

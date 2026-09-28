@@ -1,0 +1,8 @@
+# The first declared file is here and the second is not, so an import writes something before it
+# fails - which is what leaves a directory for the crash sweep to remove.
+formatVersion: 1
+id: url-import-missing-file
+title: A Story With A Hole In It
+backgrounds:
+  here: here.png
+  gone: gone.png

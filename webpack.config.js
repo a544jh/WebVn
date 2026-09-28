@@ -71,8 +71,9 @@ module.exports = {
       // may want to handle the theme loading ourselves...
       {
         // `import yaml from "./x.yaml?raw"` - the file's text as a string module, matching vite's
-        // native ?raw suffix so demoStory.ts has one spelling that works in the build and in the
-        // vitest projects. See src/types/yamlRaw.d.ts.
+        // native ?raw suffix so a module has one spelling that works in the build and in the vitest
+        // projects. See src/types/yamlRaw.d.ts. Dormant: its one user, src/demoStory.ts, is a test
+        // fixture neither bundle imports, so vite's own ?raw is the only one exercised.
         resourceQuery: /(\?|&)raw(&|$)/,
         type: "asset/source"
       },

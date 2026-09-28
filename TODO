@@ -96,7 +96,9 @@ demo beside the app - seedDemoProject is gone - and Publish writes <project-id>-
 editor. One list, publishedFiles, is what publish writes and URL import reads. What is left of
 design-docs/PROJECT_STORAGE.md is the linked folder (tranche 5), single-file HTML export, the player
 for another origin, and the nag. Every hand check the tranche named has been done, the cross-origin
-import from GitHub Pages last, by the maintainer - see ticket 02's comments.
+import from GitHub Pages last, by the maintainer - see ticket 02's comments. Both taken-id refusals it
+added tell the author to rename a project, which today starts in the editor; a rename control on the
+picker's rows is filed as .scratch/picker-rename/.
 
 Extracted: tranche 4, 2026-09-28, as .scratch/published-folder/ - four tickets after one grilling:
 the player plays the folder it is served from, importing from a URL, the demo as a URL import, and

@@ -544,7 +544,8 @@ errors or undeclared references publishes and imports freely.
 - **Renaming from the picker's rows.** Both taken-id refusals say "delete or rename the existing
   project", and today renaming means editing `id:` in the project's `manifest.yaml`, which the
   existing rename then follows. A rename control on each row, beside export and delete, would make
-  that one click and would drive the same `renameProject`. Raised 2026-09-28; its own ticket.
+  that one click and would drive the same `renameProject`. Raised 2026-09-28; its own ticket, filed as
+  `.scratch/picker-rename/issues/01-renaming-from-the-picker.md`.
 - **A styled player error screen** (`.scratch/stage-dialogs/`).
 - **Player-side caching** through the Cache API or a service worker.
 - **A harder rename warning once a project has been published**, which is an open question in the

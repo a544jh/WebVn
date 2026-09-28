@@ -20,7 +20,7 @@ Two entry points:
 - `npm run lint` — ESLint over `**/*.ts`
 - `npm run prettier` — prettier check
 - `npm test` — the fast gate: vitest projects `unit` (node, `test/unit/`) and `browser` (headless Chromium via Playwright, `test/browser/`). ~6s.
-- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
+- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or the demo's YAML in `test-assets/`.
 - `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## CI
@@ -470,10 +470,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   are the author's pick and the picker's Add demo project button. A cold boot always lands on the
   picker; `lastOpened` orders the list and no longer decides anything. `bootEditor` records it after
   the lock, so a rename gets it free.
-- **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
-  Nothing seeds behind the author: a seed would have to run before the picker could render, when no
-  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 4
-  (`.scratch/published-folder/`, ticket 03).
+- **Add demo project is a URL import** of the demo the app is deployed beside - `seedDemoProject` is
+  gone, as its own comment always said it would be. The picker is **told** the demo's address
+  (`PickerOptions.demo`, threaded through `AppShellOptions.demo`), required for the reason
+  `navigation` is; the entry point passes its own directory and the suites pass `NO_DEMO`, an address
+  nothing answers, except `test/browser/DemoProject.test.ts` - **the one suite that adds the real
+  demo**, because `webvn-demo` is a fixed directory and its lock is origin-wide. The button is always
+  shown, and a second press is URL import's taken-id refusal naming delete and rename. The picker
+  therefore never needs the demo's id, and neither bundle carries the demo.
 - **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
   `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
   restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is
@@ -498,7 +502,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
   when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
 - **The picker's own long operations run in that queue too**, through the `InTurn` callback it takes
-  beside `openProject` - import, export, delete and the demo seed, each of which holds a project lock
+  beside `openProject` - both imports, export, delete and adding the demo, each of which holds a project lock
   while it writes. Without it the work outlives the view that started it: a Back closes the picker
   mid-import, the picker rebuilt on the way back knows nothing about it, the result is reported to a
   stopped view, and opening the row the import is rewriting refuses the author with "already open in
@@ -771,7 +775,7 @@ If you're tempted to import from any of these, don't.
 
 - **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. If it names an
   asset or actor id, override `references()` so a typo is a warning rather than a crash, exempting
-  any value the engine has spoken for. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
+  any value the engine has spoken for. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Touch anything about where files live**: read "Project storage" above first, then
@@ -809,10 +813,10 @@ If you're tempted to import from any of these, don't.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
 - The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
-  work in the build. It matches vite's native `?raw` suffix on purpose, so `src/demoStory.ts` has one
-  spelling that works in webpack and in all three vitest projects; the ambient module declaration for it is
-  `src/types/yamlRaw.d.ts`. Nothing but the demo's two YAML files uses it yet, and nothing in CI would catch
-  its removal except the build.
+  work in the build. It matches vite's native `?raw` suffix on purpose, so a module has one spelling that
+  works in webpack and in all three vitest projects; the ambient module declaration for it is
+  `src/types/yamlRaw.d.ts`. **Dormant since tranche 4**: its one user, `src/demoStory.ts`, became a test
+  fixture that no shipped module imports, so nothing in either bundle goes through it.
 - Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
 - **`import.meta.url` is defined away by `DefinePlugin`**, and that is about zip.js rather than about
   us: `lib/zip-core-base.js` opens with `setDefaultConfiguration({ baseURI: import.meta.url })`, and

@@ -15,6 +15,7 @@ import { downloadBlob } from "./chrome/download"
 import { exportProject } from "./storage/archive"
 import { AppShell } from "./AppShell"
 import { browserNavigation } from "./projectUrl"
+import { pageFolder } from "./publishedFolder"
 
 declare global {
   interface Window {
@@ -62,6 +63,9 @@ const shell = new AppShell(
     // The real address bar. Everything with a decision in it is above this line, in the shell, where
     // a test can drive it; this is four one-line members over `location` and `history`.
     navigation: browserNavigation(),
+    // The deployed app is a published folder - the demo's - with the editor beside the player, so the
+    // demo is whatever sits in this page's own directory.
+    demo: pageFolder(location.href),
   }
 )
 

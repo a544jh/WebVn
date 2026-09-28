@@ -41,6 +41,9 @@ export interface AppShellOptions {
   // suite that forgot to pass one - writing into the runner's own address bar. Two construction
   // sites exist; both say which address bar they are driving.
   readonly navigation: Navigation
+  // The published folder Add demo project imports from, handed to every picker this shell shows.
+  // Required for the same reason: a default would import from the runner's own page.
+  readonly demo: string
 }
 
 export class AppShell {
@@ -172,7 +175,10 @@ export class AppShell {
   // `start()`, which is what src/index.ts calls.
   private async showPicker(refusal: RefusalNotice | null = null): Promise<void> {
     this.show("picker")
-    this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, this.inTurn, refusal)
+    this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, this.inTurn, {
+      demo: this.options.demo,
+      refusal,
+    })
     await this.picker.render()
   }
 

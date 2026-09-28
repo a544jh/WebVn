@@ -2,7 +2,8 @@ import { VnPlayer } from "./core/player"
 import { DomRenderer } from "./domRenderer/DomRenderer"
 import "./player.html"
 
-import { bootPlayer, pageFolder } from "./playerBoot"
+import { bootPlayer } from "./playerBoot"
+import { pageFolder } from "./publishedFolder"
 
 declare global {
   interface Window {

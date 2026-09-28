@@ -13,7 +13,7 @@ import {
 import { recoverProjects } from "../../src/storage/recoverProjects"
 import { importFromUrl } from "../../src/storage/urlImport"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
-import { immediately } from "../helpers/picker"
+import { immediately, NO_DEMO } from "../helpers/picker"
 import { manifestNaming } from "../helpers/testManifest"
 import { waitFor } from "../helpers/vnHarness"
 
@@ -221,7 +221,7 @@ describe("the picker's Import from URL", () => {
     [...pickerRoot.querySelectorAll(".vn-picker-title")].map((elem) => elem.textContent ?? "")
 
   const openImportDialog = async (): Promise<void> => {
-    const picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately)
+    const picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately, { demo: NO_DEMO })
     await picker.render()
     ;(pickerRoot.querySelector(".vn-picker-import-url") as HTMLButtonElement).click()
     await waitFor("the Import from URL dialog", () => dialog() !== null)

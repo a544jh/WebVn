@@ -230,9 +230,10 @@ export async function* walkProject(directory: string): AsyncGenerator<WalkedFile
   yield* walk(await root(), `${PROJECTS}/${directory}`)
 }
 
-// Put a project into the store, from text that already exists: the demo seed, and later an import.
-// `mintProject` below is the same call with text this module writes, so there is one code path for
-// "put a project into the store" rather than two.
+// Put a project into the store, from text that already exists. `mintProject` below is the same call
+// with text this module writes, and the one caller that ships; the suites use this directly. An
+// import does **not** come through here - it is a copy rather than a mint, and writes its manifest
+// last rather than first (`importProject` in archive.ts says why).
 //
 // The manifest is written **first**, and that ordering is load-bearing in two places: a directory
 // with no manifest is not a project, so a project being made must never present as the residue a
@@ -250,7 +251,7 @@ export const createProject = async (id: string, files: ProjectFiles): Promise<vo
   await writeFile(dir, projectPath(id, SCRIPT_FILE), files.scriptText)
   // After the files, because the files are the project and this is only a note about it - and here
   // rather than at each caller, so every way of putting a project into the store is dated by
-  // construction: minting one, seeding the demo, and the import that will share this call.
+  // construction. An import dates its own, and only when its directory is new.
   await note("created", id)
 }
 

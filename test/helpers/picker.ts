@@ -8,3 +8,9 @@ import { InTurn } from "../../src/picker/ProjectPicker"
 // A suite that *is* about that ordering should drive a real `AppShell` instead, which is what
 // `test/browser/AppShell.test.ts` does.
 export const immediately: InTurn = (job) => job()
+
+// The demo's address, for a suite that never presses Add demo project. **An address nothing
+// answers** rather than the served demo, so a suite that pressed it by mistake would be refused as
+// unreachable instead of adding `webvn-demo` - whose project lock belongs to
+// test/browser/DemoProject.test.ts, the one suite that adds the real demo.
+export const NO_DEMO = "http://127.0.0.1:1/no-demo-here/"

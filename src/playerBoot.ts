@@ -141,6 +141,3 @@ export const bootPlayer = async (options: PlayerBootOptions): Promise<PlayerBoot
 
   return { kind: "booted", player, renderer, missing, firstStop }
 }
-
-// The directory a page sits in, which is the published folder when the page is the player.
-export const pageFolder = (href: string): string => new URL(".", href).href

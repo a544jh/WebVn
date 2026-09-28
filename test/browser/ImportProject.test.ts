@@ -15,6 +15,7 @@ import {
 } from "../../src/storage/projectStore"
 import { recoverProjects } from "../../src/storage/recoverProjects"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
+import { NO_DEMO } from "../helpers/picker"
 import { manifestNaming } from "../helpers/testManifest"
 import { settle, waitFor } from "../helpers/vnHarness"
 
@@ -226,7 +227,7 @@ describe("the picker's import surface", () => {
   const newPicker = (): ProjectPicker => {
     pickerRoot = document.createElement("div")
     document.body.appendChild(pickerRoot)
-    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn)
+    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn, { demo: NO_DEMO })
     return picker
   }
 

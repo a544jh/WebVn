@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { demoManifest } from "../../src/demoStory"
 import { backgroundFilePath } from "../../src/domRenderer/assetPaths"
 import { STORE_DEBOUNCE_MS } from "../../src/storage/ProjectStoring"
-import { createProject, listProjects, readProject, writeProjectFile } from "../../src/storage/projectStore"
-import { seedDemoProject } from "../../src/storage/seedDemoProject"
+import { createProject, readProject, writeProjectFile } from "../../src/storage/projectStore"
 import { clearOpfsStore, storedManifest } from "../helpers/opfs"
 import {
   SCENE_HEIGHT,
@@ -110,25 +108,6 @@ describe("the editor over the project store", () => {
     expect(started.editor.isManifestValid()).toBe(false)
     editorTab(started.editorRoot, "manifest").click()
     expect(markedLines(started.editorRoot).length).toBeGreaterThan(0)
-  })
-
-  it("opens the seeded demo playable", async () => {
-    // Nothing seeds behind the author any more - the picker's Add demo project button is the one
-    // caller of seedDemoProject - so this seeds explicitly and then opens what it wrote.
-    await seedDemoProject()
-    const started = await startEditorFromStore(demoManifest.id)
-
-    expect(started.directory).toBe(demoManifest.id)
-    expect((await listProjects()).map((p) => p.id)).toEqual([demoManifest.id])
-    expect((await readProject(demoManifest.id)).scriptText).toContain("This is WebVn")
-    // Playable, not merely stored. Reaching this line is already most of the proof - the harness
-    // awaits a render that finished with the player stopped, which a story that failed to build or a
-    // sub-renderer that threw never produces - so what is left to say is that the story is the demo's
-    // and that it ran commands to get here. The demo opens with `textbox: close`, so there is no ADV
-    // box to read at its first stop.
-    expect(started.editor.isManifestValid()).toBe(true)
-    expect(started.player.state.title).toBe(demoManifest.title)
-    expect(started.player.state.commandIndex).toBeGreaterThan(0)
   })
 
   it("goes unstored on a keystroke and stored once the write resolves", async () => {

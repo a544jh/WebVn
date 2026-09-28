@@ -11,7 +11,7 @@ import {
   renameProject,
   writeProjectFile,
 } from "../../src/storage/projectStore"
-import { immediately } from "../helpers/picker"
+import { immediately, NO_DEMO } from "../helpers/picker"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { manifestNaming } from "../helpers/testManifest"
 import { releaseStoredEditorLock, startEditorFromStore, typeScript, waitFor } from "../helpers/vnHarness"
@@ -215,7 +215,7 @@ describe("the picker's export control", () => {
   const newPicker = (): ProjectPicker => {
     const root = document.createElement("div")
     document.body.appendChild(root)
-    return new ProjectPicker(root, () => Promise.resolve(null), immediately)
+    return new ProjectPicker(root, () => Promise.resolve(null), immediately, { demo: NO_DEMO })
   }
 
   const exportButton = (directory: string): HTMLButtonElement =>

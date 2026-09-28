@@ -15,6 +15,11 @@ import { declaredAssets } from "./domRenderer/assetPaths"
 export const MANIFEST_FILE = "manifest.yaml"
 export const SCRIPT_FILE = "script.yaml"
 
+// The directory a page sits in. That is the published folder when the page is the player, and the
+// demo when it is the editor, since the deployed app is itself a published folder with the editor
+// beside the player.
+export const pageFolder = (href: string): string => new URL(".", href).href
+
 // Whether a response is the file that was asked for. **Not `response.ok` alone**: a static host set
 // up for a single-page app answers every address it does not know with its front page and a 200, so a
 // missing `manifest.yaml` arrives as HTML - and read as YAML, a web page is a manifest that does not

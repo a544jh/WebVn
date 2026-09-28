@@ -97,6 +97,7 @@ src/
   storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver,
                    the .webvn.zip archive (the only file that imports zip.js)
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
+  sessionTools.ts  the editor's tool row as far as a suite can reach it: the manifest gate, Publish
   playerBoot.ts    the standalone player's boot, out of src/playerIndex.ts for the same reason
   publishedFolder.ts  what a published folder holds, shared by the player, publish and URL import
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
@@ -443,12 +444,12 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
-- **The editor chrome has one button style, `.vn-chrome-button` in `chrome.css`**, worn by all four:
-  Back to projects, Fullscreen, Copy player link, Export ZIP. Before tranche 3 only the first had any
+- **The editor chrome has one button style, `.vn-chrome-button` in `chrome.css`**, worn by all five:
+  Back to projects, Fullscreen, Copy player link, Export ZIP, Publish. Before tranche 3 only the first had any
   CSS and the other two rendered as browser-default buttons, which the design canvas had been drawing
   as chrome they never were. `line-height: 1` is the load-bearing declaration - default leading is
   ~16px and a 14px icon is not, so an iconless button and an icon one sit at different heights - and
-  it is why the rule is **icons on all three tools or none**. "Copy player link" is what
+  it is why the rule is **icons on every tool or none** - Publish, the fourth, wears Lucide's globe. "Copy player link" is what
   `#vn-btn-export-url` became: `CONTEXT.md` reserves *export* for the archive, and the link button now
   sits beside the thing that is one. Not "Share link", which that glossary entry has also spent.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
@@ -627,7 +628,9 @@ declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
   `ifAvailable`, so a session asking for the lock it already holds would refuse itself. Do not add a
   `.crswap` filter: it would be a second rule for a hazard these two already close.
 - **`README.txt` is the one place an archive is not exactly the project tree**, generated at the root
-  and skipped on import by exact path, so a README an author put in their own project round-trips. Its
+  and skipped on import by exact path, so a README an author put in their own project round-trips.
+  Import skips the player a published zip carries the same way (`NOT_THE_PROJECT`), which is what
+  makes a published zip import as exactly the project it was built from. Its
   wording ships inside every archive already exported and cannot be corrected later: no architecture
   in it, and an instruction rather than a prohibition. The app URL is hardcoded, because an archive
   outlives any one deployment of the app.
@@ -683,6 +686,25 @@ things touching it share. ADR 0007 is its invariant: it is complete.
 - Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
   named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
   and then nothing), and a real cross-origin import from GitHub Pages.
+- **Publish is `publishProject(directory, player)` in `archive.ts`**, which stays the only module that
+  imports zip.js. It writes `README.txt`, the player, then `publishedFiles` - never a tree copy, so an
+  undeclared file never reaches a reader - into `<project-id>-published.zip`. It refuses as export
+  does for a manifest that does not parse or a missing script, and **refuses while any declared file
+  is missing, naming every one** (`kind: "missing"`), since here the author is reading and each is
+  theirs to fix. It records nothing in `editor.yaml`: a published zip is not a backup.
+- **The player's files are `PLAYER_FILES` in `src/publishedFolder.ts`**: `player.html` served,
+  `index.html` published, and `playerIndex.js`. Publish is **told** the folder to fetch them from (the
+  editor page's own directory; stand-ins in `test/fixtures/player/` for the suite) and copies them
+  byte for byte. **If the build ever splits the player into more chunks, that list must follow, and
+  nothing automated would notice** - every published folder would ship without the chunk. The list
+  only grows on the import side: a name that stops being published keeps being skipped.
+- **The button is in `src/sessionTools.ts`, not the entry point**, so a suite reaches it: `wirePublish`
+  gates it on the manifest parsing (`gateOnManifest`, which Copy player link and Export ZIP share),
+  and `publishSession` flushes the storer, publishes, delivers, and opens one of two `noticeDialog`s -
+  "Published", saying to put the files on a static web host, or "Not published", listing every
+  missing file. Dialogs rather than the message line because the refusal is a list. **Checked by
+  hand**: a real build's Publish fetches the player, and the zip, extracted onto a static server,
+  plays from its `index.html`.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.

@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  Globe,
   IconNode,
   Link,
   Maximize,
@@ -53,6 +54,8 @@ const ICONS = {
   link: Link,
   eye: Eye,
   replace: Replace,
+  // Publish: the zip becomes a web page. The other candidate for Import from URL, which took `link`.
+  globe: Globe,
 } satisfies Record<string, IconNode>
 
 export type IconName = keyof typeof ICONS

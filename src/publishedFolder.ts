@@ -15,6 +15,22 @@ import { declaredAssets } from "./domRenderer/assetPaths"
 export const MANIFEST_FILE = "manifest.yaml"
 export const SCRIPT_FILE = "script.yaml"
 
+// **The player, as a published folder carries it**: each file under the name the folder holds it by,
+// beside the name the deployed app serves it under. Its page becomes `index.html` because that is what
+// a static host serves a folder's own address from; the deployed demo keeps `player.html`, since its
+// `index.html` is the editor.
+//
+// **Written down once, and zip import skips the same names**, so a published zip imports as exactly
+// the project it was built from. If the build ever splits the player into more chunks, this list has
+// to follow, and nothing automated would notice - a published zip would ship without the chunk and
+// every reader would get a blank stage. **It only ever grows on the skip side**: a zip published by an
+// older build still carries that build's player, so a name that stops being published has to keep
+// being skipped rather than be deleted from here.
+export const PLAYER_FILES: ReadonlyArray<{ readonly published: string; readonly served: string }> = [
+  { published: "index.html", served: "player.html" },
+  { published: "playerIndex.js", served: "playerIndex.js" },
+]
+
 // The directory a page sits in. That is the published folder when the page is the player, and the
 // demo when it is the editor, since the deployed app is itself a published folder with the editor
 // beside the player.

@@ -1,6 +1,8 @@
 import { BlobReader, BlobWriter, TextReader, ZipReader, ZipWriter } from "@zip.js/zip.js/lib/zip-core-custom.js"
 import { ErrorLevel, ParserError } from "../core/commands/Parser"
+import { VnManifest } from "../core/manifest"
 import { deleteSaveData } from "../core/save"
+import { PLAYER_FILES, publishedFiles } from "../publishedFolder"
 import { parseManifest } from "../yamlParser/parseManifest"
 import { availableBytes, megabytes } from "./persistence"
 import { takeProjectLock } from "./projectLock"
@@ -11,6 +13,7 @@ import {
   isProject,
   openProjectFile,
   readManifest,
+  readProjectFile,
   recordCreated,
   recordExported,
   walkProject,
@@ -55,6 +58,13 @@ const SCRIPT_FILE = "script.yaml"
 // `assets/README.txt` - still round-trips. One at the project root does not, in either direction:
 // export writes the generated one in its place and import drops it again.
 const README_FILE = "README.txt"
+
+// **Not the project**, skipped on import at the archive root by exact path: the README either kind of
+// zip is generated with, and the player a published zip carries. Nothing else is ever left out, so a
+// published zip imports as exactly the project it was built from - which is what publish writing and
+// import reading back have to agree on. The accepted cost is `README.txt`'s: a project cannot carry its
+// own root-level `index.html` or `playerIndex.js` through an archive round trip.
+const NOT_THE_PROJECT = new Set([README_FILE, ...PLAYER_FILES.map((file) => file.published)])
 
 // Where an archive says to open it. **Hardcoded, not taken from `location`**: an archive travels -
 // it gets emailed, backed up, found in Downloads two years later - and the one thing it must be able
@@ -130,6 +140,7 @@ const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "re
 // the first entry, and an author reading "was not imported" wants to know that in the same breath.
 const NOTHING_WRITTEN = "Nothing was written."
 const NOTHING_EXPORTED = "Nothing was exported."
+const NOTHING_PUBLISHED = "Nothing was published."
 
 // What an archive turned out to hold, once it is known to be importable: where it goes, what it is
 // called, and the files to write. `files` is normalized - a wrapping directory stripped, the
@@ -301,7 +312,7 @@ export const planImport = async (
     id: parsed.id,
     title: parsed.title,
     manifestText,
-    files: files.filter((file) => file.path !== MANIFEST_FILE && file.path !== README_FILE),
+    files: files.filter((file) => file.path !== MANIFEST_FILE && !NOT_THE_PROJECT.has(file.path)),
   }
 }
 
@@ -508,19 +519,14 @@ export const readmeText = (id: string, title: string, at: Date): string =>
 // project it means holding its lock. Note the asymmetry is forced: `takeProjectLock` uses
 // `ifAvailable`, so a session trying to take the lock it already holds would refuse itself.
 export const exportProject = async (directory: string): Promise<ExportResult> => {
-  const manifestText = await readManifest(directory).catch(() => null)
-  if (manifestText === null) {
-    return refuse("it has no manifest.yaml", `${NOTHING_EXPORTED} There is no project in that folder.`)
-  }
-  const [manifest, errors] = parseManifest(manifestText)
-  if (manifest === null) {
-    // The gate that ADR 0005 is about, and the one that costs an explanation: the store deliberately
-    // keeps an unparseable project listed, openable and renameable, because it is an author's project
-    // with a typo in it. What it cannot do is leave the browser - an archive is named after an id and
-    // imports into a directory named after one, and a manifest that does not parse has declared no
-    // id. The hatch that looks closed is not: fix the typo in the editor, then export.
-    return refuse("its manifest.yaml does not parse", NOTHING_EXPORTED + parserClause(errors))
-  }
+  // The gate that ADR 0005 is about, and the one that costs an explanation: the store deliberately
+  // keeps an unparseable project listed, openable and renameable, because it is an author's project
+  // with a typo in it. What it cannot do is leave the browser - an archive is named after an id and
+  // imports into a directory named after one, and a manifest that does not parse has declared no id.
+  // The hatch that looks closed is not: fix the typo in the editor, then export.
+  const gated = await gatedManifest(directory, NOTHING_EXPORTED)
+  if (gated.kind === "refused") return gated
+  const { manifest } = gated
   // Unreachable from anything the app can currently produce, and kept anyway: it costs one `exists`,
   // and it is the half that stops a bad archive existing rather than the half that catches one
   // afterwards.
@@ -551,4 +557,126 @@ export const exportProject = async (directory: string): Promise<ExportResult> =>
   await recordExported(directory)
 
   return { kind: "exported", blob, filename: archiveFilename(manifest.id) }
+}
+
+// A project's manifest, if it is one that can leave the browser: it is there and it parses. The gate
+// export and publish share, and the one ADR 0005 is about - each says in its own words that nothing
+// left, and in the same words why.
+const gatedManifest = async (
+  directory: string,
+  nothing: string
+): Promise<
+  { readonly kind: "gated"; readonly manifest: VnManifest; readonly manifestText: string } | ArchiveRefusal
+> => {
+  const manifestText = await readManifest(directory).catch(() => null)
+  if (manifestText === null) return refuse("it has no manifest.yaml", `${nothing} There is no project in that folder.`)
+  const [manifest, errors] = parseManifest(manifestText)
+  if (manifest === null) return refuse("its manifest.yaml does not parse", nothing + parserClause(errors))
+  return { kind: "gated", manifest, manifestText }
+}
+
+// A published folder, delivered as one zip: `<project-id>-published.zip`, which the author puts on a
+// static web host. `.scratch/published-folder/spec.md`, "Publishing".
+export type PublishResult =
+  | { readonly kind: "published"; readonly blob: Blob; readonly filename: string }
+  // **Every declared file the store does not have**, in the order the manifest declares them. Its own
+  // kind rather than a refusal with a sentence in it, because it is a list: the editor shows it one
+  // file per line, and the message line beside the buttons holds one sentence.
+  | { readonly kind: "missing"; readonly files: readonly string[] }
+  | ArchiveRefusal
+
+// **Differs from the archive's name, so Downloads tells a build from a backup.** Windows hides the
+// known extension and shows it as `my-story-published`.
+export const publishedFilename = (id: string): string => `${id}-published.zip`
+
+// **The README a published zip carries, under the archive README's rules**: it ships inside every
+// published zip and cannot be corrected later, so it describes no architecture and is phrased as an
+// instruction rather than a prohibition. The exact text is the spec's. It speaks to whoever opens the
+// zip - usually the author, sometimes a reader who downloaded the build. "Will not start it" stays
+// true for this zip whatever a later build learns, because each zip carries the player it was
+// published with. "Keeping the folders as they are" is there because uploading the files flat,
+// losing `assets/`, is the likeliest way to break a published folder. The title line breaks after the
+// id so a long title never pushes the rest of the sentence out.
+export const publishedReadmeText = (id: string, title: string, at: Date): string =>
+  [
+    `This is "${title}" (${id}),`,
+    "a visual novel made with WebVn.",
+    "",
+    "To play it, put everything in this zip on any static web host, keeping",
+    "the folders as they are, and open the folder's address in a browser.",
+    "It has to be served from a web host: opening index.html straight from",
+    "your computer will not start it.",
+    "",
+    `To work on it, open ${APP_URL} and import`,
+    "this zip file.",
+    "",
+    `WebVn is free and open source: ${SOURCE_URL}`,
+    "",
+    `Published ${at.toISOString().slice(0, 10)} by WebVn.`,
+    "",
+  ].join("\n")
+
+// A project in the library, written out as a published folder: the player as `index.html` beside its
+// bundle, the manifest, the script, and **exactly the files the manifest declares** - the list URL
+// import reads back, `publishedFiles`. Not a tree copy: an undeclared file in the project stays the
+// archive's business, and never reaches a reader.
+//
+// **Complete, or not at all** - docs/adr/0007-a-published-folder-is-complete.md. A declared file the
+// store does not have is a scene the renderer throws on when a reader reaches it, and a 404 on the
+// way back in cannot tell "never drawn" from "lost in transit". So every missing file is found and
+// named, rather than the first one, because here the author is the one reading and each is theirs to
+// fix. The script never gates, as in ADR 0005: a script with problems publishes and plays exactly as
+// the preview did.
+//
+// `player` is the folder the player's own files are fetched from - **told rather than guessed**: the
+// document's own directory in production, where the deployed app serves `player.html` and
+// `playerIndex.js` beside the editor, and small stand-ins in a suite. They are copied byte for byte and
+// never templated; the title on the tab is the player's own job, from the manifest.
+//
+// The caller owns what export's caller owns: flushing the storer first, since a walk must not overlap a
+// write and the author's last sentence must be in it. **Nothing is recorded in `editor.yaml`**: a
+// published zip carries declared files only, so it is not the backup the picker's "never exported"
+// line is about.
+export const publishProject = async (directory: string, player: string): Promise<PublishResult> => {
+  const gated = await gatedManifest(directory, NOTHING_PUBLISHED)
+  if (gated.kind === "refused") return gated
+  const { manifest, manifestText } = gated
+  if (!(await hasScript(directory))) {
+    return refuse("it has no script.yaml", `${NOTHING_PUBLISHED} A published story always holds a script.`)
+  }
+
+  const files = await Promise.all(
+    publishedFiles(manifest).map(async (path) => ({
+      path,
+      blob:
+        path === MANIFEST_FILE ? new Blob([manifestText]) : await readProjectFile(directory, path).catch(() => null),
+    }))
+  )
+  const missing = files.filter((file) => file.blob === null).map((file) => file.path)
+  if (missing.length > 0) return { kind: "missing", files: missing }
+
+  // After the store has been checked, so a refusal the author can act on is never hidden behind one
+  // about the network. A zip without the player would be one that cannot play.
+  const players = await Promise.all(
+    PLAYER_FILES.map(async (file) => {
+      const response = await fetch(new URL(file.served, player)).catch(() => null)
+      return response !== null && response.ok ? { path: file.published, blob: await response.blob() } : null
+    })
+  )
+  if (players.some((file) => file === null)) {
+    return refuse(
+      "the player's own files could not be fetched",
+      `${NOTHING_PUBLISHED} Publishing copies the player from where this editor is served - check the connection and try again.`
+    )
+  }
+
+  const writer = new ZipWriter<Blob>(new BlobWriter("application/zip"))
+  // First, so it is the first thing visible when the zip is opened in an OS viewer.
+  await writer.add(README_FILE, new TextReader(publishedReadmeText(manifest.id, manifest.title, new Date())))
+  for (const file of [...players, ...files]) {
+    if (file === null || file.blob === null) continue
+    const options = storesWhole(file.path) ? { level: 0 } : undefined
+    await writer.add(file.path, new BlobReader(file.blob), options)
+  }
+  return { kind: "published", blob: await writer.close(), filename: publishedFilename(manifest.id) }
 }

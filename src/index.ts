@@ -8,7 +8,7 @@ import "./debugPanel.css"
 
 import "codemirror/lib/codemirror.css"
 
-import { icon, IconName } from "./chrome/icons"
+import { icon } from "./chrome/icons"
 import { encodePayload, playerUrl } from "./scriptUrl"
 import { BootedEditor, unsupportedBrowserReason } from "./editorBoot"
 import { downloadBlob } from "./chrome/download"
@@ -16,6 +16,7 @@ import { exportProject } from "./storage/archive"
 import { AppShell } from "./AppShell"
 import { browserNavigation } from "./projectUrl"
 import { pageFolder } from "./publishedFolder"
+import { face, gateOnManifest, wirePublish } from "./sessionTools"
 
 declare global {
   interface Window {
@@ -58,6 +59,14 @@ const shell = new AppShell(
       wireFullscreen(renderer)
       wireCopyPlayerLink(editor)
       wireExportZip(booted)
+      // The player's own files are beside this page, where the build puts `player.html` and its
+      // bundle, and the zip reaches the disk through the same anchor Export ZIP's does.
+      wirePublish(
+        document.getElementById("vn-btn-publish") as HTMLButtonElement,
+        booted,
+        { player: pageFolder(location.href), deliver: downloadBlob },
+        wiring.signal
+      )
     },
     onClose: () => wiring.abort(),
     // The real address bar. Everything with a decision in it is above this line, in the shell, where
@@ -112,18 +121,12 @@ function wireJumpMode(editor: VnEditor): void {
 }
 
 // The button is page chrome rather than part of the vn, so the wiring stays here and the
-// mechanism lives in the renderer. Its icon is the chrome's, like the other two in that row: icons
-// on all three or none, because one icon among three is not one style.
+// mechanism lives in the renderer. Its icon is the chrome's, like the others in that row: icons on
+// all four or none, because one icon among four is not one style.
 function wireFullscreen(renderer: DomRenderer): void {
   const button = document.getElementById("vn-btn-fullscreen") as HTMLButtonElement
   face(button, "maximize", "Fullscreen")
   button.addEventListener("click", () => renderer.enterFullscreen(), { signal: wiring.signal })
-}
-
-// A chrome button's icon and its label, set together - because setting one alone takes the other
-// out: the icon is a child of the button, and `textContent` replaces every child there is.
-function face(button: HTMLButtonElement, name: IconName, label: string): void {
-  button.replaceChildren(icon(name, 14), document.createTextNode(label))
 }
 
 // The `?vn=` payload as a link, copied to the clipboard. **Not "Export"**: CONTEXT.md's Payload
@@ -155,19 +158,6 @@ function wireCopyPlayerLink(editor: VnEditor): void {
   // rather than degraded - and whoever finds out is the person it was sent to. Following canSave's
   // precedent, which greys out Save when the path cannot be written as one.
   gateOnManifest(editor, button, "manifest.yaml does not parse - a link copied now would not load")
-}
-
-// **Both tools in that row are gated on the same flag, and it is the editor's own** - `editor.ts`
-// tracks whether the manifest buffer last parsed, and ADR 0005 puts the archive behind exactly that:
-// an archive is named after an id and imports into a directory named after one, and a manifest that
-// does not parse has declared none. One helper because the two would otherwise be the same four lines
-// twice, with only the sentence differing - and a second flag is what this is here to prevent.
-function gateOnManifest(editor: VnEditor, button: HTMLButtonElement, reason: string): void {
-  editor.onManifestStateChangeCallbacks.push(() => {
-    const valid = editor.isManifestValid()
-    button.disabled = !valid
-    button.title = valid ? "" : reason
-  })
 }
 
 // The project as an archive, from inside the editor - because the author spends their time here, and

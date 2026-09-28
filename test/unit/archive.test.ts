@@ -6,6 +6,8 @@ import {
   MAX_ENTRIES,
   MAX_UNPACKED_BYTES,
   planImport,
+  publishedFilename,
+  publishedReadmeText,
   readmeText,
   storesWhole,
 } from "../../src/storage/archive"
@@ -181,11 +183,53 @@ describe("planning an import", () => {
 
     expect(paths(await planned(entries))).not.toContain("README.txt")
   })
+
+  it("skips the player a published zip carries, so it imports as exactly the project it was built from", async () => {
+    const entries = [...project(), entry("index.html", "<!DOCTYPE html>"), entry("playerIndex.js", "player")]
+
+    expect(paths(await planned(entries)).sort()).toEqual(["assets/backgrounds/room.png", "script.yaml"])
+  })
+
+  it("keeps an index.html below the root, which is not the player", async () => {
+    const entries = [...project(), entry("assets/index.html", "mine"), entry("notes/playerIndex.js", "mine")]
+
+    expect(paths(await planned(entries))).toEqual(expect.arrayContaining(["assets/index.html", "notes/playerIndex.js"]))
+  })
 })
 
 describe("what an archive is called", () => {
   it("is named after the manifest's id, which always exists because export is gated on it", () => {
     expect(archiveFilename("cat-adventure")).toEqual("cat-adventure.webvn.zip")
+  })
+})
+
+describe("what a published zip is called", () => {
+  it("differs from the archive's name, so Downloads tells a build from a backup", () => {
+    expect(publishedFilename("cat-adventure")).toEqual("cat-adventure-published.zip")
+  })
+})
+
+describe("the README inside a published zip", () => {
+  it("is the spec's text, with the title, the id and the day filled in", () => {
+    expect(publishedReadmeText("cat-adventure", "Cat Adventure", new Date("2026-09-28T11:02:31.000Z"))).toEqual(
+      [
+        'This is "Cat Adventure" (cat-adventure),',
+        "a visual novel made with WebVn.",
+        "",
+        "To play it, put everything in this zip on any static web host, keeping",
+        "the folders as they are, and open the folder's address in a browser.",
+        "It has to be served from a web host: opening index.html straight from",
+        "your computer will not start it.",
+        "",
+        "To work on it, open https://a544jh.github.io/webvn-demo/ and import",
+        "this zip file.",
+        "",
+        "WebVn is free and open source: https://github.com/a544jh/WebVn",
+        "",
+        "Published 2026-09-28 by WebVn.",
+        "",
+      ].join("\n")
+    )
   })
 })
 

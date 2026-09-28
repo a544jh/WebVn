@@ -846,20 +846,21 @@ If you're tempted to import from any of these, don't.
   - `devServer.static: false`. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`, defaulting to `./public` — a directory this repo does not have. Nothing is served off disk: the html goes through `file-loader` via the `import "./index.html"` side effects and `test-assets` through CopyPlugin, so both land in the compilation and are served from memory by webpack-dev-middleware.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
-  - **The dev server's client is in the editor's bundle only**: `client: false` and `hot: false`, with the
-    client, `webpack/hot/dev-server.js` and `HotModuleReplacementPlugin` added to the `app` entry by hand.
-    Left to itself the dev server injects its client into every entry with its own port in the query,
-    and Publish copies `playerIndex.js` byte for byte from wherever the editor is served - so a folder
-    published from `npm run dev` and opened from any other server dialled the dev server, and its first
-    rebuild sent the page after a hot update its host did not have: 404, full reload, repeat (reported
-    2026-09-28). With no host or port in its query the hand-added client dials the page it is on. The
-    cost is that `player.html` under the dev server no longer reloads itself on a save.
+  - `client.webSocketURL: "auto://0.0.0.0:0/ws"`: the live-reload client connects to whatever server the
+    page was loaded from. The default writes the dev server's own port into the client, which the dev
+    server adds to every bundle, and Publish copies `playerIndex.js` byte for byte - so a folder
+    published from `npm run dev` and opened from any other server connected back to the dev server,
+    and after its next rebuild asked its own server for a hot update it did not have: 404, full
+    reload, repeat (reported 2026-09-28). Now such a copy connects to its own server, which never
+    announces a rebuild; it logs ten failed connection attempts and gives up. **Do not reach for
+    `devServer: false` on a split config instead**: to webpack-dev-middleware that means "do not
+    serve this compiler at all", so `player.html` 404s under the dev server and Publish breaks.
 - The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
   work in the build. It matches vite's native `?raw` suffix on purpose, so a module has one spelling that
   works in webpack and in all three vitest projects; the ambient module declaration for it is
   `src/types/yamlRaw.d.ts`. **Dormant since tranche 4**: its one user, `src/demoStory.ts`, became a test
   fixture that no shipped module imports, so nothing in either bundle goes through it.
-- Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on for the editor only (above); with no `module.hot` handling in the app a source edit triggers a full page reload.
+- Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
 - **`import.meta.url` is defined away by `DefinePlugin`**, and that is about zip.js rather than about
   us: `lib/zip-core-base.js` opens with `setDefaultConfiguration({ baseURI: import.meta.url })`, and
   webpack resolves that to an absolute `file://` path on the machine that built the bundle and emits

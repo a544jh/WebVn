@@ -130,9 +130,14 @@ served, and under the dev server that bundle carried the dev server's client, wi
 into its query. So the published folder, opened from `python -m http.server`, still dialled the dev
 server; while the dev server's build matched the copy nothing happened, which is why the first check
 passed, but after any rebuild the page asked its own host for `playerIndex.<hash>.hot-update.json`, got
-a 404, reloaded, and asked again - 168 reloads in eight seconds, reproduced in headless Chromium. Fixed
-in `webpack.config.js`: the client is added to the editor's entry by hand and to nothing else. After
-the fix the same probe shows the published copy loading once and opening no socket across a rebuild of
-both bundles, the editor still dialling its own dev server and reloading on a save, and
-`dist/playerIndex.js` unchanged. A folder already published from the dev server still carries the old
-client: publish it again. Nothing automated covers it, like the rest of `npm run dev`.
+a 404, reloaded, and asked again - 168 reloads in eight seconds, reproduced in headless Chromium.
+Fixed in `webpack.config.js` with `client.webSocketURL: "auto://0.0.0.0:0/ws"`: the client connects to
+the server the page came from, so a published copy connects to its own host, which never announces a
+rebuild. After the fix the same probe shows the published copy loading once across a rebuild of both
+bundles (logging ten failed connection attempts, then giving up), the editor and `player.html` under
+the dev server still reloading on a save, and both production bundles byte-identical. A first fix added
+the client to the editor's entry by hand, which cost `player.html` its reload; a second split the config
+and gave the player `devServer: false`, which webpack-dev-middleware reads as "do not serve this
+compiler", so `player.html` 404'd under the dev server. A folder already published from the dev server
+still carries the old client: publish it again. Nothing automated covers it, like the rest of
+`npm run dev`.

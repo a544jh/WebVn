@@ -184,6 +184,9 @@ describe("planning an import", () => {
     expect(paths(await planned(entries))).not.toContain("README.txt")
   })
 
+  // **The names are spelled out here rather than read from PLAYER_FILES, on purpose.** The skip list
+  // only ever grows - a zip published by an older build carries that build's player - so a name
+  // dropped from what publish writes must still be skipped, and this is what fails if it is not.
   it("skips the player a published zip carries, so it imports as exactly the project it was built from", async () => {
     const entries = [...project(), entry("index.html", "<!DOCTYPE html>"), entry("playerIndex.js", "player")]
 

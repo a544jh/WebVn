@@ -76,7 +76,7 @@ let navigation: FakeNavigation
 
 const newShell = (url: string | null = null): AppShell => {
   navigation = fakeNavigation(url)
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation, demo: NO_DEMO })
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation, demoFolder: NO_DEMO })
   return shell
 }
 

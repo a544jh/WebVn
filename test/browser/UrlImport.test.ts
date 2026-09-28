@@ -160,6 +160,20 @@ describe("a published folder refused", () => {
     )
   })
 
+  it("keeps the saves filed under the id, since nothing claimed it", async () => {
+    // "Nothing was written" has to be true of localStorage too: on the deployed site a reader's
+    // playthrough of the published build lives there, and a flaky network is not a reason to lose it.
+    const id = "url-import-missing-file"
+    saveToLocalStorage(id, { seenCommands: [], saves: [{ timestamp: 1, path: [3] }] } as never)
+    try {
+      await expectRefused(folder("missing-file"))
+
+      expect(window.localStorage.getItem(`vn-save-${id}`)).not.toBeNull()
+    } finally {
+      window.localStorage.removeItem(`vn-save-${id}`)
+    }
+  })
+
   it("leaves the library as it was after every refusal", async () => {
     await createProject("url-import-bystander", {
       manifestText: manifestNaming("url-import-bystander"),
@@ -221,7 +235,7 @@ describe("the picker's Import from URL", () => {
     [...pickerRoot.querySelectorAll(".vn-picker-title")].map((elem) => elem.textContent ?? "")
 
   const openImportDialog = async (): Promise<void> => {
-    const picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately, { demo: NO_DEMO })
+    const picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately, { demoFolder: NO_DEMO })
     await picker.render()
     ;(pickerRoot.querySelector(".vn-picker-import-url") as HTMLButtonElement).click()
     await waitFor("the Import from URL dialog", () => dialog() !== null)

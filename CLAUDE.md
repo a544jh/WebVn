@@ -449,7 +449,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   CSS and the other two rendered as browser-default buttons, which the design canvas had been drawing
   as chrome they never were. `line-height: 1` is the load-bearing declaration - default leading is
   ~16px and a 14px icon is not, so an iconless button and an icon one sit at different heights - and
-  it is why the rule is **icons on every tool or none** - Publish, the fourth, wears Lucide's globe. "Copy player link" is what
+  it is why the rule is **icons on every tool or none** - Publish, the fourth tool in the row, wears
+  Lucide's globe. "Copy player link" is what
   `#vn-btn-export-url` became: `CONTEXT.md` reserves *export* for the archive, and the link button now
   sits beside the thing that is one. Not "Share link", which that glossary entry has also spent.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
@@ -473,7 +474,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the lock, so a rename gets it free.
 - **Add demo project is a URL import** of the demo the app is deployed beside - `seedDemoProject` is
   gone, as its own comment always said it would be. The picker is **told** the demo's address
-  (`PickerOptions.demo`, threaded through `AppShellOptions.demo`), required for the reason
+  (`PickerOptions.demoFolder`, threaded through `AppShellOptions.demoFolder`), required for the reason
   `navigation` is; the entry point passes its own directory and the suites pass `NO_DEMO`, an address
   nothing answers, except `test/browser/DemoProject.test.ts` - **the one suite that adds the real
   demo**, because `webvn-demo` is a fixed directory and its lock is origin-wide. The button is always
@@ -620,8 +621,11 @@ declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
 - **Anything that claims an id drops its saves.** `deleteSaveData(id)` fires on every import rather
   than only on an overwrite: the player writes to the same `vn-save-<id>` keyspace, so even a fresh
   directory can collide with a published build's saves, and a save describing another story turns Load
-  into a dead button. `exported` goes with them; `created` is *kept* on an overwrite and minted only
-  for a new directory, because it is what the picker orders by and the row must not move.
+  into a dead button. **Claiming is the commit, not the attempt**: an overwrite drops them up front,
+  having just destroyed the project they described, but a new directory drops them only once its
+  manifest lands - so an import refused partway, above all a URL import on a flaky network, leaves a
+  reader's saves where they were. `exported` goes with them; `created` is *kept* on an overwrite and
+  minted only for a new directory, because it is what the picker orders by and the row must not move.
 - **Export flushes or locks, and which one is not a choice.** The **open** project is covered by
   `session.storing.flush()` - the debounce is 2000ms, and a walk must not overlap a write (see
   `walkFrom`) - and **another** project is covered by its project lock. `takeProjectLock` is
@@ -686,7 +690,7 @@ things touching it share. ADR 0007 is its invariant: it is complete.
 - Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
   named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
   and then nothing), and a real cross-origin import from GitHub Pages.
-- **Publish is `publishProject(directory, player)` in `archive.ts`**, which stays the only module that
+- **Publish is `publishProject(directory, playerFolder)` in `archive.ts`**, which stays the only module that
   imports zip.js. It writes `README.txt`, the player, then `publishedFiles` - never a tree copy, so an
   undeclared file never reaches a reader - into `<project-id>-published.zip`. It refuses as export
   does for a manifest that does not parse or a missing script, and **refuses while any declared file

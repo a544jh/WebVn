@@ -199,7 +199,10 @@ describe("the round trip", () => {
 
 describe("the editor's Publish control", () => {
   let delivered: string[]
-  const wiring = () => ({ player: PLAYER, deliver: (_blob: Blob, filename: string) => void delivered.push(filename) })
+  const wiring = () => ({
+    playerFolder: PLAYER,
+    deliver: (_blob: Blob, filename: string) => void delivered.push(filename),
+  })
 
   const dialog = (): HTMLDialogElement | null => document.querySelector("dialog.vn-dialog")
   const dialogText = (): string => dialog()?.textContent ?? ""
@@ -232,7 +235,7 @@ describe("the editor's Publish control", () => {
     let zip: Blob | null = null
     typeScript(started, "story:\n  - The last thing I wrote.\n")
 
-    const done = publishSession(started, { player: PLAYER, deliver: (blob) => void (zip = blob) })
+    const done = publishSession(started, { playerFolder: PLAYER, deliver: (blob) => void (zip = blob) })
     await waitFor("the hosting dialog", () => dialog() !== null)
     closeDialog()
     await done

@@ -68,7 +68,7 @@ export interface PickerOptions {
   // which is the document's own directory. **Required rather than defaulted**, for the reason
   // `AppShellOptions.navigation` is: the browser suites run in a page whose URL belongs to vitest, and
   // a default would silently import from it.
-  readonly demo: string
+  readonly demoFolder: string
   // **A refusal this picker could not have raised itself** - a URL that named a project which would
   // not open, refused before any picker existed to say so. Every other banner it shows, it produced.
   // Here rather than behind a setter because a picker is built fresh for each showing and rendered
@@ -138,13 +138,13 @@ export class ProjectPicker {
     private inTurn: InTurn,
     options: PickerOptions
   ) {
-    this.demo = options.demo
+    this.demoFolder = options.demoFolder
     const refusal = options.refusal ?? null
     this.announcement = refusal === null ? null : { ...refusal, tone: "refusal" }
     this.watchForDrops()
   }
 
-  private demo: string
+  private demoFolder: string
 
   private announcement: Announcement | null
 
@@ -452,9 +452,7 @@ export class ProjectPicker {
   // a site, because the site is this one and "localhost was imported" is not news about the demo.
   private addDemo(): Promise<unknown> {
     return this.work(".vn-picker-demo", "Adding\u2026", async () => {
-      const result = await importFromUrl(this.demo).catch(
-        broke("imported", "Whatever was written is not a project, and the library tidies it away.")
-      )
+      const result = await importFromUrl(this.demoFolder).catch(broke("imported", TIDIED))
       if (result.kind === "taken") {
         this.refuse(
           `The demo was not added: ${result.title} is already in your library, under ${result.directory}.`,
@@ -582,7 +580,7 @@ export class ProjectPicker {
           "The archive you are importing is untouched, and can be imported again.",
           "To keep both, cancel, rename the project you have, and import again."
         ),
-    }).catch(broke("imported", "Whatever was written is not a project, and the library tidies it away."))
+    }).catch(broke("imported", TIDIED))
 
     // A cancelled overwrite is not news: the author decided, nothing happened, and the render below
     // is only there to put the button back. An import that landed **is** news, and saying so is not
@@ -618,9 +616,7 @@ export class ProjectPicker {
   }
 
   private async readFolder(folder: string, host: string): Promise<void> {
-    const result = await importFromUrl(folder).catch(
-      broke("imported", "Whatever was written is not a project, and the library tidies it away.")
-    )
+    const result = await importFromUrl(folder).catch(broke("imported", TIDIED))
 
     if (result.kind === "refused") this.refuse(`${host} was not imported: ${result.problem}.`, result.advice)
     else if (result.kind === "taken") {
@@ -752,6 +748,10 @@ export class ProjectPicker {
 //
 // The store needs no help either way. An import that dies partway has written no manifest, so what it
 // leaves is not a project and the next render's sweep removes it.
+// What an import that failed rather than refused leaves behind, which is nothing the author has to
+// deal with: no manifest was written, so the next render's sweep takes whatever was.
+const TIDIED = "Whatever was written is not a project, and the library tidies it away."
+
 const broke =
   (verb: string, advice: string) =>
   (e: unknown): ArchiveRefusal => {

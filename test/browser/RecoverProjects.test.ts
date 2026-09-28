@@ -42,7 +42,7 @@ const holdAsAnotherTab = async (directory: string): Promise<void> => {
 
 // Recovery runs before the picker's list walk, so rendering one is how it is triggered.
 const renderPicker = async (): Promise<ProjectPicker> => {
-  const picker = new ProjectPicker(pickerRoot, async () => null, immediately, { demo: NO_DEMO })
+  const picker = new ProjectPicker(pickerRoot, async () => null, immediately, { demoFolder: NO_DEMO })
   await picker.render()
   return picker
 }

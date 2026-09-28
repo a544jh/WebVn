@@ -95,7 +95,7 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 
 **Landed 2026-09-28** on `claude/laughing-bell-erlp50`.
 
-- `publishProject(directory, player)`, `publishedFilename` and `publishedReadmeText` are in
+- `publishProject(directory, playerFolder)`, `publishedFilename` and `publishedReadmeText` are in
   `src/storage/archive.ts`, which is still the only module importing zip.js. Export's manifest gate
   became `gatedManifest`, shared by both. A missing declared file is a result of its own kind,
   `missing`, carrying every path in the manifest's order, because the editor shows it as a list.

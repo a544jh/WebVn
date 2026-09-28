@@ -103,8 +103,7 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 - **Two wordings are not on the canvas's banner board and were written here**: the byte cap as
   opposed to free space ("it passed 2000.0 MB, which is the limit", with the entry cap's advice), and a
   file whose request *fails* past the manifest, which says "stopped arriving" like a stall - the folder
-  was reachable a moment ago. Sizes are `megabytes()`, as every other size the app states is; the
-  board's "1.4 GB" is an illustration. Quotes are straight, as the archive's shipped banners are,
+  was reachable a moment ago. Quotes are straight, as the archive's shipped banners are,
   where the canvas draws curly ones.
 - The "none of the folder's assets fetched" assertion reads resource timing. Checked by mutation that
   it is not vacuous: an asset fetched and read before the lock turns it red. (A fetch whose body is
@@ -120,3 +119,23 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
   reports, correctly, as "could not be reached". The spec's own probe (headless Chromium, 2026-09-28)
   already showed the two YAML fetches succeeding cross-origin with `Access-Control-Allow-Origin: *`;
   what remains is one import of `https://a544jh.github.io/webvn-demo/` from a local build, by hand.
+
+**After review, 2026-09-28** (the two-axis code review over the whole tranche):
+
+- **A failed import no longer drops the saves under its id.** `importProject` used to drop them before
+  the first file was written, so a refused URL import - a 404, a stall, the byte cap - erased
+  `vn-save-<id>` while the banner said "Nothing was written"; on the deployed site that is a reader's
+  playthrough of the published build, lost to a flaky network. Saves now go when an overwrite destroys
+  the project they described, or when the import commits - never before, for a new directory.
+  `test/browser/UrlImport.test.ts` pins it, and was red before the change.
+- The size in the byte-limit banner is `sizeLabel`, which says gigabytes once the amount is that big,
+  as the canvas's board does ("it passed 1.4 GB, which is all the room there is").
+- A failure writing into OPFS mid-file - a quota, a refused write - is no longer reported as the file
+  having "stopped arriving": only a failed or abandoned request is the site's. Anything else reaches
+  the picker as a failure.
+- The two YAML files go through the same meter and stall timer as every other file, so the timer is
+  fed per chunk rather than being a 30-second deadline, and their bytes count toward the limit.
+- **Still by hand, and still open**: the GitHub Pages import above. A body that errors partway through
+  is not reachable from a static test server either - the browser suite's "file failing partway"
+  case is a later file 404ing after an earlier one was written, and the mid-body abort is the unit
+  suite's `metered` case.

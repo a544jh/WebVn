@@ -189,7 +189,7 @@ const openShell = async (directory: string): Promise<AppShell> => {
   mountPage()
   navigation = fakeNavigation()
   closes = 0
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => closes++, navigation, demo: NO_DEMO })
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => closes++, navigation, demoFolder: NO_DEMO })
   // `start()`, not `showPicker()`: it is what src/index.ts calls, and it is what registers the shell
   // on the address bar. Reaching past it left `navigation.go` firing into nothing, which is a test
   // that races an event the shell was never listening for.

@@ -50,8 +50,8 @@ Spec: `.scratch/published-folder/spec.md`, "The demo is a URL import".
 
 **Landed 2026-09-28** on `claude/laughing-bell-erlp50`.
 
-- `ProjectPicker`'s fourth argument is now an options object, `PickerOptions { demo, refusal? }`, with
-  `demo` required; `AppShellOptions.demo` threads it from the entry point, which passes
+- `ProjectPicker`'s fourth argument is now an options object, `PickerOptions { demoFolder, refusal? }`, with
+  `demoFolder` required; `AppShellOptions.demoFolder` threads it from the entry point, which passes
   `pageFolder(location.href)` (in `src/publishedFolder.ts`, shared with the player's entry point).
   Every suite that builds a picker or a shell and does not add the demo passes `NO_DEMO` from
   `test/helpers/picker.ts`, an address nothing answers, so pressing the button by mistake is refused

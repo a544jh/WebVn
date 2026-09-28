@@ -43,7 +43,7 @@ export interface AppShellOptions {
   readonly navigation: Navigation
   // The published folder Add demo project imports from, handed to every picker this shell shows.
   // Required for the same reason: a default would import from the runner's own page.
-  readonly demo: string
+  readonly demoFolder: string
 }
 
 export class AppShell {
@@ -176,7 +176,7 @@ export class AppShell {
   private async showPicker(refusal: RefusalNotice | null = null): Promise<void> {
     this.show("picker")
     this.picker = new ProjectPicker(this.elements.pickerDiv, this.openProject, this.inTurn, {
-      demo: this.options.demo,
+      demoFolder: this.options.demoFolder,
       refusal,
     })
     await this.picker.render()

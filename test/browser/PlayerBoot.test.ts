@@ -32,7 +32,10 @@ const expectBooted = (result: PlayerBoot): BootedPlayer => {
 
 beforeEach(() => {
   title = document.title
-  clearSaves("webvn-demo", PAYLOAD_ID)
+  // Only the payload's id. Booting the demo reads its saves and writes none - the renderer saves on an
+  // advance - and `webvn-demo`'s saves belong to test/browser/DemoProject.test.ts, which asserts on
+  // them: localStorage is origin-wide, so clearing them here could race that suite.
+  clearSaves(PAYLOAD_ID)
 })
 
 afterEach(() => {

@@ -215,7 +215,7 @@ describe("the picker's export control", () => {
   const newPicker = (): ProjectPicker => {
     const root = document.createElement("div")
     document.body.appendChild(root)
-    return new ProjectPicker(root, () => Promise.resolve(null), immediately, { demo: NO_DEMO })
+    return new ProjectPicker(root, () => Promise.resolve(null), immediately, { demoFolder: NO_DEMO })
   }
 
   const exportButton = (directory: string): HTMLButtonElement =>

@@ -64,7 +64,7 @@ const shell = new AppShell(
       wirePublish(
         document.getElementById("vn-btn-publish") as HTMLButtonElement,
         booted,
-        { player: pageFolder(location.href), deliver: downloadBlob },
+        { playerFolder: pageFolder(location.href), deliver: downloadBlob },
         wiring.signal
       )
     },
@@ -74,7 +74,7 @@ const shell = new AppShell(
     navigation: browserNavigation(),
     // The deployed app is a published folder - the demo's - with the editor beside the player, so the
     // demo is whatever sits in this page's own directory.
-    demo: pageFolder(location.href),
+    demoFolder: pageFolder(location.href),
   }
 )
 

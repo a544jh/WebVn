@@ -8,9 +8,11 @@ import {
   isPlainRelativePath,
   MAX_ENTRIES,
   MAX_UNPACKED_BYTES,
+  NOTHING_WRITTEN,
   parserClause,
+  refuse,
 } from "./archive"
-import { availableBytes, megabytes } from "./persistence"
+import { availableBytes, sizeLabel } from "./persistence"
 
 // Import from URL: a published folder, read from its address into the library as a new project. The
 // publish format read backwards - `.scratch/published-folder/spec.md`, "Importing from a URL" - and
@@ -35,11 +37,8 @@ import { availableBytes, megabytes } from "./persistence"
 // by hand, since a static test server never stalls.
 const STALL_MS = 30_000
 
-// Why a published folder was not imported, in the two parts the picker's banner is drawn in. The
-// picker says "<host> was not imported: <problem>." and then the advice.
-const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "refused", problem, advice })
-
-const NOTHING_WRITTEN = "Nothing was written."
+// Refusals are the archive's shape, `refuse(problem, advice)`, and the picker draws them the same way:
+// "<host> was not imported: <problem>." and then the advice.
 const WHAT_IT_HOLDS = `${NOTHING_WRITTEN} A published story holds a manifest, a script and the assets they name.`
 
 // **Unreachable and a host that does not send CORS headers are one message**, because a page cannot
@@ -146,17 +145,22 @@ type Fetched =
   | { readonly kind: "unreachable" }
   | { readonly kind: "missing" }
   | { readonly kind: "stalled" }
+  | { readonly kind: "over" }
 
-// One of the two YAML files. They are small, so they are read whole rather than streamed - and they
-// are the two refusals that say the most, which is why both come before anything else is fetched.
-const fetchText = async (address: string): Promise<Fetched> => {
+// One of the two YAML files, read as text because everything after depends on what they say - and
+// they are the two refusals that say the most, which is why both come before anything else is
+// fetched. Through the same meter and the same stall timer as every other file, so a manifest that
+// never finishes arriving is abandoned rather than holding the picker, and a huge one counts.
+const fetchText = async (address: string, allowance: Allowance): Promise<Fetched> => {
   const watchdog = new Watchdog(STALL_MS)
   try {
     const response = await fetch(address, { signal: watchdog.signal }).catch(() => null)
     if (response === null) return { kind: watchdog.stalled ? "stalled" : "unreachable" }
     if (!isServedFile(response)) return { kind: "missing" }
-    const text = await response.text().catch(() => null)
-    if (text === null) return { kind: "stalled" }
+    watchdog.fed()
+    const body = response.body ?? new Blob([]).stream()
+    const text = await new Response(body.pipeThrough(metered(allowance, () => watchdog.fed()))).text().catch(() => null)
+    if (text === null) return { kind: allowance.used > allowance.limit ? "over" : "stalled" }
     // The address the file was **finally** served from, after any redirect the browser could follow.
     // Everything else is fetched against it rather than against what was typed.
     return { kind: "text", text, url: response.url === "" ? address : response.url }
@@ -167,9 +171,10 @@ const fetchText = async (address: string): Promise<Fetched> => {
 
 // A file already in hand, written into the stream the back half opened. The manifest and the script:
 // they had to be read to decide anything at all, so they are not fetched a second time.
+// Their bytes were counted as they arrived, so they carry no size for the back half to count again.
 const textEntry = (path: string, text: string): ArchiveEntry => {
   const blob = new Blob([text])
-  return { path, size: blob.size, writeTo: (destination) => blob.stream().pipeTo(destination) }
+  return { path, size: 0, writeTo: (destination) => blob.stream().pipeTo(destination) }
 }
 
 // A declared file, fetched only when the back half asks for it - which is after the lock and the
@@ -191,7 +196,12 @@ const fileEntry = (path: string, folder: string, allowance: Allowance, over: () 
       await body.pipeThrough(metered(allowance, () => watchdog.fed())).pipeTo(destination)
     } catch (e) {
       if (e instanceof Refused) throw e
-      throw new Refused(e instanceof PassedAllowance ? over() : stalled(path))
+      if (e instanceof PassedAllowance) throw new Refused(over())
+      // A request that failed or was abandoned is the site's doing. **Anything else is this
+      // browser's** - OPFS refusing a write, the quota running out under it - and is not the site's
+      // to be blamed for, so it goes on to the picker as a failure rather than as "stopped arriving".
+      if (watchdog.stalled || e instanceof TypeError) throw new Refused(stalled(path))
+      throw e
     } finally {
       watchdog.stop()
     }
@@ -214,19 +224,34 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
     return refuse("that is not the address of a published folder", `${NOTHING_WRITTEN} ${address.problem}`)
   }
 
-  const manifestFile = await fetchText(new URL(MANIFEST_FILE, address.url).href)
+  // The lower of the byte cap and the free space, measured once, at the start - the same pair the back
+  // half checks an archive against, enforced here as the bytes arrive rather than as arithmetic.
+  const available = await availableBytes()
+  const byRoom = available !== null && available < MAX_UNPACKED_BYTES
+  const allowance: Allowance = { used: 0, limit: byRoom ? (available as number) : MAX_UNPACKED_BYTES }
+  const over = (): ArchiveRefusal =>
+    byRoom
+      ? refuse(
+          `it passed ${sizeLabel(allowance.limit)}, which is all the room there is`,
+          `${NOTHING_WRITTEN} Free some space, or delete a project you have finished with, and try again.`
+        )
+      : refuse(`it passed ${sizeLabel(allowance.limit)}, which is the limit`, WHAT_IT_HOLDS)
+
+  const manifestFile = await fetchText(new URL(MANIFEST_FILE, address.url).href, allowance)
   if (manifestFile.kind === "unreachable") return UNREACHABLE
   if (manifestFile.kind === "stalled") return stalled(MANIFEST_FILE)
+  if (manifestFile.kind === "over") return over()
   if (manifestFile.kind === "missing") return NO_MANIFEST
   const folder = manifestFile.url
 
   const [manifest, errors] = parseManifest(manifestFile.text)
   if (manifest === null) return refuse("its manifest.yaml does not parse", NOTHING_WRITTEN + parserClause(errors))
 
-  const scriptFile = await fetchText(addressOf(SCRIPT_FILE, folder))
+  const scriptFile = await fetchText(addressOf(SCRIPT_FILE, folder), allowance)
   if (scriptFile.kind === "missing") {
     return refuse("it has no script.yaml", `${NOTHING_WRITTEN} A published story holds its script beside its manifest.`)
   }
+  if (scriptFile.kind === "over") return over()
   if (scriptFile.kind !== "text") return stalled(SCRIPT_FILE)
 
   const files = publishedFiles(manifest)
@@ -247,19 +272,6 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
     )
   }
 
-  // The lower of the byte cap and the free space, measured once, at the start - the same pair the back
-  // half checks an archive against, enforced here as the bytes arrive rather than as arithmetic.
-  const available = await availableBytes()
-  const byRoom = available !== null && available < MAX_UNPACKED_BYTES
-  const allowance: Allowance = { used: 0, limit: byRoom ? (available as number) : MAX_UNPACKED_BYTES }
-  const over = (): ArchiveRefusal =>
-    byRoom
-      ? refuse(
-          `it passed ${megabytes(allowance.limit)}, which is all the room there is`,
-          `${NOTHING_WRITTEN} Free some space, or delete a project you have finished with, and try again.`
-        )
-      : refuse(`it passed ${megabytes(allowance.limit)}, which is the limit`, WHAT_IT_HOLDS)
-
   const entries = files.map((path) =>
     path === MANIFEST_FILE
       ? textEntry(path, manifestFile.text)
@@ -267,7 +279,6 @@ export const importFromUrl = async (typed: string): Promise<ImportResult> => {
       ? textEntry(path, scriptFile.text)
       : fileEntry(path, folder, allowance, over)
   )
-  allowance.used = entries.reduce((total, entry) => total + entry.size, 0)
 
   try {
     return await importProject(entries, { refuseTaken: true })

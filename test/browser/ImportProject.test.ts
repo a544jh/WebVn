@@ -227,7 +227,7 @@ describe("the picker's import surface", () => {
   const newPicker = (): ProjectPicker => {
     pickerRoot = document.createElement("div")
     document.body.appendChild(pickerRoot)
-    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn, { demo: NO_DEMO })
+    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn, { demoFolder: NO_DEMO })
     return picker
   }
 

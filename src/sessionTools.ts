@@ -35,7 +35,7 @@ export const gateOnManifest = (editor: VnEditor, button: HTMLButtonElement, reas
 export interface PublishWiring {
   // The folder the player's own files are fetched from: the document's directory in production, where
   // the deployed app serves `player.html` and `playerIndex.js` beside the editor.
-  readonly player: string
+  readonly playerFolder: string
   // How the zip reaches the author's disk: `downloadBlob` in production, which no headless browser
   // can watch arrive, and a stand-in in a suite.
   readonly deliver: (blob: Blob, filename: string) => void
@@ -61,7 +61,7 @@ export const wirePublish = (
 
   const publish = async () => {
     button.disabled = true
-    button.textContent = "Publishing…"
+    button.textContent = "Publishing\u2026"
     // Put back before the dialog opens rather than after it closes: the dialog is the news, and a
     // button reading "Publishing..." behind it would be saying the work was still going on.
     await publishSession(session, wiring, () => {
@@ -76,7 +76,7 @@ export const wirePublish = (
 }
 
 // The whole of pressing Publish, in the spec's order: **flush the storer first** - the debounce is
-// 2000ms, so a build taken straight after typing would otherwise be missing the author's last
+// 2000ms, so a zip taken straight after typing would otherwise be missing the author's last
 // sentence, and the store has to be read over a tree nothing is writing into - then build the zip,
 // deliver it, and open the dialog that says what happened. Resolves once that dialog is closed.
 //
@@ -89,7 +89,7 @@ export const publishSession = async (session: Session, wiring: PublishWiring, se
   let result: PublishResult | null
   try {
     await session.storing.flush()
-    result = await publishProject(session.directory, wiring.player)
+    result = await publishProject(session.directory, wiring.playerFolder)
   } catch (e) {
     // A refusal is a decision about the project; this is the store not doing what it said.
     console.error("The project could not be published", e)

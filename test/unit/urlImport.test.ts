@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { sizeLabel } from "../../src/storage/persistence"
 import { Allowance, metered, PassedAllowance, Watchdog } from "../../src/storage/urlImport"
 
 // The two guards URL import streams every file through, which a static test server cannot make fire:
@@ -92,5 +93,16 @@ describe("Watchdog", () => {
     await sleep(60)
 
     expect(watchdog.signal.aborted).toBe(false)
+  })
+})
+
+describe("the size a limit is said in", () => {
+  it("is gigabytes once it is that big, as the canvas's banner says it", () => {
+    expect(sizeLabel(1_400_000_000)).toBe("1.4 GB")
+    expect(sizeLabel(2_000_000_000)).toBe("2.0 GB")
+  })
+
+  it("is megabytes below that, where a fraction of a gigabyte would read as nothing", () => {
+    expect(sizeLabel(350_000_000)).toBe("350.0 MB")
   })
 })

@@ -28,7 +28,7 @@ const DEMO = demoManifest.id
 let pickerRoot: HTMLDivElement
 
 const newPicker = (): ProjectPicker =>
-  new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately, { demo: DEMO_FOLDER })
+  new ProjectPicker(pickerRoot, () => Promise.resolve(null), immediately, { demoFolder: DEMO_FOLDER })
 
 const demoButton = (): HTMLButtonElement | null => pickerRoot.querySelector(".vn-picker-demo")
 const rowTitles = (): string[] =>

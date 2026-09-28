@@ -49,7 +49,7 @@ const newPicker = (): ProjectPicker =>
       return refuseWith
     },
     immediately,
-    { demo: NO_DEMO }
+    { demoFolder: NO_DEMO }
   )
 
 const rows = (): HTMLButtonElement[] => [...pickerRoot.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
@@ -386,7 +386,7 @@ describe("picker to editor and back", () => {
         return null
       },
       immediately,
-      { demo: NO_DEMO }
+      { demoFolder: NO_DEMO }
     )
 
     await picker.render()

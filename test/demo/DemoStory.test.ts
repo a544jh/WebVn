@@ -24,9 +24,9 @@ import {
   textBoxText,
 } from "../helpers/vnHarness"
 
-// End-to-end coverage of the demo VN. The script lives in src/demoStory.ts, which both entry
-// points load - the editor (src/index.ts) and the standalone player (src/playerIndex.ts) - so
-// these tests exercise what actually ships.
+// End-to-end coverage of the demo VN. The script is test-assets/script.yaml, which is what ships:
+// the standalone player plays it as the published folder it is served from, and the editor's Add
+// demo project imports it. src/demoStory.ts hands the same file to these tests.
 //
 // Importing DomRenderer is what pulls in BackgroundRenderer -> BlindsTransition/FadeTransition,
 // which is what makes "blinds"/"fade" valid values for the bg command's transition enum. Without

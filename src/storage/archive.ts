@@ -2,7 +2,7 @@ import { BlobReader, BlobWriter, TextReader, ZipReader, ZipWriter } from "@zip.j
 import { ErrorLevel, ParserError } from "../core/commands/Parser"
 import { VnManifest } from "../core/manifest"
 import { deleteSaveData } from "../core/save"
-import { PLAYER_FILES, publishedFiles } from "../publishedFolder"
+import { MANIFEST_FILE, PLAYER_FILES, publishedFiles, SCRIPT_FILE } from "../publishedFolder"
 import { parseManifest } from "../yamlParser/parseManifest"
 import { availableBytes, megabytes } from "./persistence"
 import { takeProjectLock } from "./projectLock"
@@ -49,9 +49,6 @@ import {
 // machine's* absolute `file://` path into the bundle. `.scratch/project-archive/spec.md` has the
 // measurement and both findings; `src/types/zipJs.d.ts` has why the deep specifier needs a
 // declaration.
-
-const MANIFEST_FILE = "manifest.yaml"
-const SCRIPT_FILE = "script.yaml"
 
 // The one place an archive is not exactly the project tree: generated on export at the archive root,
 // and skipped on import **by exact path**, so a README.txt *inside* an author's project -
@@ -134,11 +131,11 @@ export interface ArchiveRefusal {
   readonly advice: string
 }
 
-const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "refused", problem, advice })
+export const refuse = (problem: string, advice: string): ArchiveRefusal => ({ kind: "refused", problem, advice })
 
 // Nothing happened, said once per direction. Every refusal below is raised before the first write or
 // the first entry, and an author reading "was not imported" wants to know that in the same breath.
-const NOTHING_WRITTEN = "Nothing was written."
+export const NOTHING_WRITTEN = "Nothing was written."
 const NOTHING_EXPORTED = "Nothing was exported."
 const NOTHING_PUBLISHED = "Nothing was published."
 
@@ -394,7 +391,14 @@ export const importProject = async (
     // "importing my own backup" case those saves would still have been valid, but that case is
     // indistinguishable at import time from "someone sent me a project that happens to share an id",
     // and guessing wrong produces the dead button.
-    deleteSaveData(plan.id)
+    //
+    // **When, though, is two moments rather than one.** An overwrite has just destroyed the project
+    // those saves described, so they go now, whatever happens next. A fresh directory has claimed
+    // nothing until the manifest lands, so its saves go with the commit below: an import that fails
+    // partway - a host that stops answering, a declared file that is not there - has said "Nothing was
+    // written", and on the deployed site the saves under that id are a reader's playthrough of the
+    // published build, which a flaky network must not cost them.
+    if (taken) deleteSaveData(plan.id)
     await forgetExport(directory)
 
     // Each entry inflated straight into the file it lands in, one at a time - see `ArchiveEntry`, and
@@ -415,6 +419,7 @@ export const importProject = async (
     }
 
     await writeManifest(directory, plan.manifestText)
+    deleteSaveData(plan.id)
 
     if (!taken) await recordCreated(directory)
   } finally {
@@ -585,14 +590,14 @@ export type PublishResult =
   | { readonly kind: "missing"; readonly files: readonly string[] }
   | ArchiveRefusal
 
-// **Differs from the archive's name, so Downloads tells a build from a backup.** Windows hides the
+// **Differs from the archive's name, so Downloads tells a published zip from a backup.** Windows hides the
 // known extension and shows it as `my-story-published`.
 export const publishedFilename = (id: string): string => `${id}-published.zip`
 
 // **The README a published zip carries, under the archive README's rules**: it ships inside every
 // published zip and cannot be corrected later, so it describes no architecture and is phrased as an
 // instruction rather than a prohibition. The exact text is the spec's. It speaks to whoever opens the
-// zip - usually the author, sometimes a reader who downloaded the build. "Will not start it" stays
+// zip - usually the author, sometimes a reader who downloaded it. "Will not start it" stays
 // true for this zip whatever a later build learns, because each zip carries the player it was
 // published with. "Keeping the folders as they are" is there because uploading the files flat,
 // losing `assets/`, is the likeliest way to break a published folder. The title line breaks after the
@@ -628,7 +633,7 @@ export const publishedReadmeText = (id: string, title: string, at: Date): string
 // fix. The script never gates, as in ADR 0005: a script with problems publishes and plays exactly as
 // the preview did.
 //
-// `player` is the folder the player's own files are fetched from - **told rather than guessed**: the
+// `playerFolder` is where the player's own files are fetched from - **told rather than guessed**: the
 // document's own directory in production, where the deployed app serves `player.html` and
 // `playerIndex.js` beside the editor, and small stand-ins in a suite. They are copied byte for byte and
 // never templated; the title on the tab is the player's own job, from the manifest.
@@ -637,7 +642,7 @@ export const publishedReadmeText = (id: string, title: string, at: Date): string
 // write and the author's last sentence must be in it. **Nothing is recorded in `editor.yaml`**: a
 // published zip carries declared files only, so it is not the backup the picker's "never exported"
 // line is about.
-export const publishProject = async (directory: string, player: string): Promise<PublishResult> => {
+export const publishProject = async (directory: string, playerFolder: string): Promise<PublishResult> => {
   const gated = await gatedManifest(directory, NOTHING_PUBLISHED)
   if (gated.kind === "refused") return gated
   const { manifest, manifestText } = gated
@@ -659,7 +664,7 @@ export const publishProject = async (directory: string, player: string): Promise
   // about the network. A zip without the player would be one that cannot play.
   const players = await Promise.all(
     PLAYER_FILES.map(async (file) => {
-      const response = await fetch(new URL(file.served, player)).catch(() => null)
+      const response = await fetch(new URL(file.served, playerFolder)).catch(() => null)
       return response !== null && response.ok ? { path: file.published, blob: await response.blob() } : null
     })
   )

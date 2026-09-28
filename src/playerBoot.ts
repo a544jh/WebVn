@@ -67,8 +67,8 @@ const refuse = (problem: string, details?: unknown): RefusedPlayer => ({
 const FROM_DISK =
   "it has to be opened from a web host, and opening index.html straight from your computer will not start it"
 
-// Two text files from the folder, or the refusal that says which one did not come.
-const fetchStory = async (folder: string): Promise<[string, string] | RefusedPlayer> => {
+// The folder's two documents, manifest then script, or the refusal that says which one did not come.
+const fetchDocuments = async (folder: string): Promise<[string, string] | RefusedPlayer> => {
   const onDisk = new URL(folder).protocol === "file:"
   const texts: string[] = []
   for (const file of [MANIFEST_FILE, SCRIPT_FILE]) {
@@ -82,15 +82,17 @@ const fetchStory = async (folder: string): Promise<[string, string] | RefusedPla
 }
 
 export const bootPlayer = async (options: PlayerBootOptions): Promise<PlayerBoot> => {
-  let story: [string, string] | RefusedPlayer
-  if (options.payload === null) story = await fetchStory(options.folder)
+  let documents: [string, string] | RefusedPlayer
+  if (options.payload === null) documents = await fetchDocuments(options.folder)
   else {
     // The demo is not a fallback for a payload that will not decode: a link that was meant to carry
     // a story and cannot is a dead end, and playing some other story would hide that it is one.
-    story = await decodePayload(options.payload).catch((e: unknown) => refuse("its player link could not be read", e))
+    documents = await decodePayload(options.payload).catch((e: unknown) =>
+      refuse("its player link could not be read", e)
+    )
   }
-  if (!Array.isArray(story)) return story
-  const [manifestText, script] = story
+  if (!Array.isArray(documents)) return documents
+  const [manifestText, script] = documents
 
   const [manifest, manifestErrors] = YamlParser.parseManifest(manifestText)
   // A manifest that does not validate has no identity to load the project under, so there is nothing

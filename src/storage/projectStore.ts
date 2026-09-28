@@ -136,7 +136,7 @@ export interface PendingRename {
 // claimed a root could not be threaded as far as `OpfsAssetResolver`, and that was wrong. It can:
 // the resolver takes a second constructor argument and `bootEditor` passes one down. Counted, that
 // is an optional `root` on the ten functions below, six more signatures accepting and forwarding it
-// (`OpfsAssetResolver`, `ProjectStoring`, `bootEditor`, `ProjectPicker`, `seedDemoProject`) and
+// (`OpfsAssetResolver`, `ProjectStoring`, `bootEditor`, `ProjectPicker`, and the demo seed since deleted) and
 // nine call sites - to carry a parameter nothing but a test ever passes.
 //
 // It would also not be safer. Optional, it defaults back to the real root, so a test that forgets

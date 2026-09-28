@@ -40,6 +40,15 @@ pixels and has nothing for this tranche. See "Further Notes".
    is therefore still not had, but the button no longer needs the demo's id, so the demo's YAML leaves
    the editor bundle entirely.
 
+**Reconsidered and kept:**
+
+6. **Import from URL stays, deliberately.** Dropping it was weighed on 2026-09-28, on the grounds that
+   one-click importing of someone else's story invites taking it. It stays because a published folder
+   is plain files the player must hand every reader anyway - devtools or `wget` recover it in a minute
+   - so the button adds convenience, not capability, and the project favours openness over deterrence.
+   For the same reason nothing in a published folder is obfuscated: that would cost complexity and
+   stop no one determined. Do not read the feature as an oversight, or "fix" it with obfuscation.
+
 ## Problem Statement
 
 An author can write a project, keep it in the library and get it out of the browser as an archive.

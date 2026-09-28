@@ -198,7 +198,7 @@ export class ProjectPicker {
     // A render can land mid-drag - a drop refused while another is still hovering - so the dashed
     // border is drawn from the state rather than only toggled onto it.
     panel.classList.toggle("vn-picker-dropping", this.dropping)
-    panel.appendChild(this.drawPanelBar(projects))
+    panel.appendChild(this.drawPanelBar())
     // Inside the panel and under its title strip, because it is news about this list rather than
     // about the page - the artboard puts it there and it is right: the row it names is under it.
     if (this.announcement !== null) panel.appendChild(banner(this.announcement))
@@ -249,7 +249,7 @@ export class ProjectPicker {
   }
 
   // The panel's title strip: what this is, then the things you can do to it.
-  private drawPanelBar(projects: ListedProject[]): HTMLElement {
+  private drawPanelBar(): HTMLElement {
     const bar = document.createElement("div")
     bar.classList.add("vn-picker-bar")
 

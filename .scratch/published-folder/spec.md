@@ -582,7 +582,7 @@ errors or undeclared references publishes and imports freely.
   localStorage is per origin. Every GitHub Pages site under one user shares one origin, and other
   hosts that put several sites on one domain may too. So two published VNs with the same id on such a host share
   saves. The design doc accepts per-library id uniqueness as a non-guarantee, and this is where it
-  first costs a reader something. Not fixed here, but worth one sentence in the design doc.
+  first costs a reader something. Not fixed here; the design doc says so under its `vn-save-<id>` decision.
 - **When this lands:** `TODO`'s STORAGE section, the design doc's Landed markers, and `CLAUDE.md`'s
   project storage and archive sections all need the update the previous tranches gave them. The last
   of those also needs the player boot's new home and the player-file list among its hand checks.

@@ -58,7 +58,9 @@ the entry.
   asset comes back as a **missing asset** - orange, marked on the line that declared it, with the
   panel's replace control as the way to fix it. That is a state the editor already draws and already
   explains, which is why no attempt is made to enrol a filesystem delete in a text editor's undo
-  stack. The rename revert already has the same asymmetry.
+  stack. The rename revert already has the same asymmetry. *(Amended 2026-09-28: on a missing asset
+  that control now says **Add file**, with a plus, since there is nothing to replace. Same write,
+  same fix - see `CONTEXT.md`'s Replace.)*
 - **An actor cannot be removed from the panel at all**, only its individual sprites. An actor is
   cast rather than an asset, removing one would take a whole directory with it, and the two lowercase
   actors are the engine's own - `default` and `narrator` - where removing the declaration would drop

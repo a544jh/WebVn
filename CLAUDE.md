@@ -466,7 +466,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the lock, so a rename gets it free.
 - **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
   Nothing seeds behind the author: a seed would have to run before the picker could render, when no
-  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 3.
+  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 4
+  (`.scratch/published-folder/`, ticket 03).
 - **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
   `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
   restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is

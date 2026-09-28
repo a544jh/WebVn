@@ -751,6 +751,14 @@ Things that will break quietly if they are skipped.
   no design behind it; reshaping it was free while the only key in existence was the demo's `vn-test`, and
   would not have been later.
 
+  **The prefix separates keyspaces within one origin, and it cannot separate origins that are one.**
+  Noted 2026-09-28 by tranche 4: a published folder's player writes `vn-save-<id>` into its host's
+  localStorage, and every GitHub Pages site under one user is a single origin
+  (`<user>.github.io/a/` and `<user>.github.io/b/`), as may be other hosts that put many sites on one
+  domain. So two published VNs with the same id on such a host share their readers' saves, and Load in
+  one replays the other's paths. Id uniqueness is per library, a non-guarantee this doc already
+  accepts; this is where it first costs a reader. Not fixed - `.scratch/published-folder/spec.md`.
+
 - **Renaming a project does not touch player saves.** The save key follows the id, so a rename orphans
   `vn-save-<old-id>` - deliberately. Migrating it would be a half-measure: nothing local can reach the saves
   of people playing an already-published build, so the orphaning is unavoidable there regardless. Better to

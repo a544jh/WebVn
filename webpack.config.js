@@ -1,4 +1,4 @@
-let path = require("path");
+const path = require("path");
 const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
 
@@ -21,31 +21,6 @@ const shared = (typeCheck) => ({
         loader: "file-loader",
         options: {name: "[name].[ext]"}
       },
-      // "Legacy webpack"
-      /*{
-        test: /\.(png|jpe?g|gif)$/i,
-        loader: "file-loader",
-        options: {outputPath: (url, resourcePath, context) => {
-          //console.log(url)
-          //console.log(resourcePath)
-          //console.log(context)
-          return path.relative(path.join(context, "test-assets"), resourcePath)
-        }, emitFile: true}
-      },*/
-      // Webpack 5
-      /*{
-        test: /\.(png|jpe?g|gif)$/i,
-        type: "asset/resource",
-        generator: {
-          filename: (one, two, three) => {
-            console.log(one)
-            console.log(two)
-            console.log(three)
-            return one.filename.replace("test-assets/", "")
-          }
-        }
-      },*/
-      // may want to handle the theme loading ourselves...
       {
         // `import yaml from "./x.yaml?raw"` - the file's text as a string module, matching vite's
         // native ?raw suffix so a module has one spelling that works in the build and in the vitest
@@ -54,6 +29,7 @@ const shared = (typeCheck) => ({
         resourceQuery: /(\?|&)raw(&|$)/,
         type: "asset/source"
       },
+      // may want to handle the theme loading ourselves...
       {
         test: /\.css$/,
         use: [ 'style-loader', 'css-loader' ]

@@ -123,7 +123,9 @@ CONTEXT.md gains `remove` and `replace` - `remove` explicitly apart from the `de
 project. **All four tickets landed 2026-09-18**; the enumeration EDITOR.md's completions should read
 is `src/editor/declarations.ts`, which is its own pure module for exactly that reason, and the
 label list is still `.scratch/label-list/` with the column built to take it as a number rather than
-a layout change.
+a layout change. **Deferred 2026-09-29**: files no declaration points at are to show up in the panel
+after all, reversing the spec's "a view of the MANIFEST, not of OPFS" - .scratch/asset-panel/issues/06,
+waiting on an artboard.
 
 Settled: H, 2026-09-06, by measurement rather than by building anything. @zip.js/zip.js pinned to
 lib/zip-core-custom.js is 30.6KB gzipped for reader and writer, spawns no workers at all, and

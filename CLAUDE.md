@@ -19,8 +19,8 @@ Two entry points:
 - `npm run typecheck` — `tsc --noEmit`. Vitest transpiles via esbuild and does **not** typecheck, so this is the only fast type gate; `npm run build` also typechecks, via ts-loader.
 - `npm run lint` — ESLint over `**/*.ts`
 - `npm run prettier` — prettier check
-- `npm test` — the fast gate: vitest projects `unit` (node, `test/unit/`) and `browser` (headless Chromium via Playwright, `test/browser/`). ~6s.
-- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or the demo's YAML in `test-assets/`.
+- `npm test` — the fast gate: vitest projects `unit` (node, `test/unit/`) and `browser` (headless Chromium via Playwright, `test/browser/`). ~30s on CI (32.7s on master's run of 2026-09-29: 52 files, 698 tests). The ~6s this used to say was measured on 2026-08-22, over 8 files.
+- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, nearly all of it spent waiting on those transitions, which makes it the likeliest place for a timing flake - so it is deliberately **not** part of `npm test`, and has its own CI job. Run it when you touch the renderer, the commands, or the demo's YAML in `test-assets/`.
 - `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## CI

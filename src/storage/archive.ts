@@ -626,9 +626,9 @@ export const publishedReadmeText = (id: string, title: string, at: Date): string
 // fix. The script never gates, as in ADR 0005: a script with problems publishes and plays exactly as
 // the preview did.
 //
-// `playerFolder` is where the player's own files are fetched from - **told rather than guessed**: the
-// document's own directory in production, where the deployed app serves `player.html` and
-// `playerIndex.js` beside the editor, and small stand-ins in a suite. They are copied byte for byte and
+// `playerFolder` is where the player's own files are fetched from - **told rather than guessed**:
+// `PUBLISHED_PLAYER_FOLDER` beside the editor, where the build writes a production player whatever
+// the mode, and small stand-ins in a suite. They are copied byte for byte and
 // never templated; the title on the tab is the player's own job, from the manifest.
 //
 // The caller owns what export's caller owns: flushing the storer first, since a walk must not overlap a

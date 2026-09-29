@@ -15,7 +15,7 @@ import { downloadBlob } from "./chrome/download"
 import { exportProject } from "./storage/archive"
 import { AppShell } from "./AppShell"
 import { browserNavigation } from "./projectUrl"
-import { pageFolder } from "./publishedFolder"
+import { pageFolder, PUBLISHED_PLAYER_FOLDER } from "./publishedFolder"
 import { face, gateOnManifest, wirePublish } from "./sessionTools"
 
 declare global {
@@ -59,12 +59,12 @@ const shell = new AppShell(
       wireFullscreen(renderer)
       wireCopyPlayerLink(editor)
       wireExportZip(booted)
-      // The player's own files are beside this page, where the build puts `player.html` and its
-      // bundle, and the zip reaches the disk through the same anchor Export ZIP's does.
+      // The player's own files are in the folder the build writes the published player to, beside
+      // this page, and the zip reaches the disk through the same anchor Export ZIP's does.
       wirePublish(
         document.getElementById("vn-btn-publish") as HTMLButtonElement,
         booted,
-        { playerFolder: pageFolder(location.href), deliver: downloadBlob },
+        { playerFolder: new URL(PUBLISHED_PLAYER_FOLDER, location.href).href, deliver: downloadBlob },
         wiring.signal
       )
     },

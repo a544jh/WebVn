@@ -31,6 +31,12 @@ export const PLAYER_FILES: ReadonlyArray<{ readonly published: string; readonly 
   { published: "playerIndex.js", served: "playerIndex.js" },
 ]
 
+// **Where the deployed app serves the player that Publish copies**, beside the editor. Its own build,
+// not the `player.html` beside the demo: webpack.config.js writes it there as a production build under
+// `npm run dev` too, so a folder published from the dev server carries none of the dev server's
+// live-reload code. The config names the same directory.
+export const PUBLISHED_PLAYER_FOLDER = "published-player/"
+
 // The directory a page sits in. That is the published folder when the page is the player, and the
 // demo when it is the editor, since the deployed app is itself a published folder with the editor
 // beside the player.

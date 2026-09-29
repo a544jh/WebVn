@@ -131,13 +131,23 @@ into its query. So the published folder, opened from `python -m http.server`, st
 server; while the dev server's build matched the copy nothing happened, which is why the first check
 passed, but after any rebuild the page asked its own host for `playerIndex.<hash>.hot-update.json`, got
 a 404, reloaded, and asked again - 168 reloads in eight seconds, reproduced in headless Chromium.
-Fixed in `webpack.config.js` with `client.webSocketURL: "auto://0.0.0.0:0/ws"`: the client connects to
-the server the page came from, so a published copy connects to its own host, which never announces a
-rebuild. After the fix the same probe shows the published copy loading once across a rebuild of both
-bundles (logging ten failed connection attempts, then giving up), the editor and `player.html` under
-the dev server still reloading on a save, and both production bundles byte-identical. A first fix added
-the client to the editor's entry by hand, which cost `player.html` its reload; a second split the config
-and gave the player `devServer: false`, which webpack-dev-middleware reads as "do not serve this
-compiler", so `player.html` 404'd under the dev server. A folder already published from the dev server
-still carries the old client: publish it again. Nothing automated covers it, like the rest of
-`npm run dev`.
+**Fixed by giving Publish a player of its own** (2026-09-29, at the maintainer's direction):
+`webpack.config.js` builds the player a third time, into `dist/published-player/`, always in production
+mode and with `devServer: false`, and Publish fetches from `PUBLISHED_PLAYER_FOLDER` there rather than
+from beside the editor. Under `npm run dev` that build is written to disk and served by
+`devServer.static`, since webpack-dev-middleware does not serve a `devServer: false` build. Checked
+under `npm run dev` in headless Chromium: Publish through the picker on the added demo downloaded a zip
+whose `index.html` and `playerIndex.js` are byte-identical to `dist/published-player/` and carry no
+dev-server code; extracted and served by `python3 -m http.server`, it loaded once across a rebuild of
+both bundles with no socket and no console error, while the editor and `player.html` on the dev server
+still reloaded on a save. Under `npm run build` the published player is byte-identical to
+`dist/playerIndex.js`. The cost is a production build on the dev server's path to a reload: 3 to 4
+extra seconds on a save touching player or shared code.
+
+Three fixes came before it and were dropped. Adding the dev client to the editor's entry by hand cost
+`player.html` its reload and read as a hack. Splitting the config and giving the served player
+`devServer: false` made `player.html` 404 under the dev server. `client.webSocketURL:
+"auto://0.0.0.0:0/ws"`, which points every client at the server its page came from, stopped the loop
+but still shipped the dev server's client in every folder published from `npm run dev`, logging ten
+failed connection attempts. A folder already published from the dev server still carries the old
+client: publish it again. Nothing automated covers any of this, like the rest of `npm run dev`.

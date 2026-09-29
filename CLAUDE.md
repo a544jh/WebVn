@@ -593,7 +593,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 `src/storage/archive.ts`, tranche 3 of `design-docs/PROJECT_STORAGE.md`, landed 2026-09-06. UI-free,
 and **the only file in the repo that imports zip.js**, so "does the zip library reach the player
 bundle?" is answerable by reading one import list. (It does not: checked against `dist/playerIndex.js`
-when this landed, and `npm run build` prints both sizes.) The library is pinned to
+when this landed, and `npm run build` prints every bundle's size.) The library is pinned to
 `@zip.js/zip.js/lib/zip-core-custom.js` - `src/types/zipJs.d.ts` says why the deep specifier needs a
 declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
 - **The invariant is the whole format: an archive always holds a project that parses and has a
@@ -705,8 +705,9 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   is missing, naming every one** (`kind: "missing"`), since here the author is reading and each is
   theirs to fix. It records nothing in `editor.yaml`: a published zip is not a backup.
 - **The player's files are `PLAYER_FILES` in `src/publishedFolder.ts`**: `player.html` served,
-  `index.html` published, and `playerIndex.js`. Publish is **told** the folder to fetch them from (the
-  editor page's own directory; stand-ins in `test/fixtures/player/` for the suite) and copies them
+  `index.html` published, and `playerIndex.js`. Publish is **told** the folder to fetch them from
+  (`PUBLISHED_PLAYER_FOLDER` beside the editor page - see the published player under Build tooling
+  caveats; stand-ins in `test/fixtures/player/` for the suite) and copies them
   byte for byte. **If the build ever splits the player into more chunks, that list must follow, and
   nothing automated would notice** - every published folder would ship without the chunk. The list
   only grows on the import side: a name that stops being published keeps being skipped.
@@ -842,19 +843,36 @@ If you're tempted to import from any of these, don't.
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.
-- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Four things about that config are load-bearing:
-  - `devServer.static: false`. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`, defaulting to `./public` — a directory this repo does not have. Nothing is served off disk: the html goes through `file-loader` via the `import "./index.html"` side effects and `test-assets` through CopyPlugin, so both land in the compilation and are served from memory by webpack-dev-middleware.
+- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Five things about that config are load-bearing:
+  - `devServer.static` serves **one directory off disk, `dist/published-player/`, unwatched**, and
+    nothing else. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`,
+    defaulting to `./public` - a directory this repo does not have. Everything else is served from
+    memory by webpack-dev-middleware: the html goes through `file-loader` via the `import "./index.html"`
+    side effects and `test-assets` through CopyPlugin, so both land in the compilation. Unwatched,
+    because a watched static directory reloads every open page when it changes and the published
+    player's build rewrites it on every rebuild.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
-  - `client.webSocketURL: "auto://0.0.0.0:0/ws"`: the live-reload client connects to whatever server the
-    page was loaded from. The default writes the dev server's own port into the client, which the dev
-    server adds to every bundle, and Publish copies `playerIndex.js` byte for byte - so a folder
-    published from `npm run dev` and opened from any other server connected back to the dev server,
-    and after its next rebuild asked its own server for a hot update it did not have: 404, full
-    reload, repeat (reported 2026-09-28). Now such a copy connects to its own server, which never
-    announces a rebuild; it logs ten failed connection attempts and gives up. **Do not reach for
-    `devServer: false` on a split config instead**: to webpack-dev-middleware that means "do not
-    serve this compiler at all", so `player.html` 404s under the dev server and Publish breaks.
+  - **The config is three builds, and the third is the player Publish copies**: `editor` (`app.js`),
+    `player` (`playerIndex.js` beside the demo, which `npm run dev` serves and live-reloads), and
+    `published-player`, the same entry built into `dist/published-player/` - always in production mode
+    and with `devServer: false`, so it carries none of the live-reload client and hot-update code the
+    dev server adds to every build it serves. That code, copied into a published folder, connected
+    back to the dev server from wherever the folder was opened, and after the next rebuild reloaded
+    the page forever (reported 2026-09-28). **`devServer: false` also means webpack-dev-middleware
+    neither serves that build nor keeps it in memory**, so under `npm run dev` it is written to disk
+    and served by `devServer.static` above - which is why a split config with `devServer: false` on
+    the *served* player is not the fix: `player.html` 404s. Only `editor` carries `devServer` options,
+    because webpack-cli starts a server per config that has them. Under `npm run build` the two player
+    bundles come out byte-identical. The cost is under `npm run dev`: the dev server tells pages to
+    reload only once every build has finished, so a save touching player or shared code waits for a
+    production build as well - measured at 3 to 4 extra seconds.
+  - **Only the `editor` build type-checks**; the two player builds set ts-loader's `transpileOnly`.
+    ts-loader reports on every file `tsconfig.json` takes in, not only the ones a build bundles -
+    checked by planting a type error in `src/playerBoot.ts`, which only the player imports, and
+    watching the editor's build fail on it. Three checks side by side took `npm run build` from 16s
+    to 41s; it is 29s with one. The output is the same either way, bar the module ids webpack derives
+    from the loader string.
 - The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
   work in the build. It matches vite's native `?raw` suffix on purpose, so a module has one spelling that
   works in webpack and in all three vitest projects; the ambient module declaration for it is

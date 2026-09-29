@@ -594,8 +594,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 and **the only file in the repo that imports zip.js**, so "does the zip library reach the player
 bundle?" is answerable by reading one import list. (It does not: checked against `dist/playerIndex.js`
 when this landed, and `npm run build` prints every bundle's size.) The library is pinned to
-`@zip.js/zip.js/lib/zip-core-custom.js` - `src/types/zipJs.d.ts` says why the deep specifier needs a
-declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
+`@zip.js/zip.js/lib/zip-core-custom.js` - `.scratch/project-archive/spec.md` says why, the package's
+`exports` map types the deep specifier (see `moduleResolution` under Build tooling caveats), and
+`webpack.config.js` says why `import.meta.url` is defined away.
 - **The invariant is the whole format: an archive always holds a project that parses and has a
   script.** Export refuses to build one from a project whose manifest does not parse or whose script
   is missing; import refuses one that fails the same test. Neither degrades, warns and continues, or
@@ -888,7 +889,9 @@ If you're tempted to import from any of these, don't.
   Nothing of ours uses `import.meta`. Verified by grepping `dist/app.js` for `file:///`.
 - `@types/react` is in `dependencies` but should be `devDependencies`.
 - `src/types/screenOrientation.d.ts` declares `ScreenOrientation.lock` back into `lib.dom`, which dropped it in TS 5.9. It is a global augmentation (no imports/exports), picked up because `tsconfig.json` has no `include`. Both fullscreen call sites `.catch()` the rejection non-mobile browsers give.
-- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only. `skipLibCheck: true` is load-bearing, not cosmetic: `moduleResolution: "node"` predates `exports`/`imports` subpath maps, so vite and rollup declarations resolve to nothing, and several dependencies ship `.d.ts` files that error under the TypeScript we build with. Without it `tsc --noEmit` reports 17 errors under TS 5.9, every one of them inside `node_modules`. It does not weaken checking of our own code against those libraries.
+- `tsconfig.json` targets `es6` / `module: es6`. `allowJs: true` is needed for `pegjsParser/parserWrapper.js` only.
+- **`moduleResolution: "bundler"`** makes TypeScript look an import up the way webpack and vite already do, reading a package's `exports` map. It was `"node"` until 2026-09-29, which predates those maps and walks `node_modules` by path instead, so a name that exists only in a map was invisible to the type checker while both bundlers resolved it fine. `@zip.js/zip.js/lib/zip-core-custom.js` was the case that bit: `"node"` resolved it to the library's JavaScript source, and a hand-written `src/types/zipJs.d.ts` pointed it back at the package's types; `"bundler"` gets there through the map, so that file is gone. It changes what the type checker sees and nothing else - `dist/` came out byte-identical under both when it landed.
+- `skipLibCheck: true` is load-bearing, not cosmetic: several dependencies ship `.d.ts` files that error under the TypeScript we build with - `@types/codemirror` names a `lib.dom` type TypeScript no longer defines, and others import packages that have no types. Without it `tsc --noEmit` reports 7 errors under TS 5.9, every one of them inside `node_modules` (18 under `"node"`, which also lost vite's declarations). It does not weaken checking of our own code against those libraries.
 
 ## Agent skills
 

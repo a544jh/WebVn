@@ -135,8 +135,9 @@ export const refuse = (problem: string, advice: string): ArchiveRefusal => ({ ki
 
 // **The advice never says that nothing happened.** Every surface leads with "<name> was not imported",
 // "Not exported" or "was not published", which already says it, and "Nothing was written." after that
-// repeated it on every refusal the app gives - dropped everywhere on 2026-09-28. It stays true: each
-// refusal here is raised before the first write, or leaves only what the next picker render sweeps.
+// repeated it on every refusal - dropped from all of them on 2026-09-28. It stays true: each refusal
+// here is raised before the first write, or leaves only what the next picker render sweeps. The asset
+// panel keeps its own on purpose; `assetPanel.ts` says why.
 
 // What an archive turned out to hold, once it is known to be importable: where it goes, what it is
 // called, and the files to write. `files` is normalized - a wrapping directory stripped, the

@@ -1,8 +1,8 @@
-/// <reference types="@vitest/browser/providers/playwright" />
 import { readFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import { AddressInfo } from "node:net"
 import { extname, join, normalize, sep } from "node:path"
+import { playwright } from "@vitest/browser-playwright"
 import { defineConfig } from "vitest/config"
 import type { BrowserCommand } from "vitest/node"
 
@@ -20,10 +20,10 @@ const chromiumArgs = process.env.WAYLAND_DISPLAY ? ["--ozone-platform=wayland"] 
 // collide with "the project name ... was already defined" as soon as both are run at once.
 const browserConfig = () => ({
   enabled: true,
-  provider: "playwright" as const,
+  provider: playwright({ launchOptions: { args: chromiumArgs } }),
   headless: true,
   viewport: { width: 1920, height: 1080 },
-  instances: [{ browser: "chromium", launch: { args: chromiumArgs } }],
+  instances: [{ browser: "chromium" as const }],
 })
 
 // **A server that answers without CORS headers**, for the one browser suite that has to meet one: Import

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { userEvent } from "@vitest/browser/context"
+import { userEvent } from "vitest/browser"
 import { NoOp } from "../../src/core/commands/NoOp"
 import { ErrorLevel } from "../../src/core/commands/Parser"
 import { createProject } from "../../src/storage/projectStore"

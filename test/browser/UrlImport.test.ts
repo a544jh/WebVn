@@ -1,4 +1,4 @@
-import { commands } from "@vitest/browser/context"
+import { commands } from "vitest/browser"
 import { beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { saveToLocalStorage } from "../../src/core/save"
 import { ProjectPicker } from "../../src/picker/ProjectPicker"
@@ -354,7 +354,7 @@ describe("the picker's Import from URL", () => {
   })
 })
 
-declare module "@vitest/browser/context" {
+declare module "vitest/browser" {
   interface BrowserCommands {
     // vitest.config.ts: the address of a server that answers without CORS headers.
     serveWithoutCors: () => Promise<string>

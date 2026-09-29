@@ -33,8 +33,8 @@ export const gateOnManifest = (editor: VnEditor, button: HTMLButtonElement, reas
 
 // What Publish needs from the page around it.
 export interface PublishWiring {
-  // The folder the player's own files are fetched from: the document's directory in production, where
-  // the deployed app serves `player.html` and `playerIndex.js` beside the editor.
+  // The folder the player's own files are fetched from: `PUBLISHED_PLAYER_FOLDER` beside the editor in
+  // production, where the build writes a production player whatever the mode.
   readonly playerFolder: string
   // How the zip reaches the author's disk: `downloadBlob` in production, which no headless browser
   // can watch arrive, and a stand-in in a suite.

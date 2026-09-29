@@ -15,8 +15,8 @@
     "test:demo:headful": "vitest run --project demo --browser.headless=false",
     "test:watch": "vitest --project unit --project browser",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint '**/*.ts'",
-    "prettier": "prettier -c '**/*.ts'"
+    "lint": "eslint '**/*.{ts,mts}'",
+    "prettier": "prettier -c '**/*.{ts,mts}'"
   },
   "author": "",
   "license": "ISC",

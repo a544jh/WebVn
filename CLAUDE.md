@@ -692,7 +692,7 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   404 as well as a 200 - so it says the address may be wrong and names `Access-Control-Allow-Origin`.
   A redirect without the header fails the same way, which is why a typed `/name` gets its `/` before
   anything is fetched: GitHub Pages' own `/name` to `/name/` redirect carries none. **A suite reaches
-  that case through `commands.serveWithoutCors()`**, a browser command in `vitest.config.ts` that
+  that case through `commands.serveWithoutCors()`**, a browser command in `vitest.config.mts` that
   serves `test/fixtures/published/` from Node, bound to `127.0.0.1` on a port of its own, with no CORS
   headers. Not vite's server under its other host name: that passed locally and failed on CI, where
   `localhost` resolved to `::1` and nothing listened on `127.0.0.1` at all.

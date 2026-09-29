@@ -2,7 +2,6 @@ import { confirmDestroyingProject, confirmOverwritingProject } from "../chrome/d
 import { downloadBlob } from "../chrome/download"
 import { icon, IconName } from "../chrome/icons"
 import { deleteSaveData } from "../core/save"
-import { demoManifest } from "../demoStory"
 import { ArchiveRefusal, exportProject, importArchive } from "../storage/archive"
 import { isPersisted } from "../storage/persistence"
 import { takeProjectLock } from "../storage/projectLock"
@@ -17,8 +16,9 @@ import {
   readEditorState,
 } from "../storage/projectStore"
 import { recoverProjects } from "../storage/recoverProjects"
-import { seedDemoProject } from "../storage/seedDemoProject"
+import { importFromUrl } from "../storage/urlImport"
 import { askForNewProject } from "./newProjectDialog"
+import { askForPublishedFolder } from "./urlImportDialog"
 import "../chrome/chrome.css"
 import "./picker.css"
 
@@ -61,6 +61,20 @@ export type OpenProject = (directory: string) => Promise<RefusalNotice | null>
 // queue is a chain that cannot resolve - the outer turn waits for the inner one, which waits for the
 // outer to end. `create` below is written around that.
 export type InTurn = <T>(job: () => Promise<T>) => Promise<T>
+
+// What the host tells a picker about the page it is on.
+export interface PickerOptions {
+  // **The published folder Add demo project imports from**: the demo the app is deployed beside,
+  // which is the document's own directory. **Required rather than defaulted**, for the reason
+  // `AppShellOptions.navigation` is: the browser suites run in a page whose URL belongs to vitest, and
+  // a default would silently import from it.
+  readonly demoFolder: string
+  // **A refusal this picker could not have raised itself** - a URL that named a project which would
+  // not open, refused before any picker existed to say so. Every other banner it shows, it produced.
+  // Here rather than behind a setter because a picker is built fresh for each showing and rendered
+  // immediately after, so a setter could only ever be called in the one line between the two.
+  readonly refusal?: RefusalNotice | null
+}
 
 // What the panel is saying about itself right now, and in which of the two tones this page has. A
 // **refusal** is orange, because something did not happen; a **result** is neither orange nor green,
@@ -118,20 +132,19 @@ export class ProjectPicker {
   // this one the moment a project opens, and the walk it is stopped in the middle of resolves later.
   private stopped = false
 
-  // **Seeded with a refusal only when the host has one this picker could not have raised itself** -
-  // a URL that named a project which would not open, refused before any picker existed to say so.
-  // Every other banner it shows, it produced. A parameter rather than a setter because a picker is
-  // built fresh for each showing and rendered immediately after, so a setter could only ever be
-  // called in the one line between the two.
   constructor(
     private root: HTMLElement,
     private openProject: OpenProject,
     private inTurn: InTurn,
-    refusal: RefusalNotice | null = null
+    options: PickerOptions
   ) {
+    this.demoFolder = options.demoFolder
+    const refusal = options.refusal ?? null
     this.announcement = refusal === null ? null : { ...refusal, tone: "refusal" }
     this.watchForDrops()
   }
+
+  private demoFolder: string
 
   private announcement: Announcement | null
 
@@ -185,7 +198,7 @@ export class ProjectPicker {
     // A render can land mid-drag - a drop refused while another is still hovering - so the dashed
     // border is drawn from the state rather than only toggled onto it.
     panel.classList.toggle("vn-picker-dropping", this.dropping)
-    panel.appendChild(this.drawPanelBar(projects))
+    panel.appendChild(this.drawPanelBar())
     // Inside the panel and under its title strip, because it is news about this list rather than
     // about the page - the artboard puts it there and it is right: the row it names is under it.
     if (this.announcement !== null) panel.appendChild(banner(this.announcement))
@@ -217,7 +230,7 @@ export class ProjectPicker {
     if (shown.classList.contains("vn-picker-action")) shown.replaceChildren(document.createTextNode(working.saying))
   }
 
-  // Everything that takes a project lock and writes: import, export, delete, and the demo seed.
+  // Everything that takes a project lock and writes: both imports, adding the demo, export and delete.
   //
   // It shows what is happening, runs the job **in the host's turn** so no view swap can interleave
   // with it, and draws the outcome the job left behind. A second gesture while one is in flight is
@@ -236,7 +249,7 @@ export class ProjectPicker {
   }
 
   // The panel's title strip: what this is, then the things you can do to it.
-  private drawPanelBar(projects: ListedProject[]): HTMLElement {
+  private drawPanelBar(): HTMLElement {
     const bar = document.createElement("div")
     bar.classList.add("vn-picker-bar")
 
@@ -245,13 +258,19 @@ export class ProjectPicker {
     caption.textContent = "Projects"
     bar.appendChild(caption)
 
-    // Shown only while the demo is absent. Its id is fixed, so a second press would collide with an
-    // existing directory - hiding the button once the demo is listed is both the collision fix and
-    // the honest signal. An author who deletes the demo gets the button back, which is correct: they
-    // can have it again. No icon: it is a one-off, and the plus belongs to the action that repeats.
-    if (!projects.some((project) => project.directory === demoManifest.id)) {
-      bar.appendChild(this.action("vn-picker-demo", null, "Add demo project", () => void this.addDemo()))
-    }
+    // **Always shown**, which reverses tranche 2. It hid the button while the demo was listed, for two
+    // reasons: a second press would collide with an existing directory, and the button going was the
+    // signal. The collision now has a refusal - URL import's taken id - and the signal is the row
+    // arriving and the line saying so. A second press is that refusal, and it names both ways to have
+    // the demo again: delete the copy, or rename it to a new id in its manifest.yaml and keep it.
+    //
+    // It also means the picker never needs the demo's id, so the editor carries no copy of the demo.
+    // No icon: it is a one-off, and the plus belongs to the action that repeats.
+    bar.appendChild(this.action("vn-picker-demo", null, "Add demo project", () => void this.addDemo()))
+    // **Between Add demo project and Import ZIP**, so the two imports sit together. Its icon is
+    // Lucide's link, because what the author pastes is one - the same glyph as the editor's Copy
+    // player link, on a different page.
+    bar.appendChild(this.action("vn-picker-import-url", "link", "Import from URL", () => void this.importUrl()))
     this.drawImport(bar)
     bar.appendChild(this.action("vn-picker-new", "plus", "New project", () => void this.create()))
     return bar
@@ -422,24 +441,26 @@ export class ProjectPicker {
     await this.render()
   }
 
-  // It writes under the demo directory's lock, like any other write, and **leaves the author on the
-  // picker**: the row appears and the button goes, which is the confirmation. Unlike New project,
-  // which opens what it made, this populates the library rather than starting work.
+  // **A URL import of the demo the app is deployed beside**, which is what retired `seedDemoProject`:
+  // the demo is an ordinary published folder, and the library gets it the way it gets anyone's. The
+  // lock, the taken-id refusal, dropping the saves under its id and the crash sweep are therefore the
+  // back half's, and a demo whose art will not arrive fails whole rather than landing with holes -
+  // the seed used to skip such a file with a console warning.
+  //
+  // It **leaves the author on the picker**, as both imports do. Unlike New project, which opens what
+  // it made, this populates the library rather than starting work. Worded as the demo rather than as
+  // a site, because the site is this one and "localhost was imported" is not news about the demo.
   private addDemo(): Promise<unknown> {
     return this.work(".vn-picker-demo", "Adding\u2026", async () => {
-      const lock = await takeProjectLock(demoManifest.id)
-      if (lock === null) {
-        return this.refuse(
-          `${demoManifest.title} is open in another tab.`,
-          "The demo was not written. Close it there and try again."
+      const result = await importFromUrl(this.demoFolder).catch(broke("imported", TIDIED))
+      if (result.kind === "taken") {
+        this.refuse(
+          `The demo was not added: ${result.title} is already in your library, under ${result.directory}.`,
+          "To add it, delete or rename the existing project."
         )
-      }
-      try {
-        this.announcement = null
-        await seedDemoProject()
-      } finally {
-        await lock.release()
-      }
+      } else if (result.kind === "refused") this.refuse(`The demo was not added: ${result.problem}.`, result.advice)
+      else if (result.kind === "imported") this.report("The demo was added.", `"${result.title}" is in your library.`)
+      else this.announcement = null
     })
   }
 
@@ -559,7 +580,7 @@ export class ProjectPicker {
           "The archive you are importing is untouched, and can be imported again.",
           "To keep both, cancel, rename the project you have, and import again."
         ),
-    }).catch(broke("imported", "Whatever was written is not a project, and the library tidies it away."))
+    }).catch(broke("imported", TIDIED))
 
     // A cancelled overwrite is not news: the author decided, nothing happened, and the render below
     // is only there to put the button back. An import that landed **is** news, and saying so is not
@@ -577,6 +598,36 @@ export class ProjectPicker {
     } else this.announcement = null
   }
 
+  // **A published folder arriving from its address**, the other import. Everything that follows the
+  // dialog is exactly the archive's - the busy state, the turn in the host's queue, the orange refusal
+  // banner, the "... was imported" report, and staying on the picker with the new row visible - with
+  // the site's host name where an archive's filename goes.
+  //
+  // **There is no overwrite question**, and so no "replaced what was filed under ..." report: a URL
+  // import never overwrites. A taken id is refused before anything the folder declares is fetched,
+  // and the author deletes or renames the project they have if they want this one instead.
+  //
+  // The dialog is asked before the page goes busy, and the import after, for `create`'s reason.
+  private async importUrl(): Promise<void> {
+    const folder = await askForPublishedFolder()
+    if (folder === null) return
+    const host = new URL(folder).host
+    await this.work(".vn-picker-import-url", `Importing from ${host}\u2026`, () => this.readFolder(folder, host))
+  }
+
+  private async readFolder(folder: string, host: string): Promise<void> {
+    const result = await importFromUrl(folder).catch(broke("imported", TIDIED))
+
+    if (result.kind === "refused") this.refuse(`${host} was not imported: ${result.problem}.`, result.advice)
+    else if (result.kind === "taken") {
+      this.refuse(
+        `${host} was not imported: "${result.title}" is already in your library, under ${result.directory}.`,
+        "To import it, delete or rename the existing project."
+      )
+    } else if (result.kind === "imported") this.report(`${host} was imported.`, `"${result.title}" is in your library.`)
+    else this.announcement = null
+  }
+
   // A project leaving, from the row rather than from inside the editor - so **the lock is this
   // method's to take**, and a walk that overlapped another tab's writes would be a walk over a tree
   // being written into. The editor's own button has the other half of that asymmetry: it holds this
@@ -589,7 +640,9 @@ export class ProjectPicker {
       const lock = await takeProjectLock(project.directory)
       if (lock === null) return this.refuse(`${name} is open in another tab.`, "It was not exported. Close it there.")
       try {
-        const result = await exportProject(project.directory).catch(broke("exported", "Nothing was written."))
+        const result = await exportProject(project.directory).catch(
+          broke("exported", "See the console for what went wrong.")
+        )
         if (result.kind === "refused") {
           this.refuse(`${name} was not exported: ${result.problem}.`, result.advice)
         } else {
@@ -697,6 +750,10 @@ export class ProjectPicker {
 //
 // The store needs no help either way. An import that dies partway has written no manifest, so what it
 // leaves is not a project and the next render's sweep removes it.
+// What an import that failed rather than refused leaves behind, which is nothing the author has to
+// deal with: no manifest was written, so the next render's sweep takes whatever was.
+const TIDIED = "Whatever was written is not a project, and the library tidies it away."
+
 const broke =
   (verb: string, advice: string) =>
   (e: unknown): ArchiveRefusal => {

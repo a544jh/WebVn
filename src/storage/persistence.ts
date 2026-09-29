@@ -53,6 +53,12 @@ export const availableBytes = async (): Promise<number | null> => {
 // browser's own estimate is quoted in.
 export const megabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`
 
+// The same, said in gigabytes once it is that big. For the limit on a whole import from a URL, which
+// is the room left in the origin or two gigabytes, whichever is lower - an amount "1400.0 MB" makes an
+// author read twice.
+export const sizeLabel = (bytes: number): string =>
+  bytes >= 1_000_000_000 ? `${(bytes / 1_000_000_000).toFixed(1)} GB` : megabytes(bytes)
+
 // Whether the origin is persisted *now*. Read fresh on every picker render rather than cached: the
 // answer changes when the request above is granted, and a browser may revoke it.
 export const isPersisted = async (): Promise<boolean> => {

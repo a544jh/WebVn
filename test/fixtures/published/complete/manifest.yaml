@@ -1,0 +1,15 @@
+# A published folder in miniature, for the URL import suites. Its id is the suite's own, because
+# navigator.locks is origin-wide and the demo's id belongs to the one suite that adds the demo.
+formatVersion: 1
+id: url-import-complete
+title: A Published Story
+actors:
+  Guide:
+    sprites:
+      idle: idle.png
+backgrounds:
+  room: room.png
+  # Two ids naming one file, which a published folder carries once.
+  also-room: room.png
+audioAssets:
+  thump: thump.ogg

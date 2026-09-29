@@ -11,7 +11,7 @@ import {
   renameProject,
   writeProjectFile,
 } from "../../src/storage/projectStore"
-import { immediately } from "../helpers/picker"
+import { immediately, NO_DEMO } from "../helpers/picker"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import { manifestNaming } from "../helpers/testManifest"
 import { releaseStoredEditorLock, startEditorFromStore, typeScript, waitFor } from "../helpers/vnHarness"
@@ -116,11 +116,9 @@ describe("exporting a project", () => {
     const result = await exportProject(BROKEN)
 
     expect(result).toMatchObject({ kind: "refused", problem: "its manifest.yaml does not parse" })
-    // The parser's own words, once - said by an export that says nothing was exported, rather than by
-    // one that says nothing was written and then says it again.
+    // The parser's own words, and only them: the surface already says it was not exported.
     if (result.kind !== "refused") throw new Error("expected a refusal")
-    expect(result.advice).toMatch(/^Nothing was exported\. Line \d+: /)
-    expect(result.advice).not.toContain("Nothing was written")
+    expect(result.advice).toMatch(/^Line \d+: /)
   })
 
   it("refuses a project with no script, which nothing else would ever catch", async () => {
@@ -215,7 +213,7 @@ describe("the picker's export control", () => {
   const newPicker = (): ProjectPicker => {
     const root = document.createElement("div")
     document.body.appendChild(root)
-    return new ProjectPicker(root, () => Promise.resolve(null), immediately)
+    return new ProjectPicker(root, () => Promise.resolve(null), immediately, { demoFolder: NO_DEMO })
   }
 
   const exportButton = (directory: string): HTMLButtonElement =>

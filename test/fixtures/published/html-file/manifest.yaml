@@ -1,0 +1,8 @@
+# A declared file that the server really does hand out as text/html. The test server answers a
+# missing file with a bare 404, never with a page and a 200, so this is how the single-page-app
+# fallback rule is reached.
+formatVersion: 1
+id: url-import-html-file
+title: A Story Served As A Web Page
+backgrounds:
+  page: page.html

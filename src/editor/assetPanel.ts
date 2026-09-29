@@ -347,6 +347,9 @@ export class AssetPanel {
       // adopt afterwards never sees the gap.
       const refused = await this.deps.editor.undeclareAsset(leaf.manifestKey)
       if (refused !== null) {
+        // **"Nothing was deleted." is kept on purpose** (2026-09-29), unlike the archive's "Nothing was
+        // written.": the author has just confirmed an irreversible delete, and a remove has two halves,
+        // so the title alone does not say whether the file survived.
         await noticeDialog("The asset was not removed", [refused, "Nothing was deleted."])
         return
       }
@@ -417,6 +420,8 @@ export class AssetPanel {
     // declaration was never going to land is a file nothing in the project points at.
     const cannot = this.deps.editor.canDeclareAsset(declaration)
     if (cannot !== null) {
+      // "Nothing was copied" is kept on purpose, as remove's is: an add has a half-done outcome with a
+      // dialog of its own below, and this line is what tells the two apart.
       await noticeDialog("The asset was not added", [cannot, "Nothing was copied into the project."])
       return
     }

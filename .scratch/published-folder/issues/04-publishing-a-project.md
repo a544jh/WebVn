@@ -1,6 +1,6 @@
 # 04: Publishing a project
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** 01 (The player plays the folder it is served from), because a published folder has
 to play; and 02 (Importing from a URL), because the published-file list is 02's. Read the design
@@ -74,19 +74,80 @@ Spec: `.scratch/published-folder/spec.md`, "Publishing". ADR 0007 is the complet
 
 ## Acceptance criteria
 
-- [ ] Browser suite, shaped like the export suite - build the zip and read it back with zip.js: the
+- [x] Browser suite, shaped like the export suite - build the zip and read it back with zip.js: the
       exact path set, player stand-ins included, with an undeclared project file absent.
-- [ ] A missing declared file is refused in a dialog listing every missing file, and nothing is
+- [x] A missing declared file is refused in a dialog listing every missing file, and nothing is
       downloaded.
-- [ ] A successful publish opens the hosting dialog, and closing it leaves the editor as it was.
-- [ ] A manifest that does not parse greys the control, and is refused if reached.
-- [ ] A sentence typed just before pressing Publish is in the zip - the flush.
-- [ ] The round trip: the published zip through Import ZIP yields a project holding exactly
+- [x] A successful publish opens the hosting dialog, and closing it leaves the editor as it was.
+- [x] A manifest that does not parse greys the control, and is refused if reached.
+- [x] A sentence typed just before pressing Publish is in the zip - the flush.
+- [x] The round trip: the published zip through Import ZIP yields a project holding exactly
       the published files and no player files.
-- [ ] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
-- [ ] `editor.yaml`'s `exported` is unchanged by a publish.
-- [ ] Unit: the published README is the text above, with the title, id and date filled in.
-- [ ] By hand: a real build's Publish fetches the player; the zip, extracted onto a static server,
+- [x] Unit: `planImport` skips both player files at the root, and keeps an `index.html` below it.
+- [x] `editor.yaml`'s `exported` is unchanged by a publish.
+- [x] Unit: the published README is the text above, with the title, id and date filled in.
+- [x] By hand: a real build's Publish fetches the player; the zip, extracted onto a static server,
       plays.
-- [ ] `CLAUDE.md`'s hand checks gain the player-file list: if the build ever splits the player into
+- [x] `CLAUDE.md`'s hand checks gain the player-file list: if the build ever splits the player into
       more chunks, the list must follow, and nothing automated would notice.
+
+## Comments
+
+**Landed 2026-09-28** on `claude/laughing-bell-erlp50`.
+
+- `publishProject(directory, playerFolder)`, `publishedFilename` and `publishedReadmeText` are in
+  `src/storage/archive.ts`, which is still the only module importing zip.js. Export's manifest gate
+  became `gatedManifest`, shared by both. A missing declared file is a result of its own kind,
+  `missing`, carrying every path in the manifest's order, because the editor shows it as a list.
+- **The player's files are `PLAYER_FILES` in `src/publishedFolder.ts`** (`index.html` published from
+  `player.html` served, and `playerIndex.js`), and zip import skips the same names at the archive root
+  through `NOT_THE_PROJECT`, beside `README.txt`.
+- **The button's logic is in a new `src/sessionTools.ts`**, because `src/index.ts` cannot be reached by
+  a suite and the acceptance criteria are about the control. `gateOnManifest` and `face` moved there
+  from the entry point, which imports them for its other three tools. `gateOnManifest` now also
+  applies the current state at once, so a tool wired after the project opened starts right.
+- **One refusal the ticket implies but does not word**: the player's own files not arriving. It is
+  refused, after the store has been checked, as "the player's own files could not be fetched", so no
+  zip that cannot play is ever written. `publishSession` also catches an unexpected throw into a
+  "Not published ... see the console" dialog, as Export ZIP catches one into its message line.
+- Suites fetch small stand-ins from `test/fixtures/player/`. Since vitest may transform what it
+  serves, "byte for byte" is asserted against a fetch of the same address rather than the file on disk.
+- Mutation-checked: publishing without the flush turns "carries the sentence typed a moment before" red.
+- **Checked by hand 2026-09-28** against `npm run build`, with `dist/` served locally: the tool row
+  reads Fullscreen, Copy player link, Export ZIP, Publish, with the globe drawn; Publish on the demo
+  downloaded `webvn-demo-published.zip` holding `README.txt`, `index.html`, `playerIndex.js`, the two
+  YAML files and the nine declared assets, and opened the "Published" dialog, after which the button
+  was back to Publish and enabled. That zip, extracted and served by `python3 -m http.server`, played
+  from the folder's own address: the tab read "WebVn Demo", every declared file was requested with a
+  200, and a click reached the demo's first line.
+
+**Also checked by hand by the maintainer, 2026-09-28**: Publish under `npm run dev`, and a published VN
+served locally by `python -m http.server`.
+
+**A folder published from `npm run dev` reload-looped, 2026-09-28** (reported by the maintainer after
+the check above had passed). Publish copies `playerIndex.js` byte for byte from wherever the editor is
+served, and under the dev server that bundle carried the dev server's client, with `port=8080` written
+into its query. So the published folder, opened from `python -m http.server`, still dialled the dev
+server; while the dev server's build matched the copy nothing happened, which is why the first check
+passed, but after any rebuild the page asked its own host for `playerIndex.<hash>.hot-update.json`, got
+a 404, reloaded, and asked again - 168 reloads in eight seconds, reproduced in headless Chromium.
+**Fixed by giving Publish a player of its own** (2026-09-29, at the maintainer's direction):
+`webpack.config.js` builds the player a third time, into `dist/published-player/`, always in production
+mode and with `devServer: false`, and Publish fetches from `PUBLISHED_PLAYER_FOLDER` there rather than
+from beside the editor. Under `npm run dev` that build is written to disk and served by
+`devServer.static`, since webpack-dev-middleware does not serve a `devServer: false` build. Checked
+under `npm run dev` in headless Chromium: Publish through the picker on the added demo downloaded a zip
+whose `index.html` and `playerIndex.js` are byte-identical to `dist/published-player/` and carry no
+dev-server code; extracted and served by `python3 -m http.server`, it loaded once across a rebuild of
+both bundles with no socket and no console error, while the editor and `player.html` on the dev server
+still reloaded on a save. Under `npm run build` the published player is byte-identical to
+`dist/playerIndex.js`. The cost is a production build on the dev server's path to a reload: 3 to 4
+extra seconds on a save touching player or shared code.
+
+Three fixes came before it and were dropped. Adding the dev client to the editor's entry by hand cost
+`player.html` its reload and read as a hack. Splitting the config and giving the served player
+`devServer: false` made `player.html` 404 under the dev server. `client.webSocketURL:
+"auto://0.0.0.0:0/ws"`, which points every client at the server its page came from, stopped the loop
+but still shipped the dev server's client in every folder published from `npm run dev`, logging ten
+failed connection attempts. A folder already published from the dev server still carries the old
+client: publish it again. Nothing automated covers any of this, like the rest of `npm run dev`.

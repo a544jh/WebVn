@@ -5,6 +5,7 @@ import { createProject } from "../../src/storage/projectStore"
 import { takeProjectLock } from "../../src/storage/projectLock"
 import { clearOpfsStore } from "../helpers/opfs"
 import { fakeNavigation, FakeNavigation } from "../helpers/navigation"
+import { NO_DEMO } from "../helpers/picker"
 
 // A scratch directory no other suite uses - see test/helpers/opfs.ts.
 const SCRATCH = "test-scratch-app-shell"
@@ -75,7 +76,7 @@ let navigation: FakeNavigation
 
 const newShell = (url: string | null = null): AppShell => {
   navigation = fakeNavigation(url)
-  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation })
+  shell = new AppShell(elements, { onOpen: () => undefined, onClose: () => undefined, navigation, demoFolder: NO_DEMO })
   return shell
 }
 

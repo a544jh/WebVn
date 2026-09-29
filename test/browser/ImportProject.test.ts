@@ -15,6 +15,7 @@ import {
 } from "../../src/storage/projectStore"
 import { recoverProjects } from "../../src/storage/recoverProjects"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
+import { NO_DEMO } from "../helpers/picker"
 import { manifestNaming } from "../helpers/testManifest"
 import { settle, waitFor } from "../helpers/vnHarness"
 
@@ -226,7 +227,7 @@ describe("the picker's import surface", () => {
   const newPicker = (): ProjectPicker => {
     pickerRoot = document.createElement("div")
     document.body.appendChild(pickerRoot)
-    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn)
+    picker = new ProjectPicker(pickerRoot, () => Promise.resolve(null), inTurn, { demoFolder: NO_DEMO })
     return picker
   }
 
@@ -426,8 +427,9 @@ describe("the picker's import surface", () => {
     drag("drop", carrying(new File(["not a zip"], "notes.txt")))
     await waitFor("the refusal", () => refusalText() !== "")
 
-    expect(refusalText()).toContain("notes.txt was not imported")
-    expect(refusalText()).toContain("Nothing was written.")
+    expect(refusalText()).toBe(
+      "notes.txt was not imported: it is not a zip file. A project archive is the .webvn.zip that Export ZIP writes."
+    )
   })
 
   it("refuses a multi-file drop rather than silently picking one of them", async () => {

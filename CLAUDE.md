@@ -8,8 +8,9 @@ A client-side visual novel engine + authoring tool. TypeScript, webpack. The "re
 Two entry points:
 - `src/index.ts` → editor + live-preview player. Boots a project out of OPFS through `src/editorBoot.ts`;
   a browser without OPFS, or a second tab on the same project, gets a refusal and no editor.
-- `src/playerIndex.ts` → standalone player, can load a script from `?vn=<base64 gzip YAML>`. Never touches
-  OPFS, so it works in any browser.
+- `src/playerIndex.ts` → standalone player. Boots through `src/playerBoot.ts`: with no `?vn=` it plays the
+  published folder it is served from (`manifest.yaml` and `script.yaml` beside it), and with
+  `?vn=<base64 gzip YAML>` it plays the payload. Never touches OPFS, so it works in any browser.
 
 ## Commands
 - `npm install` — install
@@ -19,7 +20,7 @@ Two entry points:
 - `npm run lint` — ESLint over `**/*.ts`
 - `npm run prettier` — prettier check
 - `npm test` — the fast gate: vitest projects `unit` (node, `test/unit/`) and `browser` (headless Chromium via Playwright, `test/browser/`). ~6s.
-- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or `src/demoStory.ts`.
+- `npm run test:demo` — the `demo` project (`test/demo/`): full playthroughs of the demo story in real Chromium, waiting on real transitions. ~32s, so it is deliberately **not** part of `npm test`. Run it when you touch the renderer, the commands, or the demo's YAML in `test-assets/`.
 - `npm run test:all` — all three projects. `npm run test:unit` / `npm run test:browser` / `npm run test:demo` run one; `:headful` variants (`test:browser:headful`, `test:demo:headful`) show the browser; `npm run test:watch` watches the fast gate. Browser and demo tests need Playwright's Chromium installed (`npx playwright install chromium`).
 
 ## CI
@@ -96,6 +97,9 @@ src/
   storage/         OPFS: primitives, project store, storing, the one-tab lock, the editor's resolver,
                    the .webvn.zip archive (the only file that imports zip.js)
   editorBoot.ts    opening a project out of the store, shared by src/index.ts and the test harness
+  sessionTools.ts  the editor's tool row as far as a suite can reach it: the manifest gate, Publish
+  playerBoot.ts    the standalone player's boot, out of src/playerIndex.ts for the same reason
+  publishedFolder.ts  what a published folder holds, shared by the player, publish and URL import
   domRenderer/     DomRenderer + sub-renderers (textbox, sprite, bg, audio, decision, menus)
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
@@ -118,6 +122,8 @@ test/              one directory per vitest project — the directory is what pi
                    opfs.ts (scratch directories, and pointing the store at one),
                    navigation.ts (a fake address bar, which AppShell requires rather than
                    defaulting to the browser's)
+  fixtures/        not a vitest project: small published folders the browser suites fetch, served
+                   from the repo root beside test-assets/ rather than inside it, which CopyPlugin ships
 experiments/       abandoned side tracks (elm, pixi, etc.) — shipped in repo, ignored by lint
 test-assets/       the demo project — manifest.yaml, script.yaml and assets/, copied to dist/ by CopyPlugin
 ```
@@ -281,8 +287,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   correct. Both parsers refuse a multi-document input rather than taking `docs[0]` in silence.
 - The payload carries the **raw manifest buffer text**, not a re-serialisation - round-tripping
   through the parser eats comments.
-- **The demo boots through the same path.** With no `?vn=`, `playerIndex.ts` falls back to the demo as
-  a source of `(manifestText, scriptText)`, so every demo load exercises the payload path.
+- **The demo no longer boots through it.** With no `?vn=` the player fetches the published folder it
+  is served from - see "The published folder" below - and the deployed demo is such a folder. A
+  payload's assets still resolve against that folder.
 
 ### Manifest and the parser contract
 - A project declares itself in `manifest.yaml`: `formatVersion`, `id`, `title`, `actors`, `backgrounds`,
@@ -437,12 +444,13 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the whole of it, including the measured stale-storer loss end to end.
 - **Vocabulary**: the editor **stores** a project, the store **writes** files, and a **save** is the
   player's. `CONTEXT.md` has the entry, with `save`, `autosave` and `persist` on its _Avoid_ list.
-- **The editor chrome has one button style, `.vn-chrome-button` in `chrome.css`**, worn by all four:
-  Back to projects, Fullscreen, Copy player link, Export ZIP. Before tranche 3 only the first had any
+- **The editor chrome has one button style, `.vn-chrome-button` in `chrome.css`**, worn by all five:
+  Back to projects, Fullscreen, Copy player link, Export ZIP, Publish. Before tranche 3 only the first had any
   CSS and the other two rendered as browser-default buttons, which the design canvas had been drawing
   as chrome they never were. `line-height: 1` is the load-bearing declaration - default leading is
   ~16px and a 14px icon is not, so an iconless button and an icon one sit at different heights - and
-  it is why the rule is **icons on all three tools or none**. "Copy player link" is what
+  it is why the rule is **icons on every tool or none** - Publish, the fourth tool in the row, wears
+  Lucide's globe. "Copy player link" is what
   `#vn-btn-export-url` became: `CONTEXT.md` reserves *export* for the archive, and the link button now
   sits beside the thing that is one. Not "Share link", which that glossary entry has also spent.
 - **`src/picker/` is the front door, and it is a view rather than a third html entry.** The app stays
@@ -464,10 +472,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   are the author's pick and the picker's Add demo project button. A cold boot always lands on the
   picker; `lastOpened` orders the list and no longer decides anything. `bootEditor` records it after
   the lock, so a rename gets it free.
-- **`seedDemoProject` is scaffolding with one caller left**, the picker's Add demo project button.
-  Nothing seeds behind the author: a seed would have to run before the picker could render, when no
-  lock is held, and a refused tab must not have written anything. It dies at URL import in tranche 4
-  (`.scratch/published-folder/`, ticket 03).
+- **Add demo project is a URL import** of the demo the app is deployed beside - `seedDemoProject` is
+  gone, as its own comment always said it would be. The picker is **told** the demo's address
+  (`PickerOptions.demoFolder`, threaded through `AppShellOptions.demoFolder`), required for the reason
+  `navigation` is; the entry point passes its own directory and the suites pass `NO_DEMO`, an address
+  nothing answers, except `test/browser/DemoProject.test.ts` - **the one suite that adds the real
+  demo**, because `webvn-demo` is a fixed directory and its lock is origin-wide. The button is always
+  shown, and a second press is URL import's taken-id refusal naming delete and rename. The picker
+  therefore never needs the demo's id, and neither bundle carries the demo.
 - **`--vn-editor-font-mono` is the chrome's own monospace**, carrying the same face as the stage's
   `--vn-font` and spelled separately on purpose: a chrome rule reading `--vn-font` lets a theme swap
   restyle the picker, which is the coupling the two namespaces exist to prevent. `debugPanel.css` is
@@ -492,7 +504,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   the only symptom is a blank stage. Shipped once, 2026-09-05. `DomRenderer`'s constructor now logs
   when its root measures zero, and `test/browser/AppShell.test.ts` pins the ordering.
 - **The picker's own long operations run in that queue too**, through the `InTurn` callback it takes
-  beside `openProject` - import, export, delete and the demo seed, each of which holds a project lock
+  beside `openProject` - both imports, export, delete and adding the demo, each of which holds a project lock
   while it writes. Without it the work outlives the view that started it: a Back closes the picker
   mid-import, the picker rebuilt on the way back knows nothing about it, the result is reported to a
   stopped view, and opening the row the import is rewriting refuses the author with "already open in
@@ -581,7 +593,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 `src/storage/archive.ts`, tranche 3 of `design-docs/PROJECT_STORAGE.md`, landed 2026-09-06. UI-free,
 and **the only file in the repo that imports zip.js**, so "does the zip library reach the player
 bundle?" is answerable by reading one import list. (It does not: checked against `dist/playerIndex.js`
-when this landed, and `npm run build` prints both sizes.) The library is pinned to
+when this landed, and `npm run build` prints every bundle's size.) The library is pinned to
 `@zip.js/zip.js/lib/zip-core-custom.js` - `src/types/zipJs.d.ts` says why the deep specifier needs a
 declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
 - **The invariant is the whole format: an archive always holds a project that parses and has a
@@ -609,15 +621,20 @@ declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
 - **Anything that claims an id drops its saves.** `deleteSaveData(id)` fires on every import rather
   than only on an overwrite: the player writes to the same `vn-save-<id>` keyspace, so even a fresh
   directory can collide with a published build's saves, and a save describing another story turns Load
-  into a dead button. `exported` goes with them; `created` is *kept* on an overwrite and minted only
-  for a new directory, because it is what the picker orders by and the row must not move.
+  into a dead button. **Claiming is the commit, not the attempt**: an overwrite drops them up front,
+  having just destroyed the project they described, but a new directory drops them only once its
+  manifest lands - so an import refused partway, above all a URL import on a flaky network, leaves a
+  reader's saves where they were. `exported` goes with them; `created` is *kept* on an overwrite and
+  minted only for a new directory, because it is what the picker orders by and the row must not move.
 - **Export flushes or locks, and which one is not a choice.** The **open** project is covered by
   `session.storing.flush()` - the debounce is 2000ms, and a walk must not overlap a write (see
   `walkFrom`) - and **another** project is covered by its project lock. `takeProjectLock` is
   `ifAvailable`, so a session asking for the lock it already holds would refuse itself. Do not add a
   `.crswap` filter: it would be a second rule for a hazard these two already close.
 - **`README.txt` is the one place an archive is not exactly the project tree**, generated at the root
-  and skipped on import by exact path, so a README an author put in their own project round-trips. Its
+  and skipped on import by exact path, so a README an author put in their own project round-trips.
+  Import skips the player a published zip carries the same way (`NOT_THE_PROJECT`), which is what
+  makes a published zip import as exactly the project it was built from. Its
   wording ships inside every archive already exported and cannot be corrected later: no architecture
   in it, and an instruction rather than a prohibition. The app URL is hardcoded, because an archive
   outlives any one deployment of the app.
@@ -625,6 +642,82 @@ declaration, and `webpack.config.js` says why `import.meta.url` is defined away.
   because being the mechanism the platform offers everywhere is the archive's whole justification.
   Nothing automated covers the anchor - a headless browser will not show you a file arriving in
   Downloads - so it is verified by hand, like `enterFullscreen` and `npm run dev`.
+
+### The published folder - how a reader gets a project
+Tranche 4 of `design-docs/PROJECT_STORAGE.md`, specified in `.scratch/published-folder/`. A published
+folder is `manifest.yaml`, `script.yaml` and every file the manifest declares, with the player beside
+them as `index.html` - the shape `dist/` already has. `src/publishedFolder.ts` is what the three
+things touching it share. ADR 0007 is its invariant: it is complete.
+- **The player plays the folder it is served from.** `src/playerBoot.ts` is the boot, lifted out of
+  `src/playerIndex.ts` for the reason `editorBoot.ts` was: an entry point that boots itself on import
+  cannot be reached by a suite. It is **told** the folder's address - the page's own directory in
+  production, the served `test-assets/` in `test/browser/PlayerBoot.test.ts` - and hands it to
+  `RelativePathResolver` as its base, so a payload's assets resolve against it too. It returns a
+  booted player or a refusal; the entry point is left with the fullscreen button and the error line.
+- **It sets `document.title` from the manifest**, for a folder and a payload alike, rather than
+  publish templating `index.html` - publish copies the player's files byte for byte.
+- **Three refusals, one line**: `manifest.yaml` or `script.yaml` would not load, or the manifest does
+  not parse. On `file:` the first two say the folder has to be opened from a web host, because a page
+  there may not `fetch()` its neighbours while `<img>` still loads - so the YAML is what fails.
+  **Checked by hand, since nothing automated opens a page from disk**: `npm run build`, open
+  `dist/player.html` from `file:`, and read that message. Also by hand: serve `dist/` statically and
+  open `player.html` - the demo plays and the tab says "WebVn Demo".
+- **One list serves both directions**: `publishedFiles(manifest)` is the manifest, the script and every
+  declared path, deduplicated. Publish writes exactly it and URL import fetches exactly it, so a
+  third kind of file - an included script - joins in one place.
+- **URL import is a producer, not a second import.** `src/storage/urlImport.ts` turns an address into
+  the `ArchiveEntry` listing the zip reader makes from a file and hands it to `importProject`, which
+  is where the lock, the save drop, the manifest-last commit and `created` stay written once. It
+  imports no zip.js. It asks for the back half's one option, `{ refuseTaken: true }`: **a URL import
+  never overwrites**, and a taken id comes back as its own result kind, `taken`, because the two
+  surfaces that reach it word it differently. That refusal is what makes streaming safe - the
+  destination is always new, so a host failing halfway has destroyed nothing, and what it wrote is a
+  manifest-less directory the picker's `recoverProjects` sweeps on its next render. No new cleanup.
+- **The order is the spec's and it is load-bearing**: `manifest.yaml`, its parse, `script.yaml`, the
+  entry cap - all before the back half, and all refused in URL import's own words. The back half then
+  takes the lock and checks the id **before any declared file is fetched**; each file is fetched by
+  its entry's `writeTo`, against the manifest response's final URL, piped straight into OPFS through
+  `metered` - a running byte total across the whole import, since a host does not reliably say sizes
+  up front - and a `Watchdog` that abandons a file delivering nothing for 30 seconds. The first file
+  that fails ends the import and is the only one named. A 200 served as `text/html` is a missing
+  file: that is a single-page-app host answering with its front page.
+- **What an address means is a pure function** (`publishedFolderAt`), refused beside the dialog's
+  field; what the network says lands in the picker's banner, under the site's host name where an
+  archive's filename goes. Both wordings are the design canvas's *Published folder* page.
+- **A host without CORS headers and a host that is not there fail as the same `TypeError`**, by
+  design, so a failed manifest request is asked again in `no-cors` mode (`answers`): that resolves,
+  opaque, whenever the host answered at all, and rejects only when nothing could be reached. The two
+  banners follow. **The CORS one cannot say whether a manifest is there** - an opaque response hides a
+  404 as well as a 200 - so it says the address may be wrong and names `Access-Control-Allow-Origin`.
+  A redirect without the header fails the same way, which is why a typed `/name` gets its `/` before
+  anything is fetched: GitHub Pages' own `/name` to `/name/` redirect carries none. **A suite reaches
+  that case through `commands.serveWithoutCors()`**, a browser command in `vitest.config.ts` that
+  serves `test/fixtures/published/` from Node, bound to `127.0.0.1` on a port of its own, with no CORS
+  headers. Not vite's server under its other host name: that passed locally and failed on CI, where
+  `localhost` resolved to `::1` and nothing listened on `127.0.0.1` at all.
+- Its suites fetch `test/fixtures/published/<case>/`, each a way for a folder to be wrong, with ids
+  named after the suite. **Checked by hand**: the 30-second stall (a local server that sends headers
+  and then nothing), and a real cross-origin import from GitHub Pages.
+- **Publish is `publishProject(directory, playerFolder)` in `archive.ts`**, which stays the only module that
+  imports zip.js. It writes `README.txt`, the player, then `publishedFiles` - never a tree copy, so an
+  undeclared file never reaches a reader - into `<project-id>-published.zip`. It refuses as export
+  does for a manifest that does not parse or a missing script, and **refuses while any declared file
+  is missing, naming every one** (`kind: "missing"`), since here the author is reading and each is
+  theirs to fix. It records nothing in `editor.yaml`: a published zip is not a backup.
+- **The player's files are `PLAYER_FILES` in `src/publishedFolder.ts`**: `player.html` served,
+  `index.html` published, and `playerIndex.js`. Publish is **told** the folder to fetch them from
+  (`PUBLISHED_PLAYER_FOLDER` beside the editor page - see the published player under Build tooling
+  caveats; stand-ins in `test/fixtures/player/` for the suite) and copies them
+  byte for byte. **If the build ever splits the player into more chunks, that list must follow, and
+  nothing automated would notice** - every published folder would ship without the chunk. The list
+  only grows on the import side: a name that stops being published keeps being skipped.
+- **The button is in `src/sessionTools.ts`, not the entry point**, so a suite reaches it: `wirePublish`
+  gates it on the manifest parsing (`gateOnManifest`, which Copy player link and Export ZIP share),
+  and `publishSession` flushes the storer, publishes, delivers, and opens one of two `noticeDialog`s -
+  "Published", saying to put the files on a static web host, or "Not published", listing every
+  missing file. Dialogs rather than the message line because the refusal is a list. **Checked by
+  hand**: a real build's Publish fetches the player, and the zip, extracted onto a static server,
+  plays from its `index.html`.
 
 ### Save/load
 - `VnGlobalSaveData` contains `seenCommands` (interval-encoded integer set) + `saves[]`. `seenCommands` is intentionally **global and mutable** — once a command is seen, it stays seen across undo, save slots, and replays. This is standard VN behavior: skip-mode only fast-forwards through text the player has already read. It lives on `VnPlayerState` for convenience but is not part of the immutable snapshot contract; don't try to "fix" it without a real reason.
@@ -717,7 +810,7 @@ If you're tempted to import from any of these, don't.
 
 - **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. If it names an
   asset or actor id, override `references()` so a typo is a warning rather than a crash, exempting
-  any value the engine has spoken for. Add an example line to the demo YAML in `src/demoStory.ts`, which both entry points load, and extend `test/demo/DemoStory.test.ts` to cover it.
+  any value the engine has spoken for. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Touch anything about where files live**: read "Project storage" above first, then
@@ -750,15 +843,41 @@ If you're tempted to import from any of these, don't.
 
 ## Build tooling caveats
 - Package manager is **npm** (`package-lock.json`). Do not reintroduce `yarn.lock`; the two are not interchangeable here. npm enforces peer dependencies and yarn 1 ignored them outright, so the same `package.json` resolves to a different tree under each. That is also why `yaml` must stay at a version vite accepts for its optional `yaml: "^2.4.2"` peer: drop below it and npm refuses to hoist `vite`, which breaks `@vitest/browser` with `Cannot find package 'vite'` in every test file.
-- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Three things about that config are load-bearing:
-  - `devServer.static: false`. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`, defaulting to `./public` — a directory this repo does not have. Nothing is served off disk: the html goes through `file-loader` via the `import "./index.html"` side effects and `test-assets` through CopyPlugin, so both land in the compilation and are served from memory by webpack-dev-middleware.
+- `webpack-dev-server` is on v6 and `webpack-cli` on v7, against webpack 5 (still the latest major — there is no webpack 6). Five things about that config are load-bearing:
+  - `devServer.static` serves **one directory off disk, `dist/published-player/`, unwatched**, and
+    nothing else. v4+ replaced v3's `contentBase` (which defaulted to the CWD) with `static.directory`,
+    defaulting to `./public` - a directory this repo does not have. Everything else is served from
+    memory by webpack-dev-middleware: the html goes through `file-loader` via the `import "./index.html"`
+    side effects and `test-assets` through CopyPlugin, so both land in the compilation. Unwatched,
+    because a watched static directory reloads every open page when it changes and the published
+    player's build rewrites it on every rebuild.
   - `process.env.WEBPACK_SERVE` gates `devtool: "eval-source-map"`. v3 set `WEBPACK_DEV_SERVER`; v4+ sets `WEBPACK_SERVE`. Getting this wrong does not error — dev builds just silently lose their source maps.
   - dev-server 6 requires **node >= 22.15**. CI pins `node-version: 22`, which resolves above that, but dropping the CI node version would break `npm run dev` only, and nothing in CI would notice.
+  - **The config is three builds, and the third is the player Publish copies**: `editor` (`app.js`),
+    `player` (`playerIndex.js` beside the demo, which `npm run dev` serves and live-reloads), and
+    `published-player`, the same entry built into `dist/published-player/` - always in production mode
+    and with `devServer: false`, so it carries none of the live-reload client and hot-update code the
+    dev server adds to every build it serves. That code, copied into a published folder, connected
+    back to the dev server from wherever the folder was opened, and after the next rebuild reloaded
+    the page forever (reported 2026-09-28). **`devServer: false` also means webpack-dev-middleware
+    neither serves that build nor keeps it in memory**, so under `npm run dev` it is written to disk
+    and served by `devServer.static` above - which is why a split config with `devServer: false` on
+    the *served* player is not the fix: `player.html` 404s. Only `editor` carries `devServer` options,
+    because webpack-cli starts a server per config that has them. Under `npm run build` the two player
+    bundles come out byte-identical. The cost is under `npm run dev`: the dev server tells pages to
+    reload only once every build has finished, so a save touching player or shared code waits for a
+    production build as well - measured at 3 to 4 extra seconds.
+  - **Only the `editor` build type-checks**; the two player builds set ts-loader's `transpileOnly`.
+    ts-loader reports on every file `tsconfig.json` takes in, not only the ones a build bundles -
+    checked by planting a type error in `src/playerBoot.ts`, which only the player imports, and
+    watching the editor's build fail on it. Three checks side by side took `npm run build` from 16s
+    to 41s; it is 29s with one. The output is the same either way, bar the module ids webpack derives
+    from the loader string.
 - The `resourceQuery: /raw/` rule (`type: "asset/source"`) is what makes `import yaml from "./x.yaml?raw"`
-  work in the build. It matches vite's native `?raw` suffix on purpose, so `src/demoStory.ts` has one
-  spelling that works in webpack and in all three vitest projects; the ambient module declaration for it is
-  `src/types/yamlRaw.d.ts`. Nothing but the demo's two YAML files uses it yet, and nothing in CI would catch
-  its removal except the build.
+  work in the build. It matches vite's native `?raw` suffix on purpose, so a module has one spelling that
+  works in webpack and in all three vitest projects; the ambient module declaration for it is
+  `src/types/yamlRaw.d.ts`. **Dormant since tranche 4**: its one user, `src/demoStory.ts`, became a test
+  fixture that no shipped module imports, so nothing in either bundle goes through it.
 - Nothing automated covers `npm run dev` — verify it by hand after touching webpack config. HMR is on by default in v4+; with no `module.hot` handling in the app a source edit triggers a full page reload.
 - **`import.meta.url` is defined away by `DefinePlugin`**, and that is about zip.js rather than about
   us: `lib/zip-core-base.js` opens with `setDefaultConfiguration({ baseURI: import.meta.url })`, and

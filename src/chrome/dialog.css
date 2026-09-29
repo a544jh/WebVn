@@ -136,6 +136,16 @@
   color: var(--vn-editor-status-error);
 }
 
+/* Paths, one per line: the files a publish was refused for. In the face an identifier wears, and
+   slightly smaller than the sentences around it, as the design canvas draws it. */
+.vn-dialog-list {
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--vn-editor-font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 /* A form is a stack of fields at the dialog's own rhythm. */
 .vn-dialog-form {
   display: flex;

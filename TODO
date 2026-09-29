@@ -89,6 +89,17 @@ that which mattered - so URL import now deletes scaffolding that works, while zi
 "your project can leave the browser" true for the first time. Every destructive dialog in the app
 currently says so out loud: "There is no export yet, so nothing outside this browser has a copy."
 
+Landed: the whole of .scratch/published-folder/ - tranche 4 - 2026-09-28. The player plays the
+published folder it is served from (src/playerBoot.ts), an author can import a published VN by its
+address (src/storage/urlImport.ts, never overwriting), Add demo project is that import pointed at the
+demo beside the app - seedDemoProject is gone - and Publish writes <project-id>-published.zip from the
+editor. One list, publishedFiles, is what publish writes and URL import reads. What is left of
+design-docs/PROJECT_STORAGE.md is the linked folder (tranche 5), single-file HTML export, the player
+for another origin, and the nag. Every hand check the tranche named has been done, the cross-origin
+import from GitHub Pages last, by the maintainer - see ticket 02's comments. Both taken-id refusals it
+added tell the author to rename a project, which today starts in the editor; a rename control on the
+picker's rows is filed as .scratch/picker-rename/.
+
 Extracted: tranche 4, 2026-09-28, as .scratch/published-folder/ - four tickets after one grilling:
 the player plays the folder it is served from, importing from a URL, the demo as a URL import, and
 publishing a project. One noun ties them together, the published folder, and docs/adr/0007 is its
@@ -112,7 +123,9 @@ CONTEXT.md gains `remove` and `replace` - `remove` explicitly apart from the `de
 project. **All four tickets landed 2026-09-18**; the enumeration EDITOR.md's completions should read
 is `src/editor/declarations.ts`, which is its own pure module for exactly that reason, and the
 label list is still `.scratch/label-list/` with the column built to take it as a number rather than
-a layout change.
+a layout change. **Deferred 2026-09-29**: files no declaration points at are to show up in the panel
+after all, reversing the spec's "a view of the MANIFEST, not of OPFS" - .scratch/asset-panel/issues/06,
+waiting on an artboard.
 
 Settled: H, 2026-09-06, by measurement rather than by building anything. @zip.js/zip.js pinned to
 lib/zip-core-custom.js is 30.6KB gzipped for reader and writer, spawns no workers at all, and
@@ -211,19 +224,17 @@ Sizes: S = hours, M = a day or two, L = several days.
              |     |     id. Landed on one branch, import first, and the
              |     |     exported date tranche 2 deferred came with them.
              |     |     ADR 0005 is its invariant.
-             |     +-> [tranche 4] publish: static folder            M
-             |     |     The demo is the first one, laid out in dist/
-             |     |     in the OPFS shape. URL import reads it back.
-             |     |     .scratch/published-folder/ tickets 01 and 04:
-             |     |     the player plays its own folder, and Publish
-             |     |     writes one as a zip. ADR 0007 is its invariant.
-             |     +-> [tranche 4] URL import + "load the demo" button M
-             |     |     Same-origin first, so CORS is not a variable
-             |     |     in the first attempt. The manifest is the file
-             |     |     index; a partial fetch fails the whole import.
-             |     |     This is what finally deletes seedDemoProject.
+             |     +-> [tranche 4] publish: static folder       LANDED
+             |     |     Landed 2026-09-28. The player plays its own
+             |     |     folder, and Publish writes one as a zip.
+             |     |     .scratch/published-folder/ tickets 01 and 04.
+             |     |     ADR 0007 is its invariant.
+             |     +-> [tranche 4] URL import + "load the demo"  LANDED
+             |     |     Landed 2026-09-28. The manifest is the file
+             |     |     index; the first file that fails ends the
+             |     |     import. seedDemoProject is deleted. Never
+             |     |     overwrites: a taken id is refused.
              |     |     .scratch/published-folder/ tickets 02 and 03.
-             |     |     Never overwrites: a taken id is refused.
              |     +-> single-file HTML export
              |     +-> downscale on import (optional)
              +-> content addressing (optional, cheaper now than later)

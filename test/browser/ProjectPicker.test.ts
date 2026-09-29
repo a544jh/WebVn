@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { demoManifest } from "../../src/demoStory"
 import { bootEditor, BootedEditor } from "../../src/editorBoot"
 import { ProjectPicker, RefusalNotice } from "../../src/picker/ProjectPicker"
 import { takeProjectLock } from "../../src/storage/projectLock"
@@ -10,7 +9,7 @@ import {
   readProject,
   writeEditorState,
 } from "../../src/storage/projectStore"
-import { immediately } from "../helpers/picker"
+import { immediately, NO_DEMO } from "../helpers/picker"
 import { manifestNaming } from "../helpers/testManifest"
 import { clearOpfsStore, storeRoot } from "../helpers/opfs"
 import {
@@ -49,7 +48,8 @@ const newPicker = (): ProjectPicker =>
       await settle()
       return refuseWith
     },
-    immediately
+    immediately,
+    { demoFolder: NO_DEMO }
   )
 
 const rows = (): HTMLButtonElement[] => [...pickerRoot.querySelectorAll(".vn-picker-open")] as HTMLButtonElement[]
@@ -275,6 +275,13 @@ describe("the picker's list", () => {
     expect(bar.querySelector(".vn-picker-caption")?.textContent).toBe("Projects")
     expect(bar.contains(newButton())).toBe(true)
     expect(bar.contains(demoButton())).toBe(true)
+    // The canvas's order, which puts the two imports together.
+    expect([...bar.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "Add demo project",
+      "Import from URL",
+      "Import ZIP",
+      "New project",
+    ])
   })
 
   it("walks the store again on every render rather than remembering what it found", async () => {
@@ -321,46 +328,6 @@ describe("opening a project from the picker", () => {
     expect(panel.contains(pickerRoot.querySelector(".vn-picker-refusal"))).toBe(true)
     // Still a place they can stay: the list is under the banner, and nothing was lost.
     expect(rowTitles()).toEqual(["A Story"])
-  })
-})
-
-describe("adding the demo", () => {
-  it("offers the demo on an empty library and writes it where the author can see it arrive", async () => {
-    const picker = newPicker()
-    await picker.render()
-    expect(pickerRoot.querySelector(".vn-picker-empty")).not.toBe(null)
-    expect(demoButton()).not.toBe(null)
-
-    demoButton()?.click()
-    await waitFor("the demo to be listed", () => rowTitles().includes(demoManifest.title))
-
-    expect((await listProjects()).map((project) => project.id)).toEqual([demoManifest.id])
-    expect((await readProject(demoManifest.id)).scriptText).toContain("This is WebVn")
-    expect(rowTitles()).toEqual([demoManifest.title])
-    // It stays on the picker: the row appearing and the button going is the confirmation.
-    expect(opened).toEqual([])
-    expect(demoButton()).toBe(null)
-  })
-
-  it("hides itself while the demo is listed", async () => {
-    await make(demoManifest.id, "Already here")
-
-    await newPicker().render()
-
-    expect(demoButton()).toBe(null)
-  })
-
-  it("writes nothing while another tab holds the demo", async () => {
-    const held = await takeProjectLock(demoManifest.id)
-    if (held === null) throw new Error("the demo lock was already held before the test started")
-    await newPicker().render()
-
-    demoButton()?.click()
-    await waitFor("the refusal banner", () => refusalText() !== null)
-
-    expect(refusalText()).toContain("another tab")
-    expect(await listProjects()).toEqual([])
-    await held.release()
   })
 })
 
@@ -418,7 +385,8 @@ describe("picker to editor and back", () => {
         await firstStop
         return null
       },
-      immediately
+      immediately,
+      { demoFolder: NO_DEMO }
     )
 
     await picker.render()
@@ -675,13 +643,12 @@ describe("deleting a project", () => {
   })
 
   it("leaves an empty picker offering both New project and Add demo project", async () => {
-    // Nothing re-seeds: since the picker there is no automatic seed at all, only the button, which
-    // comes back the moment the demo is gone. An author who deleted everything on purpose can get
-    // the story back.
-    await make(demoManifest.id, "The demo")
+    // Nothing re-seeds: there is no automatic seed at all, only the button, which is always there. An
+    // author who deleted everything on purpose can get the story back.
+    await make("picker-last-story", "The last one")
     await newPicker().render()
 
-    deleteButton(demoManifest.id).click()
+    deleteButton("picker-last-story").click()
     await openDialog()
     pressConfirm()
     await waitFor("an empty library", () => rows().length === 0)

@@ -17,7 +17,9 @@ its design decisions. What is left of this document is import, export, the linke
 takes three decisions against what this document says; each is marked where it is said.
 **Tranche 4 is specced at `.scratch/published-folder/`** - the player playing its own folder, URL
 import, the demo as a URL import, and publish - and it too departs from this document in places,
-marked where each is said; `docs/adr/0007-a-published-folder-is-complete.md` is its invariant. `.scratch/project-storage/`
+marked where each is said; `docs/adr/0007-a-published-folder-is-complete.md` is its invariant.
+**Tranche 4 landed 2026-09-28**, each part marked where it is described. What is left of this document
+is the linked folder, single-file HTML export, the player for another origin, and the nag. `.scratch/project-storage/`
 holds tranche 1's six tickets and that spec lists what had already landed under them; expect the rest of the
 details here to move as they get built.
 
@@ -390,6 +392,11 @@ archive inflates nothing at all, and one entry is materialized at a time.
 
 ### Importing from a URL
 
+**Landed 2026-09-28** as `src/storage/urlImport.ts`, a producer feeding `importProject`'s listing, with
+Import from URL beside Import ZIP on the picker. The manifest is the index, as below; a partial import
+is refused, as below, naming the first file that failed; and a taken id is refused rather than
+overwritten, per the tranche 4 note above.
+
 A published VN is a static folder - `manifest.yaml`, `script.yaml`, `assets/...` served over HTTP. Importing
 one is the publish format read backwards, which is the real argument for it: anything anyone published is
 importable and editable by anyone else, with no archive needing to exist and no author needing to have kept
@@ -460,6 +467,9 @@ Pressing it twice is just the id collision dialog, so "reset the demo to pristin
 does sharpen the collision policy though: "I tinkered with the demo and want a clean one *too*" is the
 natural case, and overwrite-or-cancel forces losing one of them. It is the strongest argument for offering
 rename-on-import.
+
+**Landed 2026-09-28**: Add demo project is a URL import of the folder the app is deployed beside, and
+`seedDemoProject` is deleted. Neither bundle carries the demo's YAML any more.
 
 **Not taken in tranche 4 either.** The button is always shown, but because a URL import refuses a
 taken id, a second press is that refusal - delete the demo, or rename it with a new id - rather than
@@ -649,6 +659,10 @@ deliberate rather than accidental. Import needs no rule for the extra files: it 
 fetches exactly what the manifest declares, so `player.html` and the bundle are skipped by the same rule that
 skips everything else undeclared.
 
+**Landed 2026-09-28**, the static folder as a zip: Publish in the editor writes
+`<project-id>-published.zip`, and the player plays the published folder it is served from rather than
+a demo compiled into its bundle. The linked-folder half below is still unbuilt.
+
 **Tranche 4 names the player `index.html` in a published folder**, not `player.html`: a static host
 serves a folder's own address from its `index.html`, so that address is what plays. The deployed demo keeps `player.html`,
 because its `index.html` is the editor; URL import reads either, being manifest-driven. A published
@@ -659,7 +673,9 @@ zip imported as an archive skips `index.html` and `playerIndex.js` at its root, 
 The mechanism would be a base URL on the relative resolver - a few lines - but the substance is CORS and what
 a partial failure looks like, which is the same territory as URL import and should be decided where it is
 testable. Nothing in the storage tickets depends on the answer; `.scratch/project-storage/issues/01-asset-resolver.md`
-only asks that `RelativePathResolver` stay shaped so a base can be added to it later.
+only asks that `RelativePathResolver` stay shaped so a base can be added to it later. **The base
+landed 2026-09-28** with tranche 4, where the player is told the folder it is served from; a player
+for another origin is still the open question.
 
 **"A static folder" is not a uniform feature.** There is no portable way to write a directory tree out of a
 browser. `showDirectoryPicker()` does it properly - point it at a git working copy or a folder synced to

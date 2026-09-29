@@ -1,6 +1,6 @@
 # The published folder: publishing a project, and reading one back by URL
 
-Status: ready-for-agent
+Status: done - all four tickets landed 2026-09-28; see each ticket's Comments.
 
 Tranche 4 of `design-docs/PROJECT_STORAGE.md`, and the last of its import/export half. Synthesised
 2026-09-19 from the design doc, `TODO`, and tranches 2 and 3 as they landed. The maintainer confirmed
@@ -272,6 +272,12 @@ errors or undeclared references publishes and imports freely.
      does not let other sites read it*. The two are indistinguishable from inside a page, so the
      message names both. A non-OK response, or one served as `text/html`, is *no `manifest.yaml`
      there*.
+     **Amended 2026-09-28, after landing:** they are indistinguishable to the request, not to the
+     page. A second request in `no-cors` mode resolves whenever the host answered, so a failed
+     manifest request is asked again and refused as one of two: *could not be reached*, or *does not
+     allow its files to be used by other sites*, whose advice names `Access-Control-Allow-Origin`.
+     That second banner cannot rule out a missing manifest, since an opaque response hides the
+     status, and its advice says so. Ticket 02's comments have the measurement and the wording.
   2. Parse it. If it does not parse, refuse with the parser's first error, exactly as archive import
      does.
   3. Fetch `script.yaml` the same way. If it is missing, refuse on its own terms, as the archive does.
@@ -544,7 +550,8 @@ errors or undeclared references publishes and imports freely.
 - **Renaming from the picker's rows.** Both taken-id refusals say "delete or rename the existing
   project", and today renaming means editing `id:` in the project's `manifest.yaml`, which the
   existing rename then follows. A rename control on each row, beside export and delete, would make
-  that one click and would drive the same `renameProject`. Raised 2026-09-28; its own ticket.
+  that one click and would drive the same `renameProject`. Raised 2026-09-28; its own ticket, filed as
+  `.scratch/picker-rename/issues/01-renaming-from-the-picker.md`.
 - **A styled player error screen** (`.scratch/stage-dialogs/`).
 - **Player-side caching** through the Cache API or a service worker.
 - **A harder rename warning once a project has been published**, which is an open question in the

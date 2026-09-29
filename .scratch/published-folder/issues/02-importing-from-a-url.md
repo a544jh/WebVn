@@ -1,6 +1,6 @@
 # 02: Importing from a URL
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Blocked by:** None (can start immediately). Read the design canvas's *Published folder* page
 before building the surface - it draws the control, the dialog and both refusals.
@@ -59,28 +59,137 @@ invariant". ADR 0007 is the completeness rule this ticket enforces on the way in
 
 ## Acceptance criteria
 
-- [ ] Unit: URL normalisation, every accepted shape, the player-link refusal, the non-http refusal.
-- [ ] Unit: the published-file list - sprites under their actor, audio, deduplication, script and
+- [x] Unit: URL normalisation, every accepted shape, the player-link refusal, the non-http refusal.
+- [x] Unit: the published-file list - sprites under their actor, audio, deduplication, script and
       manifest always present.
-- [ ] Browser, real fetch and real OPFS: the served `test-assets/` folder imports as a project
+- [x] Browser, real fetch and real OPFS: the served `test-assets/` folder imports as a project
       holding exactly its manifest, script and declared files, with its saves dropped.
-- [ ] Browser, fixture folders beside it: a declared file missing (refused, named); no
+- [x] Browser, fixture folders beside it: a declared file missing (refused, named); no
       `manifest.yaml`; no `script.yaml`; a manifest that does not parse; a declared file served as
       `text/html`; an address nothing answers. Each refused in its own words.
-- [ ] A taken id is refused with the existing project intact and none of the folder's assets fetched.
-- [ ] A file failing mid-stream leaves no directory once the picker has redrawn.
-- [ ] The picker suite drives the dialog through the DOM, including a refusal beside the field.
-- [ ] Every banner reads as the canvas's *Picker - every URL import banner* board draws it: that
+- [x] A taken id is refused with the existing project intact and none of the folder's assets fetched.
+- [x] A file failing mid-stream leaves no directory once the picker has redrawn.
+- [x] The picker suite drives the dialog through the DOM, including a refusal beside the field.
+- [x] Every banner reads as the canvas's *Picker - every URL import banner* board draws it: that
       board is the exact wording for each refusal and for the success report.
-- [ ] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
+- [x] Fixture ids are named after their suite - `navigator.locks` is origin-wide.
 - [x] Checked 2026-09-28: the test server serves `.yaml` as `200 text/yaml`, and a missing file as
       a bare `404` with no `content-type` - so the `text/html` fixture declares a real `.html` file.
-- [ ] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
+- [x] By hand, recorded in the ticket: the 30-second stall, and a real cross-origin **import** from
       GitHub Pages end to end. Already probed 2026-09-28 (spec, "Probed" in Further Notes): a page on
       another origin fetches the demo's `manifest.yaml` and `script.yaml` (`200`, `text/yaml`), every
       response carries `Access-Control-Allow-Origin: *`, a missing file is a real `404`, and
       responses are cached for ten minutes.
-- [ ] A redirect without `Access-Control-Allow-Origin` - GitHub Pages' own `301` from `…/name` to
+- [x] A redirect without `Access-Control-Allow-Origin` - GitHub Pages' own `301` from `…/name` to
       `…/name/` is one - is refused as unreachable, not followed. The address rule keeps the
       trailing-slash case from ever fetching the redirecting URL; a unit case pins that.
-- [ ] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.
+- [x] `CONTEXT.md`'s Import entry already covers this; nothing to change unless the build disagrees.
+
+## Comments
+
+**Landed 2026-09-28** on `claude/laughing-bell-erlp50`.
+
+- `publishedFiles` and `publishedFolderAt` are in `src/publishedFolder.ts`, pinned by
+  `test/unit/publishedFolder.test.ts`. The producer is `src/storage/urlImport.ts`, `importFromUrl`,
+  with its two stream guards (`metered`, `Watchdog`) exported for `test/unit/urlImport.test.ts`, since
+  a static test server never trips either. The dialog is `src/picker/urlImportDialog.ts`.
+- **The back half's option is `{ refuseTaken: true }`**, beside `{ confirmOverwrite }`, and a taken id
+  comes back as a result kind of its own, `taken`, carrying the directory and the title rather than a
+  worded refusal: Add demo project (ticket 03) words the same fact differently, per the canvas.
+- **One refusal the spec did not list**: a manifest may declare a filename with `..` in it, since a
+  filename is free text, and the back half would refuse the resulting path in an archive's words. The
+  producer refuses it first: "it declares a file outside its folder". Filenames are also URL-encoded
+  one segment at a time, so a `#` or `?` in one is not read as a fragment or a query.
+- **Two wordings are not on the canvas's banner board and were written here**: the byte cap as
+  opposed to free space ("it passed 2000.0 MB, which is the limit", with the entry cap's advice), and a
+  file whose request *fails* past the manifest, which says "stopped arriving" like a stall - the folder
+  was reachable a moment ago. Quotes are straight, as the archive's shipped banners are,
+  where the canvas draws curly ones.
+- The "none of the folder's assets fetched" assertion reads resource timing. Checked by mutation that
+  it is not vacuous: an asset fetched and read before the lock turns it red. (A fetch whose body is
+  never read makes no entry, so it is read-to-the-end fetches that it sees - which is every one the
+  producer makes.)
+- **Checked by hand 2026-09-28: the 30-second stall.** `dist/` behind a local Python server with one
+  folder whose declared PNG sends its headers and 1KB and then nothing: the picker reported
+  "127.0.0.1:8766 was not imported: assets/backgrounds/slow.png stopped arriving. Nothing was written.
+  The site may be busy - try again later." after 30.1s, and no directory was left behind.
+- **Not checked: the real cross-origin import from GitHub Pages end to end.** In this cloud session
+  headless Chromium does not trust the egress proxy's interception CA, and putting it into the
+  browser's NSS store was not permitted, so the fetch fails as a certificate error - which the import
+  reports, correctly, as "could not be reached". The spec's own probe (headless Chromium, 2026-09-28)
+  already showed the two YAML fetches succeeding cross-origin with `Access-Control-Allow-Origin: *`;
+  what remains is one import of `https://a544jh.github.io/webvn-demo/` from a local build, by hand.
+
+**After review, 2026-09-28** (the two-axis code review over the whole tranche):
+
+- **A failed import no longer drops the saves under its id.** `importProject` used to drop them before
+  the first file was written, so a refused URL import - a 404, a stall, the byte cap - erased
+  `vn-save-<id>` while the banner said "Nothing was written"; on the deployed site that is a reader's
+  playthrough of the published build, lost to a flaky network. Saves now go when an overwrite destroys
+  the project they described, or when the import commits - never before, for a new directory.
+  `test/browser/UrlImport.test.ts` pins it, and was red before the change.
+- The size in the byte-limit banner is `sizeLabel`, which says gigabytes once the amount is that big,
+  as the canvas's board does ("it passed 1.4 GB, which is all the room there is").
+- A failure writing into OPFS mid-file - a quota, a refused write - is no longer reported as the file
+  having "stopped arriving": only a failed or abandoned request is the site's. Anything else reaches
+  the picker as a failure.
+- The two YAML files go through the same meter and stall timer as every other file, so the timer is
+  fed per chunk rather than being a 30-second deadline, and their bytes count toward the limit.
+- **Still by hand**: the GitHub Pages import above - closed below. A body that errors partway through
+  is not reachable from a static test server either - the browser suite's "file failing partway"
+  case is a later file 404ing after an earlier one was written, and the mid-body abort is the unit
+  suite's `metered` case.
+
+**Checked by hand by the maintainer, 2026-09-28**, against the branch: the import of the deployed demo
+from its GitHub Pages address, cross-origin, end to end - which closes the one hand check this ticket had
+left open - along with `npm run dev`, and a published VN served locally by `python -m http.server`.
+
+**The two network refusals split, 2026-09-28**, at the maintainer's request after testing an import
+from one `localhost` port to another. The canvas's single banner - "could not be reached, or it does not
+let other sites read its files" - claimed a page cannot tell the two apart. The *request* cannot; a
+second one can. Measured in headless Chromium from a page on `127.0.0.1:8781` against a
+`python -m http.server` on `:8782`, which sends no CORS headers, and against `:8783`, where nothing
+listens:
+
+| request | server with no CORS headers | nothing listening |
+|---|---|---|
+| default mode | `TypeError: Failed to fetch` | `TypeError: Failed to fetch` |
+| `mode: "no-cors"` | resolves, `opaque`, status 0 | `TypeError: Failed to fetch` |
+| `mode: "no-cors"`, a file that is not there | resolves, `opaque`, status 0 | - |
+
+So a failed manifest request is asked again in `no-cors` mode (`answers` in `src/storage/urlImport.ts`),
+and the banner is one of:
+
+- "<host> was not imported: it could not be reached." / "Check the address, and that the site is up."
+- "<host> was not imported: it does not allow its files to be used by other sites." / "It answered
+  without CORS headers, so there is no telling whether a manifest.yaml is at that address either -
+  check it. If it is right, the site has to send an Access-Control-Allow-Origin header before a story
+  on it can be imported."
+
+(As reworded later the same day - see the last comment.) The second says both things on purpose: its
+lead is what is certain, since a host answering without CORS headers refuses other sites every file it
+has, and its advice is what is not, since an opaque response hides a 404 exactly as it hides a 200 and
+a wrong address on such a host reads the same as a right one. The probe runs only on the
+manifest - past it the site has been read from, and a failure is a file that stopped arriving - and under
+the same stall timer. **These wordings supersede the canvas's first banner**, which still draws the
+combined one.
+
+To reach the second case from a suite, `vitest.config.ts` has a browser command, `serveWithoutCors`,
+that serves `test/fixtures/published/` from Node with no CORS headers, bound to `127.0.0.1` on a port
+of its own; `test/browser/UrlImport.test.ts` asks it for its address. Vite's own server sends CORS
+headers to any localhost origin, which is why every fixture was readable from anywhere. **The first
+attempt turned vite's CORS off and read its fixtures under the server's other host name** -
+`127.0.0.1` for a page on `localhost` - and passed here and failed on CI: both tests got "could not be
+reached", meaning even the `no-cors` probe found nothing on `127.0.0.1`. The likely cause is `localhost`
+resolving to `::1` on the runner, so vite listened on IPv6 only; this container has no IPv6 to confirm
+it with. An explicit bind and an explicit address does not depend on how `localhost` resolves.
+
+**"Nothing was written." is gone from every refusal that already says "was not <verb>"**, 2026-09-28, at
+the maintainer's request: after "<host> was not imported:" it repeated the news on every banner. That
+covers both imports, Export ZIP's message line and Publish's refused dialog. The advice that was nothing
+but that sentence plus the parser's error is now the parser's error alone ("Line 4: …"), and the
+picker's fallback for an export that threw says "See the console for what went wrong." Two keep a
+sentence of the kind, because their lead does not say it: "<id> already names a project." / "Nothing
+was created.", and "3 files were dropped." / "Import takes one archive at a time. Nothing was written."
+The CORS refusal was reworded in the same change, so that its lead is the part that is certain - the
+two banners above are the current text.

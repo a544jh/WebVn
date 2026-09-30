@@ -67,11 +67,16 @@ jobs:
 
       - run: npm test
 
+      # vitest screenshots the page whenever a browser test fails. Since vitest
+      # 5 they land in .vitest/attachments/failure-screenshots/<test file>/, not
+      # in __screenshots__/ beside the test, and upload-artifact skips a
+      # dot-directory unless told to include hidden files.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-failure-screenshots
-          path: src/**/__screenshots__/
+          path: .vitest/attachments/failure-screenshots/
+          include-hidden-files: true
           if-no-files-found: ignore
 
   demo:
@@ -100,11 +105,13 @@ jobs:
 
       - run: npm run test:demo
 
+      # The same screenshots as the test job's, for the demo suite.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: demo-failure-screenshots
-          path: src/**/__screenshots__/
+          path: .vitest/attachments/failure-screenshots/
+          include-hidden-files: true
           if-no-files-found: ignore
 
   deploy:

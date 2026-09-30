@@ -47,6 +47,14 @@ Things worth knowing before editing it:
 - **Deploy does not rebuild.** `check` uploads `dist/` as the `dist` artifact (on PRs too, where it
   is just a downloadable preview build) and `deploy` downloads it, so the bytes that go live are the
   ones that were linted, typechecked and built. Do not add a second `npm run build` to `deploy`.
+- **A red test or demo job uploads vitest's failure screenshots**, as `browser-failure-screenshots`
+  and `demo-failure-screenshots` - the only picture of a headless stage that went wrong. vitest 5
+  writes them to `.vitest/attachments/failure-screenshots/<test file>/`, which is gitignored and
+  hidden, hence `include-hidden-files: true`. Both steps pointed at `src/**/__screenshots__/` from
+  the day CI was written until 2026-09-30: the tests moved to `test/` six hours later, vitest 5
+  moved the screenshots again, and `if-no-files-found: ignore` kept the step quiet about finding
+  nothing. If vitest moves them once more, "No files were found" in that step's log is the only
+  sign.
 
 ## Demo deployment
 `deploy` clones [a544jh/webvn-demo](https://github.com/a544jh/webvn-demo), replaces its contents

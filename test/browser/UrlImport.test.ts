@@ -1,4 +1,4 @@
-import { commands } from "@vitest/browser/context"
+import { commands } from "vitest/browser"
 import { beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { saveToLocalStorage } from "../../src/core/save"
 import { ProjectPicker } from "../../src/picker/ProjectPicker"
@@ -33,7 +33,7 @@ const FIXTURES = new URL("/test/fixtures/published/", location.href).href
 const folder = (name: string): string => `${FIXTURES}${name}/`
 
 // **The same folders, from another origin that sends no CORS headers**: a server of the browser
-// project's own, started in Node by `serveWithoutCors` in vitest.config.ts, on 127.0.0.1 and a port of
+// project's own, started in Node by `serveWithoutCors` in vitest.config.mts, on 127.0.0.1 and a port of
 // its own - so a different origin from this page, and one this page cannot read.
 let withoutCors = ""
 const crossOrigin = (name: string): string => `${withoutCors}${name}/`
@@ -354,9 +354,9 @@ describe("the picker's Import from URL", () => {
   })
 })
 
-declare module "@vitest/browser/context" {
+declare module "vitest/browser" {
   interface BrowserCommands {
-    // vitest.config.ts: the address of a server that answers without CORS headers.
+    // vitest.config.mts: the address of a server that answers without CORS headers.
     serveWithoutCors: () => Promise<string>
   }
 }

@@ -47,8 +47,9 @@ import {
 // `CLAUDE.md` warns about does not arise), deflate delegated to the platform's
 // `CompressionStream`/`DecompressionStream` - and, decisively, the root entry bakes the *build
 // machine's* absolute `file://` path into the bundle. `.scratch/project-archive/spec.md` has the
-// measurement and both findings; `src/types/zipJs.d.ts` has why the deep specifier needs a
-// declaration.
+// measurement and both findings. The deep specifier types itself: it is in the package's `exports`
+// map, which `tsconfig.json`'s `moduleResolution: "bundler"` reads, and the map gives it the
+// package's own declarations.
 
 // The one place an archive is not exactly the project tree: generated on export at the archive root,
 // and skipped on import **by exact path**, so a README.txt *inside* an author's project -

@@ -5,3 +5,4 @@ dist/
 .idea/
 npm-debug.log*
 __screenshots__/
+.vitest/

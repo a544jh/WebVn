@@ -12,6 +12,9 @@
   --vn-font: "Source Code Pro", monospace;
   --vn-font-size-story: 32px;
   --vn-font-size-ui: 28px;
+  /* Lines that are read rather than clicked: the pause menu's now-playing line, and the note on a save
+     that will not load. 9px on a phone held sideways, so nothing a reader has to act on is set in it. */
+  --vn-font-size-small: 16px;
 
   --vn-text-color: white;
   /* Hard offset, no blur. Was written both as `0` and as `0px` across the six rules that had it. */
@@ -296,10 +299,11 @@ body {
   overflow-y: scroll;
 }
 
+/* The right padding keeps the label clear of the delete square. */
 .vn-save-item {
   position: relative;
   height: 100px;
-  padding: 2px;
+  padding: 2px 104px 2px 2px;
   margin-bottom: 5px;
 }
 
@@ -307,10 +311,33 @@ body {
   height: 30px;
 }
 
+/* A target rather than a word in the corner: a square the height of the row, which is 54px on a phone
+   held sideways. On a save that will not load it is the one thing left to do. */
 .vn-save-del {
   position: absolute;
   right: 0;
   top: 0;
+  bottom: 0;
+  width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--vn-surface);
+}
+
+/* A save that will not load: its label fades and a note says why, inside the row's own 100px - two
+   28px label lines and two 20px note lines. The opacity alone, not the disabled colour as well: a
+   disabled menu item is one word whose place says what it is, while this label is the only thing
+   saying WHICH save it is, and the pair of them leaves it unreadable on a phone. Inert in Load only;
+   in Save the row stays live, since overwriting it is a perfectly good use of the slot. */
+.vn-save-item-inert .vn-save-label {
+  opacity: var(--vn-disabled-opacity);
+}
+
+.vn-save-note {
+  margin-top: 4px;
+  font-size: var(--vn-font-size-small);
+  line-height: 20px;
 }
 
 .vn-save-return {
@@ -349,7 +376,90 @@ body {
 }
 
 .vn-now-playing-title {
-  font-size: 16px;
+  font-size: var(--vn-font-size-small);
   line-height: 20px;
   font-weight: 600;
+}
+
+/* The stage's own dialog - the three save confirms and the loop guard's error - built from the stage's
+   own kind of box: one translucent box holding the text and one per answer, with no panel round them
+   and no outline. It is drawn inside .vn-menu-container, so it goes fullscreen with the story, and
+   centred in the stage ABOVE the nametag (whose bottom is 25.8%): its boxes are translucent, and a line
+   of story text under them would read through the question. */
+.vn-stage-dialog {
+  position: absolute;
+  inset: 0 0 26% 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* While a question is up the save list is hidden rather than covered - covered, its white text read
+   through the question - and Return with it, since Cancel is the way back. */
+.vn-menu-with-dialog > .vn-saves-container,
+.vn-menu-with-dialog > .vn-save-return {
+  visibility: hidden;
+}
+
+.vn-stage-dialog-boxes {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--vn-font);
+  font-weight: 600;
+  color: var(--vn-text-color);
+  text-shadow: var(--vn-text-shadow);
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.vn-stage-dialog-text {
+  box-sizing: border-box;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: var(--vn-surface);
+}
+
+.vn-stage-dialog-title {
+  font-size: var(--vn-font-size-story);
+  line-height: 32px;
+}
+
+.vn-stage-dialog-slot,
+.vn-stage-dialog-line {
+  font-size: var(--vn-font-size-ui);
+  line-height: 28px;
+}
+
+.vn-stage-dialog-answers {
+  display: flex;
+  gap: 12px;
+}
+
+/* A decision item's two fills, at rest and under the pointer - but not its blink when chosen. Neither
+   answer is marked out: the question says what the act is. 88px tall, so 48px on a phone held
+   sideways. */
+.vn-stage-dialog-answer {
+  flex: 1;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--vn-font-size-ui);
+  line-height: 28px;
+  background-color: var(--vn-surface);
+}
+
+.vn-stage-dialog-answer:not(.vn-stage-dialog-answer-disabled):hover,
+.vn-stage-dialog-answer:not(.vn-stage-dialog-answer-disabled):active {
+  background-color: var(--vn-surface-active);
+}
+
+.vn-stage-dialog-answer-disabled {
+  color: var(--vn-disabled-color);
+  opacity: var(--vn-disabled-opacity);
 }

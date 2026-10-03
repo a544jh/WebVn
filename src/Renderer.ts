@@ -8,6 +8,10 @@ export interface Renderer {
   loadStory: (state: VnPlayerState, animate: boolean) => void
   onRenderCallbacks: Array<() => void>
   onFinishedCallbacks: Array<() => void>
+  // The loop guard stopped the story: told the index of the jump that closes the loop, for the editor
+  // to mark, or null if it could not be found. The reader is told on the stage - see
+  // DomRenderer.showLoopError.
+  onLoopCallbacks: Array<(jumpIndex: number | null) => void>
   // Resolves with the declarations whose file could not be loaded - see DomRenderer.loadAssets.
   //
   // `rebuild` makes the loaders forget what they hold first, which is the only way a file whose

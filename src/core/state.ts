@@ -176,6 +176,50 @@ export interface AudioState {
   sfx: string | null
 }
 
+// How many commands in a row may run without reaching a stop before a walk gives up on the story as
+// looping. A story is not wrong to run long between stops, but nothing a reader can wait through runs
+// this long, while a `jump` back to a `label` with no stop between them runs forever. The renderer's
+// own walk counts against the same number.
+export const LOOP_LIMIT = 10000
+
+// A walk to the next stop gave up, because the story goes round a loop with nothing to stop on. It is
+// the author's mistake rather than the reader's, and the stage says so: the renderer catches this and
+// shows its "Story error".
+export class EndlessLoopError extends Error {
+  constructor() {
+    super(`The story loops endlessly: ${LOOP_LIMIT} commands in a row without a stop`)
+    this.name = "EndlessLoopError"
+  }
+}
+
+// A jump, or a decision's option, names a label the story does not have. Nothing checks that when the
+// script is parsed, so it surfaces when the command is applied.
+export class MissingLabelError extends Error {
+  constructor(public readonly label: string) {
+    super("Target label does not exist.")
+    this.name = "MissingLabelError"
+  }
+}
+
+// A save slot whose path no longer replays against the story - an *incompatible save*, CONTEXT.md.
+// Every way that happens throws this one type, so the Load menu can catch exactly these and let
+// anything else through as the bug it is.
+export class IncompatibleSaveError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "IncompatibleSaveError"
+  }
+}
+
+// A replay jump that cannot reach its target by replaying from the beginning, because the story goes
+// round a loop on the way there. The jump is refused, so the player stays where it was.
+export class UnreachableCommandError extends Error {
+  constructor(cmdIndex: number) {
+    super(`Command ${cmdIndex} is not reached by replaying: the story loops on the way there`)
+    this.name = "UnreachableCommandError"
+  }
+}
+
 function advance(state: VnPlayerState): VnPlayerState {
   if (state.decision !== null) return state
 
@@ -207,6 +251,38 @@ function advance(state: VnPlayerState): VnPlayerState {
   return newState
 }
 
+// The jump that closes the loop a stuck walk is going round - what the editor marks, since that is
+// the line the author has to change. Walks on from `state` one command at a time until a position
+// comes round again, which places it inside the loop whatever led into it, and then once round the
+// loop, taking the furthest command that sent the index backwards: of nested loops, the outer one.
+// Null if the walk reaches a stop after all.
+//
+// On a fresh `seenCommands`, because `advance` marks what it applies and this walk is not the reader's.
+function loopJump(state: VnPlayerState): number | null {
+  let walk: VnPlayerState = { ...state, seenCommands: new ConsecutiveIntegerSet() }
+  const firstSeen = new Map<string, number>()
+  for (let step = 0; step <= 2 * LOOP_LIMIT; step++) {
+    const at = position(walk)
+    const lapStart = firstSeen.get(at)
+    if (lapStart !== undefined) return closingJump(walk, step - lapStart)
+    firstSeen.set(at, step)
+    walk = advance(walk)
+    if (walk.stopAfterRender) return null
+  }
+  return null
+}
+
+// Once round a loop of `lapLength` commands from a position inside it.
+function closingJump(walk: VnPlayerState, lapLength: number): number | null {
+  let jump: number | null = null
+  for (let i = 0; i < lapLength; i++) {
+    const from = walk.commandIndex
+    walk = advance(walk)
+    if (walk.commandIndex <= from && (jump === null || from > jump)) jump = from
+  }
+  return jump
+}
+
 // Whether anything was applied between two states - the one test of whether an advance did
 // something. The recorder (`VnPlayer`) and the replay (`Advance.tryPerform`) both ask it, and they
 // have to ask the same thing: an action recording keeps and replay refuses is a path `undo` throws on.
@@ -227,7 +303,7 @@ function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
 
   const newState = { ...state }
   if (state.labels[item.jumpLabel] === undefined) {
-    throw new Error("Target label does not exist.")
+    throw new MissingLabelError(item.jumpLabel)
   }
   newState.commandIndex = state.labels[item.jumpLabel]
   newState.stopAfterRender = false
@@ -261,6 +337,23 @@ function goToCommandByReplay(
   startingState: VnPlayerState,
   decisions: number[]
 ): [VnPlayerState, VnPath] {
+  try {
+    return replayToCommand(cmdIndex, startingState, decisions)
+  } catch (e) {
+    if (e instanceof EndlessLoopError) throw new UnreachableCommandError(cmdIndex)
+    throw e
+  }
+}
+
+// Where a walk is, as far as where it goes next is concerned. A command is a pure function of the
+// state, and the only parts of the state a command reads to decide where to go are the index and the
+// variables - so a walk that comes back to the same line with the same variables, with no decision
+// answered in between, will go round that way forever. A loop that counts its way out comes back
+// with a different count, which is why the index alone is not the question.
+// **A command that steers on anything else has to be added here**, or a working story reads as a loop.
+const position = (state: VnPlayerState): string => `${state.commandIndex} ${JSON.stringify(state.variables)}`
+
+function replayToCommand(cmdIndex: number, startingState: VnPlayerState, decisions: number[]): [VnPlayerState, VnPath] {
   let path = VnPath.emptyPath()
   // the automatic run to the first stop is not part of the path
   let state = runToStop(startingState)
@@ -270,6 +363,8 @@ function goToCommandByReplay(
 
   let nextDecision = 0
   let steps = 0
+  // the stops visited since the last decision answered: one seen again is a loop
+  let visited = new Set<string>()
   while (state.commandIndex < cmdIndex) {
     if (state.decision !== null) {
       // no recorded answer for this one, so this is as far as the decisions can take us. Landing
@@ -286,15 +381,17 @@ function goToCommandByReplay(
       path = path.makeDecision(id)
       // the run from the decision to the next stop is automatic, not a recorded advance
       state = advanceUntilStop(decided)
+      visited = new Set()
       continue
     }
 
-    const before = state.commandIndex
+    visited.add(position(state))
+    const before = state
     state = advanceUntilStop(state)
+    // the story has nowhere left to go: the target is somewhere this playthrough does not pass
+    if (!appliedAny(before, state)) break
     path = path.advance()
-    // the story has nowhere left to go, or it loops and the target is not on the way
-    if (state.commandIndex === before) break
-    if (++steps > 10000) break
+    if (visited.has(position(state)) || ++steps > LOOP_LIMIT) throw new UnreachableCommandError(cmdIndex)
   }
 
   return [state, path]
@@ -306,9 +403,7 @@ function advanceUntilStop(state: VnPlayerState): VnPlayerState {
   while (!state.stopAfterRender) {
     state = advance(state)
     advances++
-    if (advances > 10000) {
-      throw new Error("Got stuck in infinite loop while replaying path")
-    }
+    if (advances > LOOP_LIMIT) throw new EndlessLoopError()
   }
   return state
 }
@@ -320,9 +415,7 @@ function runToStop(state: VnPlayerState): VnPlayerState {
   while (!state.stopAfterRender) {
     state = advance(state)
     advances++
-    if (advances > 10000) {
-      throw new Error("Got stuck in infinite loop while replaying path")
-    }
+    if (advances > LOOP_LIMIT) throw new EndlessLoopError()
   }
   return state
 }
@@ -342,11 +435,31 @@ function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
 // undo to throw, since `Advance.tryPerform` asks the same `appliedAny` and would not walk it.
 function savedAdvance(state: VnPlayerState): VnPlayerState {
   const next = advanceUntilStop(state)
-  if (!appliedAny(state, next)) throw new Error("Saved path runs past the end of the story")
+  if (!appliedAny(state, next)) throw new IncompatibleSaveError("Saved path runs past the end of the story")
   return next
 }
 
+// Every refusal is an IncompatibleSaveError, the loop and the missing label included: a save whose
+// replay now goes round a loop, or jumps to a label that has been renamed, was made against a story
+// that did neither, so "the story has changed since this save" is exactly what happened. The story
+// itself may well be broken too - but that is not this save's to report, and letting either through
+// would stop the Load menu drawing at all.
 function fromShorthandPath(
+  startingState: VnPlayerState,
+  decisions: number[],
+  remainingAdvances: number
+): [VnPlayerState, VnPath] {
+  try {
+    return replayShorthandPath(startingState, decisions, remainingAdvances)
+  } catch (e) {
+    if (e instanceof EndlessLoopError) throw new IncompatibleSaveError("Saved path runs into a loop in the story")
+    if (e instanceof MissingLabelError)
+      throw new IncompatibleSaveError(`Saved path jumps to a label that is gone: ${e.label}`)
+    throw e
+  }
+}
+
+function replayShorthandPath(
   startingState: VnPlayerState,
   decisions: number[],
   remainingAdvances: number
@@ -359,13 +472,11 @@ function fromShorthandPath(
       state = savedAdvance(state)
       path = path.advance()
       advances++
-      if (advances > 10000) {
-        throw new Error("Got stuck in infinite loop while replaying path")
-      }
+      if (advances > LOOP_LIMIT) throw new EndlessLoopError()
     }
     const decided = makeDecision(id, state)
     if (decided === state) {
-      throw new Error("Invalid decision id in saved path")
+      throw new IncompatibleSaveError("Invalid decision id in saved path")
     }
     path = path.makeDecision(id)
     // the run from the decision to the next stop is automatic, not a recorded advance
@@ -385,6 +496,7 @@ export const State = {
   makeDecision,
   goToCommandDirect,
   goToCommandByReplay,
+  loopJump,
   advanceUntilStop,
   runToStop,
   fromShorthandPath,

@@ -1,9 +1,10 @@
 # 01: A refused load says so, and the stage asks its own questions
 
-Status: needs-triage
+Status: done
 
 Blocked by: nothing in code - the refusal it presents is built, see below. Blocked in practice by a
-drawing, see "The canvas has to go first".
+drawing, see "The canvas has to go first" - **drawn 2026-10-03, waiting on review**: see "What the
+drawing proposes".
 
 ## What this is
 
@@ -101,6 +102,9 @@ player. Leaning: a line on the stage in both, plus the gutter in the editor as i
 
 ## The canvas has to go first
 
+**Drawn 2026-10-03** as the canvas's fourth page, *Stage* - nine boards and seven notes, for review.
+What follows is the brief it was drawn against; "What the drawing proposes" below is what came back.
+
 The design canvas `.scratch/project-library/design.md` links is binding for pixels, and it has two
 pages - **Project library** and **Asset panel** - on which every artboard is chrome. Nothing draws the
 stage's menus at all; the pause and save/load menus predate the canvas. So this wants a new page, the
@@ -117,6 +121,73 @@ this ticket exists for. Only `--vn-*` tokens and `--vn-font`.
 Worth knowing while drawing: a slot is labelled today with an ISO timestamp and the raw shorthand path
 (`save.path.join(" ")`), which is engine internals shown to a reader. Out of scope here unless the
 drawing decides to change it anyway.
+
+## What the drawing proposes
+
+All of it for review, and none of it built. The canvas page is *Stage*. Every board on it inlines
+`defaultTheme.css` and `gg.css` exactly as they ship, then a block marked **PROPOSED**, which is the CSS
+this ticket would add and is the spec for it, then a block marked **DRAWING ONLY** (a gradient scene in
+place of the background canvas, the action bar shown as a touch screen shows it). The boards are the
+Load menu with a save that will not load, the load confirm, the delete confirm on that save, the Save
+menu with the same save, the overwrite confirm, the loop guard, and three of them again at a phone's
+scale.
+
+- **Vocabulary: _incompatible save_**, with _Avoid_: stale save, outdated save, old save, broken
+  save, corrupt save; `IncompatibleSaveError`. Not *stale*, because it says older and the script can
+  move either way under a save. A reader never sees the term. They read **"The story has changed
+  since this save. It cannot be loaded."** - in Load and in Save alike. That sentence is true in both
+  directions and says neither *version* nor *path*.
+- **The inert row's label fades with `--vn-disabled-opacity` alone**, not with `--vn-disabled-color`
+  as well. A disabled menu item is one word whose place says what it is. This label is the only thing
+  saying *which* save it is, and the two tokens together left it unreadable at a phone's scale.
+- **The note is small, so the row keeps its 100px**: 16px on 20px lines, one sentence per line.
+  That is the now-playing line's size, proposed as a token, `--vn-font-size-small`, now that two rules
+  spell it. It reads at 9px on the phone. The first draft set the note at 28px and grew the row,
+  which the maintainer turned down.
+- **DEL becomes a target on every row**: a square the row's height, 100px, which is 54px on the
+  phone drawn. Today it is a three-letter word in the corner, about 27 by 15px on that phone.
+- **In Save the same row keeps its note but stays live.** Overwriting a save that will not load is a
+  good use of its slot. Overwrite still asks.
+- **The confirm takes the list's place rather than sitting over it.** The first draft put a panel
+  over a scrim over the list. Every stage surface is translucent, so the list's text read through the
+  question. The list and Return are `visibility: hidden` while the question is up, which keeps the
+  list's scroll position for Cancel. Right-click backs out of the question before it backs out of the
+  menu. The confirm is centred in the stage *above the nametag*, for the same reason: story text
+  under its boxes would read through them.
+- **The confirm is built from the stage's own kind of box**: one translucent `--vn-surface` box
+  holding the text, and one box per answer, with no panel around them and no outline. The text box
+  holds the question, the slot it is asking about, and one consequence line - "Unsaved progress will
+  be lost." for Load, "This cannot be undone." for Overwrite and Delete. The slot is repeated at full
+  strength even when it will not load, since its row may be scrolled away.
+- **The answers take a decision item's two fills**: `--vn-surface` at rest, `--vn-surface-active`
+  under the pointer. They take the fills only: a decision item blinks between the two when chosen,
+  and an answer does not (the maintainer's call, 2026-10-03). Neither answer is marked out, because
+  the question already says what the act is.
+  Cancel is left and the act right, as the chrome's dialogs order them. Both answers are 88px tall,
+  48px on the phone.
+- **One component, `.vn-stage-dialog`**, serves the three confirms and the loop guard's error. (The
+  canvas drew it as `.vn-dialog`, which the chrome's own dialogs already use; see Comments.)
+- **The loop guard is an error, centred, with two ways out.** It reads "Story error" and "The script
+  loops endlessly here, so the story cannot continue.", and its answers are **Go back** and **Start
+  over**. It replaces `alert()` in the editor and the player alike. It was first drawn as a line across
+  the top of the stage; the maintainer asked for it centred, worded as an error, and with a way out.
+  - It sits in the menu container, so the stage under it is dimmed and takes no taps. **A tap must
+    not resume**: `advance()` resets `consecutiveCommands`, so today a tap runs the same loop another
+    ten thousand times. Right-click does nothing while it is up, because closing it would leave a
+    stage that cannot move.
+  - **Go back is `DomRenderer.undo()`.** `VnPlayer.advance` records an advance on the path only when
+    it is made from a stop, so the loop's own steps are never recorded. One undo therefore pops the
+    reader's advance into the loop and lands on the line they last read. From there, Back walks on to
+    an earlier decision, which is the only real way round a loop that is in one branch. Go back is
+    greyed out, as Save is, when the loop comes before the first stop and there is nothing to go back
+    to.
+  - **Start over** plays the story from the top and keeps `seenCommands`, so skip mode runs back to
+    where the reader was.
+  - **Not offered**: reloading the page, which in the player is Start over with a flash and in the
+    editor reboots the project for nothing; and Load, which is one Go back away, through the menu.
+  - The gutter marker in the editor stays its own ticket.
+- **Noticed and left alone**: Return is 34px tall (18px on the phone), and on a touch screen it sits
+  over the action bar between Back and Menu.
 
 ## Vocabulary to settle
 
@@ -153,3 +224,60 @@ either way under a save.
 built there: that branch fixes path recording, and this is a reader-facing surface with a drawing and
 a vocabulary decision in front of it. What the reader sees today was traced from the code and the
 refusal's unit tests, not clicked through in a browser.
+
+**Drawn 2026-10-03** on `ccr-4ffaa934-lt4j4l`: the canvas's fourth page, *Stage*, published as the
+canvas's version 31. The boards were rendered in headless Chromium against the shipped stylesheets
+before publishing, at full size and at 844x390. Two drafts were redrawn on what that showed: the
+confirm, whose translucent panel let the list read through it, and the inert label, which was
+invisible at a phone's scale. Status stays `needs-triage` until the proposals in "What the drawing
+proposes" are confirmed or overturned.
+
+**Revised 2026-10-03** after the maintainer's first review, as the canvas's version 32. The confirm
+lost its panel and its white outline on the act: it is now a text box and two answer boxes, and the
+answers use the decision item's fills.
+
+**Revised again 2026-10-03**, as the canvas's version 33. The note on a save that will not load is
+16px, so the row no longer grows. The loop guard is a centred error with Go back and Start over, built
+from the confirm's boxes.
+
+**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, PR #56, after the maintainer confirmed the drawing and
+the two loose ends below. What landed, against the proposals above:
+
+- **Core.** `IncompatibleSaveError` for every refusal in `fromShorthandPath`, and `EndlessLoopError`
+  for every walk that gives up, all counted against one `LOOP_LIMIT` in `src/core/state.ts`.
+  `VnPlayer.canLoadFromSlot` is the trial replay on a fresh `seenCommands`, as proposed. The
+  ten-thousand-advance cap in `fromShorthandPath` joined the refusals (the maintainer's call): a save
+  whose replay now loops is an incompatible save.
+- **Skip and the scroll wheel walk into a loop by a second door** (the maintainer's call). Their walks
+  throw `EndlessLoopError` from `State.advanceUntilStop`, uncaught until now, so Skip simply did
+  nothing. That was most likely straight after Go back, which leaves the loop's commands marked as
+  seen. `DomRenderer.walkOrStop` shows the same Story error for skip mode, the wheel and undo. Go back
+  from those closes the error and nothing more, since the walk that gave up never moved the player.
+- **Changed against the drawing:** the classes are `vn-stage-dialog-*`, not `vn-dialog-*`.
+  `src/chrome/dialog.ts` already owns `.vn-dialog` and `.vn-dialog-title`, and the editor puts the
+  chrome and the stage on one page. The canvas boards were regenerated with the new names.
+- **Found on the way:** `VnPlayer.undo` assigned the shortened path before the replay that can throw,
+  so a refused undo left a path describing a state the player was not in. It now assigns nothing until
+  the replay succeeds, as `loadFromSlot` already did. The render loop's guard now counts only while
+  the story keeps going without a stop, so a long run that does end on one cannot trip it.
+- **Found driving the built player:** the dead row was first a `role="button"` with `aria-disabled`,
+  and aria-disabled carries down to everything inside it - so the live delete read as disabled too,
+  which is how Playwright refused to click it. A save that will not load is not a button at all now;
+  its delete keeps its own role.
+- **Tests:** `test/unit/state.test.ts` (the typed refusals, a loop at load, `canLoadFromSlot` and the
+  untouched seen set); `test/browser/StageDialogs.test.ts` (inert row and note, live delete, each
+  confirm's two answers, a stale answer caught at the click, right-click backing out, a delete stored
+  without an advance); `test/browser/LoopGuard.test.ts` (the error, taps and right-click ignored, Go
+  back, Start over, the skip and wheel doors, Go back greyed on an empty path, the error going on the
+  next render). `window.confirm` and `window.alert` are stubbed to throw in both browser suites. Each
+  of three behaviours - delete storing at once, the fresh seen set, right-click ignored while stuck -
+  was broken on purpose once, and the test meant for it went red.
+- **Not covered automatically:** fullscreen itself, which needs a phone. Check that answering each
+  confirm and the Story error leaves the player fullscreen.
+- **Found reviewing before merge:** `canLoadFromSlot` let any throw other than the typed refusal
+  through, and a jump to a label that has gone throws a plain `Error` - so a save whose replay crossed
+  a renamed label stopped both the Load and Save menus drawing, where before only that slot was dead.
+  `MissingLabelError` is now typed and refused as an incompatible save. The rest of what a missing
+  label does is older than this ticket, and is filed in `ROUGH_EDGES.md`.
+- **Followed by 02**, in the same pull request: the loop cases this ticket put out of scope - an
+  edit's replay and a replay jump meeting a loop in the editor - and the gutter marker on the jump.

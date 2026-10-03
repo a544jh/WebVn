@@ -1,5 +1,5 @@
 import { z, ZodError } from "zod"
-import { VnPlayerState } from "../../state"
+import { MissingLabelError, VnPlayerState } from "../../state"
 import { Command } from "../Command"
 import { ErrorLevel, ParserError, registerCommandHandler, SourceLocation } from "../Parser"
 import { BooleanExpression, parseBooleanExpression } from "./booleanExpression"
@@ -23,7 +23,7 @@ export class Jump extends Command {
   public apply(state: VnPlayerState): VnPlayerState {
     const newState = { ...state }
     if (state.labels[this.targetLabel] === undefined) {
-      throw new Error("Target label does not exist.")
+      throw new MissingLabelError(this.targetLabel)
     }
     if (this.condition === undefined || this.condition.evaluate(state))
       newState.commandIndex = state.labels[this.targetLabel]

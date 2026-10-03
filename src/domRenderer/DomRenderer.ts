@@ -1,6 +1,6 @@
 import { Renderer } from "../Renderer"
 import { VnPlayer } from "../core/player"
-import { VnPlayerState } from "../core/state"
+import { EndlessLoopError, LOOP_LIMIT, State, VnPlayerState } from "../core/state"
 import { TextBoxRenderer } from "./TextBoxRenderer"
 
 import "./animations.css"
@@ -19,6 +19,7 @@ import { FreeformTextRenderer } from "./FreeformTextRenderer"
 import { declaredAssets } from "./assetPaths"
 import { DeclaredAsset } from "../core/manifest"
 import { AssetResolver } from "../assetLoaders/AssetResolver"
+import { createStageDialog, StageDialogSpec } from "./menus/StageDialog"
 
 export interface DomRendererOptions {
   container?: HTMLElement
@@ -28,6 +29,7 @@ export interface DomRendererOptions {
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
+  public onLoopCallbacks: Array<(jumpIndex: number | null) => void> = []
   private consecutiveCommands = 0
 
   private finished: boolean
@@ -67,6 +69,13 @@ export class DomRenderer implements Renderer {
   private torn = false
 
   private committedState: VnPlayerState | null
+
+  // Backs the stage dialog that is up out of it, answering null - see `ask`. Null when none is up.
+  private dismissDialog: (() => void) | null = null
+
+  // The loop guard's error is up. The story cannot move from here, so the menu it sits in will not
+  // close on a right-click, and the next render - whoever asks for it - takes it down.
+  private stuck = false
 
   private SKIP_DELAY = 50
 
@@ -235,12 +244,18 @@ export class DomRenderer implements Renderer {
   // instead, and it will step commands nobody asked it to.
   public loadStory(state: VnPlayerState, animate: boolean): void {
     if (this.torn) return
+    // A story starting is a deliberate input, like a click: the walk to its first stop is counted
+    // from nothing, or a Start over after the loop guard would trip it again at once.
+    this.consecutiveCommands = 0
     this.player.loadState(state)
     this.render(animate)
   }
 
   public render(animate: boolean): void {
     if (this.torn) return
+    // The loop guard's error describes the frame the story stopped on. A render paints a new one -
+    // Go back, Start over, or the editor reloading the script the author just fixed - so it goes.
+    if (this.stuck) this.closeMenu()
     // A new render supersedes any render still waiting on animations. Its completion
     // callback below must then do nothing: sub-renderer promises can resolve long after
     // (e.g. a sprite's transitionend), and acting on them would mark the renderer
@@ -288,12 +303,13 @@ export class DomRenderer implements Renderer {
 
       this.finished = true
       this.onFinishedCallbacks.forEach((cb) => cb())
-      if (this.consecutiveCommands > 10000) {
-        alert("Seems like we're stuck in an infinite loop")
-        throw new Error("Got stuck in infinite loop while rendering")
-      }
       if (!this.player.state.stopAfterRender) {
-        this.consecutiveCommands++
+        // Counted only while the story keeps going without a stop, so a long run that does end on
+        // one is never mistaken for a loop. The player's own walks to a stop count the same way.
+        if (++this.consecutiveCommands > LOOP_LIMIT) {
+          this.showLoopError()
+          return
+        }
         this.player.advance()
         this.render(animate)
       }
@@ -304,14 +320,96 @@ export class DomRenderer implements Renderer {
     this.disableAutoplay()
     // opening a menu is a deliberate input, like a click: it takes over from skip mode
     this.skipMode = false
+    this.dismissDialog?.()
+    this.stuck = false
     this.menuDiv.innerHTML = ""
     menuCreator(this.menuDiv, this)
     this.root.appendChild(this.menuDiv)
   }
 
   public closeMenu(): void {
-    this.root.removeChild(this.menuDiv)
+    this.dismissDialog?.()
+    this.stuck = false
+    this.menuDiv.remove()
     this.menuDiv.innerHTML = ""
+  }
+
+  // Asks a question on the stage, inside the open menu and in the place of what that menu shows - the
+  // save list is hidden rather than removed, so it keeps its scroll position for the answer to come
+  // back to. Resolves with the index of the answer, or null when the question is backed out of: a
+  // right-click, or the menu closing or changing under it.
+  //
+  // Hidden rather than covered because every stage surface is translucent: a list under the dialog's
+  // boxes read through the question.
+  public ask(spec: StageDialogSpec): Promise<number | null> {
+    this.dismissDialog?.()
+    return new Promise((resolve) => {
+      let dialog: HTMLDivElement | null = null
+      const finish = (answer: number | null): void => {
+        dialog?.remove()
+        this.menuDiv.classList.remove("vn-menu-with-dialog")
+        this.dismissDialog = null
+        resolve(answer)
+      }
+      dialog = createStageDialog(spec, finish)
+      this.dismissDialog = () => finish(null)
+      this.menuDiv.classList.add("vn-menu-with-dialog")
+      this.menuDiv.appendChild(dialog)
+    })
+  }
+
+  // The loop guard, which replaces an `alert()`. Reached three ways: the render loop's own count
+  // above, and the walks skip mode and the scroll wheel make, which throw an EndlessLoopError.
+  //
+  // In an empty menu, so the stage under it is dimmed and takes no taps - a tap would run the same
+  // loop again. Two ways out:
+  // - Go back. From the render loop the player is mid-loop, and since `VnPlayer.advance` records only
+  //   an advance made from a stop, one undo pops the reader's advance into the loop and lands on the
+  //   line they last read. From a walk that threw, the player never moved, so the line on screen is
+  //   that line already. Greyed out when there is nothing to go back to: undoing an empty path replays
+  //   from the top, which is the loop again.
+  // - Start over, from the top. `loadState` keeps `seenCommands`, so skip mode runs back to where the
+  //   reader was.
+  private showLoopError(): void {
+    const jump = State.loopJump(this.player.state)
+    const at = jump === null ? undefined : this.player.state.commands[jump].getSourceLocation()
+    console.error(
+      `The story loops endlessly: ${LOOP_LIMIT} commands in a row without a stop` +
+        (at === undefined ? "" : `, going round at the jump on line ${at.startLine} of the script`)
+    )
+    this.onLoopCallbacks.forEach((cb) => cb(jump))
+
+    const moved = !this.player.state.stopAfterRender
+    const canGoBack = !moved || this.player.path.getActions().length > 0
+    this.showMenu(() => undefined)
+    this.stuck = true
+    void this.ask({
+      title: "Story error",
+      line: "The script loops endlessly here, so the story cannot continue.",
+      answers: [{ label: "Go back", disabled: !canGoBack }, { label: "Start over" }],
+    }).then((answer) => {
+      if (answer === null) return
+      this.closeMenu()
+      if (answer === 0) {
+        if (moved) this.undo()
+      } else {
+        this.loadStory(this.player.startingState, true)
+      }
+    })
+  }
+
+  // Runs one of the player's walks to a stop, showing the loop guard's error instead if it gave up on
+  // a loop. Anything else it throws is a bug, and is let through as one.
+  private walkOrStop(walk: () => void): boolean {
+    try {
+      walk()
+      return true
+    } catch (e) {
+      if (!(e instanceof EndlessLoopError)) throw e
+      this.skipMode = false
+      this.showLoopError()
+      return false
+    }
   }
 
   public advance(): void {
@@ -335,7 +433,7 @@ export class DomRenderer implements Renderer {
 
   public undo(): void {
     this.consecutiveCommands = 0
-    this.player.undo()
+    if (!this.walkOrStop(() => this.player.undo())) return
     this.render(false)
   }
 
@@ -343,14 +441,11 @@ export class DomRenderer implements Renderer {
     // a tick is already in flight when skip mode is cancelled - cancelling has to mean that
     // nothing more is skipped, or the story steps once more behind a menu that just opened
     if (!this.skipMode) return
-    if (!this.player.isNextCommandSeen()) {
-      this.player.advanceUntilStop()
-      this.render(true)
-      this.skipMode = false
-    } else {
-      this.player.advanceUntilStop()
-      this.render(false)
-    }
+    const unseen = !this.player.isNextCommandSeen()
+    if (!this.walkOrStop(() => this.player.advanceUntilStop())) return
+    // into unread text: shown as it plays, and skipping stops there
+    this.render(unseen)
+    if (unseen) this.skipMode = false
     if (this.player.state.decision !== null) {
       this.skipMode = false
     }
@@ -463,8 +558,17 @@ export class DomRenderer implements Renderer {
     this.render(false)
   }
 
+  // Stored at once, like a save. It used to wait for the next advance, so a reader who deleted a slot
+  // and closed the tab found it back - and deleting is the one thing left to do with a save that will
+  // not load.
   public deleteSave(slot: number): void {
     this.player.saves.splice(slot, 1)
+    this.persistGlobalSave()
+  }
+
+  // Whether a slot would load, for the Load menu to draw before the click - see VnPlayer.
+  public canLoadFromSlot(slot: number): boolean {
+    return this.player.canLoadFromSlot(slot)
   }
 
   public getCommittedState(): VnPlayerState | null {
@@ -513,7 +617,7 @@ export class DomRenderer implements Renderer {
     if (this.player.state.decision !== null) return
     if (!this.player.isNextCommandSeen()) return
     this.consecutiveCommands = 0
-    this.player.advanceUntilStop()
+    if (!this.walkOrStop(() => this.player.advanceUntilStop())) return
     this.render(false)
 
     this.persistGlobalSave()
@@ -533,7 +637,11 @@ export class DomRenderer implements Renderer {
     if (pointerType === "touch") return
 
     e.preventDefault()
-    if (this.isMenuOpen()) {
+    if (this.stuck) return
+    if (this.dismissDialog !== null) {
+      // one level at a time: out of the question and back to the list it was asking about
+      this.dismissDialog()
+    } else if (this.isMenuOpen()) {
       this.closeMenu()
     } else {
       this.showMenu(pauseMenu)

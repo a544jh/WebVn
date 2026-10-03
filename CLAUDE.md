@@ -157,9 +157,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   recorded nothing, and the next `undo` stepped over the lap. Reaching the end without clicking past it takes
   a script edited shorter under a `seenCommands` that still remembers the longer one, which is why
   `isNextCommandSeen` is bounded by `commands.length` as well.
-  - **`goToCommandByReplay` still tests the index, and that is not the same mistake.** It is asking whether
-    its walk is getting anywhere, and a lap that ends where it began is the "loops, and the target is not on
-    the way" it is looking for. ROUGH_EDGES.md's looping-story entry has what that check misses.
+  - **`goToCommandByReplay` asks two questions, and neither is the index alone.** Whether the story ended
+    is `appliedAny`, like everything else here. Whether its walk is getting anywhere is `position` - the
+    index *and* the variables - because the index alone misses a loop with two stops in it, which alternates
+    and never repeats, while a loop that counts its way out comes back to the same line with a different
+    count. A command is a pure function of the state and only the index and the variables steer, so a
+    position seen again with no decision answered in between is a walk going round forever. That refuses
+    the jump with `UnreachableCommandError` and the player keeps its state and path; it used to spin to
+    the cap and adopt a path of ten thousand advances as though it had arrived.
 
 ### Command registration
 - Every command module (e.g. `core/commands/text/TextBox.ts`) calls `registerCommandHandler("textbox", handler)` at import time.
@@ -353,7 +358,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   layers is a rule that drifts.
 
 ### Renderer contract
-- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?, options?)`.
+- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `onLoopCallbacks`, `loadAssets(state?, options?)`.
 - **The three throws on an id that will not resolve are invariant guards, not a failure mode.**
   `BackgroundRenderer`, `SpriteRenderer` and `AudioRenderer` still throw on an undeclared id, but the
   parse pass above guarantees none reaches them. All four wordings come from `undeclaredMessage` in
@@ -377,7 +382,24 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   until the story reaches it and a sub-renderer throws on the null, hence the report. Making the
   renderers *survive* one is a separate change with its own blast radius.
 - **Starting a story is `loadStory(state, animate)`, and nothing boots itself.** It swaps the story into the player and renders in one synchronous step; the auto-advance in `render` then walks to the first stop, painting every frame. Those two steps must not be separated by an `await` — `render` bumps `renderGeneration`, and that bump is the only thing that stops a pass still in flight from auto-advancing the story that replaced it. A bare `player.loadState` followed by an awaited asset load is exactly the bug this replaced. `animate` is the caller's choice: the player passes `true` so an intro or title screen plays out, the editor passes `false` so reloading a script lands on the first stop without replaying the opening.
-- `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~520 lines and growing — candidates for extraction if you touch it.
+- `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~800 lines and growing — candidates for extraction if you touch it.
+- **The loop guard is a stage dialog, "Story error", with Go back and Start over.** `LOOP_LIMIT` in
+  `core/state.ts` is one number for every walk: the render loop counts its own auto-advances against
+  it, counting only while the story keeps going without a stop, and the player's walks throw
+  `EndlessLoopError`, which `walkOrStop` turns into the same error for skip mode, the scroll wheel and
+  undo. It sits in an otherwise empty menu, so the stage takes no taps - a tap would run the loop
+  again - and right-click does not close it. **The next render takes it down, whoever asks**: Go back,
+  Start over, or the editor reloading a script the author just fixed. Go back is an undo, which lands
+  on the line last read because only advances made from a stop are recorded; it is greyed when the
+  path is empty, since that undo replays into the same loop. Measured at 37ms to the error, so the
+  browser suite drives the real limit. **The editor is told where**: `onLoopCallbacks` carries the
+  index of the jump that closes the loop (`State.loopJump`, a walk on a fresh `seenCommands`), and
+  `VnEditor` marks that line as an error, so the script tab goes red.
+- **No core replay reports a loop itself; the stage does.** An edit's replay (`replayAsFarAsPossible`)
+  treats a step that now walks into a loop as a step that no longer applies, exactly as it treats a
+  deleted line, and a story looping before its first stop keeps nothing and runs nothing - the render
+  after it shows the Story error. A save that replays into one is an incompatible save, and a replay
+  jump refuses with `UnreachableCommandError`, which the editor marks against the clicked line.
 - **Fullscreen is `enterFullscreen()`, and the button that calls it is not the renderer's.** The mechanism — request, orientation lock, the scale that letterboxes the fixed-size scene, and the `fullscreenchange` listener that undoes it — lives in `DomRenderer`; the `#vn-btn-fullscreen` chrome sits outside the vn root in both HTML files, so each entry point keeps one line of wiring. The element scaled *into* is the constructor's `container` option, defaulting to the root: it too is outside the root, so the renderer is told it rather than walking up to `parentElement`, and a renderer mounted without a container (every test — `createVnRoot` puts `#vn-div` straight under `<body>`) scales to 1 and pads nothing. Nothing automated covers any of this: `requestFullscreen` needs user activation, so verify by hand with `npm run dev`.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).
 - Sub-renderers read prev state via `renderer.getCommittedState()`. `DomRenderer.committedState` is set synchronously **before** the `Promise.all(...).then()` runs, so reads inside scheduled microtasks see the *new* state. Always capture `prev` synchronously at the top of a sub-renderer's `render`.
@@ -629,8 +651,8 @@ when this landed, and `npm run build` prints every bundle's size.) The library i
   duration: a live import is in that state, and the sweep takes the lock on what it deletes.
 - **Anything that claims an id drops its saves.** `deleteSaveData(id)` fires on every import rather
   than only on an overwrite: the player writes to the same `vn-save-<id>` keyspace, so even a fresh
-  directory can collide with a published build's saves, and a save describing another story turns Load
-  into a dead button. **Claiming is the commit, not the attempt**: an overwrite drops them up front,
+  directory can collide with a published build's saves, and a save describing another story sits in
+  Load as one that will not load. **Claiming is the commit, not the attempt**: an overwrite drops them up front,
   having just destroyed the project they described, but a new directory drops them only once its
   manifest lands - so an import refused partway, above all a URL import on a flaky network, leaves a
   reader's saves where they were. `exported` goes with them; `created` is *kept* on an overwrite and
@@ -734,8 +756,8 @@ things touching it share. ADR 0007 is its invariant: it is complete.
 - Persisted via `saveToLocalStorage(id, data)` under key `vn-save-<id>`, where `id` is the manifest's.
 - **An id is reusable, so anything that changes or destroys one has to move or drop its saves.** A
   save left under a freed id is inherited by the next project to claim it, and its paths describe a
-  story that project does not have — replay throws and `SaveLoadMenu` has no `try`/`catch`, so Load
-  becomes a dead button. `moveSaveData(from, to)` carries them on a rename and **clears `to` when
+  story that project does not have — its replay is refused, so Load offers the reader a save they
+  never made and cannot load. `moveSaveData(from, to)` carries them on a rename and **clears `to` when
   `from` has none**, which is what stops a renamed-onto project adopting the saves of the project it
   destroyed; `deleteSaveData(id)` is delete's half, keyed on the manifest's id rather than the
   directory, and an import's, where it fires on every import rather than only on an overwrite.
@@ -746,6 +768,23 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   2026-08-29 amendment; the threaded `setSaveId` it replaced had a silent wrong-key failure mode).
   An in-session id change is a project rename by the crudest definition: later writes go to the new
   key, nothing migrates, nothing re-reads the old one.
+- **A save that no longer replays is an _incompatible save_, and every refusal is one type.**
+  `fromShorthandPath` throws `IncompatibleSaveError` for an option that is gone, a decision or lines
+  the story no longer has, and a replay that now walks into a loop or jumps to a label that is gone -
+  anything it let through would stop the Load and Save menus drawing at all. `VnPlayer.canLoadFromSlot` is a
+  trial replay, **on a fresh `seenCommands`**: `advance` marks what it applies as seen and skip mode
+  trusts the marks, so checking a save must not mark its route read. The Load menu asks it per slot
+  per draw and draws a dead save inert with its delete live - with no button role rather than a
+  disabled one, since aria-disabled would disable the delete inside it; the click still catches the refusal,
+  because in the editor the story can be reloaded under an open menu. `loadFromSlot` and `undo` both
+  assign nothing until their replay succeeds, so a refusal leaves the player where it was.
+- **The menus ask through the stage, never the browser.** `DomRenderer.ask` draws a stage dialog
+  (`menus/StageDialog.ts`) inside the open menu and resolves with the answer's index, or null when it
+  is backed out of. A `window.confirm` or `alert()` leaves fullscreen, which is what it replaced, and
+  the browser suites stub both to throw. The save list is hidden rather than covered while a question
+  is up - every stage surface is translucent - and right-click backs out of the question before the
+  menu. Its classes are `vn-stage-dialog-*`, never the chrome's `vn-dialog-*`: the editor puts both
+  on one page. Deleting a save stores it at once, like saving does.
 - `loadFromLocalStorage` does **not** validate shape beyond `JSON.parse`. Only `ConsecutiveIntegerSet.fromJSON` uses Zod. Be defensive if you add fields.
 
 ## Conventions
@@ -819,7 +858,11 @@ If you're tempted to import from any of these, don't.
 
 - **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. If it names an
   asset or actor id, override `references()` so a typo is a warning rather than a crash, exempting
-  any value the engine has spoken for. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
+  any value the engine has spoken for. If it decides where the story goes next from anything besides
+  `commandIndex` and `variables` - whether a line has been seen, a seeded random - add that to `position`
+  in `src/core/state.ts`. The replay jump and `State.loopJump` treat a position seen twice, with no
+  decision answered in between, as a loop, so a command that steers on something else would make them
+  call a working story a loop. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Touch anything about where files live**: read "Project storage" above first, then

@@ -7,7 +7,7 @@ import { declarationLocations } from "../yamlParser/parseManifest"
 import { declareAsset, ManifestEdit, undeclareAsset } from "../yamlParser/manifestEdit"
 import { AssetDeclaration, DeclaredAsset, VnManifest } from "../core/manifest"
 import { VnPlayer } from "../core/player"
-import { VnPlayerState } from "../core/state"
+import { UnreachableCommandError, VnPlayerState } from "../core/state"
 import { Renderer } from "../Renderer"
 // The editor is one thing wearing the chrome and the picker is another, so each names the shared
 // vocabulary itself rather than relying on the other having been evaluated first. That incidental
@@ -37,6 +37,13 @@ const BUFFER_LABELS: Record<BufferName, string> = {
 // The buffer the editor opens on. Not the leftmost tab: writing the story is the work, and the
 // manifest is what you go to when the story needs something it does not have yet.
 const INITIAL_BUFFER: BufferName = "script"
+
+// The two things the gutter says about a loop. The first is marked on the jump when the stage shows
+// its Story error; the second on a line a replay jump was refused, because the story goes round a
+// loop before it gets there. Direct mode does not replay, so it still goes there.
+const LOOP_MESSAGE = "This jump goes round a loop with nothing to stop on, so the story cannot continue"
+const UNREACHABLE_MESSAGE =
+  "A replay never reaches this line: the story goes round a loop on the way. A direct jump still goes here"
 
 // Whether the author's project is in the store. Per project rather than per buffer: both buffers go
 // to one store, and an author thinks "is my project stored", not "is my manifest stored".
@@ -178,6 +185,17 @@ export class VnEditor {
     this.parser = parser
     this.renderer = renderer
     this.manifest = manifest
+
+    // The stage tells the reader the story is stuck; the author is told where, against the jump that
+    // sends it round, which is the line to change. An error rather than a warning, so the script tab
+    // goes red: a story that loops cannot be played past this point. It stays until the next parse
+    // clears the gutter - the loop is still in the script until then.
+    this.renderer.onLoopCallbacks.push((jumpIndex) => {
+      if (jumpIndex === null) return
+      const location = this.player.state.commands[jumpIndex]?.getSourceLocation()
+      if (location === undefined) return
+      this.markErrors("script", [new ParserError(LOOP_MESSAGE, location, ErrorLevel.ERROR)])
+    })
 
     this.renderer.onRenderCallbacks.push(() => {
       this.setPositionMarker()
@@ -624,7 +642,17 @@ export class VnEditor {
     }
     // visually we show that we are on the line's command, but the player needs to be ready for the next one.
     if (this.jumpMode === "replay") {
-      this.player.goToCommandByReplay(commandIndex + 1)
+      try {
+        this.player.goToCommandByReplay(commandIndex + 1)
+      } catch (e) {
+        if (!(e instanceof UnreachableCommandError)) throw e
+        // Refused, and the player left where it was. Said against the line that was clicked, since
+        // that is where the author is looking - and repainted only if a reload moved the player.
+        const location = this.player.state.commands[commandIndex].getSourceLocation()
+        this.markErrors("script", [new ParserError(UNREACHABLE_MESSAGE, location, ErrorLevel.WARNING)])
+        if (reloaded) this.renderer.render(false)
+        return
+      }
     } else {
       this.player.goToCommandDirect(commandIndex + 1)
     }

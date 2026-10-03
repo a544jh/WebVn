@@ -1,4 +1,4 @@
-import { State, VnPlayerState } from "./state"
+import { IncompatibleSaveError, State, VnPlayerState } from "./state"
 import { VnPath } from "./vnPath"
 import "./commands/controlFlow/Decision"
 import "./commands/controlFlow/Label"
@@ -71,9 +71,12 @@ export class VnPlayer {
     this.path = path
   }
 
+  // Assigns nothing until the replay has succeeded, as `loadFromSlot` does: a replay that gives up on a
+  // loop must leave the path describing the state the player is still in.
   public undo(): void {
-    this.path = this.path.undo(1)
-    this.state = State.fromPath(this.startingState, this.path)
+    const path = this.path.undo(1)
+    this.state = State.fromPath(this.startingState, path)
+    this.path = path
   }
 
   // Past the last command there is no next command to have seen, whatever `seenCommands` says about
@@ -93,12 +96,33 @@ export class VnPlayer {
     this.saves[slot] = save
   }
 
+  // Assigns nothing until the replay has succeeded, so a refused load - an IncompatibleSaveError -
+  // leaves the player exactly where it was.
   public loadFromSlot(slot: number): void {
     const save = this.saves[slot]
     if (save === undefined) throw new Error("No save at slot " + slot)
-    const [state, path] = State.fromShorthandPath(this.startingState, save.path.slice(0, -1), save.path.slice(-1)[0])
+    const [state, path] = replaySave(this.startingState, save)
     this.state = state
     this.path = path
+  }
+
+  // Whether `loadFromSlot` would take this save, asked by trying it, so the Load menu can draw a save
+  // that will not load before anyone taps it. A replay answers the question exactly, where a stamp of
+  // the script on each save would refuse saves an edit never touched.
+  //
+  // **On a fresh `seenCommands`**: `advance` marks every command it applies as seen, into a set the
+  // states share, and skip mode trusts those marks. Checking a save the reader then does not load must
+  // not mark its route as read. No command's `apply` reads the set, so an empty one answers the same.
+  public canLoadFromSlot(slot: number): boolean {
+    const save = this.saves[slot]
+    if (save === undefined) return false
+    try {
+      replaySave({ ...this.startingState, seenCommands: new ConsecutiveIntegerSet() }, save)
+      return true
+    } catch (e) {
+      if (e instanceof IncompatibleSaveError) return false
+      throw e
+    }
   }
 
   // The script was edited: same session, new story. Unlike loadState the path is kept, but only as
@@ -141,3 +165,7 @@ export class VnPlayer {
     }
   }
 }
+
+// A save slot's path is its decisions followed by the advances made after the last of them.
+const replaySave = (startingState: VnPlayerState, save: VnSaveSlotData): [VnPlayerState, VnPath] =>
+  State.fromShorthandPath(startingState, save.path.slice(0, -1), save.path.slice(-1)[0])

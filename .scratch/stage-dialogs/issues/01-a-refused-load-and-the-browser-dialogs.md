@@ -150,13 +150,16 @@ scale.
   question. The list and Return are `visibility: hidden` while the question is up, which keeps the
   list's scroll position for Cancel. Right-click backs out of the question before it backs out of the
   menu. The confirm is centred in the stage *above the nametag*, for the same reason: story text
-  under the panel would read through it.
-- **The confirm repeats the slot it is asking about**, at full strength even when the slot will not
-  load, since its row may be scrolled away. It has one consequence line - "Unsaved progress will be
-  lost." for Load, "This cannot be undone." for Overwrite and Delete - and two answers, Cancel left
-  and the act right, as the chrome's dialogs order them. The act is ruled (`inset 0 0 0 3px
-  var(--vn-text-color)`), not coloured, because the stage has no status palette. Both answers are
-  88px tall, 48px on the phone.
+  under its boxes would read through them.
+- **The confirm is built from the stage's own kind of box**: one translucent `--vn-surface` box
+  holding the text, and one box per answer, with no panel around them and no outline. The text box
+  holds the question, the slot it is asking about, and one consequence line - "Unsaved progress will
+  be lost." for Load, "This cannot be undone." for Overwrite and Delete. The slot is repeated at full
+  strength even when it will not load, since its row may be scrolled away.
+- **The answers take a decision item's two fills**: `--vn-surface` at rest, `--vn-surface-active`
+  under the pointer. Neither answer is marked out, because the question already says what the act is.
+  Cancel is left and the act right, as the chrome's dialogs order them. Both answers are 88px tall,
+  48px on the phone.
 - **The loop guard is a line across the top of the stage**: "The story has stopped." and "Its script
   goes round in a loop at this point." It replaces `alert()` in the editor and the player alike. It
   sits above the action bar and under the menu, which still opens. **It has no arrow, and a tap must
@@ -207,3 +210,7 @@ before publishing, at full size and at 844x390. Two drafts were redrawn on what 
 confirm, whose translucent panel let the list read through it, and the inert label, which was
 invisible at a phone's scale. Status stays `needs-triage` until the proposals in "What the drawing
 proposes" are confirmed or overturned.
+
+**Revised 2026-10-03** after the maintainer's first review, as the canvas's version 32. The confirm
+lost its panel and its white outline on the act: it is now a text box and two answer boxes, and the
+answers use the decision item's fills.

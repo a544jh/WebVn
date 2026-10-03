@@ -44,7 +44,7 @@ the author where.
 
 ## Comments
 
-**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, in the same pull request as 01.
+**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, in the same pull request as 01 (#56).
 
 - `src/core/vnPath.ts`: `Advance.tryPerform` and `MakeDecision.tryPerform` stop at a loop, and
   `replayAsFarAsPossible` survives one before the first stop.

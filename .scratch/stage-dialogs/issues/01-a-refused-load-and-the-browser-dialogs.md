@@ -240,7 +240,7 @@ answers use the decision item's fills.
 16px, so the row no longer grows. The loop guard is a centred error with Go back and Start over, built
 from the confirm's boxes.
 
-**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, after the maintainer confirmed the drawing and
+**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, PR #56, after the maintainer confirmed the drawing and
 the two loose ends below. What landed, against the proposals above:
 
 - **Core.** `IncompatibleSaveError` for every refusal in `fromShorthandPath`, and `EndlessLoopError`

@@ -358,7 +358,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   layers is a rule that drifts.
 
 ### Renderer contract
-- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `loadAssets(state?, options?)`.
+- `Renderer` interface in `src/Renderer.ts` is minimal: `render(animate)`, `loadStory(state, animate)`, `onRenderCallbacks`, `onFinishedCallbacks`, `onLoopCallbacks`, `loadAssets(state?, options?)`.
 - **The three throws on an id that will not resolve are invariant guards, not a failure mode.**
   `BackgroundRenderer`, `SpriteRenderer` and `AudioRenderer` still throw on an undeclared id, but the
   parse pass above guarantees none reaches them. All four wordings come from `undeclaredMessage` in
@@ -382,7 +382,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   until the story reaches it and a sub-renderer throws on the null, hence the report. Making the
   renderers *survive* one is a separate change with its own blast radius.
 - **Starting a story is `loadStory(state, animate)`, and nothing boots itself.** It swaps the story into the player and renders in one synchronous step; the auto-advance in `render` then walks to the first stop, painting every frame. Those two steps must not be separated by an `await` — `render` bumps `renderGeneration`, and that bump is the only thing that stops a pass still in flight from auto-advancing the story that replaced it. A bare `player.loadState` followed by an awaited asset load is exactly the bug this replaced. `animate` is the caller's choice: the player passes `true` so an intro or title screen plays out, the editor passes `false` so reloading a script lands on the first stop without replaying the opening.
-- `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen.
+- `DomRenderer` owns: input handling, menu orchestration, skip/auto, localStorage save, asset loading, render loop, scaling on fullscreen. It's ~800 lines and growing — candidates for extraction if you touch it.
 - **The loop guard is a stage dialog, "Story error", with Go back and Start over.** `LOOP_LIMIT` in
   `core/state.ts` is one number for every walk: the render loop counts its own auto-advances against
   it, counting only while the story keeps going without a stop, and the player's walks throw
@@ -399,7 +399,7 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   treats a step that now walks into a loop as a step that no longer applies, exactly as it treats a
   deleted line, and a story looping before its first stop keeps nothing and runs nothing - the render
   after it shows the Story error. A save that replays into one is an incompatible save, and a replay
-  jump refuses with `UnreachableCommandError`, which the editor marks against the clicked line. It's ~520 lines and growing — candidates for extraction if you touch it.
+  jump refuses with `UnreachableCommandError`, which the editor marks against the clicked line.
 - **Fullscreen is `enterFullscreen()`, and the button that calls it is not the renderer's.** The mechanism — request, orientation lock, the scale that letterboxes the fixed-size scene, and the `fullscreenchange` listener that undoes it — lives in `DomRenderer`; the `#vn-btn-fullscreen` chrome sits outside the vn root in both HTML files, so each entry point keeps one line of wiring. The element scaled *into* is the constructor's `container` option, defaulting to the root: it too is outside the root, so the renderer is told it rather than walking up to `parentElement`, and a renderer mounted without a container (every test — `createVnRoot` puts `#vn-div` straight under `<body>`) scales to 1 and pads nothing. Nothing automated covers any of this: `requestFullscreen` needs user activation, so verify by hand with `npm run dev`.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).
 - Sub-renderers read prev state via `renderer.getCommittedState()`. `DomRenderer.committedState` is set synchronously **before** the `Promise.all(...).then()` runs, so reads inside scheduled microtasks see the *new* state. Always capture `prev` synchronously at the top of a sub-renderer's `render`.
@@ -770,7 +770,8 @@ things touching it share. ADR 0007 is its invariant: it is complete.
   key, nothing migrates, nothing re-reads the old one.
 - **A save that no longer replays is an _incompatible save_, and every refusal is one type.**
   `fromShorthandPath` throws `IncompatibleSaveError` for an option that is gone, a decision or lines
-  the story no longer has, and a replay that now walks into a loop. `VnPlayer.canLoadFromSlot` is a
+  the story no longer has, and a replay that now walks into a loop or jumps to a label that is gone -
+  anything it let through would stop the Load and Save menus drawing at all. `VnPlayer.canLoadFromSlot` is a
   trial replay, **on a fresh `seenCommands`**: `advance` marks what it applies as seen and skip mode
   trusts the marks, so checking a save must not mark its route read. The Load menu asks it per slot
   per draw and draws a dead save inert with its delete live - with no button role rather than a

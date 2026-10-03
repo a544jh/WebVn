@@ -274,5 +274,10 @@ the two loose ends below. What landed, against the proposals above:
   was broken on purpose once, and the test meant for it went red.
 - **Not covered automatically:** fullscreen itself, which needs a phone. Check that answering each
   confirm and the Story error leaves the player fullscreen.
+- **Found reviewing before merge:** `canLoadFromSlot` let any throw other than the typed refusal
+  through, and a jump to a label that has gone throws a plain `Error` - so a save whose replay crossed
+  a renamed label stopped both the Load and Save menus drawing, where before only that slot was dead.
+  `MissingLabelError` is now typed and refused as an incompatible save. The rest of what a missing
+  label does is older than this ticket, and is filed in `ROUGH_EDGES.md`.
 - **Followed by 02**, in the same pull request: the loop cases this ticket put out of scope - an
   edit's replay and a replay jump meeting a loop in the editor - and the gutter marker on the jump.

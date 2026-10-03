@@ -803,6 +803,11 @@ describe("path replay matches live play", () => {
     expect(() => State.fromShorthandPath(makeState(branchingScript()), [5], 0)).toThrow(IncompatibleSaveError)
   })
 
+  it("refuses a save whose replay now jumps to a label that is gone", () => {
+    const start = makeState([say("a"), new Jump(loc, "gone"), say("b")])
+    expect(() => State.fromShorthandPath(start, [], 1)).toThrow(IncompatibleSaveError)
+  })
+
   it("refuses a save whose replay now runs into a loop, rather than throwing the loop", () => {
     // saved two lines in; the author has since put a loop where the second line was
     const start = makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")])
@@ -864,6 +869,26 @@ describe("VnPlayer.canLoadFromSlot", () => {
     const player = savedOnS4()
     player.reloadStory(makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")]))
     expect(player.canLoadFromSlot(0)).toBe(false)
+  })
+
+  // Nothing checks a jump's label at parse time, so a label renamed since the save was made is met
+  // only when the replay reaches the jump. It used to throw a plain Error, which the Load menu let
+  // through - and then neither menu would open at all.
+  it("answers no for a save that jumps to a label the story no longer has", () => {
+    const player = new VnPlayer(
+      makeState([say("a"), new Jump(loc, "x"), say("skipped"), new Label(loc, "x"), say("b")])
+    )
+    autorun(player)
+    press(player) // over the jump, to "b"
+    player.saveToSlot(0)
+
+    // a fresh player, since the editor's own replay meets the same jump - ROUGH_EDGES.md's
+    // missing-label entry, and not this check's to fix
+    const renamed = new VnPlayer(
+      makeState([say("a"), new Jump(loc, "x"), say("skipped"), new Label(loc, "y"), say("b")])
+    )
+    renamed.saves = player.saves
+    expect(renamed.canLoadFromSlot(0)).toBe(false)
   })
 
   it("answers no for a slot with no save in it", () => {

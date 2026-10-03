@@ -91,6 +91,17 @@ describe("the Load menu", () => {
     expect(dialog(started.root)).toBeNull()
   })
 
+  // Nothing checks a jump's label when the script is parsed. A save whose replay met one that is gone
+  // threw a plain Error out of the draw, and neither menu would open at all.
+  it("still opens when a save's replay jumps to a label that is gone", async () => {
+    const started = await startVn("story:\n  - s1\n  - jump: gone\n  - s2\n")
+    started.player.saves.push({ timestamp: Date.UTC(2026, 9, 1), path: [1] })
+    started.renderer.showMenu(loadMenu)
+
+    expect(started.renderer.isMenuOpen()).toBe(true)
+    expect(rows(started.root)[0].classList.contains("vn-save-item-inert")).toBe(true)
+  })
+
   it("keeps the delete live on a save that will not load", async () => {
     const started = await savedOnS3()
     started.player.saves.push(INCOMPATIBLE)

@@ -192,6 +192,15 @@ export class EndlessLoopError extends Error {
   }
 }
 
+// A jump, or a decision's option, names a label the story does not have. Nothing checks that when the
+// script is parsed, so it surfaces when the command is applied.
+export class MissingLabelError extends Error {
+  constructor(public readonly label: string) {
+    super("Target label does not exist.")
+    this.name = "MissingLabelError"
+  }
+}
+
 // A save slot whose path no longer replays against the story - an *incompatible save*, CONTEXT.md.
 // Every way that happens throws this one type, so the Load menu can catch exactly these and let
 // anything else through as the bug it is.
@@ -294,7 +303,7 @@ function makeDecision(id: number, state: VnPlayerState): VnPlayerState {
 
   const newState = { ...state }
   if (state.labels[item.jumpLabel] === undefined) {
-    throw new Error("Target label does not exist.")
+    throw new MissingLabelError(item.jumpLabel)
   }
   newState.commandIndex = state.labels[item.jumpLabel]
   newState.stopAfterRender = false
@@ -430,10 +439,11 @@ function savedAdvance(state: VnPlayerState): VnPlayerState {
   return next
 }
 
-// Every refusal is an IncompatibleSaveError, the loop included: a save whose replay now goes round a
-// loop was made against a story that did not, so "the story has changed since this save" is exactly
-// what happened. The story itself may well be broken too, and the renderer says so the moment the
-// reader walks into the loop - but that is not this save's to report.
+// Every refusal is an IncompatibleSaveError, the loop and the missing label included: a save whose
+// replay now goes round a loop, or jumps to a label that has been renamed, was made against a story
+// that did neither, so "the story has changed since this save" is exactly what happened. The story
+// itself may well be broken too - but that is not this save's to report, and letting either through
+// would stop the Load menu drawing at all.
 function fromShorthandPath(
   startingState: VnPlayerState,
   decisions: number[],
@@ -443,6 +453,8 @@ function fromShorthandPath(
     return replayShorthandPath(startingState, decisions, remainingAdvances)
   } catch (e) {
     if (e instanceof EndlessLoopError) throw new IncompatibleSaveError("Saved path runs into a loop in the story")
+    if (e instanceof MissingLabelError)
+      throw new IncompatibleSaveError(`Saved path jumps to a label that is gone: ${e.label}`)
     throw e
   }
 }

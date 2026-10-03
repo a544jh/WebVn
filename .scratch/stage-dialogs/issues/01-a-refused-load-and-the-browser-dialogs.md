@@ -3,7 +3,8 @@
 Status: needs-triage
 
 Blocked by: nothing in code - the refusal it presents is built, see below. Blocked in practice by a
-drawing, see "The canvas has to go first".
+drawing, see "The canvas has to go first" - **drawn 2026-10-03, waiting on review**: see "What the
+drawing proposes".
 
 ## What this is
 
@@ -101,6 +102,9 @@ player. Leaning: a line on the stage in both, plus the gutter in the editor as i
 
 ## The canvas has to go first
 
+**Drawn 2026-10-03** as the canvas's fourth page, *Stage* - nine boards and seven notes, for review.
+What follows is the brief it was drawn against; "What the drawing proposes" below is what came back.
+
 The design canvas `.scratch/project-library/design.md` links is binding for pixels, and it has two
 pages - **Project library** and **Asset panel** - on which every artboard is chrome. Nothing draws the
 stage's menus at all; the pause and save/load menus predate the canvas. So this wants a new page, the
@@ -117,6 +121,49 @@ this ticket exists for. Only `--vn-*` tokens and `--vn-font`.
 Worth knowing while drawing: a slot is labelled today with an ISO timestamp and the raw shorthand path
 (`save.path.join(" ")`), which is engine internals shown to a reader. Out of scope here unless the
 drawing decides to change it anyway.
+
+## What the drawing proposes
+
+All of it for review, and none of it built. The canvas page is *Stage*. Every board on it inlines
+`defaultTheme.css` and `gg.css` exactly as they ship, then a block marked **PROPOSED**, which is the CSS
+this ticket would add and is the spec for it, then a block marked **DRAWING ONLY** (a gradient scene in
+place of the background canvas, the action bar shown as a touch screen shows it). The boards are the
+Load menu with a save that will not load, the load confirm, the delete confirm on that save, the Save
+menu with the same save, the overwrite confirm, the loop guard, and three of them again at a phone's
+scale.
+
+- **Vocabulary: _incompatible save_**, with _Avoid_: stale save, outdated save, old save, broken
+  save, corrupt save; `IncompatibleSaveError`. Not *stale*, because it says older and the script can
+  move either way under a save. A reader never sees the term. They read **"The story has changed
+  since this save. It cannot be loaded."** - in Load and in Save alike. That sentence is true in both
+  directions and says neither *version* nor *path*.
+- **The inert row's label fades with `--vn-disabled-opacity` alone**, not with `--vn-disabled-color`
+  as well. A disabled menu item is one word whose place says what it is. This label is the only thing
+  saying *which* save it is, and the two tokens together left it unreadable at a phone's scale. The
+  row grows to fit the note.
+- **DEL becomes a target on every row**: a square the row's height, 100px, which is 54px on the
+  phone drawn. Today it is a three-letter word in the corner, about 27 by 15px on that phone.
+- **In Save the same row keeps its note but stays live.** Overwriting a save that will not load is a
+  good use of its slot. Overwrite still asks.
+- **The confirm takes the list's place rather than sitting over it.** The first draft put a panel
+  over a scrim over the list. Every stage surface is translucent, so the list's text read through the
+  question. The list and Return are `visibility: hidden` while the question is up, which keeps the
+  list's scroll position for Cancel. Right-click backs out of the question before it backs out of the
+  menu. The confirm is centred in the stage *above the nametag*, for the same reason: story text
+  under the panel would read through it.
+- **The confirm repeats the slot it is asking about**, at full strength even when the slot will not
+  load, since its row may be scrolled away. It has one consequence line - "Unsaved progress will be
+  lost." for Load, "This cannot be undone." for Overwrite and Delete - and two answers, Cancel left
+  and the act right, as the chrome's dialogs order them. The act is ruled (`inset 0 0 0 3px
+  var(--vn-text-color)`), not coloured, because the stage has no status palette. Both answers are
+  88px tall, 48px on the phone.
+- **The loop guard is a line across the top of the stage**: "The story has stopped." and "Its script
+  goes round in a loop at this point." It replaces `alert()` in the editor and the player alike. It
+  sits above the action bar and under the menu, which still opens. **It has no arrow, and a tap must
+  not resume**: `advance()` resets `consecutiveCommands`, so today a tap runs the same loop another
+  ten thousand times. The gutter marker in the editor stays its own ticket.
+- **Noticed and left alone**: Return is 34px tall (18px on the phone), and on a touch screen it sits
+  over the action bar between Back and Menu.
 
 ## Vocabulary to settle
 
@@ -153,3 +200,10 @@ either way under a save.
 built there: that branch fixes path recording, and this is a reader-facing surface with a drawing and
 a vocabulary decision in front of it. What the reader sees today was traced from the code and the
 refusal's unit tests, not clicked through in a browser.
+
+**Drawn 2026-10-03** on `ccr-4ffaa934-lt4j4l`: the canvas's fourth page, *Stage*, published as the
+canvas's version 31. The boards were rendered in headless Chromium against the shipped stylesheets
+before publishing, at full size and at 844x390. Two drafts were redrawn on what that showed: the
+confirm, whose translucent panel let the list read through it, and the inert label, which was
+invisible at a phone's scale. Status stays `needs-triage` until the proposals in "What the drawing
+proposes" are confirmed or overturned.

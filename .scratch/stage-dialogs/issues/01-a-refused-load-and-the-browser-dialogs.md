@@ -157,7 +157,9 @@ scale.
   be lost." for Load, "This cannot be undone." for Overwrite and Delete. The slot is repeated at full
   strength even when it will not load, since its row may be scrolled away.
 - **The answers take a decision item's two fills**: `--vn-surface` at rest, `--vn-surface-active`
-  under the pointer. Neither answer is marked out, because the question already says what the act is.
+  under the pointer. They take the fills only: a decision item blinks between the two when chosen,
+  and an answer does not (the maintainer's call, 2026-10-03). Neither answer is marked out, because
+  the question already says what the act is.
   Cancel is left and the act right, as the chrome's dialogs order them. Both answers are 88px tall,
   48px on the phone.
 - **The loop guard is a line across the top of the stage**: "The story has stopped." and "Its script

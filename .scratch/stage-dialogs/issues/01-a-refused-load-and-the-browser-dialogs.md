@@ -139,8 +139,11 @@ scale.
   directions and says neither *version* nor *path*.
 - **The inert row's label fades with `--vn-disabled-opacity` alone**, not with `--vn-disabled-color`
   as well. A disabled menu item is one word whose place says what it is. This label is the only thing
-  saying *which* save it is, and the two tokens together left it unreadable at a phone's scale. The
-  row grows to fit the note.
+  saying *which* save it is, and the two tokens together left it unreadable at a phone's scale.
+- **The note is small, so the row keeps its 100px**: 16px on 20px lines, one sentence per line.
+  That is the now-playing line's size, proposed as a token, `--vn-font-size-small`, now that two rules
+  spell it. It reads at 9px on the phone. The first draft set the note at 28px and grew the row,
+  which the maintainer turned down.
 - **DEL becomes a target on every row**: a square the row's height, 100px, which is 54px on the
   phone drawn. Today it is a three-letter word in the corner, about 27 by 15px on that phone.
 - **In Save the same row keeps its note but stays live.** Overwriting a save that will not load is a
@@ -162,11 +165,26 @@ scale.
   the question already says what the act is.
   Cancel is left and the act right, as the chrome's dialogs order them. Both answers are 88px tall,
   48px on the phone.
-- **The loop guard is a line across the top of the stage**: "The story has stopped." and "Its script
-  goes round in a loop at this point." It replaces `alert()` in the editor and the player alike. It
-  sits above the action bar and under the menu, which still opens. **It has no arrow, and a tap must
-  not resume**: `advance()` resets `consecutiveCommands`, so today a tap runs the same loop another
-  ten thousand times. The gutter marker in the editor stays its own ticket.
+- **One component, `.vn-dialog`**, serves the three confirms and the loop guard's error.
+- **The loop guard is an error, centred, with two ways out.** It reads "Story error" and "The script
+  loops endlessly here, so the story cannot continue.", and its answers are **Go back** and **Start
+  over**. It replaces `alert()` in the editor and the player alike. It was first drawn as a line across
+  the top of the stage; the maintainer asked for it centred, worded as an error, and with a way out.
+  - It sits in the menu container, so the stage under it is dimmed and takes no taps. **A tap must
+    not resume**: `advance()` resets `consecutiveCommands`, so today a tap runs the same loop another
+    ten thousand times. Right-click does nothing while it is up, because closing it would leave a
+    stage that cannot move.
+  - **Go back is `DomRenderer.undo()`.** `VnPlayer.advance` records an advance on the path only when
+    it is made from a stop, so the loop's own steps are never recorded. One undo therefore pops the
+    reader's advance into the loop and lands on the line they last read. From there, Back walks on to
+    an earlier decision, which is the only real way round a loop that is in one branch. Go back is
+    greyed out, as Save is, when the loop comes before the first stop and there is nothing to go back
+    to.
+  - **Start over** plays the story from the top and keeps `seenCommands`, so skip mode runs back to
+    where the reader was.
+  - **Not offered**: reloading the page, which in the player is Start over with a flash and in the
+    editor reboots the project for nothing; and Load, which is one Go back away, through the menu.
+  - The gutter marker in the editor stays its own ticket.
 - **Noticed and left alone**: Return is 34px tall (18px on the phone), and on a touch screen it sits
   over the action bar between Back and Menu.
 
@@ -216,3 +234,7 @@ proposes" are confirmed or overturned.
 **Revised 2026-10-03** after the maintainer's first review, as the canvas's version 32. The confirm
 lost its panel and its white outline on the act: it is now a text box and two answer boxes, and the
 answers use the decision item's fills.
+
+**Revised again 2026-10-03**, as the canvas's version 33. The note on a save that will not load is
+16px, so the row no longer grows. The loop guard is a centred error with Go back and Start over, built
+from the confirm's boxes.

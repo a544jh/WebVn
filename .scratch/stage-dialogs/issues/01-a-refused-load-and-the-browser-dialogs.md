@@ -1,6 +1,6 @@
 # 01: A refused load says so, and the stage asks its own questions
 
-Status: needs-triage
+Status: done
 
 Blocked by: nothing in code - the refusal it presents is built, see below. Blocked in practice by a
 drawing, see "The canvas has to go first" - **drawn 2026-10-03, waiting on review**: see "What the
@@ -165,7 +165,8 @@ scale.
   the question already says what the act is.
   Cancel is left and the act right, as the chrome's dialogs order them. Both answers are 88px tall,
   48px on the phone.
-- **One component, `.vn-dialog`**, serves the three confirms and the loop guard's error.
+- **One component, `.vn-stage-dialog`**, serves the three confirms and the loop guard's error. (The
+  canvas drew it as `.vn-dialog`, which the chrome's own dialogs already use; see Comments.)
 - **The loop guard is an error, centred, with two ways out.** It reads "Story error" and "The script
   loops endlessly here, so the story cannot continue.", and its answers are **Go back** and **Start
   over**. It replaces `alert()` in the editor and the player alike. It was first drawn as a line across
@@ -238,3 +239,38 @@ answers use the decision item's fills.
 **Revised again 2026-10-03**, as the canvas's version 33. The note on a save that will not load is
 16px, so the row no longer grows. The loop guard is a centred error with Go back and Start over, built
 from the confirm's boxes.
+
+**Implemented 2026-10-03** on `ccr-4ffaa934-lt4j4l`, after the maintainer confirmed the drawing and
+the two loose ends below. What landed, against the proposals above:
+
+- **Core.** `IncompatibleSaveError` for every refusal in `fromShorthandPath`, and `EndlessLoopError`
+  for every walk that gives up, all counted against one `LOOP_LIMIT` in `src/core/state.ts`.
+  `VnPlayer.canLoadFromSlot` is the trial replay on a fresh `seenCommands`, as proposed. The
+  ten-thousand-advance cap in `fromShorthandPath` joined the refusals (the maintainer's call): a save
+  whose replay now loops is an incompatible save.
+- **Skip and the scroll wheel walk into a loop by a second door** (the maintainer's call). Their walks
+  throw `EndlessLoopError` from `State.advanceUntilStop`, uncaught until now, so Skip simply did
+  nothing. That was most likely straight after Go back, which leaves the loop's commands marked as
+  seen. `DomRenderer.walkOrStop` shows the same Story error for skip mode, the wheel and undo. Go back
+  from those closes the error and nothing more, since the walk that gave up never moved the player.
+- **Changed against the drawing:** the classes are `vn-stage-dialog-*`, not `vn-dialog-*`.
+  `src/chrome/dialog.ts` already owns `.vn-dialog` and `.vn-dialog-title`, and the editor puts the
+  chrome and the stage on one page. The canvas boards were regenerated with the new names.
+- **Found on the way:** `VnPlayer.undo` assigned the shortened path before the replay that can throw,
+  so a refused undo left a path describing a state the player was not in. It now assigns nothing until
+  the replay succeeds, as `loadFromSlot` already did. The render loop's guard now counts only while
+  the story keeps going without a stop, so a long run that does end on one cannot trip it.
+- **Found driving the built player:** the dead row was first a `role="button"` with `aria-disabled`,
+  and aria-disabled carries down to everything inside it - so the live delete read as disabled too,
+  which is how Playwright refused to click it. A save that will not load is not a button at all now;
+  its delete keeps its own role.
+- **Tests:** `test/unit/state.test.ts` (the typed refusals, a loop at load, `canLoadFromSlot` and the
+  untouched seen set); `test/browser/StageDialogs.test.ts` (inert row and note, live delete, each
+  confirm's two answers, a stale answer caught at the click, right-click backing out, a delete stored
+  without an advance); `test/browser/LoopGuard.test.ts` (the error, taps and right-click ignored, Go
+  back, Start over, the skip and wheel doors, Go back greyed on an empty path, the error going on the
+  next render). `window.confirm` and `window.alert` are stubbed to throw in both browser suites. Each
+  of three behaviours - delete storing at once, the fresh seen set, right-click ignored while stuck -
+  was broken on purpose once, and the test meant for it went red.
+- **Not covered automatically:** fullscreen itself, which needs a phone. Check that answering each
+  confirm and the Story error leaves the player fullscreen.

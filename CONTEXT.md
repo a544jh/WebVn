@@ -278,6 +278,15 @@ across undo, save slots and replays, because it exists to tell skip mode what ma
 **Save slot**:
 A path plus the time it was saved, which is all a save is.
 
+**Incompatible save**:
+A save slot whose path no longer replays against the story: the script changed under it, so the save
+answers an option that is gone, expects a decision or lines that are not there, or now walks into a
+loop. Refused at load rather than cut short, and drawn in the Load menu as a save that will not load.
+Decided by a replay rather than by a stamp of the script, so an edit the save never reached leaves it
+loadable. A reader never sees the term; they read "The story has changed since this save."
+_Avoid_: stale save (says older, and in the editor the script can move either way under a save),
+outdated save, old save, broken save, corrupt save
+
 ### Authoring-only
 
 **Direct jump**:
@@ -311,6 +320,12 @@ The fixed-size area a story is played in - background, sprites, text box, the pl
 It is what a theme themes, and what `--vn-*` names.
 _Avoid_: screen, viewport, scene (a scene is what is on the stage at one moment), canvas (that is the
 background renderer's own element)
+
+**Stage dialog**:
+A question or an error the stage asks itself - the three save confirms and the loop guard's "Story
+error" - drawn inside the vn root's menu, so it goes fullscreen with the story. The story's, so a theme
+restyles it; the chrome's dialogs are the authoring tool's and are a different thing.
+_Avoid_: confirm and alert (the browser dialogs it replaced, which leave fullscreen), modal, popup
 
 **Chrome**:
 The authoring tool's own surfaces, as opposed to the stage: the picker, the buffer tabs, the store

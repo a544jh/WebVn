@@ -25,8 +25,9 @@ apart on the chrome they share - its tab bar and store badge were corrected that
 `.scratch/stage-dialogs/issues/01-a-refused-load-and-the-browser-dialogs.md`, which describes them. It is
 the first page that draws the story rather than the chrome, so it follows the stage's rules rather than
 the ones below: `--vn-*` tokens and Source Code Pro only, regular weight with bold synthesised, as both
-html files load it. Its boards inline `defaultTheme.css` and `gg.css` as they ship, and put what the
-ticket would add in a block marked PROPOSED.
+html files load it. Its boards inline `defaultTheme.css` and `gg.css` as they ship. What the ticket
+added sat in a block marked PROPOSED until it shipped on 2026-10-03, and the boards were regenerated
+from the shipped stylesheet alone.
 
 **The picker artboards were redrawn against the shipped UI on 2026-09-06**, because they had drifted
 into an idealisation of it. What they were missing: the **id line under each title**, which

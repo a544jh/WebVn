@@ -157,9 +157,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   recorded nothing, and the next `undo` stepped over the lap. Reaching the end without clicking past it takes
   a script edited shorter under a `seenCommands` that still remembers the longer one, which is why
   `isNextCommandSeen` is bounded by `commands.length` as well.
-  - **`goToCommandByReplay` still tests the index, and that is not the same mistake.** It is asking whether
-    its walk is getting anywhere, and a lap that ends where it began is the "loops, and the target is not on
-    the way" it is looking for. ROUGH_EDGES.md's looping-story entry has what that check misses.
+  - **`goToCommandByReplay` asks two questions, and neither is the index alone.** Whether the story ended
+    is `appliedAny`, like everything else here. Whether its walk is getting anywhere is `position` - the
+    index *and* the variables - because the index alone misses a loop with two stops in it, which alternates
+    and never repeats, while a loop that counts its way out comes back to the same line with a different
+    count. A command is a pure function of the state and only the index and the variables steer, so a
+    position seen again with no decision answered in between is a walk going round forever. That refuses
+    the jump with `UnreachableCommandError` and the player keeps its state and path; it used to spin to
+    the cap and adopt a path of ten thousand advances as though it had arrived.
 
 ### Command registration
 - Every command module (e.g. `core/commands/text/TextBox.ts`) calls `registerCommandHandler("textbox", handler)` at import time.
@@ -387,7 +392,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   Start over, or the editor reloading a script the author just fixed. Go back is an undo, which lands
   on the line last read because only advances made from a stop are recorded; it is greyed when the
   path is empty, since that undo replays into the same loop. Measured at 37ms to the error, so the
-  browser suite drives the real limit. It's ~520 lines and growing — candidates for extraction if you touch it.
+  browser suite drives the real limit. **The editor is told where**: `onLoopCallbacks` carries the
+  index of the jump that closes the loop (`State.loopJump`, a walk on a fresh `seenCommands`), and
+  `VnEditor` marks that line as an error, so the script tab goes red.
+- **No core replay reports a loop itself; the stage does.** An edit's replay (`replayAsFarAsPossible`)
+  treats a step that now walks into a loop as a step that no longer applies, exactly as it treats a
+  deleted line, and a story looping before its first stop keeps nothing and runs nothing - the render
+  after it shows the Story error. A save that replays into one is an incompatible save, and a replay
+  jump refuses with `UnreachableCommandError`, which the editor marks against the clicked line. It's ~520 lines and growing — candidates for extraction if you touch it.
 - **Fullscreen is `enterFullscreen()`, and the button that calls it is not the renderer's.** The mechanism — request, orientation lock, the scale that letterboxes the fixed-size scene, and the `fullscreenchange` listener that undoes it — lives in `DomRenderer`; the `#vn-btn-fullscreen` chrome sits outside the vn root in both HTML files, so each entry point keeps one line of wiring. The element scaled *into* is the constructor's `container` option, defaulting to the root: it too is outside the root, so the renderer is told it rather than walking up to `parentElement`, and a renderer mounted without a container (every test — `createVnRoot` puts `#vn-div` straight under `<body>`) scales to 1 and pads nothing. Nothing automated covers any of this: `requestFullscreen` needs user activation, so verify by hand with `npm run dev`.
 - Sub-renderers receive `animate: boolean`. When `animate` is false, they must jump straight to end-state, which means removing listeners and cancelling in-flight transitions (most use `cloneNode()` to drop listeners — follow that pattern).
 - Sub-renderers read prev state via `renderer.getCommittedState()`. `DomRenderer.committedState` is set synchronously **before** the `Promise.all(...).then()` runs, so reads inside scheduled microtasks see the *new* state. Always capture `prev` synchronously at the top of a sub-renderer's `render`.
@@ -845,7 +857,11 @@ If you're tempted to import from any of these, don't.
 
 - **Add a new command (e.g. `wait`, `setVar`)**: create `src/core/commands/<area>/YourCommand.ts`, define a Zod schema, subclass `Command`, call `registerCommandHandler`. Then add a side-effect import in `src/core/player.ts`. If it names an
   asset or actor id, override `references()` so a typo is a warning rather than a crash, exempting
-  any value the engine has spoken for. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
+  any value the engine has spoken for. If it decides where the story goes next from anything besides
+  `commandIndex` and `variables` - whether a line has been seen, a seeded random - add that to `position`
+  in `src/core/state.ts`. The replay jump and `State.loopJump` treat a position seen twice, with no
+  decision answered in between, as a loop, so a command that steers on something else would make them
+  call a working story a loop. Add an example line to the demo's `test-assets/script.yaml` - the player plays it as the published folder it is served from, Add demo project imports it, and `src/demoStory.ts` hands it to the suites - and extend `test/demo/DemoStory.test.ts` to cover it.
 - **Add a new background transition**: create in `src/domRenderer/bgTransitions/`, call `registerTransition(name, factory, optionsSchema)`. The schema is wired into the `bg` command's options automatically.
 - **Add a new renderer sub-component**: follow `SpriteRenderer` / `BackgroundRenderer` — constructor takes `vnRoot`, `renderer`, optional asset loader; `render(...)` returns a Promise that resolves when animations complete. Each takes its slice of `animatableState` plus, where it resolves asset ids, the declarations that slice does not carry (`render(sprites, actors, animate)`, `render(bg, backgrounds, animate)`, `render(audio, audioAssets)`) — a narrower dependency than handing every sub-renderer the whole `VnPlayerState`. Be careful with the `animate=false` path (drop listeners, cancel transitions).
 - **Touch anything about where files live**: read "Project storage" above first, then

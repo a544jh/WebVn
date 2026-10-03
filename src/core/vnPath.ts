@@ -1,4 +1,4 @@
-import { State, VnPlayerState } from "./state"
+import { EndlessLoopError, State, VnPlayerState } from "./state"
 
 // One action, in a shape the editor can render without reaching into the action classes.
 export interface PathStep {
@@ -105,9 +105,22 @@ export class VnPath {
   // still applies - anything past the first action that no longer works was recorded against a
   // script that no longer exists. Returns the state reached and the path that produced it, so the
   // two always agree and the stored path is always replayable against the current story.
+  //
+  // A story that now goes round a loop is one more way of having changed under the path, and is kept
+  // to the same rule: the action that walks into it no longer applies. It is not this replay's to
+  // report - the editor asked it to carry the author's place across an edit, and the stage says what
+  // is wrong with the story the moment anyone plays into the loop.
   public replayAsFarAsPossible(startingState: VnPlayerState): [VnPlayerState, VnPath] {
-    // the automatic run to the first stop is not part of the path
-    let state = State.runToStop(startingState)
+    // The automatic run to the first stop is not part of the path. A story that loops before it has
+    // nowhere to land, so nothing is kept and nothing is run: the render that follows walks into the
+    // loop, and the stage shows its Story error.
+    let state: VnPlayerState
+    try {
+      state = State.runToStop(startingState)
+    } catch (e) {
+      if (e instanceof EndlessLoopError) return [startingState, VnPath.emptyPath()]
+      throw e
+    }
     const kept: VnAction[] = []
     for (const action of this.path) {
       const applied = action.tryPerform(state)
@@ -163,9 +176,10 @@ class Advance extends VnAction {
   public tryPerform(state: VnPlayerState): [VnPlayerState, VnAction] | null {
     let done = 0
     for (let i = 0; i < this.times; i++) {
-      const next = State.advanceUntilStop(state)
-      // the story now ends earlier than the path expects
-      if (!State.appliedAny(state, next)) break
+      const next = stopOrLoop(state)
+      // the story now ends earlier than the path expects, or goes round a loop instead of reaching
+      // the stop it once did
+      if (next === null || !State.appliedAny(state, next)) break
       state = next
       done++
     }
@@ -190,8 +204,10 @@ class MakeDecision extends VnAction {
     // let the replay diverge from what the path describes
     const decided = State.makeDecision(this.id, state)
     if (decided === state) return null
-    // the run from the decision to the next stop is automatic, not a recorded advance
-    return [State.advanceUntilStop(decided), this]
+    // the run from the decision to the next stop is automatic, not a recorded advance - and if the
+    // answer now leads into a loop, it is an answer this story no longer takes anywhere
+    const next = stopOrLoop(decided)
+    return next === null ? null : [next, this]
   }
 }
 
@@ -211,5 +227,15 @@ class GoToCommandDirect extends VnAction {
     // the target is past the end of a script that has since got shorter
     if (jumped === state) return null
     return [jumped, this]
+  }
+}
+
+// The next stop, or null if the story now goes round a loop instead of reaching one.
+function stopOrLoop(state: VnPlayerState): VnPlayerState | null {
+  try {
+    return State.advanceUntilStop(state)
+  } catch (e) {
+    if (e instanceof EndlessLoopError) return null
+    throw e
   }
 }

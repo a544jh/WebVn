@@ -12,6 +12,7 @@ import "../domRenderer/defaultTheme.css"
 export class ReactRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
+  public onLoopCallbacks: Array<(jumpIndex: number | null) => void> = []
 
   private elem: HTMLDivElement
   private player: VnPlayer

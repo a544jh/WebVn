@@ -1,6 +1,6 @@
 import { Renderer } from "../Renderer"
 import { VnPlayer } from "../core/player"
-import { EndlessLoopError, LOOP_LIMIT, VnPlayerState } from "../core/state"
+import { EndlessLoopError, LOOP_LIMIT, State, VnPlayerState } from "../core/state"
 import { TextBoxRenderer } from "./TextBoxRenderer"
 
 import "./animations.css"
@@ -29,6 +29,7 @@ export interface DomRendererOptions {
 export class DomRenderer implements Renderer {
   public onRenderCallbacks: Array<() => void> = []
   public onFinishedCallbacks: Array<() => void> = []
+  public onLoopCallbacks: Array<(jumpIndex: number | null) => void> = []
   private consecutiveCommands = 0
 
   private finished: boolean
@@ -370,11 +371,13 @@ export class DomRenderer implements Renderer {
   // - Start over, from the top. `loadState` keeps `seenCommands`, so skip mode runs back to where the
   //   reader was.
   private showLoopError(): void {
-    const at = this.player.state.commands[this.player.state.commandIndex]?.getSourceLocation()
+    const jump = State.loopJump(this.player.state)
+    const at = jump === null ? undefined : this.player.state.commands[jump].getSourceLocation()
     console.error(
       `The story loops endlessly: ${LOOP_LIMIT} commands in a row without a stop` +
-        (at === undefined ? "" : `, the last on line ${at.startLine} of the script`)
+        (at === undefined ? "" : `, going round at the jump on line ${at.startLine} of the script`)
     )
+    this.onLoopCallbacks.forEach((cb) => cb(jump))
 
     const moved = !this.player.state.stopAfterRender
     const canGoBack = !moved || this.player.path.getActions().length > 0

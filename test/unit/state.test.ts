@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 import { seedState } from "../../src/core/manifest"
 import { TEST_MANIFEST } from "../helpers/testManifest"
 import { VnPlayer } from "../../src/core/player"
-import { EndlessLoopError, IncompatibleSaveError, State, VnPlayerState } from "../../src/core/state"
+import {
+  EndlessLoopError,
+  IncompatibleSaveError,
+  State,
+  UnreachableCommandError,
+  VnPlayerState,
+} from "../../src/core/state"
 import { VnPath } from "../../src/core/vnPath"
 import { Command } from "../../src/core/commands/Command"
 import { Say } from "../../src/core/commands/text/Say"
@@ -225,6 +231,56 @@ describe("State.goToCommandByReplay", () => {
     const [state] = State.goToCommandByReplay(3, start, [])
     expect(state).toEqual(State.runToStop(start))
   })
+
+  // Every loop below means the target cannot be reached by replaying from here. The walk used to
+  // throw on the first, and on the second spin to the cap and hand back a path of ten thousand
+  // advances as if it had arrived.
+  it("refuses a target behind a loop with no stop in it", () => {
+    const start = makeState([say("a"), new Label(loc, "L"), new Jump(loc, "L"), say("b")])
+    expect(() => State.goToCommandByReplay(4, start, [])).toThrow(UnreachableCommandError)
+  })
+
+  it("refuses a target a loop with stops in it never lands on", () => {
+    // ROUGH_EDGES.md's reproduction: two stops, so the index alternates and never repeats
+    const start = makeState([new Label(loc, "top"), say("one"), say("two"), new Jump(loc, "top"), say("never")])
+    expect(() => State.goToCommandByReplay(5, start, [])).toThrow(UnreachableCommandError)
+  })
+
+  it("refuses a target behind a loop with a single stop in it", () => {
+    const start = makeState([new Label(loc, "top"), say("one"), new Jump(loc, "top"), say("never")])
+    expect(() => State.goToCommandByReplay(4, start, [])).toThrow(UnreachableCommandError)
+  })
+
+  it("refuses a target in a story that loops before its first stop", () => {
+    const start = makeState([new Label(loc, "L"), new Jump(loc, "L"), say("never")])
+    expect(() => State.goToCommandByReplay(3, start, [])).toThrow(UnreachableCommandError)
+  })
+
+  // A loop that comes back to the same line with a different count is going somewhere: what repeats
+  // in a loop that goes nowhere is the line AND the variables.
+  it("still reaches a target past a loop that counts its way out", () => {
+    const [start] = YamlParser.parseStory(
+      "story:\n  - set: [$i, =, 0]\n  - label: top\n  - lap\n  - set: [$i, +=, 1]\n" +
+        "  - jump:\n      to: top\n      if: [$i, <, 3]\n  - after\n",
+      TEST_MANIFEST
+    )
+    const [state] = State.goToCommandByReplay(6, start, [])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("after")
+    expect(state.variables["i"]).toBe(3)
+  })
+
+  it("leaves the player where it was when it refuses", () => {
+    const player = new VnPlayer(
+      makeState([new Label(loc, "top"), say("one"), say("two"), new Jump(loc, "top"), say("never")])
+    )
+    autorun(player)
+    press(player)
+    const [state, path] = [player.state, player.path]
+
+    expect(() => player.goToCommandByReplay(5)).toThrow(UnreachableCommandError)
+    expect(player.state).toBe(state)
+    expect(player.path).toBe(path)
+  })
 })
 
 describe("VnPath.replayAsFarAsPossible", () => {
@@ -282,6 +338,52 @@ describe("VnPath.replayAsFarAsPossible", () => {
     expect(path.containsDirectJump()).toBe(false)
   })
 
+  // A loop is one more way for the story to have changed under the path: the replay keeps what still
+  // walks and stops where it no longer does, rather than throwing at the editor that asked.
+  it("cuts the path where the story now walks into a loop", () => {
+    const before = makeState([say("a"), say("b"), say("c"), say("d")])
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player)
+    press(player) // showing "c"
+
+    // the author turned the third line into a loop with nothing to stop on
+    const after = makeState([say("a"), say("b"), new Label(loc, "L"), new Jump(loc, "L")])
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(path.toShorthandPath()).toEqual([1])
+    expect(state.animatableState.text?.textNodes[0].text).toBe("b")
+  })
+
+  it("cuts the path at a decision whose run now walks into a loop", () => {
+    const before = makeState(branchingScript())
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player)
+    player.makeDecision(1) // the right branch
+    autorun(player)
+
+    // the right branch is now a loop: L2 straight back to L2
+    const after = makeState(branchingScript().map((cmd, i) => (i === 8 ? new Jump(loc, "L2") : cmd)))
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(path.getDecisions()).toEqual([])
+    expect(state.decision).not.toBeNull()
+  })
+
+  // Nowhere to land, so it lands nowhere: the render that follows walks into the loop and the stage
+  // shows its Story error, which is the truth about this story.
+  it("keeps nothing, and runs nothing, when the story now loops before its first stop", () => {
+    const before = makeState([say("a"), say("b")])
+    const player = new VnPlayer(before)
+    autorun(player)
+    press(player)
+
+    const after = makeState([new Label(loc, "L"), new Jump(loc, "L"), say("a")])
+    const [state, path] = player.path.replayAsFarAsPossible(after)
+    expect(state).toBe(after)
+    expect(path.getActions()).toEqual([])
+    expect(() => player.reloadStory(after)).not.toThrow()
+  })
+
   it("leaves a path that fromPath can still replay without throwing", () => {
     const before = makeState(branchingScript())
     const player = new VnPlayer(before)
@@ -316,6 +418,41 @@ describe("State.advanceUntilStop", () => {
   it("throws EndlessLoopError from the run to the first stop, too", () => {
     const state = makeState([new Label(loc, "loop"), new Jump(loc, "loop"), say("never reached")])
     expect(() => State.runToStop(state)).toThrow(EndlessLoopError)
+  })
+})
+
+// What the editor marks when the stage shows its Story error: the jump that sends the story round.
+describe("State.loopJump", () => {
+  it("finds the jump that closes a loop with no stop in it", () => {
+    // stuck somewhere inside the loop, as the render loop is when its guard fires
+    const start = makeState([say("a"), new Label(loc, "L"), set(["$x", "=", 1]), new Jump(loc, "L"), say("b")])
+    expect(State.loopJump(State.advance(State.runToStop(start)))).toBe(3)
+  })
+
+  it("finds it from the stop before the loop, as skip mode and the wheel leave the player", () => {
+    const start = makeState([say("a"), new Label(loc, "L"), new Jump(loc, "L"), say("b")])
+    expect(State.loopJump(State.runToStop(start))).toBe(2)
+  })
+
+  it("walks past a loop that counts its way out, to the one that does not", () => {
+    const [start] = YamlParser.parseStory(
+      "story:\n  - a\n  - set: [$i, =, 0]\n  - label: count\n  - set: [$i, +=, 1]\n" +
+        "  - jump:\n      to: count\n      if: [$i, <, 3]\n  - label: forever\n  - jump: forever\n",
+      TEST_MANIFEST
+    )
+    expect(State.loopJump(State.runToStop(start))).toBe(6)
+  })
+
+  it("answers null for a story that reaches a stop after all", () => {
+    expect(State.loopJump(State.runToStop(makeState([say("a"), say("b")])))).toBeNull()
+  })
+
+  it("leaves the commands the player has seen as they were", () => {
+    const start = makeState([say("a"), new Label(loc, "L"), new Jump(loc, "L")])
+    const stop = State.runToStop(start)
+    const seen = JSON.stringify(stop.seenCommands.toJSON())
+    State.loopJump(stop)
+    expect(JSON.stringify(stop.seenCommands.toJSON())).toBe(seen)
   })
 })
 
@@ -724,10 +861,8 @@ describe("VnPlayer.canLoadFromSlot", () => {
   })
 
   it("answers no for a save whose replay now loops", () => {
-    // A fresh player rather than reloadStory, which replays the current path into the same loop and
-    // throws first - ROUGH_EDGES.md's looping-story entry, and not this check's to fix.
-    const player = new VnPlayer(makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")]))
-    player.saves = savedOnS4().saves
+    const player = savedOnS4()
+    player.reloadStory(makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")]))
     expect(player.canLoadFromSlot(0)).toBe(false)
   })
 

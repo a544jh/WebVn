@@ -274,3 +274,5 @@ the two loose ends below. What landed, against the proposals above:
   was broken on purpose once, and the test meant for it went red.
 - **Not covered automatically:** fullscreen itself, which needs a phone. Check that answering each
   confirm and the Story error leaves the player fullscreen.
+- **Followed by 02**, in the same pull request: the loop cases this ticket put out of scope - an
+  edit's replay and a replay jump meeting a loop in the editor - and the gutter marker on the jump.

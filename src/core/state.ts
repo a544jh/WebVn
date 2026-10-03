@@ -176,6 +176,32 @@ export interface AudioState {
   sfx: string | null
 }
 
+// How many commands in a row may run without reaching a stop before a walk gives up on the story as
+// looping. A story is not wrong to run long between stops, but nothing a reader can wait through runs
+// this long, while a `jump` back to a `label` with no stop between them runs forever. The renderer's
+// own walk counts against the same number.
+export const LOOP_LIMIT = 10000
+
+// A walk to the next stop gave up, because the story goes round a loop with nothing to stop on. It is
+// the author's mistake rather than the reader's, and the stage says so: the renderer catches this and
+// shows its "Story error".
+export class EndlessLoopError extends Error {
+  constructor() {
+    super(`The story loops endlessly: ${LOOP_LIMIT} commands in a row without a stop`)
+    this.name = "EndlessLoopError"
+  }
+}
+
+// A save slot whose path no longer replays against the story - an *incompatible save*, CONTEXT.md.
+// Every way that happens throws this one type, so the Load menu can catch exactly these and let
+// anything else through as the bug it is.
+export class IncompatibleSaveError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "IncompatibleSaveError"
+  }
+}
+
 function advance(state: VnPlayerState): VnPlayerState {
   if (state.decision !== null) return state
 
@@ -294,7 +320,7 @@ function goToCommandByReplay(
     path = path.advance()
     // the story has nowhere left to go, or it loops and the target is not on the way
     if (state.commandIndex === before) break
-    if (++steps > 10000) break
+    if (++steps > LOOP_LIMIT) break
   }
 
   return [state, path]
@@ -306,9 +332,7 @@ function advanceUntilStop(state: VnPlayerState): VnPlayerState {
   while (!state.stopAfterRender) {
     state = advance(state)
     advances++
-    if (advances > 10000) {
-      throw new Error("Got stuck in infinite loop while replaying path")
-    }
+    if (advances > LOOP_LIMIT) throw new EndlessLoopError()
   }
   return state
 }
@@ -320,9 +344,7 @@ function runToStop(state: VnPlayerState): VnPlayerState {
   while (!state.stopAfterRender) {
     state = advance(state)
     advances++
-    if (advances > 10000) {
-      throw new Error("Got stuck in infinite loop while replaying path")
-    }
+    if (advances > LOOP_LIMIT) throw new EndlessLoopError()
   }
   return state
 }
@@ -342,11 +364,28 @@ function fromPath(startingState: VnPlayerState, path: VnPath): VnPlayerState {
 // undo to throw, since `Advance.tryPerform` asks the same `appliedAny` and would not walk it.
 function savedAdvance(state: VnPlayerState): VnPlayerState {
   const next = advanceUntilStop(state)
-  if (!appliedAny(state, next)) throw new Error("Saved path runs past the end of the story")
+  if (!appliedAny(state, next)) throw new IncompatibleSaveError("Saved path runs past the end of the story")
   return next
 }
 
+// Every refusal is an IncompatibleSaveError, the loop included: a save whose replay now goes round a
+// loop was made against a story that did not, so "the story has changed since this save" is exactly
+// what happened. The story itself may well be broken too, and the renderer says so the moment the
+// reader walks into the loop - but that is not this save's to report.
 function fromShorthandPath(
+  startingState: VnPlayerState,
+  decisions: number[],
+  remainingAdvances: number
+): [VnPlayerState, VnPath] {
+  try {
+    return replayShorthandPath(startingState, decisions, remainingAdvances)
+  } catch (e) {
+    if (e instanceof EndlessLoopError) throw new IncompatibleSaveError("Saved path runs into a loop in the story")
+    throw e
+  }
+}
+
+function replayShorthandPath(
   startingState: VnPlayerState,
   decisions: number[],
   remainingAdvances: number
@@ -359,13 +398,11 @@ function fromShorthandPath(
       state = savedAdvance(state)
       path = path.advance()
       advances++
-      if (advances > 10000) {
-        throw new Error("Got stuck in infinite loop while replaying path")
-      }
+      if (advances > LOOP_LIMIT) throw new EndlessLoopError()
     }
     const decided = makeDecision(id, state)
     if (decided === state) {
-      throw new Error("Invalid decision id in saved path")
+      throw new IncompatibleSaveError("Invalid decision id in saved path")
     }
     path = path.makeDecision(id)
     // the run from the decision to the next stop is automatic, not a recorded advance

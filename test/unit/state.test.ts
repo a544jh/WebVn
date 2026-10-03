@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { seedState } from "../../src/core/manifest"
 import { TEST_MANIFEST } from "../helpers/testManifest"
 import { VnPlayer } from "../../src/core/player"
-import { State, VnPlayerState } from "../../src/core/state"
+import { EndlessLoopError, IncompatibleSaveError, State, VnPlayerState } from "../../src/core/state"
 import { VnPath } from "../../src/core/vnPath"
 import { Command } from "../../src/core/commands/Command"
 import { Say } from "../../src/core/commands/text/Say"
@@ -306,11 +306,16 @@ describe("State.advanceUntilStop", () => {
     expect(state.animatableState.text?.textNodes[0].text).toBe("a")
   })
 
-  it("throws a plain Error on a command loop that never stops", () => {
+  it("throws EndlessLoopError on a command loop that never stops", () => {
     // Also proves core no longer depends on the browser alert() global (this would be a
     // ReferenceError in the node test environment otherwise).
     const state = makeState([new Label(loc, "loop"), new Jump(loc, "loop")])
-    expect(() => State.advanceUntilStop(state)).toThrow(/infinite loop/)
+    expect(() => State.advanceUntilStop(state)).toThrow(EndlessLoopError)
+  })
+
+  it("throws EndlessLoopError from the run to the first stop, too", () => {
+    const state = makeState([new Label(loc, "loop"), new Jump(loc, "loop"), say("never reached")])
+    expect(() => State.runToStop(state)).toThrow(EndlessLoopError)
   })
 })
 
@@ -653,10 +658,109 @@ describe("path replay matches live play", () => {
     expect(() => State.fromShorthandPath(start, [5], 0)).toThrow(/Invalid decision id/)
   })
 
+  // One type for every way a save can fail to fit, so the Load menu catches exactly these and lets
+  // anything else through as the bug it is.
+  it("refuses every save that does not fit with an IncompatibleSaveError", () => {
+    expect(() => State.fromShorthandPath(makeState([say("s1"), say("s2")]), [], 3)).toThrow(IncompatibleSaveError)
+    expect(() => State.fromShorthandPath(makeState([say("s1"), say("s2")]), [0], 0)).toThrow(IncompatibleSaveError)
+    expect(() => State.fromShorthandPath(makeState(branchingScript()), [5], 0)).toThrow(IncompatibleSaveError)
+  })
+
+  it("refuses a save whose replay now runs into a loop, rather than throwing the loop", () => {
+    // saved two lines in; the author has since put a loop where the second line was
+    const start = makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")])
+    expect(() => State.fromShorthandPath(start, [], 1)).toThrow(IncompatibleSaveError)
+  })
+
+  it("refuses a save waiting on a decision a looping story never offers", () => {
+    // every advance reaches a stop, but the decision the save answers is gone
+    const start = makeState([say("s1"), new Label(loc, "top"), say("again"), new Jump(loc, "top")])
+    expect(() => State.fromShorthandPath(start, [0], 0)).toThrow(IncompatibleSaveError)
+  })
+
   it("throws when replaying a decision the story does not offer", () => {
     const start = makeState([say("s1"), say("s2")])
     const path = VnPath.emptyPath().makeDecision(0)
     expect(() => State.fromPath(start, path)).toThrow(/does not match the story/)
+  })
+})
+
+// The Load menu asks before the click, so a save that will not load is drawn inert rather than
+// discovered by tapping it.
+describe("VnPlayer.canLoadFromSlot", () => {
+  // Saved on s4 of four lines, then given back to a player whose story has changed under it.
+  const savedOnS4 = (): VnPlayer => {
+    const player = new VnPlayer(makeState([say("s1"), say("s2"), say("s3"), say("s4")]))
+    autorun(player)
+    press(player)
+    press(player)
+    press(player)
+    player.saveToSlot(0)
+    return player
+  }
+
+  it("answers yes for a save that fits", () => {
+    expect(savedOnS4().canLoadFromSlot(0)).toBe(true)
+  })
+
+  it("answers no for a save that runs past the end of the story", () => {
+    const player = savedOnS4()
+    player.reloadStory(makeState([say("s1"), say("s2")]))
+    expect(player.canLoadFromSlot(0)).toBe(false)
+  })
+
+  it("answers no for a save that answers a decision with an option that is gone", () => {
+    const player = new VnPlayer(makeState(branchingScript()))
+    autorun(player)
+    press(player)
+    player.makeDecision(1)
+    autorun(player)
+    player.saveToSlot(0)
+
+    const oneOption = branchingScript()
+    oneOption[2] = new Decision(loc, [{ title: "left", jumpLabel: "L1" }])
+    player.reloadStory(makeState(oneOption))
+    expect(player.canLoadFromSlot(0)).toBe(false)
+  })
+
+  it("answers no for a save whose replay now loops", () => {
+    // A fresh player rather than reloadStory, which replays the current path into the same loop and
+    // throws first - ROUGH_EDGES.md's looping-story entry, and not this check's to fix.
+    const player = new VnPlayer(makeState([say("s1"), new Label(loc, "loop"), new Jump(loc, "loop")]))
+    player.saves = savedOnS4().saves
+    expect(player.canLoadFromSlot(0)).toBe(false)
+  })
+
+  it("answers no for a slot with no save in it", () => {
+    expect(savedOnS4().canLoadFromSlot(1)).toBe(false)
+  })
+
+  // `advance` marks every command it applies as seen, and skip mode trusts those marks - so a check
+  // that replayed on the player's own set would let skip run through a route nobody has read.
+  it("leaves the commands the player has seen exactly as they were", () => {
+    const player = new VnPlayer(makeState(branchingScript()))
+    autorun(player)
+    press(player)
+    player.makeDecision(1) // the right branch
+    autorun(player)
+    player.saveToSlot(0)
+
+    // back to the decision, and down the left branch instead, which the save never took
+    player.loadState(player.startingState)
+    autorun(player)
+    press(player)
+    player.makeDecision(0)
+    autorun(player)
+    player.saveToSlot(1)
+
+    const fresh = new VnPlayer(makeState(branchingScript()))
+    fresh.saves = player.saves
+    autorun(fresh)
+    const seen = JSON.stringify(fresh.state.seenCommands.toJSON())
+
+    expect(fresh.canLoadFromSlot(0)).toBe(true)
+    expect(fresh.canLoadFromSlot(1)).toBe(true)
+    expect(JSON.stringify(fresh.state.seenCommands.toJSON())).toBe(seen)
   })
 })
 

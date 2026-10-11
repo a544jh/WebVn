@@ -207,7 +207,25 @@ describe("adding an asset", () => {
     cancel()
   })
 
-  it("refuses a filename the project already holds, and says which file is in the way", async () => {
+  it("refuses a filename a declared asset holds, and says which file is in the way", async () => {
+    const started = await startEditor(MANIFEST, SCRIPT, {
+      resolver: servedAssets(),
+      taken: ["assets/backgrounds/a.png"],
+    })
+
+    pick(started, pickedFile("a.png"))
+    await waitForDialog()
+    type("Id", "beach")
+    confirm()
+
+    expect(openDialog()).not.toBeNull()
+    expect(hintOf("File name")).toContain("assets/backgrounds/a.png is already in this project")
+    cancel()
+  })
+
+  // `.scratch/asset-panel/issues/06`: before the panel listed undeclared files, this refusal named a
+  // file the author had no way to see. It still refuses, and now says where the row is.
+  it("refuses a filename an undeclared file holds, and points at its row", async () => {
     const started = await startEditor(MANIFEST, SCRIPT, {
       resolver: servedAssets(),
       taken: ["assets/backgrounds/jetty.png"],
@@ -219,7 +237,9 @@ describe("adding an asset", () => {
     confirm()
 
     expect(openDialog()).not.toBeNull()
-    expect(hintOf("File name")).toContain("assets/backgrounds/jetty.png is already in this project")
+    expect(hintOf("File name")).toBe(
+      "assets/backgrounds/jetty.png is in this project but not declared. Declare it from its row under Backgrounds, or give this file another name."
+    )
     cancel()
   })
 

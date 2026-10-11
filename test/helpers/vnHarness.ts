@@ -243,7 +243,15 @@ export const servedAssets = (): AssetResolver => ({
 export const startEditor = async (
   manifestText: string,
   script: string,
-  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob>; removed?: string[] } = {}
+  options: {
+    resolver?: AssetResolver
+    taken?: string[]
+    written?: Map<string, Blob>
+    removed?: string[]
+    // A remove that is refused, the way OPFS refuses one on a file something still holds - for the
+    // suites that check a failed write still leaves the panel agreeing with the folder.
+    refuseRemove?: boolean
+  } = {}
 ): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
@@ -262,21 +270,29 @@ export const startEditor = async (
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
   // A store-less editor's files: whatever a test handed in, and a write that records rather than
   // lands anywhere. A suite whose subject is the writing boots through the store instead.
+  //
+  // **The listing follows the writes**, because the panel reads it again after every job and draws
+  // the files nothing declares out of it: a listing that stayed what the test handed in would show a
+  // removed file still there and a written one not yet.
   const written = options.written ?? new Map<string, Blob>()
   const removed = options.removed ?? []
+  const present = new Set(options.taken ?? [])
   const assetPanel = new AssetPanel(panelRoot, {
     player,
     editor,
     resolver,
     files: {
-      list: () => Promise.resolve(new Set(options.taken ?? [])),
+      list: () => Promise.resolve(new Set(present)),
       write: (path, data) => {
         written.set(path, data)
+        present.add(path)
         return Promise.resolve()
       },
       remove: (path) => {
+        if (options.refuseRemove === true) return Promise.reject(new DOMException(path, "NoModificationAllowedError"))
         written.delete(path)
         removed.push(path)
+        present.delete(path)
         return Promise.resolve()
       },
     },

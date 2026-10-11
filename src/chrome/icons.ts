@@ -7,6 +7,7 @@ import {
   Globe,
   IconNode,
   Link,
+  ListPlus,
   Maximize,
   Plus,
   Replace,
@@ -54,6 +55,9 @@ const ICONS = {
   link: Link,
   eye: Eye,
   replace: Replace,
+  // Declare, on a file nothing declares yet: a line added to a list, which is what it does to the
+  // manifest. Not `plus`, which Add asset and Add file have both spent on putting a file somewhere.
+  "list-plus": ListPlus,
   // Publish: the zip becomes a web page. The other candidate for Import from URL, which took `link`.
   globe: Globe,
 } satisfies Record<string, IconNode>

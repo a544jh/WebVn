@@ -1,6 +1,6 @@
 # 06: Undeclared files in the panel
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: nothing - 01 through 04 have landed, and the artboards are drawn. The canvas the spec links
 is binding for pixels, and its **Asset panel** page now carries six boards for this ticket, below
@@ -194,25 +194,25 @@ way in.
 
 - [x] The canvas gains an artboard for a project with undeclared files - a background beside the
       declared ones, a not-declared actor branch, and `Other files`.
-- [ ] The panel matches it.
-- [ ] A file under `assets/` that no declaration names appears in the group its folder names, after
+- [x] The panel matches it.
+- [x] A file under `assets/` that no declaration names appears in the group its folder names, after
       the declared rows, saying _not declared_; one that is declared appears once, as the declared row
       it is today. A file with no group appears under `Other files`. Nothing outside `assets/` appears.
-- [ ] Declaring one - by the row's Declare or by hand in `manifest.yaml` - turns it into the declared
+- [x] Declaring one - by the row's Declare or by hand in `manifest.yaml` - turns it into the declared
       row, with nothing copied. Declare asks only for the id, and is absent where the path cannot be
       declared.
-- [ ] Removing one deletes the file, after a confirmation naming it, and touches nothing in the
+- [x] Removing one deletes the file, after a confirmation naming it, and touches nothing in the
       manifest.
-- [ ] The rows follow the folder: an add, a remove, a replace and a declare - succeeded or failed -
+- [x] The rows follow the folder: an add, a remove, a replace and a declare - succeeded or failed -
       each leave the list matching what is on disk.
-- [ ] Add asset's taken-name refusal names the undeclared file's row.
-- [ ] Declare's id refusal, for an id whose declaration is missing its file, names the edit that
+- [x] Add asset's taken-name refusal names the undeclared file's row.
+- [x] Declare's id refusal, for an id whose declaration is missing its file, names the edit that
       points it at this file; for an id whose file is present it is the plain refusal.
-- [ ] Group counts, the empty state and the collapsed headers say what they said before for a
+- [x] Group counts, the empty state and the collapsed headers say what they said before for a
       project with no undeclared files.
-- [ ] `spec.md` point 1, CLAUDE.md's asset panel section, `CONTEXT.md`'s _Remove_ and ADR 0006 say
+- [x] `spec.md` point 1, CLAUDE.md's asset panel section, `CONTEXT.md`'s _Remove_ and ADR 0006 say
       what the panel now shows.
-- [ ] A unit suite for the grouping function; a browser suite, store-backed where the files matter,
+- [x] A unit suite for the grouping function; a browser suite, store-backed where the files matter,
       with directory names unique to the suite.
 
 ## Comments
@@ -251,3 +251,27 @@ the case it sits beside: on `storm.png` it prefills `storm`, which is declared. 
 as three options - leave it deferred, have the refusal name the fix, or build the repoint here - and
 they chose the second. `DeclareMissing` draws it, beside `DeclareAsset` in the top row, whose note
 moved out to the fourth column to make room.
+
+**Built 2026-10-11** on `claude/undeclared-files-in-the-panel`. `src/editor/undeclaredFiles.ts` is the
+second walk and `test/unit/undeclaredFiles.test.ts` pins where each file goes; the panel merges it in
+`assetPanel.ts`, and `test/browser/UndeclaredFiles.test.ts` covers the rows, Declare, Remove and the
+listing, store-backed for the last three cases. Four things implementation settled that this file did
+not:
+
+- **`default` and `narrator` holding only undeclared sprites are drawn as the actors they are**, with a
+  count of 0, not as _not declared_ - the engine declares them, and "the way they appear today when
+  they declare some" is a declared branch.
+- **Removing an undeclared file says so when the delete fails**, in a dialog, where a declared asset's
+  remove only logs it. There the declaration is already out and the file is residue; here the delete
+  is the whole operation.
+- **A listing that fails keeps the last one** and logs, rather than drawing a project with no
+  undeclared files, which would be a claim.
+- **The store-less harness's listing now follows its writes** (`test/helpers/vnHarness.ts`), and
+  `DialogRow.setProblem` takes identifiers like a hint does, so both refusals name their files in the
+  chrome's monospace as the boards draw them.
+
+Checked by mutation: without the re-list after each job, the two remove tests fail. The test of a
+declared remove whose delete fails passes either way - the file was already in the listing - so it
+covers the merge, not the re-list. The re-list sits in `work`'s `finally`, so every job gets it by
+construction; the suite exercises it through remove, succeeded and failed, rather than once per job -
+a failed add or declare is not reached by any test.

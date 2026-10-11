@@ -6,7 +6,7 @@ import { AssetDeclaration, DeclaredAsset, Reference } from "../core/manifest"
 import { VnPlayer } from "../core/player"
 import { VnPlayerState } from "../core/state"
 import { declaredFilePath } from "../domRenderer/assetPaths"
-import { askForAsset } from "./addAssetDialog"
+import { askForAsset, askToDeclare } from "./addAssetDialog"
 import {
   actorBranches,
   branchCount,
@@ -17,14 +17,29 @@ import {
   nothingDeclared,
 } from "./declarations"
 import { VnEditor } from "./editor"
+import {
+  Declarable,
+  groupNames,
+  nothingUndeclared,
+  UndeclaredFile,
+  undeclaredFiles,
+  UndeclaredFiles,
+  UndeclaredSprites,
+} from "./undeclaredFiles"
 import "../chrome/chrome.css"
 import "./assetPanel.css"
 
 // The column to the right of the stage: everything `manifest.yaml` declares, and a button that adds
 // to it.
 //
-// **A view of the manifest, not of OPFS** - see `declarations.ts`, which is the walk this draws.
-// Three fixed groups, one level of nesting under an actor, ids as leaves.
+// **A view of the manifest first** - see `declarations.ts`, which is the walk this draws. Three
+// fixed groups, one level of nesting under an actor, ids as leaves. **And then the files nothing
+// declares**, out of `undeclaredFiles.ts`, each in the group its folder names, after the declared
+// rows. That reverses what the panel's spec first decided; `.scratch/asset-panel/issues/06` says why -
+// an undeclared file used to be invisible, permanent, in every export, and blocking its own name in
+// Add asset. The two walks stay separate modules and this is the only place they are merged, because
+// the completions `design-docs/EDITOR.md` plans are meant to read the first and must never offer the
+// second.
 //
 // In `src/editor/` rather than a directory of its own, and that is a judgment call worth recording:
 // everything the panel touches is the editor's. It reads the manifest `VnEditor` adopted, it
@@ -46,7 +61,8 @@ import "./assetPanel.css"
 // knows which directory these land in.
 export interface AssetFiles {
   // Every file inside the project, by its path within it - `assets/backgrounds/a.png`. What the Add
-  // asset dialog refuses a filename collision against.
+  // asset dialog refuses a filename collision against, and what the undeclared rows are worked out
+  // from.
   list(): Promise<Set<string>>
   write(path: string, data: Blob): Promise<void>
   remove(path: string): Promise<void>
@@ -97,6 +113,17 @@ export class AssetPanel {
   // draw.
   private working: string | null = null
 
+  // Every file in the project as the last listing found it. The undeclared rows are worked out from
+  // this on every draw, against whatever the state declares by then - so an adoption, which changes
+  // the declarations and never the files, needs no listing of its own. Empty until the first one
+  // lands, a moment after mount.
+  private files: ReadonlySet<string> = new Set()
+
+  // Which listing is the newest one asked for. A read started at mount that resolves after one a job
+  // started would otherwise put the older answer back - the race `renderGeneration` and
+  // `ProjectPicker` guard the same way.
+  private listing = 0
+
   constructor(private root: HTMLElement, private deps: AssetPanelDeps) {
     // The one redraw signal: the editor has finished deciding what the project is described by.
     // Declarations do not change per frame, so this is deliberately not `renderer.onRenderCallbacks`
@@ -105,6 +132,8 @@ export class AssetPanel {
     // The initial mount, from the state `editorBoot` loaded. The boot fills the buffers afterwards,
     // which fires the callback above with whatever the asset load reported.
     this.draw()
+    // And again once the project's files are listed, which is when the undeclared rows can be drawn.
+    void this.relist().then(() => this.draw())
   }
 
   public stop(): void {
@@ -118,13 +147,37 @@ export class AssetPanel {
     this.root.replaceChildren(this.panel())
   }
 
+  // Read the project's files again. **At mount and after every one of the panel's own jobs, succeeded
+  // or failed - and that is enough to never be stale**, because nothing else writes under `assets/`
+  // while a project is open: the storer writes only the two buffers at the root, import, delete and
+  // the crash sweep all need the project lock this session holds, and a rename closes the session
+  // before it moves anything, so the panel it reopens lists afresh. `.scratch/asset-panel/issues/06`
+  // has the argument. The linked folder of design-docs/PROJECT_STORAGE.md's tranche 5 is what would
+  // break it - a file the author puts there from outside the browser is one no job of this panel's
+  // wrote - and when that lands, this needs a trigger for it.
+  private async relist(): Promise<void> {
+    const asked = ++this.listing
+    let files: Set<string>
+    try {
+      files = await this.deps.files.list()
+    } catch (e) {
+      // **Kept rather than cleared.** An empty listing would draw a project with no undeclared files,
+      // which is a claim; the last listing is at worst out of date by one job, and says so here.
+      console.error("The project's files could not be listed, so the panel shows the last listing", e)
+      return
+    }
+    if (asked === this.listing) this.files = files
+  }
+
   private panel(): HTMLElement {
     const panel = element("div", "vn-asset-panel")
-    const groups = declaredGroups(this.deps.player.state)
+    const state = this.deps.player.state
     const missing = missingKeys(this.deps.editor.getMissingAssets())
+    const groups = declaredGroups(state)
+    const undeclared = undeclaredFiles(this.files, state)
 
     panel.appendChild(this.bar())
-    panel.appendChild(this.list(groups, missing))
+    panel.appendChild(this.list(groups, undeclared, missing))
     panel.appendChild(this.footer())
     return panel
   }
@@ -139,38 +192,47 @@ export class AssetPanel {
     return bar
   }
 
-  private list(groups: DeclaredBranch[], missing: Set<string>): HTMLElement {
+  private list(groups: DeclaredBranch[], undeclared: UndeclaredFiles, missing: Set<string>): HTMLElement {
     const list = element("div", "vn-asset-list")
-    if (nothingDeclared(groups)) {
+    // **Only when there is nothing at all.** A fresh import of an archive with a bare manifest still
+    // has files to show, and saying "Nothing declared yet." over them would hide exactly those.
+    if (nothingDeclared(groups) && nothingUndeclared(undeclared)) {
       list.appendChild(emptyState())
       return list
     }
-    for (const group of groups) this.drawBranch(list, group, missing, 0)
+    for (const branch of merged(groups, undeclared, missing)) this.drawBranch(list, branch, missing, 0)
     return list
   }
 
   // A group and everything under it, appended flat into the list: nesting is carried by the rows'
-  // own indentation rather than by nested containers, which is what keeps a row a row.
-  private drawBranch(list: HTMLElement, branch: DeclaredBranch, missing: Set<string>, depth: number): void {
-    list.appendChild(this.header(branch, missing, depth))
+  // own indentation rather than by nested containers, which is what keeps a row a row. The declared
+  // rows first, in the manifest's order, and then the undeclared ones, sorted by path.
+  private drawBranch(list: HTMLElement, branch: DrawnBranch, missing: Set<string>, depth: number): void {
+    list.appendChild(this.header(branch, depth))
     if (this.collapsed.has(branch.key)) return
     for (const leaf of branch.leaves) list.appendChild(this.row(leaf, missing))
+    for (const file of branch.files) list.appendChild(this.undeclaredRow(file, depth > 0))
     for (const child of branch.branches) this.drawBranch(list, child, missing, depth + 1)
   }
 
-  private header(branch: DeclaredBranch, missing: Set<string>, depth: number): HTMLElement {
+  private header(branch: DrawnBranch, depth: number): HTMLElement {
     const folded = this.collapsed.has(branch.key)
     const header = element("button", "vn-asset-group")
     header.type = "button"
     if (depth > 0) header.classList.add("vn-asset-actor")
     // Orange when anything under it is, so folding a group away does not fold away the news.
-    header.classList.toggle("vn-asset-missing", branchMissing(branch, missing))
+    header.classList.toggle("vn-asset-missing", branch.missing)
+    header.classList.toggle("vn-asset-undeclared", branch.trailing === NOT_DECLARED)
     header.setAttribute("aria-expanded", String(!folded))
     header.dataset.vnAssetGroup = branch.key
 
     header.appendChild(icon(folded ? "chevron-right" : "chevron-down", 13))
     header.appendChild(text("span", "vn-asset-group-name", branch.name))
-    header.appendChild(text("span", "vn-asset-group-count", String(branchCount(branch))))
+    if (branch.trailing !== null) {
+      header.appendChild(
+        text("span", branch.trailing === NOT_DECLARED ? "vn-asset-group-note" : "vn-asset-group-count", branch.trailing)
+      )
+    }
     header.addEventListener(
       "click",
       () => {
@@ -181,6 +243,46 @@ export class AssetPanel {
       { signal: this.listeners.signal }
     )
     return header
+  }
+
+  // A file nothing declares. It has no id, so it leads with its name below its group's folder, in a
+  // quieter grey, and **says** it is not declared: among declared rows a shade alone gets misread.
+  // No orange - nothing about what plays has changed - and never mistakable for a missing asset,
+  // which is its opposite.
+  private undeclaredRow(file: UndeclaredFile, sprite: boolean): HTMLElement {
+    const row = element("div", "vn-asset-row")
+    row.classList.add("vn-asset-undeclared")
+    if (sprite) row.classList.add("vn-asset-row-sprite")
+    row.dataset.vnUndeclared = file.path
+
+    row.appendChild(text("span", "vn-asset-name", file.name))
+    row.appendChild(text("span", "vn-asset-undeclared-note", NOT_DECLARED))
+    row.appendChild(this.undeclaredControls(file))
+    return row
+  }
+
+  // Preview, Declare and Remove. **Never Replace**: new bytes under a path nothing reads change
+  // nothing. **Declare is absent, not disabled, where it could never work** - in `Other files`, and
+  // under a folder no actor could be called - for the reason a missing row has no preview.
+  private undeclaredControls(file: UndeclaredFile): HTMLElement {
+    const controls = element("div", "vn-asset-controls")
+    controls.appendChild(
+      this.control("vn-asset-preview", "eye", `Preview ${file.name}`, "Open this file in a new tab", () =>
+        this.preview(file.path)
+      )
+    )
+    const declares = file.declares
+    if (declares !== null) {
+      controls.appendChild(
+        this.control("vn-asset-declare", "list-plus", `Declare ${file.name}`, "Declare this file", () =>
+          this.declare(declares)
+        )
+      )
+    }
+    controls.appendChild(
+      this.control("vn-asset-remove", "trash-2", `Remove ${file.name}`, "Remove this file", () => this.removeFile(file))
+    )
+    return controls
   }
 
   // One declared asset. **Not a button**: the row's actions are its controls, and inserting the id
@@ -219,7 +321,7 @@ export class AssetPanel {
     if (!gone) {
       controls.appendChild(
         this.control("vn-asset-preview", "eye", `Preview ${leaf.id}`, "Open this file in a new tab", () =>
-          this.preview(leaf)
+          this.preview(leaf.path)
         )
       )
     }
@@ -294,14 +396,54 @@ export class AssetPanel {
   // it works for both kinds of asset. The URL stays valid indefinitely because `OpfsAssetResolver`
   // never revokes, which is an existing decision paying off sideways.
   //
-  // Not gated: it writes nothing.
-  private async preview(leaf: DeclaredLeaf): Promise<void> {
+  // Not gated: it writes nothing. A path rather than a row, because an undeclared file previews the
+  // same way and has no declaration to be a row of.
+  private async preview(path: string): Promise<void> {
     try {
-      window.open(await this.deps.resolver.resolve(leaf.path), "_blank")
+      window.open(await this.deps.resolver.resolve(path), "_blank")
     } catch (e) {
-      console.error(`${leaf.path} could not be opened`, e)
-      await noticeDialog("The asset could not be opened", [`${leaf.path} is not in this project.`])
+      console.error(`${path} could not be opened`, e)
+      await noticeDialog("The asset could not be opened", [`${path} is not in this project.`])
     }
+  }
+
+  // Declaring a file that is already in the project: Add asset with only the id left to ask, and
+  // nothing to copy. The declaration is spliced in exactly as Add asset's is, through `storeNow`, so
+  // it is on disk at once rather than after the debounce.
+  private async declare(declares: Declarable): Promise<void> {
+    const state = this.deps.player.state
+    const missing = missingKeys(this.deps.editor.getMissingAssets())
+    const declaration = await askToDeclare(declares, {
+      cast: declares.kind !== "sprite" || state.actors[declares.actor] !== undefined,
+      held: (asked) => {
+        const held = holding(state, asked)
+        return held === null ? null : { file: held.file, missing: missing.has(leafKey(held.manifestKey)) }
+      },
+    })
+    if (declaration === null) return
+
+    await this.work("Declaring\u2026", async () => {
+      const refused = await this.deps.editor.declareAsset(declaration)
+      if (refused !== null) await noticeDialog("The asset was not declared", [refused])
+    })
+  }
+
+  // Removing a file nothing declares: the file alone, since there is no declaration to take out.
+  // Confirmed and irreversible, as remove always is - and still **remove**, because CONTEXT.md keeps
+  // _delete_ for a project.
+  private async removeFile(file: UndeclaredFile): Promise<void> {
+    if (!(await confirmFileRemoval(file))) return
+
+    await this.work("Removing\u2026", async () => {
+      try {
+        await this.deps.files.remove(file.path)
+      } catch (e) {
+        // Unlike a declared asset's remove, where the declaration is already out and the file is
+        // residue, this is the whole of the operation failing - so it is said, not only logged.
+        console.error(`${file.path} could not be deleted`, e)
+        await noticeDialog("The file was not removed", [`${file.path} could not be deleted, so it is still here.`])
+      }
+    })
   }
 
   // An icon with no text, so the label a screen reader looks for goes on the control - the same
@@ -406,12 +548,16 @@ export class AssetPanel {
   // stopping would leave the author with a file no script can reach and nothing on screen saying why.
   private async add(file: File): Promise<void> {
     const state = this.deps.player.state
+    // Asked afresh rather than read off the last listing, which is the one thing this dialog must not
+    // be wrong about: a name it lets through is a file it overwrites.
+    const taken = await this.deps.files.list()
     const declaration = await askForAsset(file, {
       // The manifest's own order, and the same walk the list is drawn from - so the actors offered
       // here cannot come to disagree with the actors shown above.
       actors: actorBranches(state).map((branch) => branch.name),
-      isDeclared: (asked) => declares(state, asked),
-      taken: await this.deps.files.list(),
+      isDeclared: (asked) => holding(state, asked) !== null,
+      taken,
+      undeclared: groupNames(undeclaredFiles(taken, state)),
     })
     if (declaration === null) return
 
@@ -470,6 +616,10 @@ export class AssetPanel {
     try {
       await job()
     } finally {
+      // **Whatever the job did or failed to do on disk, the rows follow it**, so a write that died
+      // halfway still leaves the panel agreeing with the folder - a file copied in whose declaration
+      // was refused, or one that could not be deleted, is a row from here on.
+      await this.relist()
       this.working = null
       this.draw()
     }
@@ -506,18 +656,111 @@ const confirmRemoval = (leaf: DeclaredLeaf, named: number): Promise<boolean> =>
     "Remove"
   )
 
-// Whether a state already declares what is being asked for, in its own group. The one place the
-// three declarations are asked that question, so a duplicate is refused on the same terms the
-// manifest would.
-const declares = (state: VnPlayerState, declaration: AssetDeclaration): boolean => {
+// What already declares that id in that group: its file, and the key the manifest declares it under -
+// or null when nothing does. The one place the three declarations are asked that question, so Add
+// asset and Declare refuse a duplicate on the same terms the manifest would.
+const holding = (
+  state: VnPlayerState,
+  declaration: AssetDeclaration
+): { file: string; manifestKey: (string | number)[] } | null => {
   switch (declaration.kind) {
-    case "background":
-      return state.backgrounds[declaration.id] !== undefined
-    case "audio":
-      return state.audioAssets[declaration.id] !== undefined
-    case "sprite":
-      return state.actors[declaration.actor]?.sprites?.[declaration.id] !== undefined
+    case "background": {
+      const file = state.backgrounds[declaration.id]
+      return file === undefined ? null : { file, manifestKey: ["backgrounds", declaration.id] }
+    }
+    case "audio": {
+      const asset = state.audioAssets[declaration.id]
+      return asset === undefined ? null : { file: asset.file, manifestKey: ["audioAssets", declaration.id] }
+    }
+    case "sprite": {
+      const file = state.actors[declaration.actor]?.sprites?.[declaration.id]
+      return file === undefined ? null : { file, manifestKey: ["actors", declaration.actor, "sprites", declaration.id] }
+    }
   }
+}
+
+// What a header or an undeclared row says in the place a count or a filename goes.
+const NOT_DECLARED = "not declared"
+
+// A group, an actor or `Other files`, as the panel draws it: the declared rows and then the files no
+// declaration points at. Built fresh per draw by `merged`.
+interface DrawnBranch {
+  readonly name: string
+  // The collapse state and a test's handle: the manifest key path, joined, as `declarations.ts` builds
+  // it - so an actor's branch keeps its key, and its fold, when it goes from not declared to declared.
+  readonly key: string
+  // What the header says at its right: how many declarations are under it, NOT_DECLARED for an actor
+  // nobody declared, or nothing for `Other files`, which holds no declarations to count. **A count of
+  // declarations only**, so it keeps meaning what the manifest declares and a folded group says
+  // nothing about the undeclared files inside it.
+  readonly trailing: string | null
+  readonly missing: boolean
+  readonly leaves: DeclaredLeaf[]
+  readonly files: UndeclaredFile[]
+  readonly branches: DrawnBranch[]
+}
+
+// The two walks put side by side - the only place they are. Each undeclared file goes in the group its
+// folder names; what no group answers goes in `Other files`, drawn last and only when it has
+// something in it.
+const merged = (groups: DeclaredBranch[], undeclared: UndeclaredFiles, missing: Set<string>): DrawnBranch[] => {
+  const drawn = groups.map((group) =>
+    group.key === "backgrounds"
+      ? declaredBranch(group, missing, undeclared.backgrounds, [])
+      : group.key === "audioAssets"
+      ? declaredBranch(group, missing, undeclared.audio, [])
+      : declaredBranch(group, missing, [], actorsWith(group.branches, undeclared.sprites, missing))
+  )
+  if (undeclared.other.length > 0) {
+    drawn.push({
+      name: "Other files",
+      key: "other",
+      trailing: null,
+      missing: false,
+      leaves: [],
+      files: undeclared.other,
+      branches: [],
+    })
+  }
+  return drawn
+}
+
+const declaredBranch = (
+  branch: DeclaredBranch,
+  missing: Set<string>,
+  files: UndeclaredFile[],
+  branches: DrawnBranch[]
+): DrawnBranch => ({
+  name: branch.name,
+  key: branch.key,
+  trailing: String(branchCount(branch)),
+  missing: branchMissing(branch, missing),
+  leaves: branch.leaves,
+  files,
+  branches,
+})
+
+// The cast with their undeclared sprites under them, then a branch for every other folder that holds
+// one, sorted. **A folder whose actor nobody declared says so where the count goes**; one the engine
+// knows without a declaration - `default`, `narrator` - is drawn as the actor it is, declaring nothing
+// yet, the way it is drawn today once it declares a sprite.
+const actorsWith = (declared: DeclaredBranch[], folders: UndeclaredSprites[], missing: Set<string>): DrawnBranch[] => {
+  const drawn = declared.map((branch) =>
+    declaredBranch(branch, missing, folders.find((folder) => folder.actor === branch.name)?.files ?? [], [])
+  )
+  for (const folder of folders) {
+    if (declared.some((branch) => branch.name === folder.actor)) continue
+    drawn.push({
+      name: folder.actor,
+      key: leafKey(["actors", folder.actor]),
+      trailing: folder.cast ? "0" : NOT_DECLARED,
+      missing: false,
+      leaves: [],
+      files: folder.files,
+      branches: [],
+    })
+  }
+  return drawn
 }
 
 // Which declarations the last asset load could not find, by the key the manifest declares them
@@ -528,6 +771,18 @@ const missingKeys = (failed: DeclaredAsset[]): Set<string> => new Set(failed.map
 const branchMissing = (branch: DeclaredBranch, missing: Set<string>): boolean =>
   branch.leaves.some((leaf) => missing.has(leafKey(leaf.manifestKey))) ||
   branch.branches.some((child) => branchMissing(child, missing))
+
+// The file alone, named by its full project path rather than the row's short one: the dialog has lost
+// the group that made the short one unambiguous, and the delete cannot be undone.
+const confirmFileRemoval = (file: UndeclaredFile): Promise<boolean> =>
+  confirmDialog(
+    "Remove file",
+    [
+      ["Remove ", identifier(file.path), " from this project? The file is deleted."],
+      "No declaration points at it, so nothing the story draws changes.",
+    ],
+    "Remove"
+  )
 
 // Two lines: what there is, and the two ways out of it - the button below, or writing it into
 // `manifest.yaml` by hand.

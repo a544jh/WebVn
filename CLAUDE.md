@@ -112,7 +112,8 @@ src/
   reactRenderer/   incomplete React experiment — NOT wired up, do not rely on it
   pegjsParser/     earlier PEG.js grammar — NOT wired up
   editor/          CodeMirror editor, plus the asset panel beside the stage: the walk of what a
-                   project declares, the panel that draws it, and the Add asset dialog
+                   project declares, the files nothing declares, the panel that draws both, and the
+                   Add asset and Declare dialogs
   picker/          the front door: the project library as a page, shown before any editor
   AppShell.ts      which view is up, the ordering that swap depends on, and the queue it runs in
   projectUrl.ts    which project is open, in the address bar: ?project=<directory>
@@ -224,22 +225,43 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   itself under webpack. `src/editor/codeMirror.ts` unwraps it; call through that, not the namespace.
 
 ### The asset panel - the column of what a project declares
-`src/editor/assetPanel.ts` plus its own `assetPanel.css`, and `src/editor/declarations.ts` under it.
-`.scratch/asset-panel/`, landed 2026-09-18; the design canvas its spec links is binding for pixels.
-- **A view of the MANIFEST, not of OPFS.** `declarations.ts` is the walk: three fixed groups
-  (Backgrounds, Audio, Actors), one level of nesting under an actor, ids as leaves, read off
-  `VnPlayerState` where `seedState` copied the declarations. A file no id answers appears nowhere at
-  all - that state is what ADR 0004 makes visible in the *script*, and a second place to go looking
-  is what this refuses to be. It is **its own module for one reason**: `design-docs/EDITOR.md`'s
-  completion table wants the same enumeration surfaced a second way, and two walks would come to
-  disagree about what a project contains. The one place the state and the manifest disagree is
-  settled in it - `seedActors` merges `default` and `narrator` in on every boot, so the walk drops
-  the engine's two unless they declare sprites.
-- **Three writes, one rule: every one of them is gated on the manifest parsing.** While it does not
+`src/editor/assetPanel.ts` plus its own `assetPanel.css`, and `src/editor/declarations.ts` and
+`src/editor/undeclaredFiles.ts` under it. `.scratch/asset-panel/`, landed 2026-09-18, and its ticket
+06 on 2026-10-11; the design canvas its spec links is binding for pixels.
+- **A view of the MANIFEST first.** `declarations.ts` is the walk of the declarations: three fixed
+  groups (Backgrounds, Audio, Actors), one level of nesting under an actor, ids as leaves, read off
+  `VnPlayerState` where `seedState` copied the declarations. It is **its own module for one reason**:
+  `design-docs/EDITOR.md`'s completion table wants the same enumeration surfaced a second way, and
+  two walks would come to disagree about what a project contains. The one place the state and the
+  manifest disagree is settled in it - `seedActors` merges `default` and `narrator` in on every boot,
+  so the walk drops the engine's two unless they declare sprites.
+- **And then the files nothing declares** - CONTEXT.md's _undeclared file_ - which the spec first
+  refused to show and ticket 06 reversed: invisible, a file like that was permanent, rode into every
+  export and blocked its own name in Add asset. `undeclaredFiles.ts` sorts them **into the group
+  their folder names**, after the declared rows: a nested `backgrounds/old/x.png` stays a background,
+  a sprite folder whose actor nobody declared is a branch saying "not declared", and what no group
+  answers is `Other files`, drawn only when it has something. **Only `assets/` is listed** - the root
+  is the project describing itself and where the storer writes, so a walk there can catch a
+  `.crswap`. A row is muted and says "not declared"; nothing about it is orange, and **counts stay
+  counts of declarations**. **A second module, never folded into `declaredGroups`**: the completions
+  must not offer a file as an id, so the panel is the only place the two walks meet.
+- **The listing is read at mount and after every panel job, succeeded or failed - not per adoption.**
+  An adoption changes what is declared and never what is on disk, and the draw subtracts against the
+  current state, so a hand-typed declaration moves its row with no walk. That is enough only because
+  nothing else writes under `assets/` while the project lock is held; the linked folder of tranche 5
+  breaks it and will need a trigger. A generation counter stops an older listing landing over a newer
+  one, and a failed listing keeps the last one rather than drawing an empty project.
+- **Five writes, one rule: every one of them is gated on the manifest parsing.** While it does not
   parse the panel shows the last manifest that *was* adopted (ADR 0002's other half, said in the
-  title strip), so a row may name a declaration the buffer no longer has - add has nowhere safe to
-  insert, remove would destroy the wrong file, replace would overwrite a file the current manifest
-  does not point at. Preview writes nothing and is not gated. The gate is **a field the draw reads**
+  title strip), so a row may name a declaration the buffer no longer has - add and declare have
+  nowhere safe to splice, remove would destroy the wrong file, replace would overwrite a file the
+  current manifest does not point at, and removing an undeclared file could take one the buffer now
+  declares. Preview writes nothing and is not gated.
+- **Declare is Add asset with only the id left to ask**, copying nothing - the path fixes the kind,
+  the actor and the filename - and a sprite under an undeclared actor declares the actor too.
+  **Its refusal names the fix when the id is declared and missing its file**, because that is the
+  commonest way in (`file:` edited by hand) and the basename prefill lands on exactly that id.
+  Removing an undeclared file is the file alone, still confirmed and still called remove. The gate is **a field the draw reads**
   rather than `src/index.ts`'s `gateOnManifest`: that helper pushes a callback per button, and this
   panel `replaceChildren`es its own root, so the callback would point at a replaced element and
   fight the busy state. The busy state is the same field, the way `ProjectPicker`'s is.
@@ -280,9 +302,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **Preview is `AssetResolver`'s second consumer** - `window.open(await resolver.resolve(path))`.
   That interface's comment used to say "consulted in exactly one place"; it was a fact about callers
   rather than a rule about them.
-- Its tests are `test/browser/AssetPanel.test.ts`, `AddAsset.test.ts`, `RemoveAsset.test.ts` and
-  `ReplaceAsset.test.ts`. The last is store-backed throughout, because the cache it is about is
-  invisible through an in-memory stand-in.
+- Its tests are `test/browser/AssetPanel.test.ts`, `AddAsset.test.ts`, `RemoveAsset.test.ts`,
+  `ReplaceAsset.test.ts` and `UndeclaredFiles.test.ts`, plus `test/unit/undeclaredFiles.test.ts` for
+  which group a file lands in. `ReplaceAsset` is store-backed throughout, because the cache it is
+  about is invisible through an in-memory stand-in. **The store-less harness's listing follows its
+  writes**, since the panel reads it again after every job.
 
 ### The URL payload
 - **Not to be confused with `index.html?project=<directory>`**, which names a project in *this*
@@ -880,10 +904,11 @@ If you're tempted to import from any of these, don't.
   Name a suite's directories after the suite.
 - **Change the save format**: bump/validate in `loadFromLocalStorage`; keep an eye on `toShorthandPath` and `fromShorthandPath` — those two plus `ConsecutiveIntegerSet.toJSON/fromJSON` define what persists.
 - **Touch the asset panel**: read "The asset panel" above, then `.scratch/asset-panel/` for the spec,
-  the four tickets and what each landed against them - plus the design canvas the spec links, which
+  the tickets and what each landed against them - plus the design canvas the spec links, which
   is binding for pixels. `src/editor/declarations.ts` is the only walk of the three declarations in
-  tree shape, `src/yamlParser/manifestEdit.ts` is the only place a declaration is spliced into or out
-  of manifest text, and `src/editor/assetPanel.ts` is the only thing that draws them. Nothing covers
+  tree shape, `src/editor/undeclaredFiles.ts` the only thing that decides where a file nothing
+  declares is drawn, `src/yamlParser/manifestEdit.ts` the only place a declaration is spliced into or
+  out of manifest text, and `src/editor/assetPanel.ts` the only thing that draws them. Nothing covers
   a preview tab actually opening - `window.open` is stubbed in the suite - so check that by hand,
   like `enterFullscreen` and `npm run dev`.
 - **Touch the archive**: read "The archive" above, then `.scratch/project-archive/` for the tickets
@@ -972,10 +997,11 @@ The ADRs, newest first:
   people, and the round trip - what publish writes, import reads back - is the reason that covers
   every declared file.
 - `0006-removing-an-asset-deletes-its-file.md` - the asset panel's remove takes the declaration *and*
-  the file, confirmed and irreversible. Why leaving the bytes is not the safer default: nothing lists
-  a file the manifest does not declare, so one left behind is invisible, permanent, and rides into
-  every archive the author exports. Tolerable because ADR 0004 makes a reference to a removed id a
-  warning rather than a crash.
+  the file, confirmed and irreversible. Why leaving the bytes is not the safer default: one left
+  behind rides into every archive the author exports. Tolerable because ADR 0004 makes a reference
+  to a removed id a warning rather than a crash. Amended 2026-10-11: its other argument, that such a
+  file is invisible, went when the panel began listing undeclared files, and the decision stands
+  without it.
 - `0005-an-archive-holds-a-project-that-parses.md` — a `.webvn.zip` always contains a manifest that parses and
   a script; export refuses to build one that does not and import refuses to accept one, which is 0002's line
   drawn at the format boundary. Why the archive refuses what the store deliberately tolerates.

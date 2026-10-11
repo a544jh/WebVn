@@ -51,9 +51,11 @@ symbol table with the manifest's shape: three fixed groups, one level of nesting
 as leaves. Showing the OPFS tree instead would let the author browse a file no id answers, which is
 the state ADR 0004 exists to make visible in the *script*, not a second place to go looking.
 
-**Reversed 2026-09-29, not yet built**: the maintainer decided a file no declaration points at does
-show up in the panel. The manifest stays the panel's spine; undeclared files are added beside it.
-`issues/06-undeclared-files-in-the-panel.md` has the reasoning and the open questions.
+**Reversed 2026-09-29, built 2026-10-11**: a file no declaration points at does show up in the panel,
+in the group its folder names, after the declared rows. The manifest stays the panel's spine;
+undeclared files are added beside it, out of a second walk (`src/editor/undeclaredFiles.ts`) so the
+completions this paragraph's first half protects never see them.
+`issues/06-undeclared-files-in-the-panel.md` has the reasoning and every decision.
 
 The consequence worth stating: **no tree library, and not a general treeview.** Three collapsible
 groups with one nesting level is `<button aria-expanded>` over a list. The fiddly part of a real

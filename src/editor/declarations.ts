@@ -7,9 +7,9 @@ import { audioFilePath, backgroundFilePath, spriteFilePath } from "../domRendere
 //
 // **A view of the manifest, not of OPFS.** `actors`, `backgrounds` and `audioAssets` are keyed maps
 // - the script names an id and the manifest says which file it is - so this is a walk of a symbol
-// table rather than a directory listing. A file no id answers appears here nowhere at all, which is
-// deliberate: that state is what docs/adr/0004 makes visible in the *script*, not a second place to
-// go looking.
+// table rather than a directory listing. A file no id answers appears here nowhere at all, and that
+// stays deliberate: the asset panel does show such files now, but out of `undeclaredFiles.ts`, a
+// walk of its own, because the completions below must never offer a file as an id.
 //
 // **Read out of `VnPlayerState`**, which is where `seedState` copied the three declarations and
 // which `advance` never writes - so the state is as authoritative as the manifest and is the thing

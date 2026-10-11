@@ -2,10 +2,11 @@
 
 Status: ready-for-agent
 
-Blocked by: nothing in code - 01 through 04 have landed. **The artboard is the work's first step**:
-the canvas the spec links is binding for pixels, and none of its seven artboards draws a file the
-manifest does not declare. Every decision the drawing needs is settled below, so it draws them
-rather than deciding them.
+Blocked by: nothing - 01 through 04 have landed, and the artboards are drawn. The canvas the spec links
+is binding for pixels, and its **Asset panel** page now carries five boards for this ticket, below
+the nine that were there: `AssetUndeclared` (the panel), `DeclareAsset` and `DeclareSprite` (the two
+shapes of Declare), `RemoveUndeclared` and `AddAssetTaken`, with two notes beside them. Read them
+before building; where they and this file disagree, the canvas is newer.
 
 ## What this is
 
@@ -177,8 +178,9 @@ way in.
 
 ## Acceptance criteria
 
-- [ ] The canvas gains an artboard for a project with undeclared files - a background beside the
-      declared ones, a not-declared actor branch, and `Other files` - and the panel matches it.
+- [x] The canvas gains an artboard for a project with undeclared files - a background beside the
+      declared ones, a not-declared actor branch, and `Other files`.
+- [ ] The panel matches it.
 - [ ] A file under `assets/` that no declaration names appears in the group its folder names, after
       the declared rows, saying _not declared_; one that is declared appears once, as the declared row
       it is today. A file with no group appears under `Other files`. Nothing outside `assets/` appears.
@@ -205,3 +207,25 @@ of their own, and a not-declared actor's branch says _not declared_ rather than 
 accepted the listing being read per job rather than per adoption on the condition that the panel can
 never go stale, which is what the section on when the listing is read now argues. `CONTEXT.md` gained
 _Undeclared file_ in the same commit, since the term was settled and the state already exists.
+
+**Drawn 2026-10-11**, as version 35 of the canvas, on the same branch. Five artboards on the Asset
+panel page, at y=5580 and y=6980, generated from the existing boards' own markup so every style is the
+one already drawn:
+
+- `AssetUndeclared` - the populated panel with `file: storm.png` edited to `storm-night.png`, so the
+  orange missing row sits directly above the `storm.png` it used to name, hovered to show Preview,
+  Declare and Remove. Also `old/cliffs-sketch.png` (a nested path stays in Backgrounds), a `Ghost`
+  branch saying _not declared_ where a count goes, and `Other files` holding `notes.txt`.
+- `DeclareAsset` and `DeclareSprite` - Add asset reduced to the Id field, with what the path fixes
+  said in a sentence rather than offered as controls that could only be wrong; the sprite one adds a
+  sentence saying it declares `Ghost` too.
+- `RemoveUndeclared` - titled **Remove file**, naming the full project path, since the dialog has lost
+  the group that made the row's short path unambiguous.
+- `AddAssetTaken` - the taken-name refusal on the File name field, pointing at the row.
+
+Two choices the drawing made that this file did not: an undeclared row's file name is `#666`, which is
+5.7:1 on white and plainly a grey rather than a muted orange; and **Declare is Lucide `list-plus`** -
+a line added to a list, which is what it does to the manifest - which `src/chrome/icons.ts` will need
+to import. `Other files` carries no count, having no declarations to count. The board fits 17 rows
+before the list scrolls, as its siblings do, so a sprite dropped straight into `sprites/` is described
+in the note rather than drawn.

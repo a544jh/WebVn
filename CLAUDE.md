@@ -426,7 +426,11 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   Start over, or the editor reloading a script the author just fixed. Go back is an undo, which lands
   on the line last read because only advances made from a stop are recorded; it is greyed when the
   path is empty, since that undo replays into the same loop. Measured at 37ms to the error, so the
-  browser suite drives the real limit. **The editor is told where**: `onLoopCallbacks` carries the
+  browser suite drives the real limit. **In the editor that took over ten seconds until 2026-10-11**,
+  because `VnEditor` moved CodeMirror's position marker and cursor on every one of the ten thousand
+  frames - two operations a frame, in a chain of promises that never lets the page breathe - which
+  froze the editor and left `EditorLoops.test.ts` a second inside its timeout. It now marks the
+  playhead as moved and draws it once: at a stop, when the loop guard fires, or in the next task. **The editor is told where**: `onLoopCallbacks` carries the
   index of the jump that closes the loop (`State.loopJump`, a walk on a fresh `seenCommands`), and
   `VnEditor` marks that line as an error, so the script tab goes red.
 - **No core replay reports a loop itself; the stage does.** An edit's replay (`replayAsFarAsPossible`)

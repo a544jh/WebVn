@@ -4,6 +4,7 @@ import {
   clickGutter,
   editorTab,
   markedLines,
+  playheadLines,
   startEditor,
   StartedEditor,
   textBoxText,
@@ -64,6 +65,9 @@ story:
       },
     ])
     expect(tabLevel(started)).toBe("error")
+    // Drawn once, where the loop guard stopped the walk - not ten thousand times on the way there.
+    expect(playheadLines(started.editorRoot)).toHaveLength(1)
+    expect([4, 5]).toContain(playheadLines(started.editorRoot)[0])
   })
 
   it("takes the error and the marker away once the script is fixed", async () => {

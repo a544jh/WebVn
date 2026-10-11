@@ -448,6 +448,15 @@ export const blurEditor = async (started: EditorRoot): Promise<void> => {
   await settle()
 }
 
+// The lines the playhead's marker sits on in the script buffer, 1-based - read the way `markedLines`
+// reads an error, off the line number CodeMirror draws beside the marker.
+export const playheadLines = (editorRoot: HTMLDivElement): number[] =>
+  [...editorRoot.querySelectorAll(".vn-marker-position")].map((marker) =>
+    Number(
+      marker.closest(".CodeMirror-gutter-wrapper")?.parentElement?.querySelector(".CodeMirror-linenumber")?.textContent
+    )
+  )
+
 export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
   ...editorRoot.querySelectorAll(".vn-marker-error"),
 ]

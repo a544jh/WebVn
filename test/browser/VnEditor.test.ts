@@ -6,7 +6,9 @@ import {
   errorMarkers,
   markedLines,
   nameTag,
+  advanceVn,
   nextStop,
+  playheadLines,
   settle,
   startEditor,
   StartedEditor,
@@ -314,5 +316,26 @@ story:
     expect(renders).toBe(0)
     expect(vn.player.state.commandIndex).toBe(3)
     expect(textBoxText(vn.root)).toBe("Third line")
+  })
+})
+
+// The marker beside the line the playhead is on. **Drawn once per task, not once per render**: the
+// render loop walks every command that is not a stop in one chain of promises, and drawing each of
+// those frames was what made a story that loops freeze the editor for over ten seconds. These pin
+// that the frames an author does see still get it, at the moment they are reached.
+describe("the playhead", () => {
+  // Line 1 is `story:`; the label is not a stop, so the first stop is line 3.
+  const stops = "story:\n  - label: start\n  - one\n  - two\n"
+  const boot = () => startEditor(manifestWith("playhead", "Keeper"), stops)
+
+  it("is on the stop a load lands on, by the time the stop is reached", async () => {
+    const vn = await boot()
+    expect(playheadLines(vn.editorRoot)).toEqual([3])
+  })
+
+  it("follows an advance to the next stop", async () => {
+    const vn = await boot()
+    await advanceVn(vn)
+    expect(playheadLines(vn.editorRoot)).toEqual([4])
   })
 })

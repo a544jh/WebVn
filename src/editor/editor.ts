@@ -105,6 +105,8 @@ export class VnEditor {
   // docs/adr/0002-a-bad-manifest-is-fatal-a-bad-script-is-not.md.
   private manifest: VnManifest
   private jumpMode: JumpMode = "replay"
+  // Whether a render has moved the playhead since its marker and cursor were last drawn.
+  private playheadPending = false
 
   private scriptDoc: CodeMirror.Doc
   private manifestDoc: CodeMirror.Doc
@@ -191,19 +193,24 @@ export class VnEditor {
     // goes red: a story that loops cannot be played past this point. It stays until the next parse
     // clears the gutter - the loop is still in the script until then.
     this.renderer.onLoopCallbacks.push((jumpIndex) => {
+      this.drawPlayhead()
       if (jumpIndex === null) return
       const location = this.player.state.commands[jumpIndex]?.getSourceLocation()
       if (location === undefined) return
       this.markErrors("script", [new ParserError(LOOP_MESSAGE, location, ErrorLevel.ERROR)])
     })
 
-    this.renderer.onRenderCallbacks.push(() => {
-      this.setPositionMarker()
-      const location = getCurrentLocation(player)
-      if (location === null) return
-      // The script doc by name, not whatever is on screen: a render while the manifest tab is up
-      // would otherwise move the manifest's cursor.
-      this.scriptDoc.setCursor({ line: location.startLine - 1, ch: 0 })
+    // **The playhead's marker and cursor follow the frames an author can see, not every frame the
+    // render loop walks through.** The loop auto-advances through each command that is not a stop in
+    // one unbroken chain of promises, and the two CodeMirror operations a frame costs about a
+    // millisecond: a story that loops ran ten thousand pairs of them before the loop guard fired,
+    // which froze the editor for over ten seconds and put `EditorLoops.test.ts` within a second of
+    // its timeout. So a render only marks the playhead as moved, and it is drawn once - when a render
+    // lands on a stop, when the loop guard fires, or in the next task for a frame that is neither,
+    // which is the animated one an author watches play.
+    this.renderer.onRenderCallbacks.push(() => this.playheadMoved())
+    this.renderer.onFinishedCallbacks.push(() => {
+      if (this.player.state.stopAfterRender) this.drawPlayhead()
     })
 
     const [tabBar, tabs, storeStateElem] = makeTabBar((buffer) => this.showBuffer(buffer))
@@ -657,6 +664,24 @@ export class VnEditor {
       this.player.goToCommandDirect(commandIndex + 1)
     }
     this.renderer.render(false)
+  }
+
+  // At most one draw per task, however many renders the task holds.
+  private playheadMoved(): void {
+    if (this.playheadPending) return
+    this.playheadPending = true
+    setTimeout(() => this.drawPlayhead(), 0)
+  }
+
+  private drawPlayhead(): void {
+    if (!this.playheadPending) return
+    this.playheadPending = false
+    this.setPositionMarker()
+    const location = getCurrentLocation(this.player)
+    if (location === null) return
+    // The script doc by name, not whatever is on screen: a render while the manifest tab is up would
+    // otherwise move the manifest's cursor.
+    this.scriptDoc.setCursor({ line: location.startLine - 1, ch: 0 })
   }
 
   private setPositionMarker() {

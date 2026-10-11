@@ -3,9 +3,10 @@
 Status: ready-for-agent
 
 Blocked by: nothing - 01 through 04 have landed, and the artboards are drawn. The canvas the spec links
-is binding for pixels, and its **Asset panel** page now carries five boards for this ticket, below
+is binding for pixels, and its **Asset panel** page now carries six boards for this ticket, below
 the nine that were there: `AssetUndeclared` (the panel), `DeclareAsset` and `DeclareSprite` (the two
-shapes of Declare), `RemoveUndeclared` and `AddAssetTaken`, with two notes beside them. Read them
+shapes of Declare), `DeclareMissing` (Declare's refusal naming the fix), `RemoveUndeclared` and
+`AddAssetTaken`, with two notes beside them. Read them
 before building; where they and this file disagree, the canvas is newer.
 
 ## What this is
@@ -108,6 +109,15 @@ Preview, Declare and Remove. **Never Replace**: new bytes under a path nothing r
   actor..." already does. **Absent, not disabled, where it could never work** - in `Other files`, and
   under an actor folder whose name `validateActorId` refuses - the precedent being Preview, which a
   missing asset's row does not draw at all.
+- **Declare's id refusal names the fix when the id belongs to a declaration whose file is missing.**
+  That is the commonest way in, and the basename prefill lands on exactly that id: `file: storm.png`
+  edited by hand to `storm-night.png` leaves `storm.png` undeclared, and Declare on it offers `storm`.
+  A bare "A background with this id is already declared." would stop the author there, so it says
+  the edit instead: "`storm` is already declared, and its file `storm-night.png` is missing. To use
+  this file for it, change `storm-night.png` to `storm.png` in manifest.yaml." **Filenames rather than
+  a line number**, because the filename is in the manifest whatever form the declaration takes - an
+  audio entry's `file:` sits on a line of its own. An id declared with its file present keeps the
+  plain refusal. Wording only: the panel already knows which declarations are missing.
 - **Remove**, not "Delete": `CONTEXT.md` keeps _delete_ for a project. On an undeclared file there is
   no declaration to take out, so it is the file alone - confirmed, naming the path, irreversible. The
   glossary's _Remove_ entry widens when this lands, the way _Replace_ widened for **Add file**.
@@ -172,9 +182,13 @@ way in.
 ### Deferred
 
 - **Pointing a declaration at a file that is already there.** Grouping puts the commonest case side by
-  side - `file: cliffs.png` edited by hand to `cliffs-v2.png` leaves an orange missing row beside a
+  side - `file: storm.png` edited by hand to `storm-night.png` leaves an orange missing row beside a
   _not declared_ one - and a control to repoint the first at the second would be a `file:` splice,
-  which `manifestEdit.ts` does not have. Declare and Remove cover it in two steps today.
+  which `manifestEdit.ts` does not have. **Nothing in the panel fixes this case**: Declare's prefill
+  is the id already taken, and declaring under another id leaves the script naming the missing one.
+  The fix is the hand edit, which is why Declare's refusal says exactly what it is (above). This file
+  said until 2026-10-11 that Declare and Remove covered it in two steps; drawing the boards showed
+  they do not.
 
 ## Acceptance criteria
 
@@ -192,6 +206,8 @@ way in.
 - [ ] The rows follow the folder: an add, a remove, a replace and a declare - succeeded or failed -
       each leave the list matching what is on disk.
 - [ ] Add asset's taken-name refusal names the undeclared file's row.
+- [ ] Declare's id refusal, for an id whose declaration is missing its file, names the edit that
+      points it at this file; for an id whose file is present it is the plain refusal.
 - [ ] Group counts, the empty state and the collapsed headers say what they said before for a
       project with no undeclared files.
 - [ ] `spec.md` point 1, CLAUDE.md's asset panel section, `CONTEXT.md`'s _Remove_ and ADR 0006 say
@@ -229,3 +245,9 @@ a line added to a list, which is what it does to the manifest - which `src/chrom
 to import. `Other files` carries no count, having no declarations to count. The board fits 17 rows
 before the list scrolls, as its siblings do, so a sprite dropped straight into `sprites/` is described
 in the note rather than drawn.
+
+**Revised 2026-10-11**, canvas version 36. Drawing `AssetUndeclared` showed that Declare does not fix
+the case it sits beside: on `storm.png` it prefills `storm`, which is declared. Put to the maintainer
+as three options - leave it deferred, have the refusal name the fix, or build the repoint here - and
+they chose the second. `DeclareMissing` draws it, beside `DeclareAsset` in the top row, whose note
+moved out to the fourth column to make room.

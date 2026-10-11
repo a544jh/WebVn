@@ -79,6 +79,15 @@ load can tell - which is what makes it a different problem from an undeclared on
 degree of it. The asset panel marks its row "file missing" and offers **Add file** on it.
 _Avoid_: broken asset, unloaded asset, bad asset
 
+**Undeclared file**:
+A file under a project's `assets/` that no declaration in the manifest points at - the opposite of a
+**missing asset**, which is a declaration with no file. Nothing the engine draws can reach it, since a
+script names ids and only a declaration turns an id into a path. Left behind by a hand edit of the
+manifest, a write that half failed, or an archive that carried it in; an export carries it out again,
+a publish never does.
+_Avoid_: undeclared asset (that is a script naming an id the manifest does not declare), unreferenced
+and unused (those are a declared asset no script names), orphan, stray
+
 **Remove**:
 Taking an asset out of a project: its declaration out of the manifest and its file off disk, both.
 Confirmed and irreversible. A script still naming the id is warned rather than broken - the command

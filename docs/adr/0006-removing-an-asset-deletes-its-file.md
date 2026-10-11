@@ -81,6 +81,6 @@ invisible and permanent** - is no longer true: such a file is a row, with a Remo
 remove left behind would still ride into every archive the author sends; and `recoverProjects`'
 reasoning, that a tree nothing points at is residue rather than data, is unchanged one level down.
 
-What does change is the failure path. A remove whose file delete fails used to leave a stray file said
-only in the console, with no way to see it or get rid of it. The leftover is now a row the author can
+What does change is the failure path. A remove whose file delete fails used to leave an undeclared
+file behind, said only in the console, with no way to see it or get rid of it. The leftover is now a row the author can
 remove again, which is why that report stays a console line rather than becoming a dialog.

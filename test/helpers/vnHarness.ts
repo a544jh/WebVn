@@ -251,6 +251,12 @@ export const startEditor = async (
     // A remove that is refused, the way OPFS refuses one on a file something still holds - for the
     // suites that check a failed write still leaves the panel agreeing with the folder.
     refuseRemove?: boolean
+    // Runs inside a write, after the bytes land and before it resolves - the window in which an author
+    // could change the manifest buffer while Add asset was copying a file.
+    whileWriting?: () => void
+    // Answers the panel's listings in place of the files present, told which listing this is (from 1)
+    // and what is present now - for the suites about a listing that arrives late or out of order.
+    list?: (call: number, present: ReadonlySet<string>) => Promise<Set<string>>
   } = {}
 ): Promise<StartedEditor> => {
   const root = createVnRoot()
@@ -277,15 +283,20 @@ export const startEditor = async (
   const written = options.written ?? new Map<string, Blob>()
   const removed = options.removed ?? []
   const present = new Set(options.taken ?? [])
+  let listings = 0
   const assetPanel = new AssetPanel(panelRoot, {
     player,
     editor,
     resolver,
     files: {
-      list: () => Promise.resolve(new Set(present)),
+      list: () => {
+        listings += 1
+        return options.list?.(listings, present) ?? Promise.resolve(new Set(present))
+      },
       write: (path, data) => {
         written.set(path, data)
         present.add(path)
+        options.whileWriting?.()
         return Promise.resolve()
       },
       remove: (path) => {

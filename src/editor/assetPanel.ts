@@ -2,10 +2,9 @@ import { AssetResolver } from "../assetLoaders/AssetResolver"
 import { confirmDialog, identifier, noticeDialog } from "../chrome/dialog"
 import { icon, IconName } from "../chrome/icons"
 import { referenceCount } from "../core/commands/references"
-import { AssetDeclaration, DeclaredAsset, Reference } from "../core/manifest"
+import { DeclaredAsset, Reference } from "../core/manifest"
 import { VnPlayer } from "../core/player"
-import { VnPlayerState } from "../core/state"
-import { declaredFilePath } from "../domRenderer/assetPaths"
+import { AssetLocation, declaredFilePath } from "../domRenderer/assetPaths"
 import { askForAsset, askToDeclare } from "./addAssetDialog"
 import {
   actorBranches,
@@ -13,13 +12,13 @@ import {
   DeclaredBranch,
   DeclaredLeaf,
   declaredGroups,
+  declaredLeaf,
+  declaresActor,
   leafKey,
   nothingDeclared,
 } from "./declarations"
 import { VnEditor } from "./editor"
 import {
-  Declarable,
-  groupNames,
   nothingUndeclared,
   UndeclaredFile,
   undeclaredFiles,
@@ -119,10 +118,13 @@ export class AssetPanel {
   // lands, a moment after mount.
   private files: ReadonlySet<string> = new Set()
 
-  // Which listing is the newest one asked for. A read started at mount that resolves after one a job
-  // started would otherwise put the older answer back - the race `renderGeneration` and
-  // `ProjectPicker` guard the same way.
-  private listing = 0
+  // How many listings have been asked for, and which of them `files` came from. **A listing lands
+  // only if it was asked for after the one on screen**: a read started at mount that resolves after
+  // one a job started would otherwise put the older answer back - the race `renderGeneration` and
+  // `ProjectPicker` guard the same way - while a newer read that failed must not stop an older one
+  // that is still newer than what is shown.
+  private asked = 0
+  private shown = 0
 
   constructor(private root: HTMLElement, private deps: AssetPanelDeps) {
     // The one redraw signal: the editor has finished deciding what the project is described by.
@@ -156,7 +158,7 @@ export class AssetPanel {
   // break it - a file the author puts there from outside the browser is one no job of this panel's
   // wrote - and when that lands, this needs a trigger for it.
   private async relist(): Promise<void> {
-    const asked = ++this.listing
+    const asked = ++this.asked
     let files: Set<string>
     try {
       files = await this.deps.files.list()
@@ -166,7 +168,9 @@ export class AssetPanel {
       console.error("The project's files could not be listed, so the panel shows the last listing", e)
       return
     }
-    if (asked === this.listing) this.files = files
+    if (asked <= this.shown) return
+    this.files = files
+    this.shown = asked
   }
 
   private panel(): HTMLElement {
@@ -195,9 +199,11 @@ export class AssetPanel {
   private list(groups: DeclaredBranch[], undeclared: UndeclaredFiles, missing: Set<string>): HTMLElement {
     const list = element("div", "vn-asset-list")
     // **Only when there is nothing at all.** A fresh import of an archive with a bare manifest still
-    // has files to show, and saying "Nothing declared yet." over them would hide exactly those.
+    // has files to show, and saying "Nothing declared yet." over them would hide exactly those - which
+    // is also why it waits for the first listing: before that, "nothing" is only what is not known
+    // yet, and the message would flash over the files on every mount.
     if (nothingDeclared(groups) && nothingUndeclared(undeclared)) {
-      list.appendChild(emptyState())
+      if (this.shown > 0) list.appendChild(emptyState())
       return list
     }
     for (const branch of merged(groups, undeclared, missing)) this.drawBranch(list, branch, missing, 0)
@@ -222,16 +228,16 @@ export class AssetPanel {
     if (depth > 0) header.classList.add("vn-asset-actor")
     // Orange when anything under it is, so folding a group away does not fold away the news.
     header.classList.toggle("vn-asset-missing", branch.missing)
-    header.classList.toggle("vn-asset-undeclared", branch.trailing === NOT_DECLARED)
+    header.classList.toggle("vn-asset-undeclared", branch.tally.kind === "not declared")
     header.setAttribute("aria-expanded", String(!folded))
     header.dataset.vnAssetGroup = branch.key
 
     header.appendChild(icon(folded ? "chevron-right" : "chevron-down", 13))
     header.appendChild(text("span", "vn-asset-group-name", branch.name))
-    if (branch.trailing !== null) {
-      header.appendChild(
-        text("span", branch.trailing === NOT_DECLARED ? "vn-asset-group-note" : "vn-asset-group-count", branch.trailing)
-      )
+    if (branch.tally.kind === "count") {
+      header.appendChild(text("span", "vn-asset-group-count", String(branch.tally.declarations)))
+    } else if (branch.tally.kind === "not declared") {
+      header.appendChild(text("span", "vn-asset-group-note", NOT_DECLARED))
     }
     header.addEventListener(
       "click",
@@ -410,14 +416,14 @@ export class AssetPanel {
   // Declaring a file that is already in the project: Add asset with only the id left to ask, and
   // nothing to copy. The declaration is spliced in exactly as Add asset's is, through `storeNow`, so
   // it is on disk at once rather than after the debounce.
-  private async declare(declares: Declarable): Promise<void> {
+  private async declare(declares: AssetLocation): Promise<void> {
     const state = this.deps.player.state
     const missing = missingKeys(this.deps.editor.getMissingAssets())
     const declaration = await askToDeclare(declares, {
-      cast: declares.kind !== "sprite" || state.actors[declares.actor] !== undefined,
+      actorDeclared: declares.kind !== "sprite" || declaresActor(state, declares.actor),
       held: (asked) => {
-        const held = holding(state, asked)
-        return held === null ? null : { file: held.file, missing: missing.has(leafKey(held.manifestKey)) }
+        const leaf = declaredLeaf(state, asked)
+        return leaf === undefined ? null : { file: leaf.file, missing: missing.has(leafKey(leaf.manifestKey)) }
       },
     })
     if (declaration === null) return
@@ -555,9 +561,10 @@ export class AssetPanel {
       // The manifest's own order, and the same walk the list is drawn from - so the actors offered
       // here cannot come to disagree with the actors shown above.
       actors: actorBranches(state).map((branch) => branch.name),
-      isDeclared: (asked) => holding(state, asked) !== null,
+      isDeclared: (asked) => declaredLeaf(state, asked) !== undefined,
       taken,
-      undeclared: groupNames(undeclaredFiles(taken, state)),
+      // Named off the tree the panel draws, so the refusal names the group the author can see.
+      undeclared: rowGroups(merged(declaredGroups(state), undeclaredFiles(taken, state), new Set())),
     })
     if (declaration === null) return
 
@@ -656,31 +663,14 @@ const confirmRemoval = (leaf: DeclaredLeaf, named: number): Promise<boolean> =>
     "Remove"
   )
 
-// What already declares that id in that group: its file, and the key the manifest declares it under -
-// or null when nothing does. The one place the three declarations are asked that question, so Add
-// asset and Declare refuse a duplicate on the same terms the manifest would.
-const holding = (
-  state: VnPlayerState,
-  declaration: AssetDeclaration
-): { file: string; manifestKey: (string | number)[] } | null => {
-  switch (declaration.kind) {
-    case "background": {
-      const file = state.backgrounds[declaration.id]
-      return file === undefined ? null : { file, manifestKey: ["backgrounds", declaration.id] }
-    }
-    case "audio": {
-      const asset = state.audioAssets[declaration.id]
-      return asset === undefined ? null : { file: asset.file, manifestKey: ["audioAssets", declaration.id] }
-    }
-    case "sprite": {
-      const file = state.actors[declaration.actor]?.sprites?.[declaration.id]
-      return file === undefined ? null : { file, manifestKey: ["actors", declaration.actor, "sprites", declaration.id] }
-    }
-  }
-}
-
 // What a header or an undeclared row says in the place a count or a filename goes.
 const NOT_DECLARED = "not declared"
+
+// What a header says at its right, and why. **A count of declarations only**, so it keeps meaning what
+// the manifest declares and a folded group says nothing about the undeclared files inside it; an actor
+// nobody declared has no declarations to count and says so instead; `Other files` holds no
+// declarations at all and says nothing.
+type Tally = { readonly kind: "count"; readonly declarations: number } | { readonly kind: "not declared" | "none" }
 
 // A group, an actor or `Other files`, as the panel draws it: the declared rows and then the files no
 // declaration points at. Built fresh per draw by `merged`.
@@ -689,11 +679,7 @@ interface DrawnBranch {
   // The collapse state and a test's handle: the manifest key path, joined, as `declarations.ts` builds
   // it - so an actor's branch keeps its key, and its fold, when it goes from not declared to declared.
   readonly key: string
-  // What the header says at its right: how many declarations are under it, NOT_DECLARED for an actor
-  // nobody declared, or nothing for `Other files`, which holds no declarations to count. **A count of
-  // declarations only**, so it keeps meaning what the manifest declares and a folded group says
-  // nothing about the undeclared files inside it.
-  readonly trailing: string | null
+  readonly tally: Tally
   readonly missing: boolean
   readonly leaves: DeclaredLeaf[]
   readonly files: UndeclaredFile[]
@@ -715,7 +701,7 @@ const merged = (groups: DeclaredBranch[], undeclared: UndeclaredFiles, missing: 
     drawn.push({
       name: "Other files",
       key: "other",
-      trailing: null,
+      tally: { kind: "none" },
       missing: false,
       leaves: [],
       files: undeclared.other,
@@ -733,7 +719,7 @@ const declaredBranch = (
 ): DrawnBranch => ({
   name: branch.name,
   key: branch.key,
-  trailing: String(branchCount(branch)),
+  tally: { kind: "count", declarations: branchCount(branch) },
   missing: branchMissing(branch, missing),
   leaves: branch.leaves,
   files,
@@ -741,9 +727,10 @@ const declaredBranch = (
 })
 
 // The cast with their undeclared sprites under them, then a branch for every other folder that holds
-// one, sorted. **A folder whose actor nobody declared says so where the count goes**; one the engine
-// knows without a declaration - `default`, `narrator` - is drawn as the actor it is, declaring nothing
-// yet, the way it is drawn today once it declares a sprite.
+// one, sorted. **A folder whose actor the manifest does not declare says so where the count goes** -
+// `default` and `narrator` included, by `declaresActor`'s one rule: the engine has them either way, but
+// the manifest declares them only by declaring a sprite, and Declare on such a folder adds the actor
+// to the manifest just as it would `Ghost`.
 const actorsWith = (declared: DeclaredBranch[], folders: UndeclaredSprites[], missing: Set<string>): DrawnBranch[] => {
   const drawn = declared.map((branch) =>
     declaredBranch(branch, missing, folders.find((folder) => folder.actor === branch.name)?.files ?? [], [])
@@ -753,7 +740,7 @@ const actorsWith = (declared: DeclaredBranch[], folders: UndeclaredSprites[], mi
     drawn.push({
       name: folder.actor,
       key: leafKey(["actors", folder.actor]),
-      trailing: folder.cast ? "0" : NOT_DECLARED,
+      tally: { kind: "not declared" },
       missing: false,
       leaves: [],
       files: folder.files,
@@ -761,6 +748,19 @@ const actorsWith = (declared: DeclaredBranch[], folders: UndeclaredSprites[], mi
     })
   }
   return drawn
+}
+
+// Where each undeclared file's row is, by the name of what it sits under - read off the tree the panel
+// draws rather than named a second time, so Add asset's taken-name refusal points at a group the
+// author can see.
+const rowGroups = (branches: DrawnBranch[]): Map<string, string> => {
+  const groups = new Map<string, string>()
+  const visit = (branch: DrawnBranch): void => {
+    for (const file of branch.files) groups.set(file.path, branch.name)
+    branch.branches.forEach(visit)
+  }
+  branches.forEach(visit)
+  return groups
 }
 
 // Which declarations the last asset load could not find, by the key the manifest declares them

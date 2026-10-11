@@ -73,8 +73,10 @@ here with its reason, because the reasons are what the artboard and the code bot
   - **A sprite folder for an actor the manifest does not declare gets a branch of its own** under
     Actors, after the declared actors, saying **not declared** - the same words as the rows, not "not
     cast". A lowercase folder (`sprites/ghost/`) gets one too; it just cannot be declared, below.
-    `default` and `narrator` appear when they hold undeclared sprites, the way they appear today when
-    they declare some.
+    `default` and `narrator` holding undeclared sprites appear the same way, as not declared: the
+    engine has them either way, but the manifest declares them only by declaring a sprite - which is
+    what `declarations.ts` already counts - and Declare on their folder adds the actor to the
+    manifest just as it would `Ghost`. (Revised in review, 2026-10-11; see Comments.)
   - **What has no group goes in a fifth, `Other files`**, drawn last and only when it has something
     in it: a file outside the three folders (`assets/notes.txt`, `assets/drafts/x.png`) or directly
     under `sprites/` with no actor folder. Its rows name their path relative to `assets/`.
@@ -275,3 +277,29 @@ declared remove whose delete fails passes either way - the file was already in t
 covers the merge, not the re-list. The re-list sits in `work`'s `finally`, so every job gets it by
 construction; the suite exercises it through remove, succeeded and failed, rather than once per job -
 a failed add or declare is not reached by any test.
+
+**Reviewed 2026-10-11**, standards and spec as two separate passes, and everything they found is fixed
+on the same branch:
+
+- **The asset folders were spelled a second time** in `undeclaredFiles.ts`, against CLAUDE.md's "do
+  not re-spell". `assetPaths.ts` now writes each prefix once and exports `locateAsset`, the layout read
+  backwards, and `belowAssets`; this module asks those.
+- **`default` and `narrator` reversed.** Built as declared branches with a count of 0, which the CSS's
+  own comment argued against, and whose Declare added a `narrator:` key without saying so. They are now
+  not declared until they declare a sprite, by `declaresActor` in `declarations.ts` - one rule for the
+  walk, the folders beside it, and the dialog. This supersedes the first bullet of the comment above.
+- **"Nothing declared yet." flashed** over a bare-manifest import's files before the first listing
+  landed. It now waits for one.
+- **A failed newest listing dropped an older one** still newer than what was shown. A listing now lands
+  if it was asked for after the one on screen.
+- **The re-list is tested beyond remove**: a replace, a half-done add (through a harness hook that
+  changes the buffer mid-copy), a refused declare, an older listing landing late, and a failed newer
+  one. This supersedes the comment above saying a failed add or declare was reached by no test. Each
+  of the three new guards was mutation-checked: reverting it fails exactly its own test.
+- Smaller: what holds an id is `declaredLeaf`, read off the walk, rather than three maps keyed by hand;
+  Add asset's refusal takes its group names off the tree the panel draws, so `groupNames` and its
+  second spelling of "Backgrounds" are gone; a header's right-hand side is a `Tally` union rather than
+  a string with a sentinel in it; `HeldDeclaration` names the shape Declare's refusal reads; the
+  CLAUDE.md bullet the first pass split is whole again; and the ADR amendment and a test fixture no
+  longer use a word `CONTEXT.md` puts on _Undeclared file_'s _Avoid_ list.
+

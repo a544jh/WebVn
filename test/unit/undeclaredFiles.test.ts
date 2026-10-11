@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { seedState } from "../../src/core/manifest"
-import { declarationOf, groupNames, nothingUndeclared, undeclaredFiles } from "../../src/editor/undeclaredFiles"
+import { declarationOf, nothingUndeclared, undeclaredFiles } from "../../src/editor/undeclaredFiles"
 import { TEST_MANIFEST } from "../helpers/testManifest"
 
 // Which files under `assets/` no declaration points at, and which group of the asset panel each one
@@ -53,13 +53,12 @@ describe("undeclaredFiles", () => {
     ])
   })
 
-  it("puts a sprite under the actor whose folder it is in, and says the actor is cast", () => {
+  it("puts a sprite under the actor whose folder it is in", () => {
     const state = seeded({ actors: { Keeper: { sprites: { idle: "idle.png" } } } })
     const { sprites } = undeclaredFiles(["assets/sprites/Keeper/scared.png"], state)
     expect(sprites).toEqual([
       {
         actor: "Keeper",
-        cast: true,
         files: [
           {
             path: "assets/sprites/Keeper/scared.png",
@@ -71,19 +70,19 @@ describe("undeclaredFiles", () => {
     ])
   })
 
-  it("gives a folder no actor is declared for a branch of its own that is not cast", () => {
+  // Whether the panel draws that folder as a declared actor or a "not declared" one is
+  // `declaresActor`'s, in declarations.ts; this only groups.
+  it("groups a folder whose actor nobody declared, and keeps its files declarable", () => {
     const { sprites } = undeclaredFiles(["assets/sprites/Ghost/idle.png"], seeded({}))
-    expect(sprites.map(({ actor, cast }) => ({ actor, cast }))).toEqual([{ actor: "Ghost", cast: false }])
-    // Still declarable: Declare declares the actor too.
+    expect(sprites.map((folder) => folder.actor)).toEqual(["Ghost"])
+    // Declare declares the actor too.
     expect(sprites[0].files[0].declares).toEqual({ kind: "sprite", actor: "Ghost", file: "idle.png" })
   })
 
-  // `seedActors` puts both into every state, so the engine's two are cast whether or not the
-  // manifest mentions them.
-  it("counts the engine's own actors as cast", () => {
+  // The two lowercase names the casing rule allows.
+  it("keeps a sprite under the engine's own actors declarable", () => {
     const { sprites } = undeclaredFiles(["assets/sprites/narrator/n.png"], seeded({}))
-    expect(sprites.map(({ actor, cast }) => ({ actor, cast }))).toEqual([{ actor: "narrator", cast: true }])
-    expect(sprites[0].files[0].declares).not.toBeNull()
+    expect(sprites[0].files[0].declares).toEqual({ kind: "sprite", actor: "narrator", file: "n.png" })
   })
 
   // The casing rule: a lowercase actor is one no `Name: "text"` line can speak as, so no declaration
@@ -91,11 +90,7 @@ describe("undeclaredFiles", () => {
   it("draws a folder no actor could be called, and offers no Declare in it", () => {
     const { sprites } = undeclaredFiles(["assets/sprites/ghost/idle.png"], seeded({}))
     expect(sprites).toEqual([
-      {
-        actor: "ghost",
-        cast: false,
-        files: [{ path: "assets/sprites/ghost/idle.png", name: "idle.png", declares: null }],
-      },
+      { actor: "ghost", files: [{ path: "assets/sprites/ghost/idle.png", name: "idle.png", declares: null }] },
     ])
   })
 
@@ -147,19 +142,5 @@ describe("declarationOf", () => {
       id: "idle",
       file: "idle.png",
     })
-  })
-})
-
-describe("groupNames", () => {
-  it("names the group each undeclared file's row is under", () => {
-    const names = groupNames(
-      undeclaredFiles(
-        ["assets/backgrounds/storm.png", "assets/audio/gulls.ogg", "assets/sprites/Ghost/idle.png"],
-        seeded({})
-      )
-    )
-    expect(names.get("assets/backgrounds/storm.png")).toBe("Backgrounds")
-    expect(names.get("assets/audio/gulls.ogg")).toBe("Audio")
-    expect(names.get("assets/sprites/Ghost/idle.png")).toBe("Ghost")
   })
 })

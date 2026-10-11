@@ -4,6 +4,9 @@ import {
   audioFilePath,
   backgroundAssetPath,
   backgroundFilePath,
+  belowAssets,
+  declaredFilePath,
+  locateAsset,
   spriteAssetPath,
   spriteFilePath,
 } from "../../src/domRenderer/assetPaths"
@@ -99,5 +102,41 @@ describe("isBackgroundColor", () => {
 
   it.each(["classroom", "a.png", ""])("reads %s as an asset id", (image) => {
     expect(isBackgroundColor(image)).toBe(false)
+  })
+})
+
+// The layout read backwards, which the asset panel's undeclared files sort by.
+describe("locateAsset", () => {
+  it("reads a background, an audio file and an actor's sprite back off their paths", () => {
+    expect(locateAsset("assets/backgrounds/old/a.png")).toEqual({ kind: "background", file: "old/a.png" })
+    expect(locateAsset("assets/audio/bgm/dayl.ogg")).toEqual({ kind: "audio", file: "bgm/dayl.ogg" })
+    expect(locateAsset("assets/sprites/A1/poses/happy.png")).toEqual({
+      kind: "sprite",
+      actor: "A1",
+      file: "poses/happy.png",
+    })
+  })
+
+  it("is the inverse of declaredFilePath", () => {
+    for (const path of ["assets/backgrounds/a.png", "assets/audio/x.ogg", "assets/sprites/A1/a.png"]) {
+      const location = locateAsset(path)
+      if (location === null) throw new Error(`${path} should locate`)
+      expect(declaredFilePath({ ...location, id: "any" })).toBe(path)
+    }
+  })
+
+  it("locates nothing outside the three folders, or straight under sprites/", () => {
+    expect(locateAsset("assets/notes.txt")).toBeNull()
+    expect(locateAsset("assets/sprites/a.png")).toBeNull()
+    expect(locateAsset("assets/drafts/a.png")).toBeNull()
+    expect(locateAsset("manifest.yaml")).toBeNull()
+  })
+})
+
+describe("belowAssets", () => {
+  it("is the path below assets/, or null above it", () => {
+    expect(belowAssets("assets/notes.txt")).toBe("notes.txt")
+    expect(belowAssets("script.yaml")).toBeNull()
+    expect(belowAssets("assets/")).toBeNull()
   })
 })

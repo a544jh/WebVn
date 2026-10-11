@@ -1,8 +1,8 @@
 import { dialogField, dialogSelect, DialogText, identifier, openDialog } from "../chrome/dialog"
 import { AssetDeclaration, AssetKind } from "../core/manifest"
-import { declaredFilePath } from "../domRenderer/assetPaths"
+import { AssetLocation, declaredFilePath } from "../domRenderer/assetPaths"
 import { validateActorId, validateAssetId } from "../yamlParser/parseManifest"
-import { Declarable, declarationOf } from "./undeclaredFiles"
+import { declarationOf } from "./undeclaredFiles"
 
 // What `Add asset` asks about the file the author picked: what kind it is, whose sprite it is, what
 // the script will name it, and what to store it under.
@@ -188,17 +188,26 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
 // said in a sentence rather than offered as controls that could only be wrong. Nothing is copied.
 // Drawn on the design canvas as `DeclareAsset`, `DeclareSprite` and `DeclareMissing`.
 export interface DeclareChoices {
-  // Whether the state knows the actor a sprite's folder names. When it does not, declaring the sprite
-  // declares the actor too - a second line in the manifest the author did not ask for by name - so
-  // the dialog says so in a sentence of its own.
-  readonly cast: boolean
-  // What already holds that id in that group, and whether the last asset load found its file - or
-  // null when nothing does.
-  readonly held: (declaration: AssetDeclaration) => { readonly file: string; readonly missing: boolean } | null
+  // Whether the manifest declares the actor a sprite's folder names. When it does not, declaring the
+  // sprite declares the actor too - a second line in the manifest the author did not ask for by name
+  // - so the dialog says so in a sentence of its own.
+  readonly actorDeclared: boolean
+  // What already declares that id in that group, or null when nothing does.
+  readonly held: (declaration: AssetDeclaration) => HeldDeclaration | null
+}
+
+// The declaration already holding an id: the file it names, and whether the last asset load found that
+// file. Which of the two refusals Declare gives turns on the second.
+export interface HeldDeclaration {
+  readonly file: string
+  readonly missing: boolean
 }
 
 // Resolves with the declaration to write, or null if the author backed out.
-export const askToDeclare = async (declares: Declarable, choices: DeclareChoices): Promise<AssetDeclaration | null> => {
+export const askToDeclare = async (
+  declares: AssetLocation,
+  choices: DeclareChoices
+): Promise<AssetDeclaration | null> => {
   const id = dialogField("Id")
   id.input.classList.add("vn-dialog-input-mono")
   // The basename, as Add asset prefills from the picked file's - of the last segment, so a nested
@@ -224,7 +233,7 @@ export const askToDeclare = async (declares: Declarable, choices: DeclareChoices
       ? ["Declaring ", identifier(declares.file), " as a sprite for ", identifier(declares.actor), `. ${already}`]
       : ["Declaring ", identifier(declares.file), ` as ${ARTICLED[declares.kind]}. ${already}`],
   ]
-  if (declares.kind === "sprite" && !choices.cast) {
+  if (declares.kind === "sprite" && !choices.actorDeclared) {
     body.push([identifier(declares.actor), " is not declared yet, so this declares the actor too."])
   }
 
@@ -255,10 +264,7 @@ export const askToDeclare = async (declares: Declarable, choices: DeclareChoices
 // here is a `file:` splice `manifestEdit.ts` does not have; until it does, the dialog says what to
 // type. **Filenames rather than a line number**, because the filename is in the manifest whatever
 // form the declaration takes - an audio entry's `file:` sits on a line of its own.
-const heldProblem = (
-  declaration: AssetDeclaration,
-  held: { readonly file: string; readonly missing: boolean } | null
-): DialogText | null =>
+const heldProblem = (declaration: AssetDeclaration, held: HeldDeclaration | null): DialogText | null =>
   held === null
     ? null
     : held.missing

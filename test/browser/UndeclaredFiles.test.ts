@@ -7,6 +7,7 @@ import {
   blurEditor,
   releaseStoredEditorLock,
   servedAssets,
+  settle,
   StartedEditor,
   startEditor,
   startEditorFromStore,
@@ -55,7 +56,7 @@ const LISTING = [
   "assets/notes.txt",
 ]
 
-const start = (options: { written?: Map<string, Blob>; removed?: string[]; refuseRemove?: boolean } = {}) =>
+const start = (options: Parameters<typeof startEditor>[2] = {}) =>
   startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), taken: LISTING, ...options })
 
 const undeclaredRow = (started: StartedEditor, path: string): HTMLElement | null =>
@@ -191,6 +192,25 @@ describe("undeclared files in the asset panel", () => {
 
     expect(started.panelRoot.querySelector(".vn-asset-empty")).toBeNull()
     expect(drawn(started)).toEqual(["# Backgrounds 0", "~assets/backgrounds/x.png", "# Audio 0", "# Actors 0"])
+  })
+
+  // `declaresActor`'s one rule: the engine has `default` and `narrator` either way, but the manifest
+  // declares them only by declaring a sprite - and Declare on such a folder adds the actor just as it
+  // would `Ghost`, so the dialog says so.
+  it("draws a sprite folder for the engine's own actors as not declared, until they declare a sprite", async () => {
+    const started = await start({ taken: [...LISTING, "assets/sprites/narrator/n.png"] })
+    await waitForRow(started, "assets/sprites/narrator/n.png")
+
+    expect(header(started, "actors/narrator")?.querySelector(".vn-asset-group-note")?.textContent).toBe("not declared")
+    expect(header(started, "actors/narrator")?.querySelector(".vn-asset-group-count")).toBeNull()
+
+    control(started, "assets/sprites/narrator/n.png", "declare")?.click()
+    await waitForDialog()
+    expect(dialogText()).toContain("narrator is not declared yet, so this declares the actor too.")
+    confirm()
+
+    await waitFor("the declared row to appear", () => declaredRow(started, "actors/narrator/sprites/n") !== null)
+    expect(header(started, "actors/narrator")?.querySelector(".vn-asset-group-count")?.textContent).toBe("1")
   })
 
   it("is gated on the manifest parsing, except for preview", async () => {
@@ -352,6 +372,77 @@ describe("removing an undeclared file", () => {
 // The listing is read again after every one of the panel's jobs, succeeded or failed, which is what
 // keeps the rows agreeing with the folder without reading it on every adoption.
 describe("the rows follow the folder", () => {
+  const undeclaredPaths = (started: StartedEditor): string[] =>
+    [...started.panelRoot.querySelectorAll(".vn-asset-row.vn-asset-undeclared")].map(
+      (row) => (row as HTMLElement).dataset.vnUndeclared ?? ""
+    )
+
+  const idle = (started: StartedEditor): boolean =>
+    started.panelRoot.querySelector(".vn-asset-add")?.textContent?.trim() === "Add asset"
+
+  it("leaves the rows as they were after a replace", async () => {
+    const started = await start()
+    await waitForRow(started, "assets/notes.txt")
+    const before = undeclaredPaths(started)
+
+    const input = declaredRow(started, "backgrounds/cliffs")?.querySelector(
+      ".vn-asset-replace-input"
+    ) as HTMLInputElement
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([new Uint8Array([7, 8, 9])], "anything.png", { type: "image/png" }))
+    input.files = transfer.files
+    input.dispatchEvent(new Event("change"))
+
+    await waitFor("the replace to finish", () => idle(started))
+    expect(undeclaredPaths(started)).toEqual(before)
+    expect(undeclaredRow(started, "assets/backgrounds/a.png")).toBeNull()
+  })
+
+  // Reachable only when the manifest buffer changes while Add asset is copying the file: the bytes
+  // land and the declaration does not. The dialog says so, and the file is a row from then on rather
+  // than a sentence telling the author to go and type its line.
+  it("turns a file whose declaration could not be written into an undeclared row", async () => {
+    const flow = "{formatVersion: 1, id: undeclared-files, title: Undeclared Files}\n"
+    let started: StartedEditor | undefined = undefined
+    started = await start({ whileWriting: () => typeManifest(started as StartedEditor, flow) })
+    await waitForRow(started, "assets/notes.txt")
+
+    const input = started.panelRoot.querySelector(".vn-asset-add-input") as HTMLInputElement
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([new Uint8Array([1, 2, 3])], "jetty.png", { type: "image/png" }))
+    input.files = transfer.files
+    input.dispatchEvent(new Event("change"))
+    await waitForDialog()
+    confirm()
+
+    await waitFor(
+      "the half-done add to be said",
+      () => openDialog()?.querySelector(".vn-dialog-title")?.textContent === "The declaration was not written"
+    )
+    confirm()
+    await waitForRow(started, "assets/backgrounds/jetty.png")
+  })
+
+  it("keeps a file's row when its declaration is refused", async () => {
+    // A flow-style manifest parses, so the panel is not gated - but no declaration can be spliced in.
+    const flow = "{formatVersion: 1, id: undeclared-files, title: Undeclared Files, backgrounds: {cliffs: a.png}}\n"
+    const started = await startEditor(flow, SCRIPT, { resolver: servedAssets(), taken: LISTING })
+    await waitForRow(started, "assets/backgrounds/storm.png")
+
+    control(started, "assets/backgrounds/storm.png", "declare")?.click()
+    await waitForDialog()
+    confirm()
+
+    await waitFor(
+      "the refusal to open",
+      () => openDialog()?.querySelector(".vn-dialog-title")?.textContent === "The asset was not declared"
+    )
+    confirm()
+    await waitFor("the panel to finish", () => idle(started))
+    expect(undeclaredRow(started, "assets/backgrounds/storm.png")).not.toBeNull()
+    expect(started.editor.getManifestText()).toBe(flow)
+  })
+
   it("turns a declared asset whose file could not be deleted into an undeclared row", async () => {
     const started = await start({ refuseRemove: true })
     await waitForRow(started, "assets/notes.txt")
@@ -383,6 +474,81 @@ describe("the rows follow the folder", () => {
   })
 })
 
+// Listings resolve when the walk does, which is not the order they were asked in.
+describe("the listing", () => {
+  // A listing the test lets go of when it chooses, taken as a snapshot of what was present when it was
+  // asked - which is what a walk started then would have seen.
+  const held = () => {
+    let release: () => void = () => undefined
+    const listing = (present: ReadonlySet<string>) => {
+      const snapshot = new Set(present)
+      return new Promise<Set<string>>((resolve) => {
+        release = () => resolve(snapshot)
+      })
+    }
+    return { listing, release: () => release() }
+  }
+
+  it("never lets an older listing land over a newer one", async () => {
+    const mount = held()
+    const started = await start({
+      list: (call, present) => (call === 1 ? mount.listing(present) : Promise.resolve(new Set(present))),
+    })
+
+    // The mount's listing is still out, and a job's lands first: cliffs' file is deleted.
+    declaredRow(started, "backgrounds/cliffs")?.querySelector<HTMLButtonElement>(".vn-asset-remove")?.click()
+    await waitForDialog()
+    confirm()
+    await waitForRow(started, "assets/notes.txt")
+
+    // The mount's listing still holds a.png. Landing now, it would draw a deleted file.
+    mount.release()
+    await settle()
+    expect(undeclaredRow(started, "assets/backgrounds/a.png")).toBeNull()
+  })
+
+  it("lands an older listing when the newer one failed, being newer than what is shown", async () => {
+    const mount = held()
+    const started = await start({
+      refuseRemove: true,
+      list: (call, present) =>
+        call === 1 ? mount.listing(present) : Promise.reject(new DOMException("walk", "NotFoundError")),
+    })
+
+    // The delete is refused, so nothing on disk changes - and the job's own listing fails.
+    declaredRow(started, "backgrounds/cliffs")?.querySelector<HTMLButtonElement>(".vn-asset-remove")?.click()
+    await waitForDialog()
+    confirm()
+    await waitFor("the remove to finish", () => declaredRow(started, "backgrounds/cliffs") === null)
+
+    // The mount's listing is the newest that answered, and right: a.png is on disk, declared by nothing.
+    mount.release()
+    await waitForRow(started, "assets/backgrounds/a.png")
+  })
+
+  // "Nothing" before the first listing is only what is not known yet.
+  it("does not say nothing is declared until a listing has found nothing", async () => {
+    const bare = "formatVersion: 1\nid: undeclared-files\ntitle: Undeclared Files\n"
+    const mount = held()
+    const started = await startEditor(bare, SCRIPT, {
+      taken: ["assets/backgrounds/x.png"],
+      list: (call, present) => (call === 1 ? mount.listing(present) : Promise.resolve(new Set(present))),
+    })
+    await settle()
+    expect(started.panelRoot.querySelector(".vn-asset-empty")).toBeNull()
+
+    mount.release()
+    await waitForRow(started, "assets/backgrounds/x.png")
+    expect(started.panelRoot.querySelector(".vn-asset-empty")).toBeNull()
+  })
+
+  it("says nothing is declared once a listing has found nothing", async () => {
+    const bare = "formatVersion: 1\nid: undeclared-files\ntitle: Undeclared Files\n"
+    const started = await startEditor(bare, SCRIPT, { taken: [] })
+    await waitFor("the empty state", () => started.panelRoot.querySelector(".vn-asset-empty") !== null)
+  })
+})
+
 // Through the boot that ships: the listing is a real walk, and a remove really takes the file off disk.
 describe("undeclared files in a stored project", () => {
   beforeEach(async () => {
@@ -390,12 +556,12 @@ describe("undeclared files in a stored project", () => {
     await clearOpfsStore(SCRATCH)
     await createProject(PROJECT, { manifestText: MANIFEST, scriptText: SCRIPT })
     await writeProjectFile(PROJECT, "assets/backgrounds/a.png", new Blob([new Uint8Array([1, 2, 3])]))
-    await writeProjectFile(PROJECT, "assets/backgrounds/stray.png", new Blob([new Uint8Array([4, 5, 6])]))
+    await writeProjectFile(PROJECT, "assets/backgrounds/old-cliffs.png", new Blob([new Uint8Array([4, 5, 6])]))
   })
 
   it("lists what the walk finds, and nothing the manifest declares", async () => {
     const started = await startEditorFromStore(PROJECT)
-    await waitForRow(started, "assets/backgrounds/stray.png")
+    await waitForRow(started, "assets/backgrounds/old-cliffs.png")
 
     expect(undeclaredRow(started, "assets/backgrounds/a.png")).toBeNull()
     expect(started.panelRoot.querySelectorAll(".vn-asset-undeclared.vn-asset-row")).toHaveLength(1)
@@ -403,15 +569,15 @@ describe("undeclared files in a stored project", () => {
 
   it("deletes a removed file off disk and stores nothing different", async () => {
     const started = await startEditorFromStore(PROJECT)
-    await waitForRow(started, "assets/backgrounds/stray.png")
+    await waitForRow(started, "assets/backgrounds/old-cliffs.png")
     const root = await storeRoot(SCRATCH)
 
-    control(started, "assets/backgrounds/stray.png", "remove")?.click()
+    control(started, "assets/backgrounds/old-cliffs.png", "remove")?.click()
     await waitForDialog()
     confirm()
 
-    await waitFor("the row to go", () => undeclaredRow(started, "assets/backgrounds/stray.png") === null)
-    expect(await exists(root, `projects/${PROJECT}/assets/backgrounds/stray.png`)).toBe(false)
+    await waitFor("the row to go", () => undeclaredRow(started, "assets/backgrounds/old-cliffs.png") === null)
+    expect(await exists(root, `projects/${PROJECT}/assets/backgrounds/old-cliffs.png`)).toBe(false)
     expect(await exists(root, `projects/${PROJECT}/assets/backgrounds/a.png`)).toBe(true)
     expect(await storedManifest(PROJECT)).toBe(MANIFEST)
   })
@@ -419,16 +585,16 @@ describe("undeclared files in a stored project", () => {
   // Through `storeNow`, like Add asset's declaration: on disk at once rather than after the debounce.
   it("declares a stored file without copying it, and stores the declaration at once", async () => {
     const started = await startEditorFromStore(PROJECT)
-    await waitForRow(started, "assets/backgrounds/stray.png")
+    await waitForRow(started, "assets/backgrounds/old-cliffs.png")
 
-    control(started, "assets/backgrounds/stray.png", "declare")?.click()
+    control(started, "assets/backgrounds/old-cliffs.png", "declare")?.click()
     await waitForDialog()
     confirm()
 
-    await waitFor("the declared row to appear", () => declaredRow(started, "backgrounds/stray") !== null)
+    await waitFor("the declared row to appear", () => declaredRow(started, "backgrounds/old-cliffs") !== null)
     await waitFor("the declaration to be stored", async () =>
-      Boolean((await storedManifest(PROJECT))?.includes("  stray: stray.png\n"))
+      Boolean((await storedManifest(PROJECT))?.includes("  old-cliffs: old-cliffs.png\n"))
     )
-    expect(undeclaredRow(started, "assets/backgrounds/stray.png")).toBeNull()
+    expect(undeclaredRow(started, "assets/backgrounds/old-cliffs.png")).toBeNull()
   })
 })

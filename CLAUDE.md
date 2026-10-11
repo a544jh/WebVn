@@ -238,9 +238,12 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
 - **And then the files nothing declares** - CONTEXT.md's _undeclared file_ - which the spec first
   refused to show and ticket 06 reversed: invisible, a file like that was permanent, rode into every
   export and blocked its own name in Add asset. `undeclaredFiles.ts` sorts them **into the group
-  their folder names**, after the declared rows: a nested `backgrounds/old/x.png` stays a background,
-  a sprite folder whose actor nobody declared is a branch saying "not declared", and what no group
-  answers is `Other files`, drawn only when it has something. **Only `assets/` is listed** - the root
+  their folder names**, reading the layout back through `assetPaths.ts`'s `locateAsset` rather than
+  spelling a folder itself, after the declared rows: a nested `backgrounds/old/x.png` stays a
+  background, a sprite folder whose actor the manifest does not declare is a branch saying "not
+  declared" - `default` and `narrator` too, until they declare a sprite, by `declaresActor`'s one
+  rule in `declarations.ts` - and what no group answers is `Other files`, drawn only when it has
+  something. **Only `assets/` is listed** - the root
   is the project describing itself and where the storer writes, so a walk there can catch a
   `.crswap`. A row is muted and says "not declared"; nothing about it is orange, and **counts stay
   counts of declarations**. **A second module, never folded into `declaredGroups`**: the completions
@@ -249,22 +252,26 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   An adoption changes what is declared and never what is on disk, and the draw subtracts against the
   current state, so a hand-typed declaration moves its row with no walk. That is enough only because
   nothing else writes under `assets/` while the project lock is held; the linked folder of tranche 5
-  breaks it and will need a trigger. A generation counter stops an older listing landing over a newer
-  one, and a failed listing keeps the last one rather than drawing an empty project.
+  breaks it and will need a trigger. **A listing lands only if it was asked for after the one on
+  screen**, so an older one cannot land over a newer one while a newer one that failed does not stop
+  an older one still newer than what is shown; a failed listing keeps the last one rather than
+  drawing an empty project, and "Nothing declared yet." waits for the first listing, since before it
+  "nothing" is only what is not known yet.
 - **Five writes, one rule: every one of them is gated on the manifest parsing.** While it does not
   parse the panel shows the last manifest that *was* adopted (ADR 0002's other half, said in the
   title strip), so a row may name a declaration the buffer no longer has - add and declare have
   nowhere safe to splice, remove would destroy the wrong file, replace would overwrite a file the
   current manifest does not point at, and removing an undeclared file could take one the buffer now
-  declares. Preview writes nothing and is not gated.
+  declares. Preview writes nothing and is not gated. The gate is **a field the draw reads** rather
+  than `src/index.ts`'s `gateOnManifest`: that helper pushes a callback per button, and this panel
+  `replaceChildren`es its own root, so the callback would point at a replaced element and fight the
+  busy state. The busy state is the same field, the way `ProjectPicker`'s is.
 - **Declare is Add asset with only the id left to ask**, copying nothing - the path fixes the kind,
   the actor and the filename - and a sprite under an undeclared actor declares the actor too.
   **Its refusal names the fix when the id is declared and missing its file**, because that is the
-  commonest way in (`file:` edited by hand) and the basename prefill lands on exactly that id.
-  Removing an undeclared file is the file alone, still confirmed and still called remove. The gate is **a field the draw reads**
-  rather than `src/index.ts`'s `gateOnManifest`: that helper pushes a callback per button, and this
-  panel `replaceChildren`es its own root, so the callback would point at a replaced element and
-  fight the busy state. The busy state is the same field, the way `ProjectPicker`'s is.
+  commonest way in (`file:` edited by hand) and the basename prefill lands on exactly that id. What
+  already declares an id is `declaredLeaf`, read off the walk, for Declare and Add asset alike.
+  Removing an undeclared file is the file alone, still confirmed and still called remove.
 - **`src/storage/` reaches it as three functions, not as an import** (`AssetFiles`), which keeps the
   store out of `src/editor/` - the division that has `VnEditor` report a rename and `AppShell` act
   on it. `editorBoot` is where the two meet and the only place that knows the directory.
@@ -306,7 +313,9 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   `ReplaceAsset.test.ts` and `UndeclaredFiles.test.ts`, plus `test/unit/undeclaredFiles.test.ts` for
   which group a file lands in. `ReplaceAsset` is store-backed throughout, because the cache it is
   about is invisible through an in-memory stand-in. **The store-less harness's listing follows its
-  writes**, since the panel reads it again after every job.
+  writes**, since the panel reads it again after every job, and two hooks reach the rest:
+  `whileWriting` changes the buffer mid-copy, which is the only way to a half-done add, and `list`
+  answers listings late or out of order.
 
 ### The URL payload
 - **Not to be confused with `index.html?project=<directory>`**, which names a project in *this*
@@ -335,7 +344,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   `src/domRenderer/assetPaths.ts` is the one place an id becomes a path. Two functions per asset kind:
   `xFilePath(file)` for preloading and `xAssetPath(declarations, id)` for rendering, which has an id.
   The second is defined in terms of the first, so the directory prefix is written once and what is
-  preloaded cannot drift from what is asked for. Do not re-spell `"assets/audio/"`,
+  preloaded cannot drift from what is asked for. `locateAsset(path)` is the same layout read
+  backwards, for the asset panel's undeclared files. Do not re-spell `"assets/audio/"`,
   `"assets/backgrounds/"` or `assets/sprites/<actor>/` anywhere else — **and note the `assets/` level**,
   which is the project layout the store writes: everything above it is the project describing itself.
   That prefix belongs here and **not** in an `AssetResolver`, because it is part of the layout rather

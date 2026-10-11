@@ -1,4 +1,4 @@
-import { AssetKind } from "../core/manifest"
+import { AssetDeclaration, AssetKind } from "../core/manifest"
 import { DEFAULT_ACTOR_ID, NARRATOR_ACTOR_ID, VnPlayerState } from "../core/state"
 import { audioFilePath, backgroundFilePath, spriteFilePath } from "../domRenderer/assetPaths"
 
@@ -103,12 +103,7 @@ export const declaredGroups = (state: VnPlayerState): DeclaredBranch[] => [
 // actors the panel is drawing or the two come to disagree about who is in the project.
 export const actorBranches = (state: VnPlayerState): DeclaredBranch[] =>
   Object.entries(state.actors)
-    // **`default` and `narrator` are the engine's own**, and `seedActors` merges both in on every
-    // boot whether or not the manifest mentions them - so a walk of the state would otherwise draw
-    // two actors nobody declared. They are kept only when they declare sprites, because at that
-    // point an author did write them down. This is the one place the state and the manifest disagree
-    // about what a project declares, and it is settled in favour of the manifest.
-    .filter(([id, actor]) => !isEngineActor(id) || Object.keys(actor.sprites ?? {}).length > 0)
+    .filter(([id]) => declaresActor(state, id))
     .map(([actor, declared]) => ({
       name: actor,
       key: leafKey(["actors", actor]),
@@ -122,5 +117,32 @@ export const actorBranches = (state: VnPlayerState): DeclaredBranch[] =>
         manifestKey: ["actors", actor, "sprites", id],
       })),
     }))
+
+// Whether the manifest declares an actor, as far as the state can say.
+//
+// **`default` and `narrator` are the engine's own**, and `seedActors` merges both in on every boot
+// whether or not the manifest mentions them - so a walk of the state would otherwise draw two actors
+// nobody declared. They count only when they declare sprites, because at that point an author did
+// write them down. This is the one place the state and the manifest disagree about what a project
+// declares, and it is settled in favour of the manifest - here, once, for the cast this walk draws,
+// the undeclared sprite folders the panel draws beside it, and whether Declare says it is declaring
+// the actor too.
+export const declaresActor = (state: VnPlayerState, id: string): boolean => {
+  const actor = state.actors[id]
+  return actor !== undefined && (!isEngineActor(id) || Object.keys(actor.sprites ?? {}).length > 0)
+}
+
+// The row that already declares this id in this group, or undefined when none does. Read off the walk
+// rather than built from the three maps a second time, so Add asset and Declare refuse a duplicate on
+// exactly the terms this walk draws - and carry back the file and key a refusal has to name.
+export const declaredLeaf = (state: VnPlayerState, declaration: AssetDeclaration): DeclaredLeaf | undefined => {
+  const [backgrounds, audio, actors] = declaredGroups(state)
+  const { id } = declaration
+  if (declaration.kind === "sprite") {
+    const { actor } = declaration
+    return actors.branches.find((branch) => branch.name === actor)?.leaves.find((leaf) => leaf.id === id)
+  }
+  return (declaration.kind === "background" ? backgrounds : audio).leaves.find((leaf) => leaf.id === id)
+}
 
 const isEngineActor = (id: string): boolean => id === DEFAULT_ACTOR_ID || id === NARRATOR_ACTOR_ID

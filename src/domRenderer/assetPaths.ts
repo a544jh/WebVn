@@ -20,14 +20,21 @@ import { Actor, AudioAsset, SpriteInstance, VnPlayerState } from "../core/state"
 // not part of where the bytes come from, and a resolver that added one would make two
 // implementations disagree about what a path means.
 
-export const audioFilePath = (file: string): string => "assets/audio/" + file
+// The layout itself, written once. Every builder below and the one reader at the bottom go through
+// these, which is what "do not re-spell the prefix" means in practice.
+const ASSETS = "assets/"
+const AUDIO = ASSETS + "audio/"
+const BACKGROUNDS = ASSETS + "backgrounds/"
+const SPRITES = ASSETS + "sprites/"
+
+export const audioFilePath = (file: string): string => AUDIO + file
 
 export const audioAssetPath = (assets: Record<string, AudioAsset>, id: string): string | undefined => {
   const asset = assets[id]
   return asset === undefined ? undefined : audioFilePath(asset.file)
 }
 
-export const backgroundFilePath = (file: string): string => "assets/backgrounds/" + file
+export const backgroundFilePath = (file: string): string => BACKGROUNDS + file
 
 export const backgroundAssetPath = (backgrounds: Record<string, string>, id: string): string | undefined => {
   const file = backgrounds[id]
@@ -35,7 +42,7 @@ export const backgroundAssetPath = (backgrounds: Record<string, string>, id: str
 }
 
 // An actor's sprites live in a directory of their own, so two actors may declare the same filename.
-export const spriteFilePath = (actor: string, file: string): string => `assets/sprites/${actor}/${file}`
+export const spriteFilePath = (actor: string, file: string): string => `${SPRITES}${actor}/${file}`
 
 export const spriteAssetPath = (actors: Record<string, Actor>, instance: SpriteInstance): string | undefined => {
   const file = actors[instance.actor]?.sprites?.[instance.sprite]
@@ -80,3 +87,34 @@ export const declaredAssets = (state: VnPlayerState): { images: DeclaredAsset[];
 
   return { images, audio }
 }
+
+// The other direction: what a path under `assets/` would be declared as, read back off the layout -
+// the kind, the actor for a sprite, and the filename a declaration names. The inverse of
+// `declaredFilePath`, so a location given any id builds back the path it came from.
+//
+// The asset panel's undeclared files are the one reader: it sorts a file nobody declares into the
+// group its folder names. **Only the layout's question**, not the manifest's - whether the actor a
+// folder names is one any manifest could declare is `parseManifest.ts`'s to say.
+export type AssetLocation =
+  | { readonly kind: "background" | "audio"; readonly file: string }
+  | { readonly kind: "sprite"; readonly actor: string; readonly file: string }
+
+// Null for a path outside the three folders, a file straight under `sprites/` with no actor folder,
+// or a folder named on its own.
+export const locateAsset = (path: string): AssetLocation | null => {
+  const background = below(path, BACKGROUNDS)
+  if (background !== null) return { kind: "background", file: background }
+  const track = below(path, AUDIO)
+  if (track !== null) return { kind: "audio", file: track }
+  const sprite = below(path, SPRITES)
+  const slash = sprite?.indexOf("/") ?? -1
+  if (sprite === null || slash <= 0 || slash === sprite.length - 1) return null
+  return { kind: "sprite", actor: sprite.slice(0, slash), file: sprite.slice(slash + 1) }
+}
+
+// The path below `assets/`, or null for one outside it - what is above that level is the project
+// describing itself, never an asset.
+export const belowAssets = (path: string): string | null => below(path, ASSETS)
+
+const below = (path: string, folder: string): string | null =>
+  path.startsWith(folder) && path.length > folder.length ? path.slice(folder.length) : null

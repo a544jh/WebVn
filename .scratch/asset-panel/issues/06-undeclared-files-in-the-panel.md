@@ -252,7 +252,7 @@ as three options - leave it deferred, have the refusal name the fix, or build th
 they chose the second. `DeclareMissing` draws it, beside `DeclareAsset` in the top row, whose note
 moved out to the fourth column to make room.
 
-**Built 2026-10-11** on `claude/undeclared-files-in-the-panel`. `src/editor/undeclaredFiles.ts` is the
+**Built 2026-10-11** on `claude/undeclared-files-in-the-panel`, in 82a156b. `src/editor/undeclaredFiles.ts` is the
 second walk and `test/unit/undeclaredFiles.test.ts` pins where each file goes; the panel merges it in
 `assetPanel.ts`, and `test/browser/UndeclaredFiles.test.ts` covers the rows, Declare, Remove and the
 listing, store-backed for the last three cases. Four things implementation settled that this file did

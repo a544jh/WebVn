@@ -30,18 +30,11 @@ export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
     if (this.assets[path] !== undefined && this.assets[path] !== null) {
       return
     }
-    const url = await this.resolver.resolve(path)
-    const audio = new Audio(url)
-    return new Promise((resolve, reject) => {
-      audio.addEventListener("canplaythrough", () => {
-        // Keyed by the logical path, not the URL - see the image loader.
-        this.assets[path] = audio
-        resolve()
-      })
-      // Without this a missing file leaves the promise pending forever - `canplaythrough` never
-      // fires and nothing else settles it - so one bad declaration hangs every load after it.
-      audio.addEventListener("error", () => reject(new Error("Could not load " + path)))
+    const audio = await loadAudio(await this.resolver.resolve(path)).catch(() => {
+      throw new Error("Could not load " + path)
     })
+    // Keyed by the logical path, not the URL - see the image loader.
+    this.assets[path] = audio
   }
 
   public loadAll(): Promise<string[]> {
@@ -54,4 +47,17 @@ export class AudioAssetLoaderSrc implements AssetLoader<HTMLAudioElement> {
     this.assets = {}
     this.failed.clear()
   }
+}
+
+// An element ready to play through, or a rejection when the URL holds nothing this browser can play.
+// Its own function for the reason `loadImage` is: the asset panel asks a picked file the same
+// question, so what it lets in as audio is exactly what this loader will load.
+export const loadAudio = (url: string): Promise<HTMLAudioElement> => {
+  const audio = new Audio(url)
+  return new Promise((resolve, reject) => {
+    audio.addEventListener("canplaythrough", () => resolve(audio))
+    // Without this a missing file leaves the promise pending forever - `canplaythrough` never
+    // fires and nothing else settles it - so one bad declaration hangs every load after it.
+    audio.addEventListener("error", () => reject(new Error("Could not load " + url)))
+  })
 }

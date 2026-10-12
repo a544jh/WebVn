@@ -1,14 +1,16 @@
 import { dialogField, dialogSelect, DialogText, identifier, openDialog } from "../chrome/dialog"
+import { Loadable } from "../assetLoaders/probe"
 import { AssetDeclaration, AssetKind } from "../core/manifest"
-import { declaredFilePath } from "../domRenderer/assetPaths"
+import { AssetLocation, declaredFilePath } from "../domRenderer/assetPaths"
 import { validateActorId, validateAssetId } from "../yamlParser/parseManifest"
+import { declarationOf } from "./undeclaredFiles"
 
 // What `Add asset` asks about the file the author picked: what kind it is, whose sprite it is, what
 // the script will name it, and what to store it under.
 //
-// **The file is picked first**, through a plain `<input type="file">` the panel owns - so this
-// dialog knows what it is talking about and can prefill the kind from the file's type and the id
-// from its basename. Drawn on the design canvas as `AddAsset`, `AddAssetSprite` and
+// **The file is picked first**, through a plain `<input type="file">` the panel owns, and the panel
+// has already decoded it - so this dialog knows what it is talking about, offers only the kinds the
+// file can be, and prefills the id from its basename. Drawn on the design canvas as `AddAsset`, `AddAssetSprite` and
 // `AddAssetRefused`; read those before changing the layout.
 //
 // Every rule it enforces comes from `parseManifest.ts` rather than being restated here, and its
@@ -20,12 +22,17 @@ import { validateActorId, validateAssetId } from "../yamlParser/parseManifest"
 // is - so an author could in principle name one that.
 const NEW_ACTOR = "New actor..."
 
-// What each kind is called in the Kind select, and which `AssetKind` each stands for.
-const KINDS: ReadonlyArray<[label: string, kind: AssetKind]> = [
-  ["Background", "background"],
-  ["Audio", "audio"],
-  ["Sprite", "sprite"],
-]
+// What each kind is called in the Kind select, and which `AssetKind` each stands for, by what the
+// file decoded as. **Filtered rather than refused**: an image is never offered as audio, so there is
+// no wrong answer to pick and no refusal to explain afterwards. Background leads for an image because
+// it is the common case, and Sprite is a deliberate choice that reveals the Actor field.
+const KINDS: Record<Loadable, ReadonlyArray<[label: string, kind: AssetKind]>> = {
+  image: [
+    ["Background", "background"],
+    ["Sprite", "sprite"],
+  ],
+  audio: [["Audio", "audio"]],
+}
 
 // What the author is told they already have one of. The schema's noun for each declaration, so a
 // refusal names the group the collision is in rather than "an asset".
@@ -52,18 +59,27 @@ export interface AssetChoices {
   // because `validate` is synchronous and asking OPFS is not - and the project is locked for the
   // length of the session, so nothing else can put a file there while the dialog is up.
   readonly taken: ReadonlySet<string>
+  // The ones of those no declaration points at, by the name of what their row sits under in the
+  // panel. A name taken by one of these is refused all the same, but the refusal says where the file
+  // is - before the panel listed them, it named a file the author had no way to see.
+  readonly undeclared: ReadonlyMap<string, string>
 }
 
-// Resolves with what the author settled on, or null if they backed out.
-export const askForAsset = async (file: File, choices: AssetChoices): Promise<AssetDeclaration | null> => {
+// Resolves with what the author settled on, or null if they backed out. `loads` is what the panel's
+// probe found the file to be; a file that is neither never reaches this dialog.
+export const askForAsset = async (
+  file: File,
+  loads: Loadable,
+  choices: AssetChoices
+): Promise<AssetDeclaration | null> => {
+  const kinds = KINDS[loads]
   const kind = dialogSelect(
     "Kind",
-    KINDS.map(([label]) => label)
+    kinds.map(([label]) => label)
   )
-  // A guess from the file's own type, and the author can change it. Anything that is not audio reads
-  // as a background, which is the common case for an image and the least surprising default for a
-  // file the browser could not type at all.
-  kind.control.selectedIndex = file.type.startsWith("audio/") ? 1 : 0
+  // **Shown even when there is only one**, and disabled: the layout does not change with the file,
+  // and the author still reads what it is being added as.
+  kind.control.disabled = kinds.length === 1
 
   const actor = dialogSelect("Actor", [...choices.actors, NEW_ACTOR])
   const actorName = dialogField("Actor name")
@@ -85,7 +101,7 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
   form.classList.add("vn-dialog-form")
   form.append(kind.row, actor.row, actorName.row, id.row, fileName.row)
 
-  const chosenKind = (): AssetKind => KINDS[kind.control.selectedIndex][1]
+  const chosenKind = (): AssetKind => kinds[kind.control.selectedIndex][1]
   const newActor = (): boolean => actor.control.selectedIndex === choices.actors.length
   const chosenActor = (): string => (newActor() ? actorName.input.value.trim() : actor.control.value)
 
@@ -154,9 +170,18 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
       id.setProblem(idProblem)
 
       const path = declaredFilePath(declaration)
-      const fileProblem =
+      const holder = choices.undeclared.get(path)
+      // **Still a refusal when what holds the name is undeclared**, and no new button: "declare the
+      // existing one instead" would drop the bytes just picked without saying so, and "overwrite and
+      // declare" is a replace hidden inside an add. The row's Declare is the way out.
+      const fileProblem: DialogText | null =
         declaration.file === ""
           ? "Give the file a name."
+          : holder !== undefined
+          ? [
+              identifier(path),
+              ` is in this project but not declared. Declare it from its row under ${holder}, or give this file another name.`,
+            ]
           : choices.taken.has(path)
           ? `${path} is already in this project. Give this file another name.`
           : null
@@ -167,6 +192,112 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
   })
 
   return confirmed ? described() : null
+}
+
+// What `Declare` asks about a file already in the project: only its id. Where the file is fixes the
+// kind, the actor and the filename - changing any of them would mean moving the file - so they are
+// said in a sentence rather than offered as controls that could only be wrong. Nothing is copied.
+// Drawn on the design canvas as `DeclareAsset`, `DeclareSprite` and `DeclareMissing`.
+export interface DeclareChoices {
+  // Whether the manifest declares the actor a sprite's folder names. When it does not, declaring the
+  // sprite declares the actor too - a second line in the manifest the author did not ask for by name
+  // - so the dialog says so in a sentence of its own.
+  readonly actorDeclared: boolean
+  // What already declares that id in that group, or null when nothing does.
+  readonly held: (declaration: AssetDeclaration) => HeldDeclaration | null
+}
+
+// The declaration already holding an id: the file it names, and whether the last asset load found that
+// file. Which of the two refusals Declare gives turns on the second.
+export interface HeldDeclaration {
+  readonly file: string
+  readonly missing: boolean
+}
+
+// Resolves with the declaration to write, or null if the author backed out.
+export const askToDeclare = async (
+  declares: AssetLocation,
+  choices: DeclareChoices
+): Promise<AssetDeclaration | null> => {
+  const id = dialogField("Id")
+  id.input.classList.add("vn-dialog-input-mono")
+  // The basename, as Add asset prefills from the picked file's - of the last segment, so a nested
+  // `old/cliffs.png` offers `cliffs` rather than `old/cliffs`.
+  id.input.value = basename(declares.file.slice(declares.file.lastIndexOf("/") + 1))
+
+  const form = document.createElement("div")
+  form.classList.add("vn-dialog-form")
+  form.append(id.row)
+
+  const asked = (): AssetDeclaration => declarationOf(declares, id.input.value.trim())
+  const refresh = (): void =>
+    id.setHint(scriptUse(declares.kind, id.input.value.trim() === "" ? "…" : id.input.value.trim()))
+  id.input.addEventListener("input", () => {
+    id.setProblem(null)
+    refresh()
+  })
+  refresh()
+
+  const already = "It is already in this project, so nothing is copied."
+  const body: DialogText[] = [
+    declares.kind === "sprite"
+      ? ["Declaring ", identifier(declares.file), " as a sprite for ", identifier(declares.actor), `. ${already}`]
+      : ["Declaring ", identifier(declares.file), ` as ${ARTICLED[declares.kind]}. ${already}`],
+  ]
+  if (declares.kind === "sprite" && !choices.actorDeclared) {
+    body.push([identifier(declares.actor), " is not declared yet, so this declares the actor too."])
+  }
+
+  const confirmed = await openDialog({
+    title: "Declare asset",
+    body,
+    content: form,
+    confirmLabel: "Declare",
+    destructive: false,
+    validate: () => {
+      const declaration = asked()
+      const problem =
+        validateAssetId(declaration.kind, declaration.id) ?? heldProblem(declaration, choices.held(declaration))
+      id.setProblem(problem)
+      return problem === null
+    },
+  })
+
+  return confirmed ? asked() : null
+}
+
+// Why an id that is already declared cannot be this file's too.
+//
+// **When that declaration is missing its file, the refusal names the edit that fixes it.** That is
+// the commonest way an undeclared file appears - `file: storm.png` edited by hand to
+// `storm-night.png` - and the basename prefill lands on exactly that id, so a bare "already declared"
+// would stop the author at the one refusal with no way forward from the panel. Doing the edit from
+// here is a `file:` splice `manifestEdit.ts` does not have; until it does, the dialog says what to
+// type. **Filenames rather than a line number**, because the filename is in the manifest whatever
+// form the declaration takes - an audio entry's `file:` sits on a line of its own.
+const heldProblem = (declaration: AssetDeclaration, held: HeldDeclaration | null): DialogText | null =>
+  held === null
+    ? null
+    : held.missing
+    ? [
+        identifier(declaration.id),
+        " is already declared, and its file ",
+        identifier(held.file),
+        " is missing. To use this file for it, change ",
+        identifier(held.file),
+        " to ",
+        identifier(declaration.file),
+        " in ",
+        identifier("manifest.yaml"),
+        ".",
+      ]
+    : `${NOUNS[declaration.kind]} with this id is already declared.`
+
+// What each kind is called in the middle of a sentence. Sprites are never asked: a sprite's sentence
+// names its actor instead.
+const ARTICLED: Record<Exclude<AssetKind, "sprite">, string> = {
+  background: "a background",
+  audio: "an audio asset",
 }
 
 // The filename without its extension, which is what an author would have called the thing anyway.

@@ -91,6 +91,11 @@ const pickInto = (started: StartedEditor, key: string, file: File): void => {
   input.dispatchEvent(new Event("change"))
 }
 
+const waitForNotice = async (): Promise<HTMLDialogElement> => {
+  await waitFor("a notice to open", () => document.querySelector("dialog.vn-dialog") !== null)
+  return document.querySelector("dialog.vn-dialog") as HTMLDialogElement
+}
+
 // **What the stage is actually drawing**, sampled off the background canvas. The loader holding the
 // new element is not the same question and was the weaker test: `BackgroundRenderer.render` returns
 // without touching its canvas unless the state moved, and a replace moves no state - so the loader
@@ -241,6 +246,47 @@ describe("replacing an asset", () => {
       "the added file to turn the control into Replace",
       () => replaceControl(started, "backgrounds/storm").getAttribute("aria-label") === "Replace storm"
     )
+  })
+
+  // The probe Add asset filters its Kind by, asked as a yes or no: the row's kind is fixed.
+  it("refuses bytes that will not load as what the row declares, and writes nothing", async () => {
+    const started = await startEditorFromStore(PROJECT)
+
+    pickInto(started, "backgrounds/cliffs", new File(["not an image"], "cliffs.png", { type: "image/png" }))
+
+    const notice = await waitForNotice()
+    expect(notice.querySelector(".vn-dialog-title")?.textContent).toBe("The asset was not replaced")
+    expect(notice.textContent).toContain(
+      "cliffs.png is not an image this browser can show, so assets/backgrounds/cliffs.png was left as it was."
+    )
+    ;(notice.querySelector(".vn-dialog-confirm") as HTMLButtonElement).click()
+
+    const url = URL.createObjectURL(await readProjectFile(PROJECT, "assets/backgrounds/cliffs.png"))
+    expect(await showsColour(url, [255, 0, 0])).toBe(true)
+    URL.revokeObjectURL(url)
+  })
+
+  // **A load that failed is not a file that is missing.** The panel no longer lets such bytes in, but
+  // an archive, a Declare or another browser still can: a format this one cannot play, a corrupt
+  // file. Calling it missing took its Preview away and offered to add it, which lost the very file
+  // (reported 2026-10-12, with an image added as audio).
+  it("says a file that is there but will not load won't load, and keeps it reachable", async () => {
+    await writeProjectFile(PROJECT, "assets/backgrounds/storm.png", new Blob(["not an image"]))
+    const started = await startEditorFromStore(PROJECT)
+
+    await waitFor("the failed load to be reported", () =>
+      row(started, "backgrounds/storm").classList.contains("vn-asset-missing")
+    )
+    // The listing lands a moment after mount, and only then can the row tell.
+    await waitFor(
+      "the row to say the file is there",
+      () => replaceControl(started, "backgrounds/storm").getAttribute("aria-label") === "Replace storm"
+    )
+    expect((row(started, "backgrounds/storm").querySelector(".vn-asset-note") as HTMLElement).textContent).toBe(
+      "won't load"
+    )
+    // And the file can be looked at, which is how an author finds out what it actually is.
+    expect(previewControl(started, "backgrounds/storm")).not.toBeNull()
   })
 
   it("is disabled while the manifest does not parse, and says why", async () => {

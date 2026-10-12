@@ -1,6 +1,6 @@
 /* The asset panel's own pixels, from the design canvas `.scratch/asset-panel/spec.md` links - read
-   the `AssetPanel`, `AssetMissing`, `AssetEmpty` and `AssetGated` artboards before changing any of
-   them.
+   the `AssetPanel`, `AssetMissing`, `AssetEmpty`, `AssetGated` and `AssetUndeclared` artboards before
+   changing any of them.
 
    Its font, its status colours and its icons come from src/chrome/. The colour vocabulary is the
    chrome's and it means the same thing here: orange is "needs attention and the work still runs",
@@ -143,10 +143,11 @@
   color: #555;
 }
 
-/* A declared file that is not there. Orange rather than red, and not an error: declaring art before
-   it is drawn is the normal authoring order, the manifest is adopted anyway, and the story plays
-   right up until it reaches the asset. The manifest gutter says which line declared it; this says
-   which asset. */
+/* A declared file that did not load: not there, or there and not something this browser can load as
+   what it is declared as - the note says which. Orange rather than red, and not an error: declaring
+   art before it is drawn is the normal authoring order, the manifest is adopted anyway, and the story
+   plays right up until it reaches the asset. The manifest gutter says which line declared it; this
+   says which asset. */
 .vn-asset-missing .vn-asset-file {
   color: var(--vn-editor-status-warning);
 }
@@ -155,6 +156,43 @@
   flex: none;
   font-size: 11px;
   color: var(--vn-editor-status-warning);
+}
+
+/* **A file nothing declares** - `.scratch/asset-panel/issues/06`. It has no id, so its name leads, in
+   a grey quieter than an id's ink: #666 is 5.7:1 on white, so it stays readable, and it is plainly a
+   grey, so it is never taken for the orange a missing asset wears - which is its opposite. The name
+   truncates rather than the note, because the note is what says what the row is. */
+.vn-asset-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--vn-editor-font-mono);
+  font-size: 13px;
+  color: #666;
+}
+
+/* **Said as well as shaded**: among declared rows a shade alone gets misread. Muted like a filename,
+   and in the chrome's face like "file missing", because it is a sentence rather than a name. */
+.vn-asset-undeclared-note {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: #555;
+}
+
+/* An actor whose sprite folder exists and whose declaration does not: the header in the row's grey,
+   saying so where the count goes - a count of declarations would be a zero that reads as an actor
+   with nothing in it. */
+.vn-asset-group.vn-asset-undeclared {
+  color: #666;
+}
+
+.vn-asset-group-note {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #555;
 }
 
 /* **The header wears the orange too**, so a collapsed group still says something under it needs
@@ -211,10 +249,11 @@
   cursor: default;
 }
 
-/* Preview and replace darken; remove goes red. The colour is the difference between "this shows or
+/* Preview, replace and declare darken; remove goes red. The colour is the difference between "this shows or
    re-draws it" and "this destroys it", and it is the one place in the row that says so. */
 .vn-asset-preview:hover:enabled,
-.vn-asset-replace:hover:enabled {
+.vn-asset-replace:hover:enabled,
+.vn-asset-declare:hover:enabled {
   color: #333;
 }
 

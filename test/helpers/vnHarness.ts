@@ -243,7 +243,21 @@ export const servedAssets = (): AssetResolver => ({
 export const startEditor = async (
   manifestText: string,
   script: string,
-  options: { resolver?: AssetResolver; taken?: string[]; written?: Map<string, Blob>; removed?: string[] } = {}
+  options: {
+    resolver?: AssetResolver
+    taken?: string[]
+    written?: Map<string, Blob>
+    removed?: string[]
+    // A remove that is refused, the way OPFS refuses one on a file something still holds - for the
+    // suites that check a failed write still leaves the panel agreeing with the folder.
+    refuseRemove?: boolean
+    // Runs inside a write, after the bytes land and before it resolves - the window in which an author
+    // could change the manifest buffer while Add asset was copying a file.
+    whileWriting?: () => void
+    // Answers the panel's listings in place of the files present, told which listing this is (from 1)
+    // and what is present now - for the suites about a listing that arrives late or out of order.
+    list?: (call: number, present: ReadonlySet<string>) => Promise<Set<string>>
+  } = {}
 ): Promise<StartedEditor> => {
   const root = createVnRoot()
   const editorRoot = createEditorRoot()
@@ -262,21 +276,34 @@ export const startEditor = async (
   const editor = new VnEditor(editorRoot, player, YamlParser, renderer, manifest)
   // A store-less editor's files: whatever a test handed in, and a write that records rather than
   // lands anywhere. A suite whose subject is the writing boots through the store instead.
+  //
+  // **The listing follows the writes**, because the panel reads it again after every job and draws
+  // the files nothing declares out of it: a listing that stayed what the test handed in would show a
+  // removed file still there and a written one not yet.
   const written = options.written ?? new Map<string, Blob>()
   const removed = options.removed ?? []
+  const present = new Set(options.taken ?? [])
+  let listings = 0
   const assetPanel = new AssetPanel(panelRoot, {
     player,
     editor,
     resolver,
     files: {
-      list: () => Promise.resolve(new Set(options.taken ?? [])),
+      list: () => {
+        listings += 1
+        return options.list?.(listings, present) ?? Promise.resolve(new Set(present))
+      },
       write: (path, data) => {
         written.set(path, data)
+        present.add(path)
+        options.whileWriting?.()
         return Promise.resolve()
       },
       remove: (path) => {
+        if (options.refuseRemove === true) return Promise.reject(new DOMException(path, "NoModificationAllowedError"))
         written.delete(path)
         removed.push(path)
+        present.delete(path)
         return Promise.resolve()
       },
     },
@@ -420,6 +447,15 @@ export const blurEditor = async (started: EditorRoot): Promise<void> => {
   cm.getInputField().blur()
   await settle()
 }
+
+// The lines the playhead's marker sits on in the script buffer, 1-based - read the way `markedLines`
+// reads an error, off the line number CodeMirror draws beside the marker.
+export const playheadLines = (editorRoot: HTMLDivElement): number[] =>
+  [...editorRoot.querySelectorAll(".vn-marker-position")].map((marker) =>
+    Number(
+      marker.closest(".CodeMirror-gutter-wrapper")?.parentElement?.querySelector(".CodeMirror-linenumber")?.textContent
+    )
+  )
 
 export const errorMarkers = (editorRoot: HTMLDivElement): Element[] => [
   ...editorRoot.querySelectorAll(".vn-marker-error"),

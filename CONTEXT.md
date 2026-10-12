@@ -76,12 +76,26 @@ _Avoid_: disabled, stripped, dropped (a dropped command would shift every index 
 **Missing asset**:
 A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed
 load can tell - which is what makes it a different problem from an undeclared one rather than a
-degree of it. The asset panel marks its row "file missing" and offers **Add file** on it.
+degree of it. The asset panel marks its row "file missing" and offers **Add file** on it. A failed
+load alone does not make one: a declared file that *is* there and will not load - an image declared
+as audio, a format the browser cannot play - is not missing, and its row says "won't load" and keeps
+**Replace** and Preview.
 _Avoid_: broken asset, unloaded asset, bad asset
+
+**Undeclared file**:
+A file under a project's `assets/` that no declaration in the manifest points at - the opposite of a
+**missing asset**, which is a declaration with no file. Nothing the engine draws can reach it, since a
+script names ids and only a declaration turns an id into a path. Left behind by a hand edit of the
+manifest, a write that half failed, or an archive that carried it in; an export carries it out again,
+a publish never does. The asset panel lists it in the group its folder names, saying "not declared",
+with **Declare** and **Remove** on its row.
+_Avoid_: undeclared asset (that is a script naming an id the manifest does not declare), unreferenced
+and unused (those are a declared asset no script names), orphan, stray
 
 **Remove**:
 Taking an asset out of a project: its declaration out of the manifest and its file off disk, both.
-Confirmed and irreversible. A script still naming the id is warned rather than broken - the command
+Confirmed and irreversible. On an **undeclared file** there is no declaration to take out, so it is
+the file alone - still remove, still confirmed. A script still naming the id is warned rather than broken - the command
 is neutralized at its index and comes back when the id is declared again - so removal destroys bytes
 and not story. An actor is cast rather than an asset and cannot be removed this way.
 _Avoid_: delete (a project is deleted; an asset is removed), discard, unlink

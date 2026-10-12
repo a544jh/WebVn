@@ -70,3 +70,17 @@ the entry.
   manifest that was adopted, so a row describes a declaration the buffer may no longer have -
   and removing from a stale list would destroy the wrong file. The same gate covers add and replace,
   so the rule is one sentence rather than two and an exception.
+
+## Amended 2026-10-11: an undeclared file is no longer invisible
+
+The asset panel now lists every file under `assets/` that no declaration points at, in the group its
+folder names (`.scratch/asset-panel/issues/06`). So the first argument above - **an undeclared file is
+invisible and permanent** - is no longer true: such a file is a row, with a Remove of its own.
+
+**The decision stands, on the other two.** `exportProject` still walks the whole tree, so a file a
+remove left behind would still ride into every archive the author sends; and `recoverProjects`'
+reasoning, that a tree nothing points at is residue rather than data, is unchanged one level down.
+
+What does change is the failure path. A remove whose file delete fails used to leave an undeclared
+file behind, said only in the console, with no way to see it or get rid of it. The leftover is now a row the author can
+remove again, which is why that report stays a console line rather than becoming a dialog.

@@ -70,6 +70,16 @@
   background: #fff;
 }
 
+/* A field with only one answer, which is Add asset's Kind for a sound: shown so the dialog keeps its
+   layout and still says what the file is being added as. Muted rather than the browser's own disabled
+   look, which reads as a control that is off - this is a fact about the file. `opacity` because
+   Chromium dims a disabled select to 0.7 on top of any colour. Drawn as AddAssetAudio on the canvas. */
+.vn-dialog-input:disabled {
+  background: #f5f5f5;
+  color: #555;
+  opacity: 1;
+}
+
 /* An id is an identifier rather than a name, so it wears the face the script does - the same rule
    the picker's rows follow for a directory name. */
 .vn-dialog-input-mono {

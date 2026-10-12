@@ -188,8 +188,9 @@ export interface DialogRow<C extends HTMLElement> {
   readonly control: C
   // Marks the field and replaces its note with the reason, or clears both. **Beside the field it
   // belongs to** - a validation message about an id has nowhere useful to go if it is not there,
-  // which is the argument against `window.prompt` stated as a method.
-  setProblem(message: string | null): void
+  // which is the argument against `window.prompt` stated as a method. A sentence with identifiers in
+  // it, like a hint, because the asset panel's refusals name the files they are about.
+  setProblem(message: DialogText | null): void
   // Rewrite what the field says it is for. The `Add asset` dialog's hints quote the line a script
   // would write and the path a file will be stored at, so they change as the author types - and a
   // field has to remember its current hint anyway, because clearing a problem puts it back.
@@ -247,7 +248,7 @@ const dialogRow = <C extends HTMLElement>(label: string, control: C, hint?: Dial
   row.appendChild(note)
 
   let current = hint
-  const show = (problem: string | null) => {
+  const show = (problem: DialogText | null) => {
     control.classList.toggle("vn-dialog-input-problem", problem !== null)
     note.classList.toggle("vn-dialog-hint-problem", problem !== null)
     const text = problem ?? current ?? ""

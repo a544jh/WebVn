@@ -210,6 +210,21 @@ describe("undeclareAsset", () => {
     )
   })
 
+  // The panel addresses a declaration by the keys JavaScript made of it, which are strings, while the
+  // document keeps the scalar YAML read: `3:` is the number 3. Reported 2026-10-12 as a hand-declared
+  // sprite the panel could not remove, refused as "manifest.yaml does not declare 3".
+  it("takes out a sprite whose id YAML reads as a number", () => {
+    const text = HEAD + 'actors:\n  Keeper:\n    sprites:\n      "2": "2.png"\n      3: 3.png\n'
+    expect(edited(undeclareAsset(text, ["actors", "Keeper", "sprites", "3"]))).toBe(
+      HEAD + 'actors:\n  Keeper:\n    sprites:\n      "2": "2.png"\n'
+    )
+  })
+
+  it("takes out a background whose id YAML reads as a boolean", () => {
+    const text = HEAD + "backgrounds:\n  true: true.png\n  jetty: jetty.png\n"
+    expect(edited(undeclareAsset(text, ["backgrounds", "true"]))).toBe(HEAD + "backgrounds:\n  jetty: jetty.png\n")
+  })
+
   it("refuses a key the manifest does not declare", () => {
     expect(problem(undeclareAsset(HEAD + "backgrounds:\n  a: a.png\n", ["backgrounds", "b"]))).toContain("b")
   })

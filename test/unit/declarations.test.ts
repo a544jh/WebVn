@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { seedState } from "../../src/core/manifest"
-import { declaredGroups, leafKey } from "../../src/editor/declarations"
+import { declaredGroups, declaredLeaf, declaresActor, leafKey } from "../../src/editor/declarations"
 import { TEST_MANIFEST } from "../helpers/testManifest"
 
 // What a project declares, in the manifest's own shape. The asset panel draws this and
@@ -93,5 +93,51 @@ describe("leafKey", () => {
   // manifest key rather than the path is what identifies a row.
   it("is the manifest key path", () => {
     expect(leafKey(["actors", "Keeper", "sprites", "idle"])).toBe("actors/Keeper/sprites/idle")
+  })
+})
+
+// The one rule for whether the manifest declares an actor: the cast the walk draws, the undeclared
+// sprite folders drawn beside it, and whether Declare says it is declaring the actor too.
+describe("declaresActor", () => {
+  it("is true for an actor the manifest declares, sprites or not", () => {
+    expect(declaresActor(seeded({ actors: { Keeper: { textColor: "red" } } }), "Keeper")).toBe(true)
+  })
+
+  it("is false for an actor nobody declared", () => {
+    expect(declaresActor(seeded({}), "Ghost")).toBe(false)
+  })
+
+  // `seedActors` puts both into every state; the manifest declares them only by declaring a sprite.
+  it("counts the engine's own two only once they declare sprites", () => {
+    expect(declaresActor(seeded({}), "narrator")).toBe(false)
+    expect(declaresActor(seeded({}), "default")).toBe(false)
+    expect(declaresActor(seeded({ actors: { narrator: { sprites: { idle: "n.png" } } } }), "narrator")).toBe(true)
+  })
+})
+
+describe("declaredLeaf", () => {
+  const state = seeded({
+    backgrounds: { cliffs: "cliffs.png" },
+    audioAssets: { waves: { file: "waves.ogg" } },
+    actors: { Keeper: { sprites: { idle: "idle.png" } } },
+  })
+
+  it("finds the row declaring an id in its own group, with its file and key", () => {
+    expect(declaredLeaf(state, { kind: "background", id: "cliffs", file: "x.png" })).toMatchObject({
+      file: "cliffs.png",
+      manifestKey: ["backgrounds", "cliffs"],
+    })
+    expect(declaredLeaf(state, { kind: "audio", id: "waves", file: "x.ogg" })?.file).toBe("waves.ogg")
+    expect(declaredLeaf(state, { kind: "sprite", actor: "Keeper", id: "idle", file: "x.png" })?.manifestKey).toEqual([
+      "actors",
+      "Keeper",
+      "sprites",
+      "idle",
+    ])
+  })
+
+  it("finds nothing for an id another group or another actor declares", () => {
+    expect(declaredLeaf(state, { kind: "audio", id: "cliffs", file: "x.ogg" })).toBeUndefined()
+    expect(declaredLeaf(state, { kind: "sprite", actor: "Ghost", id: "idle", file: "x.png" })).toBeUndefined()
   })
 })

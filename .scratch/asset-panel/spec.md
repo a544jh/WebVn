@@ -51,9 +51,11 @@ symbol table with the manifest's shape: three fixed groups, one level of nesting
 as leaves. Showing the OPFS tree instead would let the author browse a file no id answers, which is
 the state ADR 0004 exists to make visible in the *script*, not a second place to go looking.
 
-**Reversed 2026-09-29, not yet built**: the maintainer decided a file no declaration points at does
-show up in the panel. The manifest stays the panel's spine; undeclared files are added beside it.
-`issues/06-undeclared-files-in-the-panel.md` has the reasoning and the open questions.
+**Reversed 2026-09-29, built 2026-10-11**: a file no declaration points at does show up in the panel,
+in the group its folder names, after the declared rows. The manifest stays the panel's spine;
+undeclared files are added beside it, out of a second walk (`src/editor/undeclaredFiles.ts`) so the
+completions this paragraph's first half protects never see them.
+`issues/06-undeclared-files-in-the-panel.md` has the reasoning and every decision.
 
 The consequence worth stating: **no tree library, and not a general treeview.** Three collapsible
 groups with one nesting level is `<button aria-expanded>` over a list. The fiddly part of a real
@@ -87,6 +89,15 @@ looks the key up with `declarationLocations(this.manifestDoc.getValue(), ...)` a
 `markErrors("manifest", errors)` - the warning lands on the line that *declared* the file, because
 that is the edit that caused it and a filename is the one thing an author cannot check by reading
 the two documents. The panel adds a third place that says so, not a different answer.
+
+*Amended 2026-10-12:* the panel's answer is more precise than the gutter's, because it has the
+listing. A failed load is "file missing" only when the file is not there; one that is there says
+"won't load" - an image declared as audio, a format the browser cannot play - and keeps Preview and
+Replace. The gutter already said "Could not load", which is true of both. Calling a present file
+missing took away the controls that could fix it (reported as "the panel loses it"). Add asset and
+Replace now decode a picked file before it goes in, so neither can put such a file there; Declare, an
+import and another browser still can. The canvas draws it as `AssetWontLoad`, beside the `lament` row
+that is genuinely missing.
 
 **5. Nothing is marked as fine.** Green means stored, orange means "needs attention and the work
 still runs", red means "did not parse, or a write failed". Spending green on "the file is there"

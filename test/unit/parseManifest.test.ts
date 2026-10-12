@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import demoManifestYaml from "../../test-assets/manifest.yaml?raw"
 import { ErrorLevel } from "../../src/core/commands/Parser"
+import { declarationLocations } from "../../src/yamlParser/parseManifest"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 
 // parseManifest is the one parser in the codebase that refuses to return a half-result: a manifest
@@ -397,6 +398,38 @@ audioAssets:
         bigthump: { file: "sfx/bigthump.ogg" },
       })
       expect(manifest?.actors.A1.sprites).toEqual({ idle: "idle.png", "2": "2.png" })
+    })
+  })
+
+  // A declaration is addressed by the keys JavaScript made of it, which are strings, while the document
+  // keeps the scalar YAML read - `3:` is the number 3 and `true:` a boolean. Every place that finds a
+  // declaration's line has to compare them the way JavaScript did, or the line is never found.
+  describe("an id YAML reads as something other than a string", () => {
+    const TEXT = withId("scalars") + "backgrounds:\n  true: true.png\nactors:\n  A1:\n    sprites:\n      3: 3.png\n"
+
+    it("is declared under the key JavaScript made of it", () => {
+      const [manifest, errors] = parse(TEXT)
+
+      expect(errors).toEqual([])
+      expect(manifest?.backgrounds).toEqual({ true: "true.png" })
+      expect(manifest?.actors.A1.sprites).toEqual({ "3": "3.png" })
+    })
+
+    // Where the gutter marks a file that is missing. It fell back to line 1.
+    it("is located on its own line", () => {
+      const lines = declarationLocations(TEXT, [
+        ["backgrounds", "true"],
+        ["actors", "A1", "sprites", "3"],
+      ]).map((location) => location.startLine)
+
+      expect(lines).toEqual([5, 9])
+    })
+
+    it("has a schema error pointed at its own line", () => {
+      const [, errors] = parse(TEXT.replace("3: 3.png", "3: [3.png]"))
+
+      expect(errors).toHaveLength(1)
+      expect(errors[0].location.startLine).toBe(9)
     })
   })
 })

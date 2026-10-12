@@ -1,4 +1,4 @@
-import { Document, isMap, isNode, isScalar, LineCounter, YAMLMap } from "yaml"
+import { Document, isMap, isNode, isScalar, isSeq, LineCounter, YAMLMap } from "yaml"
 import { z, ZodIssue } from "zod"
 import { ErrorLevel, ParserError, SourceLocation } from "../core/commands/Parser"
 import { AssetKind, VnManifest } from "../core/manifest"
@@ -236,9 +236,31 @@ export const declarationLocation = (text: string, key: (string | number)[]): Sou
 }
 
 const locateDeclaration = (doc: Document, key: (string | number)[], lc: LineCounter): SourceLocation | null => {
-  const parent = key.length === 1 ? doc.contents : doc.getIn(key.slice(0, -1), true)
+  const parent = nodeAt(doc, key.slice(0, -1))
   return (isMap(parent) ? entryLines(parent, key[key.length - 1], lc) : undefined) ?? null
 }
+
+// The node a path leads to, or undefined when the document has nothing there.
+//
+// **Walked by hand rather than with the document's own path lookup**, which compares keys strictly. A
+// path is the keys JavaScript made of the document - strings, which is what `declaredAssets`, the
+// panel and Zod's issue paths all hand in - while the document keeps the scalar YAML read: `3:` is the
+// number 3 and `true:` a boolean. So the path ["backgrounds", "3"] never found `3: a.png`, and the
+// panel could not remove a sprite whose id was a bare number (reported 2026-10-12, as
+// "manifest.yaml does not declare 3"), nor the gutter mark its missing file anywhere but line 1.
+const nodeAt = (doc: Document, path: readonly (string | number)[]): unknown => {
+  let node: unknown = doc.contents
+  for (const key of path) {
+    if (isMap(node)) node = node.items.find((item) => sameKey(item.key, key))?.value
+    else if (isSeq(node) && typeof key === "number") node = node.items[key]
+    else return undefined
+  }
+  return node
+}
+
+// Whether a document key is the one a path names, compared the way JavaScript made the path: as a
+// string. The one comparison every lookup in this file goes through.
+const sameKey = (node: unknown, key: string | number): boolean => isScalar(node) && String(node.value) === String(key)
 
 // Zod's own message says what is wrong but not where in the document, so the path goes in front of
 // it: "actors.a1: must be capitalized ...".
@@ -254,11 +276,11 @@ const issueMessage = (issue: ZodIssue): string =>
 const issueLocation = (issue: ZodIssue, doc: Document, lc: LineCounter): SourceLocation => {
   if (issue.path.length === 0) return isNode(doc.contents) ? getLines(doc.contents, lc) : FIRST_LINE
 
-  const parent = issue.path.length === 1 ? doc.contents : doc.getIn(issue.path.slice(0, -1), true)
+  const parent = nodeAt(doc, issue.path.slice(0, -1))
   const pairLines = isMap(parent) ? entryLines(parent, issue.path[issue.path.length - 1], lc) : undefined
   if (pairLines !== undefined) return pairLines
 
-  const node = doc.getIn(issue.path, true)
+  const node = nodeAt(doc, issue.path)
   return isNode(node) ? getLines(node, lc) : FIRST_LINE
 }
 
@@ -271,7 +293,7 @@ const keyLocation = (doc: Document, key: string, lc: LineCounter): SourceLocatio
 
 // From the start of a mapping's key to the end of its value.
 const entryLines = (map: YAMLMap, key: string | number, lc: LineCounter): SourceLocation | undefined => {
-  const pair = map.items.find((item) => isScalar(item.key) && item.key.value === key)
+  const pair = map.items.find((item) => sameKey(item.key, key))
   if (pair === undefined || !isNode(pair.key)) return undefined
   const keyLines = getLines(pair.key, lc)
   return {

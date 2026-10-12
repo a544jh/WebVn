@@ -173,6 +173,21 @@ describe("removing an asset", () => {
     expect(manifest?.actors.A1.sprites).toBeUndefined()
   })
 
+  // The panel addresses a row by the keys JavaScript made of the manifest, which are strings, while
+  // the document keeps `3:` as the number 3. Reported 2026-10-12 as a hand-declared sprite that
+  // could not be removed: "manifest.yaml does not declare 3. Nothing was deleted."
+  it("removes a sprite whose id YAML reads as a number", async () => {
+    const numbered = MANIFEST.replace("      idle: idle.png\n", "      idle: idle.png\n      3: 3.png\n")
+    const started = await startEditor(numbered, SCRIPT, { resolver: servedAssets() })
+
+    removeControl(started, "actors/A1/sprites/3").click()
+    await waitForDialog()
+    confirm()
+
+    await waitFor("the row to go", () => row(started, "actors/A1/sprites/3") === null)
+    expect(started.editor.getManifestText()).toBe(MANIFEST)
+  })
+
   it("puts no remove control on an actor row or a group header", async () => {
     const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
 

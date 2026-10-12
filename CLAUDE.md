@@ -296,7 +296,10 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   The innermost group that already exists is where an entry goes, at that group's own indent, and
   anything below it is minted. **It refuses rather than mangles**: a flow-style manifest, or any
   group whose value shares its line, is `editor.ts`'s rename-revert guard reached from a new
-  direction. Pure, so `test/unit/manifestEdit.test.ts` is where every case lives.
+  direction. Pure, so `test/unit/manifestEdit.test.ts` is where every case lives. **Locating compares
+  keys as strings**, through `nodeAt`/`sameKey` in `parseManifest.ts`: a key path is the strings
+  JavaScript made of the manifest, while the document keeps what YAML read - `3:` is a number, `true:`
+  a boolean - so the strict lookup it replaced could not remove a sprite named `3` (2026-10-12).
 - **Replace is a cache-invalidation problem, and that is the whole of it.** `loadAsset` early-returns
   on a path it already holds, *before* it consults the resolver, and `OpfsAssetResolver` never
   revokes - so new bytes under an unchanged path change nothing on screen. Hence

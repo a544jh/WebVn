@@ -94,7 +94,9 @@ the two documents. The panel adds a third place that says so, not a different an
 listing. A failed load is "file missing" only when the file is not there; one that is there says
 "won't load" - an image declared as audio, a format the browser cannot play - and keeps Preview and
 Replace. The gutter already said "Could not load", which is true of both. Calling a present file
-missing took away the controls that could fix it (reported as "the panel loses it").
+missing took away the controls that could fix it (reported as "the panel loses it"). Add asset and
+Replace now decode a picked file before it goes in, so neither can put such a file there; Declare, an
+import and another browser still can.
 
 **5. Nothing is marked as fine.** Green means stored, orange means "needs attention and the work
 still runs", red means "did not parse, or a write failed". Spending green on "the file is there"

@@ -35,13 +35,10 @@ export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
     if (this.assets[path] !== undefined && this.assets[path] !== null) {
       return
     }
-    const url = await this.resolver.resolve(path)
-    const img = new Image()
-    img.src = url
-    // decode() rejects on a failed load, which is the reporting this loader already had. A resolver
-    // that rejects - the file is not in the store - fails the same way, which is how "a declared
-    // file that is not there" keeps working whatever the bytes come from.
-    await img.decode()
+    // A resolver that rejects - the file is not in the store - fails the same way a failed decode
+    // does, which is how "a declared file that is not there" keeps working whatever the bytes come
+    // from.
+    const img = await loadImage(await this.resolver.resolve(path))
     // Keyed by the logical path, never by the URL: that is what lets a failure be reported against
     // the manifest line that declared it, and what the three render-time call sites look up.
     this.assets[path] = img
@@ -57,4 +54,15 @@ export class ImageAssetLoaderSrc implements AssetLoader<HTMLImageElement> {
     this.assets = {}
     this.failed.clear()
   }
+}
+
+// An image, decoded, or a rejection when the URL holds nothing this browser can show. Its own function
+// so the asset panel asks a picked file the same question before copying it in: what the panel lets
+// in as an image is then exactly what this loader will load (`src/assetLoaders/probe.ts`).
+export const loadImage = async (url: string): Promise<HTMLImageElement> => {
+  const img = new Image()
+  img.src = url
+  // decode() rejects on a failed load, which is the reporting this loader already had.
+  await img.decode()
+  return img
 }

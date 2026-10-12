@@ -1,4 +1,5 @@
 import { dialogField, dialogSelect, DialogText, identifier, openDialog } from "../chrome/dialog"
+import { Loadable } from "../assetLoaders/probe"
 import { AssetDeclaration, AssetKind } from "../core/manifest"
 import { AssetLocation, declaredFilePath } from "../domRenderer/assetPaths"
 import { validateActorId, validateAssetId } from "../yamlParser/parseManifest"
@@ -7,9 +8,9 @@ import { declarationOf } from "./undeclaredFiles"
 // What `Add asset` asks about the file the author picked: what kind it is, whose sprite it is, what
 // the script will name it, and what to store it under.
 //
-// **The file is picked first**, through a plain `<input type="file">` the panel owns - so this
-// dialog knows what it is talking about and can prefill the kind from the file's type and the id
-// from its basename. Drawn on the design canvas as `AddAsset`, `AddAssetSprite` and
+// **The file is picked first**, through a plain `<input type="file">` the panel owns, and the panel
+// has already decoded it - so this dialog knows what it is talking about, offers only the kinds the
+// file can be, and prefills the id from its basename. Drawn on the design canvas as `AddAsset`, `AddAssetSprite` and
 // `AddAssetRefused`; read those before changing the layout.
 //
 // Every rule it enforces comes from `parseManifest.ts` rather than being restated here, and its
@@ -21,12 +22,17 @@ import { declarationOf } from "./undeclaredFiles"
 // is - so an author could in principle name one that.
 const NEW_ACTOR = "New actor..."
 
-// What each kind is called in the Kind select, and which `AssetKind` each stands for.
-const KINDS: ReadonlyArray<[label: string, kind: AssetKind]> = [
-  ["Background", "background"],
-  ["Audio", "audio"],
-  ["Sprite", "sprite"],
-]
+// What each kind is called in the Kind select, and which `AssetKind` each stands for, by what the
+// file decoded as. **Filtered rather than refused**: an image is never offered as audio, so there is
+// no wrong answer to pick and no refusal to explain afterwards. Background leads for an image because
+// it is the common case, and Sprite is a deliberate choice that reveals the Actor field.
+const KINDS: Record<Loadable, ReadonlyArray<[label: string, kind: AssetKind]>> = {
+  image: [
+    ["Background", "background"],
+    ["Sprite", "sprite"],
+  ],
+  audio: [["Audio", "audio"]],
+}
 
 // What the author is told they already have one of. The schema's noun for each declaration, so a
 // refusal names the group the collision is in rather than "an asset".
@@ -59,16 +65,21 @@ export interface AssetChoices {
   readonly undeclared: ReadonlyMap<string, string>
 }
 
-// Resolves with what the author settled on, or null if they backed out.
-export const askForAsset = async (file: File, choices: AssetChoices): Promise<AssetDeclaration | null> => {
+// Resolves with what the author settled on, or null if they backed out. `loads` is what the panel's
+// probe found the file to be; a file that is neither never reaches this dialog.
+export const askForAsset = async (
+  file: File,
+  loads: Loadable,
+  choices: AssetChoices
+): Promise<AssetDeclaration | null> => {
+  const kinds = KINDS[loads]
   const kind = dialogSelect(
     "Kind",
-    KINDS.map(([label]) => label)
+    kinds.map(([label]) => label)
   )
-  // A guess from the file's own type, and the author can change it. Anything that is not audio reads
-  // as a background, which is the common case for an image and the least surprising default for a
-  // file the browser could not type at all.
-  kind.control.selectedIndex = file.type.startsWith("audio/") ? 1 : 0
+  // **Shown even when there is only one**, and disabled: the layout does not change with the file,
+  // and the author still reads what it is being added as.
+  kind.control.disabled = kinds.length === 1
 
   const actor = dialogSelect("Actor", [...choices.actors, NEW_ACTOR])
   const actorName = dialogField("Actor name")
@@ -90,7 +101,7 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
   form.classList.add("vn-dialog-form")
   form.append(kind.row, actor.row, actorName.row, id.row, fileName.row)
 
-  const chosenKind = (): AssetKind => KINDS[kind.control.selectedIndex][1]
+  const chosenKind = (): AssetKind => kinds[kind.control.selectedIndex][1]
   const newActor = (): boolean => actor.control.selectedIndex === choices.actors.length
   const chosenActor = (): string => (newActor() ? actorName.input.value.trim() : actor.control.value)
 
@@ -145,9 +156,6 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
     // **Every field, and every one marked**, so an author fixing one is not sent back for the other.
     validate: () => {
       const declaration = described()
-      const kindProblem = kindMismatch(file.type, declaration.kind)
-      kind.setProblem(kindProblem)
-
       const actorProblem =
         declaration.kind === "sprite" && newActor()
           ? declaration.actor === ""
@@ -179,27 +187,12 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
           : null
       fileName.setProblem(fileProblem)
 
-      return kindProblem === null && actorProblem === null && idProblem === null && fileProblem === null
+      return actorProblem === null && idProblem === null && fileProblem === null
     },
   })
 
   return confirmed ? described() : null
 }
-
-// Why the picked file cannot be the kind chosen for it, or null when nothing says it cannot.
-//
-// **Only a type that contradicts the kind is refused** - an image as audio, audio as a background or a
-// sprite - because the type is the browser's guess from the extension, and an empty one is a file it
-// could not guess about rather than one that is wrong. What gets past this and still does not load is
-// the panel's "won't load", which is also where a file arriving by Declare or Replace ends up.
-const kindMismatch = (type: string, kind: AssetKind): string | null =>
-  kind === "audio"
-    ? type.startsWith("image/")
-      ? "This file is an image, so it cannot be played as audio."
-      : null
-    : type.startsWith("audio/")
-    ? `This file is audio, so it cannot be shown as ${kind === "sprite" ? "a sprite" : "a background"}.`
-    : null
 
 // What `Declare` asks about a file already in the project: only its id. Where the file is fixes the
 // kind, the actor and the filename - changing any of them would mean moving the file - so they are

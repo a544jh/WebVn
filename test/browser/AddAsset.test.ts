@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { createProject, readProjectFile } from "../../src/storage/projectStore"
 import { clearOpfsStore, storedManifest } from "../helpers/opfs"
+import { pickedFile, PNG, WAV } from "../helpers/pickedFiles"
 import {
   blurEditor,
   releaseStoredEditorLock,
@@ -40,9 +41,6 @@ actors:
       idle: idle.png
 `
 
-// A file the author picked, as the platform hands one over.
-const pickedFile = (name: string, type = "image/png"): File => new File([new Uint8Array([1, 2, 3])], name, { type })
-
 // Driving the panel's hidden `<input type="file">`, which is the only way a file reaches it.
 const pick = (started: StartedEditor, file: File): void => {
   const input = started.panelRoot.querySelector(".vn-asset-add-input") as HTMLInputElement
@@ -71,6 +69,7 @@ const shown = (label: string): boolean => getComputedStyle(fieldFor(label)).disp
 
 const inputFor = (label: string): HTMLInputElement => fieldFor(label).querySelector("input") as HTMLInputElement
 const selectFor = (label: string): HTMLSelectElement => fieldFor(label).querySelector("select") as HTMLSelectElement
+const optionsOf = (label: string): string[] => [...selectFor(label).options].map((option) => option.text)
 const hintOf = (label: string): string =>
   (fieldFor(label).querySelector(".vn-dialog-hint") as HTMLElement).textContent ?? ""
 
@@ -207,49 +206,69 @@ describe("adding an asset", () => {
     cancel()
   })
 
-  // Beside Kind, because that is the field the author got wrong. An image declared as audio would be
-  // added, declared and then never play, and its row would be the only place saying why.
-  it("refuses an image as audio, beside Kind, and copies nothing", async () => {
-    const written = new Map<string, Blob>()
-    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), written })
+  // **Filtered rather than refused**: what the file decoded as decides what it can be, so there is no
+  // wrong kind to pick and nothing to explain afterwards.
+  it("offers an image as a background or a sprite, and never as audio", async () => {
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
 
     pick(started, pickedFile("jetty.png"))
     await waitForDialog()
-    choose("Kind", "Audio")
-    confirm()
 
-    expect(openDialog()).not.toBeNull()
-    expect(hintOf("Kind")).toBe("This file is an image, so it cannot be played as audio.")
-    expect([...written.keys()]).toEqual([])
+    expect(optionsOf("Kind")).toEqual(["Background", "Sprite"])
+    expect(selectFor("Kind").disabled).toBe(false)
     cancel()
   })
 
-  it("refuses audio as a sprite", async () => {
-    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
-
-    pick(started, pickedFile("waves.ogg", "audio/ogg"))
-    await waitForDialog()
-    choose("Kind", "Sprite")
-    confirm()
-
-    expect(openDialog()).not.toBeNull()
-    expect(hintOf("Kind")).toBe("This file is audio, so it cannot be shown as a sprite.")
-    cancel()
-  })
-
-  // The type is the browser's guess from the extension, and an empty one is a file it could not guess
-  // about - not one that is wrong.
-  it("lets a file the browser could not type be added as any kind", async () => {
+  // Shown although there is nothing to choose, so the dialog keeps its layout and still says what the
+  // file is being added as.
+  it("offers audio only as audio, in a Kind that cannot be changed", async () => {
     const written = new Map<string, Blob>()
     const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), written })
 
-    pick(started, pickedFile("waves.opus", ""))
+    pick(started, pickedFile("waves.wav", "audio/wav", WAV))
     await waitForDialog()
-    choose("Kind", "Audio")
-    confirm()
 
+    expect(optionsOf("Kind")).toEqual(["Audio"])
+    expect(selectFor("Kind").disabled).toBe(true)
+    confirm()
     await waitFor("the track to be drawn", () => rowKeys(started).includes("audioAssets/waves"))
-    expect([...written.keys()]).toEqual(["assets/audio/waves.opus"])
+    expect([...written.keys()]).toEqual(["assets/audio/waves.wav"])
+  })
+
+  // The type is the browser's guess from the extension: empty for one it does not know, wrong for a
+  // file renamed by hand.
+  it("goes by the bytes, not the type the browser guessed from the name", async () => {
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
+
+    pick(started, pickedFile("waves.opus", "", WAV))
+    await waitForDialog()
+    expect(optionsOf("Kind")).toEqual(["Audio"])
+    cancel()
+    await settle()
+
+    pick(started, pickedFile("jetty.ogg", "audio/ogg", PNG))
+    await waitForDialog()
+    expect(optionsOf("Kind")).toEqual(["Background", "Sprite"])
+    cancel()
+  })
+
+  // Nothing to ask about, so no Add asset dialog at all - and nothing copied, since a declaration of it
+  // would be a row saying "won't load" from the moment it arrived.
+  it("refuses a file this browser can neither show nor play, before asking anything", async () => {
+    const written = new Map<string, Blob>()
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), written })
+
+    pick(started, pickedFile("notes.txt", "text/plain", new TextEncoder().encode("not art")))
+    const notice = await waitForDialog()
+
+    expect(notice.querySelector(".vn-dialog-title")?.textContent).toBe("The asset was not added")
+    expect(notice.textContent).toContain(
+      "notes.txt is not an image this browser can show or a sound it can play, so nothing was copied into the project."
+    )
+    expect(notice.querySelector(".vn-dialog-field")).toBeNull()
+    confirm()
+    await settle()
+    expect([...written.keys()]).toEqual([])
   })
 
   it("refuses a filename a declared asset holds, and says which file is in the way", async () => {
@@ -372,7 +391,7 @@ describe("adding an asset to a stored project", () => {
     await waitFor("the new background to be drawn", () => rowKeys(started).includes("backgrounds/jetty"))
 
     const blob = await readProjectFile(PROJECT, "assets/backgrounds/jetty.png")
-    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(PNG)
 
     // **Without a flush, and that is the assertion.** The author did not type this, so there is
     // nothing for a debounce to coalesce - and while it waited, the file was on disk and the

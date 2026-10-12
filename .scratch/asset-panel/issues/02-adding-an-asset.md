@@ -34,6 +34,14 @@ all the difficulty in it.
 2. **A dialog** (`src/chrome/dialog.ts`, `<dialog>` + `showModal()`) asking three things:
    - **what kind** - background, audio, or a sprite for an actor. Prefilled from the file's type:
      `audio/*` selects audio, `image/*` selects background. A guess, and the author can change it.
+
+     *Amended 2026-10-12:* not a guess any more. The panel decodes the file first, with the loaders'
+     own `loadImage` and `loadAudio` (`src/assetLoaders/probe.ts`), and the select offers only what it
+     decoded as: an image is Background or Sprite, audio is Audio alone, shown and disabled. A file
+     that is neither is refused before the dialog opens, with nothing copied. `File.type` is the
+     browser's guess from the extension - empty for one it does not know, wrong for a renamed file,
+     silent about whether this browser plays the format - and an image added as audio went in under
+     the old guess and came out as a row the panel then called missing.
    - **which actor**, when the kind is sprite. The declared actors, plus a field for a new one.
    - **the id**, prefilled from the file's basename, and **the filename to store it under**,
      prefilled from the file's own name.

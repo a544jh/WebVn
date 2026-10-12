@@ -310,10 +310,15 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   apart.** The loaders report a path that did not load, which is also an image declared as audio, a
   format this browser cannot play, or a corrupt file. Both rows are orange; one present in the
   listing says "won't load" and keeps Preview and Replace, and only an absent one says "file missing"
-  and offers Add file. Add asset and Replace list the project again *after* writing and before the
-  reload, so the first draw already knows the file is there. Add asset's Kind also refuses a type that
-  contradicts it - an image as audio, audio as a background or sprite - but an untyped file is let
-  through, since the type is only the browser's guess from the extension.
+  and offers Add file.
+- **What a picked file is, the panel decodes rather than reads off `File.type`.** That type is the
+  browser's guess from the extension, empty for one it does not know and silent about whether this
+  browser plays the format. `src/assetLoaders/probe.ts` runs the loaders' own `loadImage` and
+  `loadAudio` over it, so what the panel lets in is what the loaders will load. Add asset's Kind offers
+  only what the file decoded as - Background or Sprite for an image, Audio alone, disabled, for a
+  sound - and a file that is neither is refused before the dialog opens; Replace refuses bytes that do
+  not decode as the row's kind. Neither copies anything on a refusal. So "won't load" now arrives only
+  by Declare, an import or another browser.
 - **Preview is `AssetResolver`'s second consumer** - `window.open(await resolver.resolve(path))`.
   That interface's comment used to say "consulted in exactly one place"; it was a fact about callers
   rather than a rule about them.
@@ -323,7 +328,8 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   about is invisible through an in-memory stand-in. **The store-less harness's listing follows its
   writes**, since the panel reads it again after every job, and two hooks reach the rest:
   `whileWriting` changes the buffer mid-copy, which is the only way to a half-done add, and `list`
-  answers listings late or out of order.
+  answers listings late or out of order. **A picked file needs real bytes** - `test/helpers/pickedFiles.ts`
+  has a PNG and a WAV - since the probe refuses three made-up ones before any dialog opens.
 
 ### The URL payload
 - **Not to be confused with `index.html?project=<directory>`**, which names a project in *this*

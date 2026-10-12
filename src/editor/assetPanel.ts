@@ -1,4 +1,5 @@
 import { AssetResolver } from "../assetLoaders/AssetResolver"
+import { Loadable, loadableAs } from "../assetLoaders/probe"
 import { confirmDialog, identifier, noticeDialog } from "../chrome/dialog"
 import { icon, IconName } from "../chrome/icons"
 import { referenceCount } from "../core/commands/references"
@@ -385,6 +386,18 @@ export class AssetPanel {
   // it takes a row control *and* a file-picker round trip. Remove keeps its confirmation because it
   // changes what the project is; replace only changes what a thing looks like.
   private async replace(leaf: DeclaredLeaf, file: File, gone: boolean): Promise<void> {
+    // The row's kind is fixed, so this is the probe Add asset filters its Kind by, asked as a yes or
+    // no: bytes that will not load as what the row declares would only trade one orange for another.
+    const needs: Loadable = leaf.kind === "audio" ? "audio" : "image"
+    if ((await loadableAs(file)) !== needs) {
+      const what = needs === "audio" ? "a sound this browser can play" : "an image this browser can show"
+      const kept = gone ? "nothing was copied into the project" : `${leaf.path} was left as it was`
+      await noticeDialog(gone ? "The file was not added" : "The asset was not replaced", [
+        `${file.name} is not ${what}, so ${kept}.`,
+      ])
+      return
+    }
+
     await this.work(gone ? "Adding\u2026" : "Replacing\u2026", async () => {
       try {
         await this.deps.files.write(leaf.path, file)
@@ -395,9 +408,6 @@ export class AssetPanel {
         ])
         return
       }
-      // Listed first, as Add asset's is: on a missing asset the file has just arrived, and new bytes
-      // that will not load are "won't load" from the first draw rather than "file missing".
-      await this.relist()
       // **And then the loaders are rebuilt**, which is the whole of this operation and is invisible
       // from the outside: `loadAsset` early-returns on a path it already holds, before it ever
       // consults the resolver, so new bytes under an unchanged path would otherwise change nothing on
@@ -566,11 +576,22 @@ export class AssetPanel {
   // the difficulty in it - an undeclared file is invisible to the engine, so copying bytes in and
   // stopping would leave the author with a file no script can reach and nothing on screen saying why.
   private async add(file: File): Promise<void> {
+    // **Decoded before anything is asked**, which is what lets the dialog offer only the kinds the
+    // file can be. A file this browser can neither show nor play is refused here, with nothing to ask
+    // about and nothing copied: declared, it would be a row that says "won't load" from the start.
+    const loads = await loadableAs(file)
+    if (loads === null) {
+      await noticeDialog("The asset was not added", [
+        `${file.name} is not an image this browser can show or a sound it can play, so nothing was copied into the project.`,
+      ])
+      return
+    }
+
     const state = this.deps.player.state
     // Asked afresh rather than read off the last listing, which is the one thing this dialog must not
     // be wrong about: a name it lets through is a file it overwrites.
     const taken = await this.deps.files.list()
-    const declaration = await askForAsset(file, {
+    const declaration = await askForAsset(file, loads, {
       // The manifest's own order, and the same walk the list is drawn from - so the actors offered
       // here cannot come to disagree with the actors shown above.
       actors: actorBranches(state).map((branch) => branch.name),
@@ -607,9 +628,6 @@ export class AssetPanel {
         ])
         return
       }
-      // **Listed before it is declared**, so the draw the adoption causes knows the file is there: a
-      // file that will not load would otherwise read "file missing" until the job's own listing.
-      await this.relist()
       const refused = await this.deps.editor.declareAsset(declaration)
       if (refused === null) return
       // Reachable only when the buffer changed while the file was being written, since the same

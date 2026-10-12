@@ -3,6 +3,7 @@ import { exists } from "../../src/storage/opfs"
 import { createProject, writeProjectFile } from "../../src/storage/projectStore"
 import { YamlParser } from "../../src/yamlParser/YamlParser"
 import { clearOpfsStore, storedManifest, storeRoot } from "../helpers/opfs"
+import { pickedFile } from "../helpers/pickedFiles"
 import {
   blurEditor,
   releaseStoredEditorLock,
@@ -389,7 +390,7 @@ describe("the rows follow the folder", () => {
       ".vn-asset-replace-input"
     ) as HTMLInputElement
     const transfer = new DataTransfer()
-    transfer.items.add(new File([new Uint8Array([7, 8, 9])], "anything.png", { type: "image/png" }))
+    transfer.items.add(pickedFile("anything.png"))
     input.files = transfer.files
     input.dispatchEvent(new Event("change"))
 
@@ -409,7 +410,7 @@ describe("the rows follow the folder", () => {
 
     const input = started.panelRoot.querySelector(".vn-asset-add-input") as HTMLInputElement
     const transfer = new DataTransfer()
-    transfer.items.add(new File([new Uint8Array([1, 2, 3])], "jetty.png", { type: "image/png" }))
+    transfer.items.add(pickedFile("jetty.png"))
     input.files = transfer.files
     input.dispatchEvent(new Event("change"))
     await waitForDialog()
@@ -463,7 +464,7 @@ describe("the rows follow the folder", () => {
 
     const input = started.panelRoot.querySelector(".vn-asset-add-input") as HTMLInputElement
     const transfer = new DataTransfer()
-    transfer.items.add(new File([new Uint8Array([1, 2, 3])], "jetty.png", { type: "image/png" }))
+    transfer.items.add(pickedFile("jetty.png"))
     input.files = transfer.files
     input.dispatchEvent(new Event("change"))
     await waitForDialog()

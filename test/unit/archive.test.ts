@@ -72,6 +72,55 @@ describe("planning an import", () => {
     expect(paths(plan)).toEqual(["script.yaml", "assets/backgrounds/room.png"])
   })
 
+  // What macOS Finder's Compress actually writes: the project's folder, and beside it a `__MACOSX`
+  // folder holding an AppleDouble `._` stub for every file. Reported 2026-10-12 as "it has no
+  // manifest.yaml" on a zip of a project folder - the second top-level folder meant there was no
+  // single wrapper to strip.
+  it("strips the wrapping directory of a zip Finder made, past the __MACOSX folder beside it", async () => {
+    const plan = await planned([
+      ...project("webvn-demo/"),
+      entry("__MACOSX/._webvn-demo", "stub"),
+      entry("__MACOSX/webvn-demo/._manifest.yaml", "stub"),
+      entry("__MACOSX/webvn-demo/assets/backgrounds/._room.png", "stub"),
+    ])
+    expect(plan.id).toEqual("cat-adventure")
+    expect(paths(plan)).toEqual(["script.yaml", "assets/backgrounds/room.png"])
+  })
+
+  it("leaves Finder's metadata out of a project whose manifest is already at the root", async () => {
+    const entries = [...project(), entry("__MACOSX/._manifest.yaml", "stub"), entry(".DS_Store", "layout")]
+    expect(paths(await planned(entries))).toEqual(["script.yaml", "assets/backgrounds/room.png"])
+  })
+
+  // Finder keeps a window's layout in one of these, and Compress takes them along. Under assets/ one
+  // would land as a file nothing declares.
+  it("leaves out the .DS_Store files Finder keeps in every folder", async () => {
+    const plan = await planned([
+      ...project("webvn-demo/"),
+      entry("webvn-demo/.DS_Store", "layout"),
+      entry("webvn-demo/assets/backgrounds/.DS_Store", "layout"),
+    ])
+    expect(paths(plan)).toEqual(["script.yaml", "assets/backgrounds/room.png"])
+  })
+
+  // A stub per file doubles the listing, and the cap is about the project.
+  it("does not count Finder's stubs against the entry cap", async () => {
+    const assets = Array.from({ length: MAX_ENTRIES - 2 }, (_, i) => entry(`p/assets/backgrounds/${i}.png`, "x"))
+    const stubs = assets.map((asset) => entry(`__MACOSX/${asset.path.replace(/[^/]+$/, (name) => `._${name}`)}`, "s"))
+    const plan = await planned([
+      entry("p/manifest.yaml", MANIFEST),
+      entry("p/script.yaml", SCRIPT),
+      ...assets,
+      ...stubs,
+    ])
+    expect(plan.files).toHaveLength(MAX_ENTRIES - 1)
+  })
+
+  // Skipped, but never before the check that refuses an entry meaning to land outside the project.
+  it("still refuses an escaping path that hides under __MACOSX", async () => {
+    expect(await refusal([...project(), entry("__MACOSX/../../stolen.txt", "x")])).toMatch(/outside the project/)
+  })
+
   it("strips a wrapping directory whatever it is called - the manifest names the project", async () => {
     expect((await planned(project("whatever-they-renamed-it/"))).id).toEqual("cat-adventure")
   })

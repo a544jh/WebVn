@@ -41,7 +41,9 @@ all the difficulty in it.
      that is neither is refused before the dialog opens, with nothing copied. `File.type` is the
      browser's guess from the extension - empty for one it does not know, wrong for a renamed file,
      silent about whether this browser plays the format - and an image added as audio went in under
-     the old guess and came out as a row the panel then called missing.
+     the old guess and came out as a row the panel then called missing. Drawn on the canvas's Asset
+     panel page as `AddAssetAudio` (the fixed Kind, muted rather than greyed), `AddAssetNeither` and
+     `ReplaceRefused`, beside `AssetWontLoad`.
    - **which actor**, when the kind is sprite. The declared actors, plus a field for a new one.
    - **the id**, prefilled from the file's basename, and **the filename to store it under**,
      prefilled from the file's own name.

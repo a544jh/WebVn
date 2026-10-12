@@ -96,7 +96,8 @@ listing. A failed load is "file missing" only when the file is not there; one th
 Replace. The gutter already said "Could not load", which is true of both. Calling a present file
 missing took away the controls that could fix it (reported as "the panel loses it"). Add asset and
 Replace now decode a picked file before it goes in, so neither can put such a file there; Declare, an
-import and another browser still can.
+import and another browser still can. The canvas draws it as `AssetWontLoad`, beside the `lament` row
+that is genuinely missing.
 
 **5. Nothing is marked as fine.** Green means stored, orange means "needs attention and the work
 still runs", red means "did not parse, or a write failed". Spending green on "the file is there"

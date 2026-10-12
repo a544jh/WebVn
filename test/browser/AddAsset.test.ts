@@ -230,6 +230,9 @@ describe("adding an asset", () => {
 
     expect(optionsOf("Kind")).toEqual(["Audio"])
     expect(selectFor("Kind").disabled).toBe(true)
+    // Muted, not dimmed: Chromium's own disabled select is at 0.7 opacity, which reads as a control
+    // that is off rather than as what the file is.
+    expect(getComputedStyle(selectFor("Kind")).opacity).toBe("1")
     confirm()
     await waitFor("the track to be drawn", () => rowKeys(started).includes("audioAssets/waves"))
     expect([...written.keys()]).toEqual(["assets/audio/waves.wav"])

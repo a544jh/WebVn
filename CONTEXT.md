@@ -76,7 +76,10 @@ _Avoid_: disabled, stripped, dropped (a dropped command would shift every index 
 **Missing asset**:
 A file the manifest declares that is not there. Invisible to a parser, because nothing but a failed
 load can tell - which is what makes it a different problem from an undeclared one rather than a
-degree of it. The asset panel marks its row "file missing" and offers **Add file** on it.
+degree of it. The asset panel marks its row "file missing" and offers **Add file** on it. A failed
+load alone does not make one: a declared file that *is* there and will not load - an image declared
+as audio, a format the browser cannot play - is not missing, and its row says "won't load" and keeps
+**Replace** and Preview.
 _Avoid_: broken asset, unloaded asset, bad asset
 
 **Undeclared file**:

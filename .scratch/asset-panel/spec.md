@@ -90,6 +90,12 @@ looks the key up with `declarationLocations(this.manifestDoc.getValue(), ...)` a
 that is the edit that caused it and a filename is the one thing an author cannot check by reading
 the two documents. The panel adds a third place that says so, not a different answer.
 
+*Amended 2026-10-12:* the panel's answer is more precise than the gutter's, because it has the
+listing. A failed load is "file missing" only when the file is not there; one that is there says
+"won't load" - an image declared as audio, a format the browser cannot play - and keeps Preview and
+Replace. The gutter already said "Could not load", which is true of both. Calling a present file
+missing took away the controls that could fix it (reported as "the panel loses it").
+
 **5. Nothing is marked as fine.** Green means stored, orange means "needs attention and the work
 still runs", red means "did not parse, or a write failed". Spending green on "the file is there"
 would cost that meaning, which `.scratch/project-library/design.md` says outright.

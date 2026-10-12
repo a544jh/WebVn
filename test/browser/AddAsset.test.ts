@@ -207,6 +207,51 @@ describe("adding an asset", () => {
     cancel()
   })
 
+  // Beside Kind, because that is the field the author got wrong. An image declared as audio would be
+  // added, declared and then never play, and its row would be the only place saying why.
+  it("refuses an image as audio, beside Kind, and copies nothing", async () => {
+    const written = new Map<string, Blob>()
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), written })
+
+    pick(started, pickedFile("jetty.png"))
+    await waitForDialog()
+    choose("Kind", "Audio")
+    confirm()
+
+    expect(openDialog()).not.toBeNull()
+    expect(hintOf("Kind")).toBe("This file is an image, so it cannot be played as audio.")
+    expect([...written.keys()]).toEqual([])
+    cancel()
+  })
+
+  it("refuses audio as a sprite", async () => {
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets() })
+
+    pick(started, pickedFile("waves.ogg", "audio/ogg"))
+    await waitForDialog()
+    choose("Kind", "Sprite")
+    confirm()
+
+    expect(openDialog()).not.toBeNull()
+    expect(hintOf("Kind")).toBe("This file is audio, so it cannot be shown as a sprite.")
+    cancel()
+  })
+
+  // The type is the browser's guess from the extension, and an empty one is a file it could not guess
+  // about - not one that is wrong.
+  it("lets a file the browser could not type be added as any kind", async () => {
+    const written = new Map<string, Blob>()
+    const started = await startEditor(MANIFEST, SCRIPT, { resolver: servedAssets(), written })
+
+    pick(started, pickedFile("waves.opus", ""))
+    await waitForDialog()
+    choose("Kind", "Audio")
+    confirm()
+
+    await waitFor("the track to be drawn", () => rowKeys(started).includes("audioAssets/waves"))
+    expect([...written.keys()]).toEqual(["assets/audio/waves.opus"])
+  })
+
   it("refuses a filename a declared asset holds, and says which file is in the way", async () => {
     const started = await startEditor(MANIFEST, SCRIPT, {
       resolver: servedAssets(),

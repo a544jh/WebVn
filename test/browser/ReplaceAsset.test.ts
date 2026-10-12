@@ -243,6 +243,32 @@ describe("replacing an asset", () => {
     )
   })
 
+  // **A load that failed is not a file that is missing.** Bytes the browser cannot load as what they
+  // are declared as are still a file in the project, and the row went on calling it missing - taking
+  // its Preview away and offering to add it - which lost the very file just written (reported
+  // 2026-10-12, with an image added as audio). The same row is reached by a corrupt file, a format
+  // this browser cannot play, or a Declare of a file in the wrong folder.
+  it("says a file that is there but will not load won't load, and keeps it reachable", async () => {
+    const started = await startEditorFromStore(PROJECT)
+    await waitFor("the missing file to be reported", () =>
+      row(started, "backgrounds/storm").classList.contains("vn-asset-missing")
+    )
+
+    pickInto(started, "backgrounds/storm", new File(["not an image"], "storm.png"))
+
+    await waitFor(
+      "the row to say the file is there",
+      () => replaceControl(started, "backgrounds/storm").getAttribute("aria-label") === "Replace storm"
+    )
+    // Still orange: the stage cannot draw it any more than it could draw nothing.
+    expect(row(started, "backgrounds/storm").classList.contains("vn-asset-missing")).toBe(true)
+    expect((row(started, "backgrounds/storm").querySelector(".vn-asset-note") as HTMLElement).textContent).toBe(
+      "won't load"
+    )
+    // And the file can be looked at, which is how an author finds out what it actually is.
+    expect(previewControl(started, "backgrounds/storm")).not.toBeNull()
+  })
+
   it("is disabled while the manifest does not parse, and says why", async () => {
     const started = await startEditorFromStore(PROJECT)
     expect(replaceControl(started, "backgrounds/cliffs").disabled).toBe(false)

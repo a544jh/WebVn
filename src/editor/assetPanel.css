@@ -143,10 +143,11 @@
   color: #555;
 }
 
-/* A declared file that is not there. Orange rather than red, and not an error: declaring art before
-   it is drawn is the normal authoring order, the manifest is adopted anyway, and the story plays
-   right up until it reaches the asset. The manifest gutter says which line declared it; this says
-   which asset. */
+/* A declared file that did not load: not there, or there and not something this browser can load as
+   what it is declared as - the note says which. Orange rather than red, and not an error: declaring
+   art before it is drawn is the normal authoring order, the manifest is adopted anyway, and the story
+   plays right up until it reaches the asset. The manifest gutter says which line declared it; this
+   says which asset. */
 .vn-asset-missing .vn-asset-file {
   color: var(--vn-editor-status-warning);
 }

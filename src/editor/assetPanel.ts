@@ -297,18 +297,24 @@ export class AssetPanel {
   // cursor is somewhere the id is not legal.
   private row(leaf: DeclaredLeaf, missing: Set<string>): HTMLElement {
     const key = leafKey(leaf.manifestKey)
-    const gone = missing.has(key)
+    const failed = missing.has(key)
+    // **A load that failed is not a file that is missing**, and only the listing can tell them apart:
+    // the loaders report a path that did not load, which is also an image declared as audio, a format
+    // this browser cannot play, or a file that is corrupt. Saying "file missing" over a file that is
+    // right there - and taking its Preview away, and offering to add it - lost the very file the
+    // author had just added (reported 2026-10-12).
+    const gone = failed && !this.files.has(leaf.path)
 
     const row = element("div", "vn-asset-row")
     if (leaf.kind === "sprite") row.classList.add("vn-asset-row-sprite")
-    row.classList.toggle("vn-asset-missing", gone)
+    row.classList.toggle("vn-asset-missing", failed)
     row.dataset.vnAsset = key
 
     row.appendChild(text("span", "vn-asset-id", leaf.id))
     row.appendChild(text("span", "vn-asset-file", leaf.file))
     // Said as well as coloured: a filename is the one thing an author cannot check by reading the
     // two documents, so the row says what is wrong rather than only that something is.
-    if (gone) row.appendChild(text("span", "vn-asset-note", "file missing"))
+    if (failed) row.appendChild(text("span", "vn-asset-note", gone ? "file missing" : "won't load"))
     row.appendChild(this.controls(leaf, gone))
     return row
   }
@@ -389,6 +395,9 @@ export class AssetPanel {
         ])
         return
       }
+      // Listed first, as Add asset's is: on a missing asset the file has just arrived, and new bytes
+      // that will not load are "won't load" from the first draw rather than "file missing".
+      await this.relist()
       // **And then the loaders are rebuilt**, which is the whole of this operation and is invisible
       // from the outside: `loadAsset` early-returns on a path it already holds, before it ever
       // consults the resolver, so new bytes under an unchanged path would otherwise change nothing on
@@ -423,7 +432,11 @@ export class AssetPanel {
       actorDeclared: declares.kind !== "sprite" || declaresActor(state, declares.actor),
       held: (asked) => {
         const leaf = declaredLeaf(state, asked)
-        return leaf === undefined ? null : { file: leaf.file, missing: missing.has(leafKey(leaf.manifestKey)) }
+        // Missing as the row says it, since the refusal tells the author so: a file that is there and
+        // will not load is not missing, and the row's Replace is the way to give it new bytes.
+        return leaf === undefined
+          ? null
+          : { file: leaf.file, missing: missing.has(leafKey(leaf.manifestKey)) && !this.files.has(leaf.path) }
       },
     })
     if (declaration === null) return
@@ -594,6 +607,9 @@ export class AssetPanel {
         ])
         return
       }
+      // **Listed before it is declared**, so the draw the adoption causes knows the file is there: a
+      // file that will not load would otherwise read "file missing" until the job's own listing.
+      await this.relist()
       const refused = await this.deps.editor.declareAsset(declaration)
       if (refused === null) return
       // Reachable only when the buffer changed while the file was being written, since the same

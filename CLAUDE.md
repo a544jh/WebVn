@@ -306,6 +306,14 @@ test-assets/       the demo project — manifest.yaml, script.yaml and assets/, 
   The panel goes through `VnEditor.reloadAssets` rather than the renderer, so it never learns which
   renderer it has, and because the manifest gutter has to be *rebuilt*: a file that has arrived is no
   longer missing, and a gutter can only forget a marker by being cleared.
+- **A load that failed is not a file that is missing, and the panel's listing is what tells them
+  apart.** The loaders report a path that did not load, which is also an image declared as audio, a
+  format this browser cannot play, or a corrupt file. Both rows are orange; one present in the
+  listing says "won't load" and keeps Preview and Replace, and only an absent one says "file missing"
+  and offers Add file. Add asset and Replace list the project again *after* writing and before the
+  reload, so the first draw already knows the file is there. Add asset's Kind also refuses a type that
+  contradicts it - an image as audio, audio as a background or sprite - but an untyped file is let
+  through, since the type is only the browser's guess from the extension.
 - **Preview is `AssetResolver`'s second consumer** - `window.open(await resolver.resolve(path))`.
   That interface's comment used to say "consulted in exactly one place"; it was a fact about callers
   rather than a rule about them.

@@ -145,6 +145,9 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
     // **Every field, and every one marked**, so an author fixing one is not sent back for the other.
     validate: () => {
       const declaration = described()
+      const kindProblem = kindMismatch(file.type, declaration.kind)
+      kind.setProblem(kindProblem)
+
       const actorProblem =
         declaration.kind === "sprite" && newActor()
           ? declaration.actor === ""
@@ -176,12 +179,27 @@ export const askForAsset = async (file: File, choices: AssetChoices): Promise<As
           : null
       fileName.setProblem(fileProblem)
 
-      return actorProblem === null && idProblem === null && fileProblem === null
+      return kindProblem === null && actorProblem === null && idProblem === null && fileProblem === null
     },
   })
 
   return confirmed ? described() : null
 }
+
+// Why the picked file cannot be the kind chosen for it, or null when nothing says it cannot.
+//
+// **Only a type that contradicts the kind is refused** - an image as audio, audio as a background or a
+// sprite - because the type is the browser's guess from the extension, and an empty one is a file it
+// could not guess about rather than one that is wrong. What gets past this and still does not load is
+// the panel's "won't load", which is also where a file arriving by Declare or Replace ends up.
+const kindMismatch = (type: string, kind: AssetKind): string | null =>
+  kind === "audio"
+    ? type.startsWith("image/")
+      ? "This file is an image, so it cannot be played as audio."
+      : null
+    : type.startsWith("audio/")
+    ? `This file is audio, so it cannot be shown as ${kind === "sprite" ? "a sprite" : "a background"}.`
+    : null
 
 // What `Declare` asks about a file already in the project: only its id. Where the file is fixes the
 // kind, the actor and the filename - changing any of them would mean moving the file - so they are

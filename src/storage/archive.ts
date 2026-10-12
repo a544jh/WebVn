@@ -207,7 +207,8 @@ export const isPlainRelativePath = (path: string): boolean => {
 //
 // This matters more than the layout does: the natural way to re-zip an edited project - macOS
 // right-click Compress, Windows "Send to compressed folder" - operates on the *folder* and produces
-// a wrapped archive. A format meant to be opened by hand has to accept what a hand puts back.
+// a wrapped archive. A format meant to be opened by hand has to accept what a hand puts back. Finder's
+// also puts a second folder beside it, which is why `isFinderMetadata` has to run first.
 const unwrapped = (entries: readonly ArchiveEntry[]): readonly ArchiveEntry[] => {
   if (entries.some((entry) => entry.path === MANIFEST_FILE)) return entries
 
@@ -219,6 +220,15 @@ const unwrapped = (entries: readonly ArchiveEntry[]): readonly ArchiveEntry[] =>
 
   return entries.map((entry) => ({ ...entry, path: entry.path.slice(prefix.length + 1) }))
 }
+
+// What macOS Finder's Compress puts in a zip that is not the project: a `__MACOSX` folder beside the
+// project's own, holding an AppleDouble `._` stub for every file, and the `.DS_Store` files Finder
+// keeps a folder's window layout in. Neither is the author's work, and the first stopped every zip of a
+// project folder made in Finder importing at all - a second top-level folder means there is no single
+// wrapper for `unwrapped` to strip, so the manifest was never found (reported 2026-10-12). Skipped
+// before the caps as well, since a stub per file doubles the listing.
+const isFinderMetadata = (path: string): boolean =>
+  path.split("/")[0] === "__MACOSX" || path.split("/").pop() === ".DS_Store"
 
 const firstError = (errors: ParserError[]): ParserError | undefined =>
   errors.find((error) => error.level === ErrorLevel.ERROR) ?? errors[0]
@@ -254,7 +264,8 @@ export const planImport = async (
     )
   }
 
-  const files = unwrapped(entries)
+  // After the check above, which reads every entry: a skipped one still may not mean to escape.
+  const files = unwrapped(entries.filter((entry) => !isFinderMetadata(entry.path)))
 
   if (files.length > MAX_ENTRIES) {
     return refuse(

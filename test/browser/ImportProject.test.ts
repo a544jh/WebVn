@@ -75,11 +75,31 @@ describe("importing an archive", () => {
   })
 
   it("takes the identity from the manifest rather than from a wrapping directory", async () => {
-    // What macOS right-click Compress and Windows "Send to compressed folder" produce: the folder,
-    // wrapped, under whatever name it had on the author's disk.
+    // What Windows "Send to compressed folder" produces: the folder, wrapped, under whatever name it
+    // had on the author's disk.
     await importArchive(await zipOf(archiveOf(IMPORTED, "some-other-folder/")), neverAsked)
 
     expect(await readImported("assets/backgrounds/room.png")).toEqual(PNG)
+  })
+
+  // What macOS Finder's Compress produces, which the test above used to claim to be and was not: the
+  // wrapped folder, plus a `__MACOSX` folder of AppleDouble stubs beside it and the `.DS_Store` Finder
+  // keeps in a folder. Refused as "it has no manifest.yaml" until 2026-10-12.
+  it("imports a zip Finder made, and leaves Finder's metadata behind", async () => {
+    const finder = {
+      ...archiveOf(IMPORTED, "my-story/"),
+      "my-story/.DS_Store": "layout",
+      "__MACOSX/._my-story": "stub",
+      "__MACOSX/my-story/._manifest.yaml": "stub",
+      "__MACOSX/my-story/assets/backgrounds/._room.png": "stub",
+    }
+    const result = await importArchive(await zipOf(finder), neverAsked)
+
+    expect(result.kind).toEqual("imported")
+    expect(await readImported("assets/backgrounds/room.png")).toEqual(PNG)
+    const root = await storeRoot(SCRATCH)
+    expect(await exists(root, `projects/${IMPORTED}/__MACOSX`)).toBe(false)
+    expect(await exists(root, `projects/${IMPORTED}/.DS_Store`)).toBe(false)
   })
 
   it("leaves the generated README out of the project it writes", async () => {

@@ -665,7 +665,12 @@ when this landed, and `npm run build` prints every bundle's size.) The library i
 - **`README.txt` is the one place an archive is not exactly the project tree**, generated at the root
   and skipped on import by exact path, so a README an author put in their own project round-trips.
   Import skips the player a published zip carries the same way (`NOT_THE_PROJECT`), which is what
-  makes a published zip import as exactly the project it was built from. Its
+  makes a published zip import as exactly the project it was built from. **And what macOS Finder's
+  Compress adds is skipped before anything else looks at the listing** - the `__MACOSX/` folder of
+  AppleDouble `._` stubs and every `.DS_Store` (`isFinderMetadata`). `__MACOSX` beside the project's
+  folder meant there was no single wrapper to strip, so every zip of a project folder made in Finder
+  was refused as having no manifest until 2026-10-12; the escape check still runs over those entries
+  first. Its
   wording ships inside every archive already exported and cannot be corrected later: no architecture
   in it, and an instruction rather than a prohibition. The app URL is hardcoded, because an archive
   outlives any one deployment of the app.
